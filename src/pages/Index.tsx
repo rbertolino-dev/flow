@@ -6,19 +6,20 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { useAutoSync } from "@/hooks/useAutoSync";
-import { LeadStatus } from "@/types/lead";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import Settings from "./Settings";
+import { Input } from "@/components/ui/input";
 
 const Index = () => {
   const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings">("kanban");
+  const [searchQuery, setSearchQuery] = useState("");
   const { leads, loading: leadsLoading, updateLeadStatus } = useLeads();
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall } = useCallQueue();
   
   // Sincronização automática a cada 5 minutos
   const { lastSync, nextSync, isSyncing } = useAutoSync({ intervalMinutes: 5, enabled: true });
 
-  const handleLeadUpdate = (leadId: string, newStatus: LeadStatus) => {
+  const handleLeadUpdate = (leadId: string, newStatus: string) => {
     updateLeadStatus(leadId, newStatus);
   };
 
@@ -47,13 +48,24 @@ const Index = () => {
       >
       {activeView === "kanban" && (
         <div className="h-full bg-background">
-          <div className="p-6 border-b border-border">
-            <h1 className="text-3xl font-bold mb-2">Funil de Vendas</h1>
-            <p className="text-muted-foreground">
-              Gerencie seus leads através do pipeline de vendas
-            </p>
+          <div className="p-6 border-b border-border space-y-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Funil de Vendas</h1>
+              <p className="text-muted-foreground">
+                Gerencie seus leads através do pipeline de vendas
+              </p>
+            </div>
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, telefone ou etiqueta..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
-          <KanbanBoard leads={leads} onLeadUpdate={handleLeadUpdate} />
+          <KanbanBoard leads={leads} onLeadUpdate={handleLeadUpdate} searchQuery={searchQuery} />
         </div>
       )}
 

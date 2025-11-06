@@ -11,10 +11,11 @@ import { Loader2 } from "lucide-react";
 
 interface KanbanBoardProps {
   leads: Lead[];
-  onLeadUpdate: (leadId: string, newStatus: LeadStatus) => void;
+  onLeadUpdate: (leadId: string, newStatus: string) => void;
+  searchQuery?: string;
 }
 
-export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { stages, loading: stagesLoading } = usePipelineStages();
@@ -40,11 +41,17 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
     const leadId = active.id as string;
     const newStageId = over.id as string;
 
-    // Check if dropping onto a stage column
-    if (stages.some((stage) => stage.id === newStageId)) {
-      onLeadUpdate(leadId, newStageId as LeadStatus);
-    }
+    onLeadUpdate(leadId, newStageId);
   };
+
+  const filteredLeads = leads.filter(lead => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    const matchesName = lead.name.toLowerCase().includes(query);
+    const matchesPhone = lead.phone.includes(query);
+    const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+    return matchesName || matchesPhone || matchesTags;
+  });
 
   const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
 
@@ -52,9 +59,9 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
     <>
       <DndContext collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 h-full overflow-x-auto p-6">
-          {stages.map((stage) => {
-            const columnLeads = leads.filter((lead) => lead.stageId === stage.id);
-            const totalValue = columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+            {stages.map((stage) => {
+              const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
+              const totalValue = columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
 
             return (
               <SortableContext

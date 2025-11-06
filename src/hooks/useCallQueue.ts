@@ -40,23 +40,32 @@ export function useCallQueue() {
           *,
           leads (
             name,
-            phone
+            phone,
+            lead_tags (
+              tags (id, name, color)
+            )
           )
         `)
         .order('scheduled_for', { ascending: true });
 
       if (error) throw error;
 
-      const formattedQueue = (queueData || []).map((item) => ({
-        id: item.id,
-        leadId: item.lead_id,
-        leadName: (item.leads as any)?.name || 'Nome não disponível',
-        phone: (item.leads as any)?.phone || '',
-        scheduledFor: item.scheduled_for ? new Date(item.scheduled_for) : undefined,
-        priority: (item.priority || 'medium') as 'high' | 'medium' | 'low',
-        status: (item.status || 'pending') as 'pending' | 'completed' | 'rescheduled',
-        notes: item.notes || undefined,
-      })) as CallQueueItem[];
+      const formattedQueue = (queueData || []).map((item) => {
+        const leadTags = (item.leads as any)?.lead_tags || [];
+        const tags = leadTags.map((lt: any) => lt.tags).filter(Boolean);
+        
+        return {
+          id: item.id,
+          leadId: item.lead_id,
+          leadName: (item.leads as any)?.name || 'Nome não disponível',
+          phone: (item.leads as any)?.phone || '',
+          scheduledFor: item.scheduled_for ? new Date(item.scheduled_for) : undefined,
+          priority: (item.priority || 'medium') as 'high' | 'medium' | 'low',
+          status: (item.status || 'pending') as 'pending' | 'completed' | 'rescheduled',
+          notes: item.notes || undefined,
+          tags: tags,
+        };
+      }) as CallQueueItem[];
 
       setCallQueue(formattedQueue);
     } catch (error: any) {

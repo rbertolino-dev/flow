@@ -8,7 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,18 @@ import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
+import { useLeads } from "@/hooks/useLeads";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -41,8 +53,16 @@ const activityColors = {
 export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
   const { addToQueue } = useCallQueue();
+  const { deleteLead } = useLeads();
   const { toast } = useToast();
   const [selectedTagId, setSelectedTagId] = useState<string>("");
+
+  const handleDeleteLead = async () => {
+    const success = await deleteLead(lead.id);
+    if (success) {
+      onClose();
+    }
+  };
 
   const handleAddTag = async () => {
     if (!selectedTagId) return;
@@ -279,6 +299,28 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
         <Separator />
 
         <div className="p-6 pt-4 flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. O contato será removido do funil e da fila de ligações.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteLead} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Confirmar exclusão
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button variant="outline" onClick={onClose}>
             Fechar
           </Button>

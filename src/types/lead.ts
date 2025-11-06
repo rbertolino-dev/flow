@@ -43,4 +43,5 @@ export interface CallQueueItem {
   priority: "high" | "medium" | "low";
   status: "pending" | "completed" | "rescheduled";
   notes?: string;
+  tags?: Tag[];
 }

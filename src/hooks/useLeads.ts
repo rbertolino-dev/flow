@@ -47,6 +47,7 @@ export function useLeads() {
       const { data: leadsData, error: leadsError } = await (supabase as any)
         .from('leads')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (leadsError) throw leadsError;
@@ -106,7 +107,7 @@ export function useLeads() {
     }
   };
 
-  const updateLeadStatus = async (leadId: string, newStageId: LeadStatus) => {
+  const updateLeadStatus = async (leadId: string, newStageId: string) => {
     try {
       const { error } = await (supabase as any)
         .from('leads')
@@ -141,5 +142,31 @@ export function useLeads() {
     }
   };
 
-  return { leads, loading, updateLeadStatus, refetch: fetchLeads };
+  const deleteLead = async (leadId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('leads')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', leadId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Contato excluído",
+        description: "O contato foi removido do funil.",
+      });
+
+      await fetchLeads();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir contato",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  return { leads, loading, updateLeadStatus, deleteLead, refetch: fetchLeads };
 }
