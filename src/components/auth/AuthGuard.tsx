@@ -48,7 +48,23 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!authenticated) {
-    return null;
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-background p-6">
+        <div className="max-w-md w-full space-y-4 text-center">
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+            <h2 className="text-lg font-semibold text-destructive mb-2">
+              Acesso Negado
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Você precisa estar autenticado para acessar o CRM.
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Redirecionando para login...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
