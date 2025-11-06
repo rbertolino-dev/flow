@@ -1,1 +1,4 @@
 project_id = "orcbxgajfhgmjobsjlix"
+
+[functions.evolution-webhook]
+verify_jwt = false
