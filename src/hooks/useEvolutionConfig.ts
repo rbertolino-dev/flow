@@ -136,16 +136,28 @@ export function useEvolutionConfig() {
         if (error) throw error;
       }
 
+      // Verificar se foi salvo no banco
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const { data: savedConfig, error: checkError } = await (supabase as any)
+        .from('evolution_config')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (checkError || !savedConfig) {
+        throw new Error("Erro ao verificar salvamento no banco de dados");
+      }
+
       toast({
-        title: "Configuração salva",
-        description: "As configurações da Evolution API foram salvas com sucesso.",
+        title: "✅ Configuração salva",
+        description: "As configurações foram salvas e verificadas no banco de dados.",
       });
 
       await fetchConfig();
       return true;
     } catch (error: any) {
       toast({
-        title: "Erro ao salvar configuração",
+        title: "❌ Erro ao salvar configuração",
         description: error.message,
         variant: "destructive",
       });

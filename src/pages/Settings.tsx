@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { WebhookTestPanel } from "@/components/crm/WebhookTestPanel";
+import { SendTestMessagePanel } from "@/components/crm/SendTestMessagePanel";
 
 export default function Settings() {
   const { config, loading, saveConfig, configureWebhook, testConnection, verifyIntegration } = useEvolutionConfig();
@@ -529,6 +530,9 @@ Headers:
             )}
           </CardContent>
         </Card>
+
+        {/* Send Test Message Panel */}
+        {config && <SendTestMessagePanel config={config} />}
 
         {/* Webhook Test Panel */}
         {config && <WebhookTestPanel config={config} />}
