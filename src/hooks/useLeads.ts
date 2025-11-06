@@ -106,12 +106,12 @@ export function useLeads() {
     }
   };
 
-  const updateLeadStatus = async (leadId: string, newStatus: LeadStatus) => {
+  const updateLeadStatus = async (leadId: string, newStageId: LeadStatus) => {
     try {
       const { error } = await (supabase as any)
         .from('leads')
         .update({ 
-          status: newStatus,
+          stage_id: newStageId,
           last_contact: new Date().toISOString()
         })
         .eq('id', leadId);
@@ -122,7 +122,7 @@ export function useLeads() {
       await (supabase as any).from('activities').insert({
         lead_id: leadId,
         type: 'status_change',
-        content: `Lead movido para ${newStatus}`,
+        content: `Lead movido para nova etapa`,
         user_name: 'Sistema',
       });
 
