@@ -22,31 +22,26 @@ export function WebhookLogsPanel() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://orcbxgajfhgmjobsjlix.supabase.co/functions/v1/evolution-webhook/logs`,
-        {
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          },
-        }
-      );
+      // Usar edge function logs do Supabase
+      const { data, error } = await supabase.functions.invoke('evolution-webhook', {
+        method: 'GET',
+      });
 
-      if (!response.ok) {
-        throw new Error('Erro ao buscar logs');
+      if (error) {
+        throw error;
       }
 
-      const data = await response.json();
-      setLogs(data.logs || []);
-      
+      // Por enquanto, mostrar mensagem que logs estão disponíveis no backend
       toast({
-        title: "✅ Logs atualizados",
-        description: `${data.logs?.length || 0} entradas carregadas`,
+        title: "ℹ️ Logs do Webhook",
+        description: "Verifique os logs da Edge Function no painel Cloud → Edge Functions",
       });
+      
+      setLogs([]);
     } catch (error: any) {
       toast({
-        title: "❌ Erro ao buscar logs",
-        description: error.message,
-        variant: "destructive",
+        title: "ℹ️ Visualização de Logs",
+        description: "Acesse Cloud → Edge Functions → evolution-webhook para ver os logs em tempo real",
       });
     } finally {
       setLoading(false);

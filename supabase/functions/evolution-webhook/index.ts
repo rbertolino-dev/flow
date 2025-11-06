@@ -36,8 +36,33 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Verificar se há corpo na requisição
+    const contentType = req.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      console.log('⚠️ Requisição sem Content-Type JSON');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Content-Type deve ser application/json' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     // Parse e valida o payload
-    const rawPayload = await req.json();
+    const text = await req.text();
+    if (!text || text.trim() === '') {
+      console.log('⚠️ Corpo da requisição vazio');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Corpo da requisição vazio' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    const rawPayload = JSON.parse(text);
     console.log('📥 Webhook recebido:', JSON.stringify(rawPayload, null, 2));
     
     const validationResult = evolutionWebhookSchema.safeParse(rawPayload);

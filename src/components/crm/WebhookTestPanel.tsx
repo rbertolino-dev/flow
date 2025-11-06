@@ -121,7 +121,6 @@ export function WebhookTestPanel({ config }: { config: any }) {
 
         // Step 5: Test webhook endpoint
         updateStep(4, { status: 'running' });
-        const webhookUrl = ((import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin) + '/functions/v1/evolution-webhook';
         
         try {
           const testPayload = {
@@ -139,13 +138,21 @@ export function WebhookTestPanel({ config }: { config: any }) {
             }
           };
 
-          const testResponse = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(testPayload),
+          // Importar supabase client
+          const { supabase } = await import('@/integrations/supabase/client');
+          
+          const { data: testResponse, error } = await supabase.functions.invoke('evolution-webhook', {
+            body: testPayload,
           });
 
-          if (testResponse.ok) {
+          if (error) {
+            const errorData = await error;
+            updateStep(4, { 
+              status: 'error', 
+              message: 'Webhook não respondeu corretamente',
+              details: JSON.stringify(errorData).slice(0, 100)
+            });
+          } else {
             updateStep(4, { 
               status: 'success', 
               message: 'Webhook funcionando',
@@ -155,13 +162,6 @@ export function WebhookTestPanel({ config }: { config: any }) {
             toast({
               title: "✅ Teste concluído!",
               description: "Um lead de teste foi criado. Verifique o funil de vendas.",
-            });
-          } else {
-            const errorText = await testResponse.text();
-            updateStep(4, { 
-              status: 'error', 
-              message: 'Webhook não respondeu corretamente',
-              details: errorText.slice(0, 100)
             });
           }
         } catch (error: any) {
