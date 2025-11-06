@@ -52,7 +52,33 @@ export function usePipelineStages() {
 
       if (error) throw error;
 
-      setStages(data || []);
+      // Se não houver etapas, criamos etapas padrão automaticamente
+      if (!data || data.length === 0) {
+        const defaults = [
+          { name: 'Novo Lead', color: '#10b981', position: 0 },
+          { name: 'Contato Feito', color: '#3b82f6', position: 1 },
+          { name: 'Proposta Enviada', color: '#8b5cf6', position: 2 },
+          { name: 'Em Negociação', color: '#f59e0b', position: 3 },
+          { name: 'Ganho', color: '#22c55e', position: 4 },
+          { name: 'Perdido', color: '#ef4444', position: 5 },
+        ];
+
+        const { error: insertError } = await (supabase as any)
+          .from('pipeline_stages')
+          .insert(defaults.map(d => ({ ...d, user_id: session.user.id })));
+
+        if (insertError) throw insertError;
+
+        const { data: refetched, error: refetchError } = await (supabase as any)
+          .from('pipeline_stages')
+          .select('*')
+          .order('position', { ascending: true });
+
+        if (refetchError) throw refetchError;
+        setStages(refetched || []);
+      } else {
+        setStages(data || []);
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao carregar etapas",
