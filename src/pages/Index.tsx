@@ -5,6 +5,7 @@ import { CallQueue } from "@/components/crm/CallQueue";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
+import { useAutoSync } from "@/hooks/useAutoSync";
 import { LeadStatus } from "@/types/lead";
 import { Loader2 } from "lucide-react";
 import Settings from "./Settings";
@@ -13,6 +14,9 @@ const Index = () => {
   const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings">("kanban");
   const { leads, loading: leadsLoading, updateLeadStatus } = useLeads();
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall } = useCallQueue();
+  
+  // Sincronização automática a cada 5 minutos
+  useAutoSync({ intervalMinutes: 5, enabled: true });
 
   const handleLeadUpdate = (leadId: string, newStatus: LeadStatus) => {
     updateLeadStatus(leadId, newStatus);
