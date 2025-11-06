@@ -8,10 +8,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { useTags } from "@/hooks/useTags";
+import { useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useCallQueue } from "@/hooks/useCallQueue";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -34,6 +39,60 @@ const activityColors = {
 };
 
 export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
+  const { tags, addTagToLead, removeTagFromLead } = useTags();
+  const { addToQueue } = useCallQueue();
+  const { toast } = useToast();
+  const [selectedTagId, setSelectedTagId] = useState<string>("");
+
+  const handleAddTag = async () => {
+    if (!selectedTagId) return;
+    const success = await addTagToLead(lead.id, selectedTagId);
+    if (success) {
+      setSelectedTagId("");
+      toast({
+        title: "Etiqueta adicionada",
+        description: "A etiqueta foi adicionada ao lead.",
+      });
+    }
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    await removeTagFromLead(lead.id, tagId);
+    toast({
+      title: "Etiqueta removida",
+      description: "A etiqueta foi removida do lead.",
+    });
+  };
+
+  const handleAddToCallQueue = async () => {
+    const firstMessage = lead.activities
+      .filter(a => a.type === 'whatsapp')
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())[0];
+
+    const notes = firstMessage 
+      ? `Primeira mensagem: "${firstMessage.content.substring(0, 100)}${firstMessage.content.length > 100 ? '...' : ''}"`
+      : undefined;
+
+    const success = await addToQueue({
+      leadId: lead.id,
+      leadName: lead.name,
+      phone: lead.phone,
+      priority: 'medium',
+      notes,
+    });
+
+    if (success) {
+      toast({
+        title: "Adicionado à fila",
+        description: "O lead foi adicionado à fila de ligações.",
+      });
+    }
+  };
+
+  const availableTags = tags.filter(
+    tag => !lead.tags?.some(lt => lt.id === tag.id)
+  );
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0">
@@ -123,6 +182,71 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
             <Separator />
 
+            {/* Tags Section */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <TagIcon className="h-5 w-5" />
+                Etiquetas
+              </h3>
+              <div className="space-y-3">
+                {lead.tags && lead.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {lead.tags.map((tag) => (
+                      <Badge
+                        key={tag.id}
+                        variant="outline"
+                        style={{ 
+                          backgroundColor: `${tag.color}20`, 
+                          borderColor: tag.color,
+                          color: tag.color 
+                        }}
+                        className="gap-1"
+                      >
+                        {tag.name}
+                        <button
+                          onClick={() => handleRemoveTag(tag.id)}
+                          className="ml-1 hover:bg-white/20 rounded-full"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {availableTags.length > 0 && (
+                  <div className="flex gap-2">
+                    <Select value={selectedTagId} onValueChange={setSelectedTagId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione uma etiqueta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTags.map((tag) => (
+                          <SelectItem key={tag.id} value={tag.id}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              {tag.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={handleAddTag}
+                      disabled={!selectedTagId}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Activity Timeline */}
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Histórico de Atividades</h3>
@@ -155,8 +279,12 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
         <Separator />
 
         <div className="p-6 pt-4 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Fechar
+          </Button>
+          <Button variant="secondary" onClick={handleAddToCallQueue}>
+            <PhoneCall className="h-4 w-4 mr-2" />
+            Adicionar à Fila
           </Button>
           <Button className="flex-1">
             <MessageSquare className="h-4 w-4 mr-2" />

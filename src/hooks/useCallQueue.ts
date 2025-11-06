@@ -104,5 +104,34 @@ export function useCallQueue() {
     });
   };
 
-  return { callQueue, loading, completeCall, rescheduleCall, refetch: fetchCallQueue };
+  const addToQueue = async (item: Omit<CallQueueItem, 'id' | 'status'>) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return false;
+
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .insert({
+          lead_id: item.leadId,
+          scheduled_for: item.scheduledFor?.toISOString() || null,
+          priority: item.priority,
+          notes: item.notes,
+          status: 'pending',
+        });
+
+      if (error) throw error;
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao adicionar à fila",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  return { callQueue, loading, completeCall, rescheduleCall, addToQueue, refetch: fetchCallQueue };
 }

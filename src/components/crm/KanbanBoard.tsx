@@ -6,24 +6,26 @@ import { DndContext, DragEndEvent, DragOverlay, closestCorners } from "@dnd-kit/
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { usePipelineStages, PipelineStage } from "@/hooks/usePipelineStages";
+import { Loader2 } from "lucide-react";
 
 interface KanbanBoardProps {
   leads: Lead[];
   onLeadUpdate: (leadId: string, newStatus: LeadStatus) => void;
 }
 
-const columns: { id: LeadStatus; label: string; color: string }[] = [
-  { id: "novo", label: "Novo Lead", color: "bg-muted text-muted-foreground" },
-  { id: "contatado", label: "Contato Feito", color: "bg-primary text-primary-foreground" },
-  { id: "proposta", label: "Proposta Enviada", color: "bg-accent text-accent-foreground" },
-  { id: "negociacao", label: "Em Negociação", color: "bg-warning text-warning-foreground" },
-  { id: "ganho", label: "Ganho", color: "bg-success text-success-foreground" },
-  { id: "perdido", label: "Perdido", color: "bg-destructive text-destructive-foreground" },
-];
-
 export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const { stages, loading: stagesLoading } = usePipelineStages();
+
+  if (stagesLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleDragStart = (event: any) => {
     setActiveId(event.active.id);
@@ -36,11 +38,11 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
     if (!over) return;
 
     const leadId = active.id as string;
-    const newStatus = over.id as LeadStatus;
+    const newStageId = over.id as string;
 
-    // Check if dropping onto a column (not another card)
-    if (columns.some((col) => col.id === newStatus)) {
-      onLeadUpdate(leadId, newStatus);
+    // Check if dropping onto a stage column
+    if (stages.some((stage) => stage.id === newStageId)) {
+      onLeadUpdate(leadId, newStageId as LeadStatus);
     }
   };
 
@@ -50,22 +52,29 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
     <>
       <DndContext collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 h-full overflow-x-auto p-6">
-          {columns.map((column) => {
-            const columnLeads = leads.filter((lead) => lead.status === column.id);
+          {stages.map((stage) => {
+            const columnLeads = leads.filter((lead) => lead.stageId === stage.id);
             const totalValue = columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
 
             return (
               <SortableContext
-                key={column.id}
-                id={column.id}
+                key={stage.id}
+                id={stage.id}
                 items={columnLeads.map((lead) => lead.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="flex-shrink-0 w-80 bg-secondary/30 rounded-lg border border-border">
                   <div className="p-4 border-b border-border bg-card">
                     <div className="flex items-center justify-between mb-2">
-                      <h2 className="font-semibold text-card-foreground">{column.label}</h2>
-                      <Badge className={column.color} variant="secondary">
+                      <h2 className="font-semibold text-card-foreground">{stage.name}</h2>
+                      <Badge 
+                        variant="secondary"
+                        style={{ 
+                          backgroundColor: `${stage.color}20`, 
+                          borderColor: stage.color,
+                          color: stage.color 
+                        }}
+                      >
                         {columnLeads.length}
                       </Badge>
                     </div>

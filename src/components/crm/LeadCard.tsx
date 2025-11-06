@@ -87,6 +87,25 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         <div className="text-xs text-muted-foreground">
           Responsável: <span className="font-medium text-foreground">{lead.assignedTo}</span>
         </div>
+
+        {lead.tags && lead.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-2 border-t border-border">
+            {lead.tags.map((tag) => (
+              <Badge
+                key={tag.id}
+                variant="outline"
+                style={{ 
+                  backgroundColor: `${tag.color}20`, 
+                  borderColor: tag.color,
+                  color: tag.color 
+                }}
+                className="text-xs px-2 py-0"
+              >
+                {tag.name}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
     </Card>
   );

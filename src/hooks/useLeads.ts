@@ -51,7 +51,7 @@ export function useLeads() {
 
       if (leadsError) throw leadsError;
 
-      // Fetch activities for each lead
+      // Fetch activities and tags for each lead
       const leadsWithActivities = await Promise.all(
         (leadsData || []).map(async (lead) => {
           const { data: activities } = await (supabase as any)
@@ -59,6 +59,11 @@ export function useLeads() {
             .select('*')
             .eq('lead_id', lead.id)
             .order('created_at', { ascending: false });
+
+          const { data: leadTags } = await (supabase as any)
+            .from('lead_tags')
+            .select('tag_id, tags(id, name, color)')
+            .eq('lead_id', lead.id);
 
           const statusRaw = (lead.status || '').toLowerCase();
           const statusMap: Record<string, LeadStatus> = { new: 'novo' };
@@ -76,6 +81,7 @@ export function useLeads() {
             lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
             createdAt: new Date(lead.created_at!),
             notes: lead.notes || undefined,
+            stageId: lead.stage_id || undefined,
             activities: (activities || []).map((a) => ({
               id: a.id,
               type: a.type as Activity['type'],
@@ -83,6 +89,7 @@ export function useLeads() {
               timestamp: new Date(a.created_at!),
               user: a.user_name || 'Sistema',
             })),
+            tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
           } as Lead;
         })
       );

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, Webhook, CheckCircle, AlertCircle, HelpCircle, ExternalLink, Copy, Check, RefreshCw } from "lucide-react";
+import { Loader2, Webhook, CheckCircle, AlertCircle, HelpCircle, ExternalLink, Copy, Check, RefreshCw, Tag as TagIcon, Layers, Plus, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,10 +13,16 @@ import { useToast } from "@/hooks/use-toast";
 import { WebhookTestPanel } from "@/components/crm/WebhookTestPanel";
 import { SendTestMessagePanel } from "@/components/crm/SendTestMessagePanel";
 import { WebhookLogsPanel } from "@/components/crm/WebhookLogsPanel";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useTags } from "@/hooks/useTags";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Settings() {
   const { config, loading, saveConfig, configureWebhook, testConnection, verifyIntegration } = useEvolutionConfig();
   const { syncNow, isSyncing } = useAutoSync({ enabled: false });
+  const { stages, createStage, updateStage, deleteStage } = usePipelineStages();
+  const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     api_url: config?.api_url || '',
@@ -27,6 +33,18 @@ export default function Settings() {
   const [verifying, setVerifying] = useState(false);
   const [verificationResults, setVerificationResults] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+
+  // Stage management
+  const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [editingStage, setEditingStage] = useState<any>(null);
+  const [stageName, setStageName] = useState("");
+  const [stageColor, setStageColor] = useState("#3b82f6");
+
+  // Tag management
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState<any>(null);
+  const [tagName, setTagName] = useState("");
+  const [tagColor, setTagColor] = useState("#10b981");
 
   // Sync form with loaded config
   useEffect(() => {
@@ -98,6 +116,68 @@ const handleSubmit = async (e: React.FormEvent) => {
         description: "Ocorreu um erro ao buscar mensagens.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSaveStage = async () => {
+    if (!stageName.trim()) {
+      toast({
+        title: "Nome obrigatório",
+        description: "Digite um nome para a etapa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let success;
+    if (editingStage) {
+      success = await updateStage(editingStage.id, stageName, stageColor);
+    } else {
+      success = await createStage(stageName, stageColor);
+    }
+
+    if (success) {
+      setStageDialogOpen(false);
+      setEditingStage(null);
+      setStageName("");
+      setStageColor("#3b82f6");
+    }
+  };
+
+  const handleDeleteStage = async (id: string) => {
+    if (confirm("Tem certeza que deseja excluir esta etapa?")) {
+      await deleteStage(id);
+    }
+  };
+
+  const handleSaveTag = async () => {
+    if (!tagName.trim()) {
+      toast({
+        title: "Nome obrigatório",
+        description: "Digite um nome para a etiqueta.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let success;
+    if (editingTag) {
+      success = await updateTag(editingTag.id, tagName, tagColor);
+    } else {
+      success = await createTag(tagName, tagColor);
+    }
+
+    if (success) {
+      setTagDialogOpen(false);
+      setEditingTag(null);
+      setTagName("");
+      setTagColor("#10b981");
+    }
+  };
+
+  const handleDeleteTag = async (id: string) => {
+    if (confirm("Tem certeza que deseja excluir esta etiqueta?")) {
+      await deleteTag(id);
     }
   };
 
@@ -583,6 +663,225 @@ Headers:
 
         {/* Webhook Test Panel */}
         {config && <WebhookTestPanel config={config} />}
+
+        {/* Pipeline & Tags Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5" />
+              Gerenciar Funil e Etiquetas
+            </CardTitle>
+            <CardDescription>
+              Personalize as etapas do seu funil de vendas e crie etiquetas para organizar seus leads
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="stages" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="stages">Etapas do Funil</TabsTrigger>
+                <TabsTrigger value="tags">Etiquetas</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="stages" className="space-y-4 mt-4">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Configure as etapas do seu pipeline de vendas
+                  </p>
+                  <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        size="sm"
+                        onClick={() => {
+                          setEditingStage(null);
+                          setStageName("");
+                          setStageColor("#3b82f6");
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nova Etapa
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>
+                          {editingStage ? "Editar Etapa" : "Nova Etapa"}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-name">Nome da Etapa</Label>
+                          <Input
+                            id="stage-name"
+                            value={stageName}
+                            onChange={(e) => setStageName(e.target.value)}
+                            placeholder="Ex: Proposta Enviada"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-color">Cor</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="stage-color"
+                              type="color"
+                              value={stageColor}
+                              onChange={(e) => setStageColor(e.target.value)}
+                              className="w-20 h-10"
+                            />
+                            <Input
+                              value={stageColor}
+                              onChange={(e) => setStageColor(e.target.value)}
+                              placeholder="#3b82f6"
+                            />
+                          </div>
+                        </div>
+                        <Button onClick={handleSaveStage} className="w-full">
+                          {editingStage ? "Atualizar" : "Criar"} Etapa
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <div className="space-y-2">
+                  {stages.map((stage) => (
+                    <div
+                      key={stage.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: stage.color }}
+                        />
+                        <span className="font-medium">{stage.name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingStage(stage);
+                            setStageName(stage.name);
+                            setStageColor(stage.color);
+                            setStageDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteStage(stage.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="tags" className="space-y-4 mt-4">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Crie etiquetas para categorizar seus leads
+                  </p>
+                  <Dialog open={tagDialogOpen} onOpenChange={setTagDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        size="sm"
+                        onClick={() => {
+                          setEditingTag(null);
+                          setTagName("");
+                          setTagColor("#10b981");
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nova Etiqueta
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>
+                          {editingTag ? "Editar Etiqueta" : "Nova Etiqueta"}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="tag-name">Nome da Etiqueta</Label>
+                          <Input
+                            id="tag-name"
+                            value={tagName}
+                            onChange={(e) => setTagName(e.target.value)}
+                            placeholder="Ex: VIP"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="tag-color">Cor</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="tag-color"
+                              type="color"
+                              value={tagColor}
+                              onChange={(e) => setTagColor(e.target.value)}
+                              className="w-20 h-10"
+                            />
+                            <Input
+                              value={tagColor}
+                              onChange={(e) => setTagColor(e.target.value)}
+                              placeholder="#10b981"
+                            />
+                          </div>
+                        </div>
+                        <Button onClick={handleSaveTag} className="w-full">
+                          {editingTag ? "Atualizar" : "Criar"} Etiqueta
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <div className="space-y-2">
+                  {tags.map((tag) => (
+                    <div
+                      key={tag.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        <span className="font-medium">{tag.name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingTag(tag);
+                            setTagName(tag.name);
+                            setTagColor(tag.color);
+                            setTagDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteTag(tag.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

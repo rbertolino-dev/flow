@@ -1,6 +1,12 @@
-export type LeadStatus = "novo" | "contatado" | "proposta" | "negociacao" | "ganho" | "perdido";
+export type LeadStatus = "novo" | "contatado" | "proposta" | "negociacao" | "ganho" | "perdido" | string;
 
 export type ActivityType = "whatsapp" | "call" | "note" | "status_change";
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
 
 export interface Activity {
   id: string;
@@ -24,6 +30,8 @@ export interface Lead {
   createdAt: Date;
   notes?: string;
   activities: Activity[];
+  tags?: Tag[];
+  stageId?: string;
 }
 
 export interface CallQueueItem {
