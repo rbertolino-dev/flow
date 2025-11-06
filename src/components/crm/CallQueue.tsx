@@ -101,7 +101,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Phone className="h-4 w-4" />
-                          <span>{call.phone}</span>
+                          <span onClick={() => handleCopyPhone(call.phone)} className="cursor-pointer underline decoration-dotted" title="Clique para copiar">{call.phone}</span>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -146,7 +146,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                       <div className="flex flex-col gap-2">
                         <Button
                           size="sm"
-                          onClick={() => onCallComplete(call.id)}
+                          onClick={() => { handleCopyPhone(call.phone); onCallComplete(call.id); }}
                           className="whitespace-nowrap"
                         >
                           <Phone className="h-4 w-4 mr-2" />
@@ -189,7 +189,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Phone className="h-4 w-4" />
-                          <span>{call.phone}</span>
+                          <span onClick={() => handleCopyPhone(call.phone)} className="cursor-pointer underline decoration-dotted" title="Clique para copiar">{call.phone}</span>
                           <Button
                             variant="ghost"
                             size="sm"

@@ -127,7 +127,7 @@ export function useCallQueue() {
         .from('call_queue')
         .insert({
           lead_id: item.leadId,
-          scheduled_for: item.scheduledFor?.toISOString() || null,
+          scheduled_for: (item.scheduledFor ?? new Date()).toISOString(),
           priority: item.priority,
           notes: item.notes,
           status: 'pending',
