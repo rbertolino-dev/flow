@@ -176,7 +176,7 @@ serve(async (req) => {
             name: contactName,
             phone: phoneNumber,
             source: 'whatsapp',
-            status: 'new',
+            status: 'novo',
             last_contact: new Date().toISOString(),
           })
           .select()

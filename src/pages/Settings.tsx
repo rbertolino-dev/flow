@@ -27,14 +27,15 @@ export default function Settings() {
   const [copied, setCopied] = useState(false);
 
   // Sync form with loaded config
-  if (config && (formData.api_url === '' && formData.instance_name === '' && formData.api_key === '')) {
-    // Initialize once when empty to avoid overwriting user typing
-    setFormData({
-      api_url: config.api_url || '',
-      api_key: config.api_key || '',
-      instance_name: config.instance_name || '',
-    });
-  }
+  useEffect(() => {
+    if (config) {
+      setFormData({
+        api_url: config.api_url || '',
+        api_key: config.api_key || '',
+        instance_name: config.instance_name || '',
+      });
+    }
+  }, [config]);
 
   const webhookUrl = ((import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin) + '/functions/v1/evolution-webhook';
 

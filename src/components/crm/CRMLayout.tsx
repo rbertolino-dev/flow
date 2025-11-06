@@ -15,6 +15,7 @@ interface CRMLayoutProps {
 export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -48,9 +49,11 @@ export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUserEmail(user?.email ?? null);
+      setUserId(user?.id ?? null);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserEmail(session?.user?.email ?? null);
+      setUserId(session?.user?.id ?? null);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -108,7 +111,9 @@ export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{userEmail || 'Usuário'}</p>
-                <p className="text-xs text-sidebar-foreground/70 truncate">Conectado</p>
+                <p className="text-xs text-sidebar-foreground/70 truncate">
+                  {userId ? `ID: ${userId.slice(0, 8)}…` : 'Conectado'}
+                </p>
               </div>
             )}
           </div>

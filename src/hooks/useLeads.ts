@@ -60,6 +60,9 @@ export function useLeads() {
             .eq('lead_id', lead.id)
             .order('created_at', { ascending: false });
 
+          const statusRaw = (lead.status || '').toLowerCase();
+          const statusMap: Record<string, LeadStatus> = { new: 'novo' };
+          const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
           return {
             id: lead.id,
             name: lead.name,
@@ -67,7 +70,7 @@ export function useLeads() {
             email: lead.email || undefined,
             company: lead.company || undefined,
             value: lead.value || undefined,
-            status: lead.status as LeadStatus,
+            status: mappedStatus,
             source: lead.source || 'WhatsApp',
             assignedTo: lead.assigned_to || 'Não atribuído',
             lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
