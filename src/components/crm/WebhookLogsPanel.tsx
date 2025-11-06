@@ -22,27 +22,11 @@ export function WebhookLogsPanel() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      // Usar edge function logs do Supabase
-      const { data, error } = await supabase.functions.invoke('evolution-webhook', {
-        method: 'GET',
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      // Por enquanto, mostrar mensagem que logs estão disponíveis no backend
       toast({
         title: "ℹ️ Logs do Webhook",
-        description: "Verifique os logs da Edge Function no painel Cloud → Edge Functions",
+        description: "Abra Cloud → Backend Functions → evolution-webhook para ver os logs em tempo real.",
       });
-      
       setLogs([]);
-    } catch (error: any) {
-      toast({
-        title: "ℹ️ Visualização de Logs",
-        description: "Acesse Cloud → Edge Functions → evolution-webhook para ver os logs em tempo real",
-      });
     } finally {
       setLoading(false);
     }

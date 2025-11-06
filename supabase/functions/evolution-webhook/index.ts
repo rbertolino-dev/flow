@@ -30,6 +30,13 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+  // Ignore non-POST requests (healthcheck)
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ success: true, message: 'OK' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

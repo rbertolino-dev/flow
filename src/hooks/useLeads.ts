@@ -34,6 +34,16 @@ export function useLeads() {
 
   const fetchLeads = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setLeads([]);
+        toast({
+          title: "Você não está autenticado",
+          description: "Faça login para visualizar seus leads conectados.",
+        });
+        return;
+      }
+
       const { data: leadsData, error: leadsError } = await (supabase as any)
         .from('leads')
         .select('*')
