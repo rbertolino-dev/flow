@@ -113,7 +113,7 @@ export function useEvolutionConfig() {
 
       const configPayload = {
         user_id: user.id,
-        api_url: configData.api_url,
+        api_url: normalizeApiUrl(configData.api_url),
         api_key: configData.api_key,
         instance_name: configData.instance_name,
         updated_at: new Date().toISOString(),
@@ -165,18 +165,19 @@ export function useEvolutionConfig() {
     }
   };
 
-  const configureWebhook = async () => {
-    if (!config) return false;
+  const configureWebhook = async (override?: { api_url: string; api_key?: string | null; instance_name: string; }) => {
+    const cfg = override || config;
+    if (!cfg) return false;
 
     try {
       const functionsBase = (import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin;
       const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook`;
 
-      const response = await fetch(`${config.api_url}/webhook/set/${config.instance_name}`, {
+      const response = await fetch(`${normalizeApiUrl(cfg.api_url)}/webhook/set/${cfg.instance_name}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': config.api_key || '',
+          'apikey': cfg.api_key || '',
         },
         body: JSON.stringify({
           url: webhookUrl,

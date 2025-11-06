@@ -119,8 +119,10 @@ serve(async (req) => {
       
       const { data: configs, error: configError } = await supabase
         .from('evolution_config')
-        .select('user_id, instance_name')
+        .select('user_id, instance_name, updated_at, id')
         .eq('instance_name', instance)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (configError || !configs) {
@@ -211,8 +213,10 @@ serve(async (req) => {
       
       const { data: configs } = await supabase
         .from('evolution_config')
-        .select('id')
+        .select('id, updated_at')
         .eq('instance_name', instance)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (configs && payload.state) {
@@ -234,8 +238,10 @@ serve(async (req) => {
       
       const { data: configs } = await supabase
         .from('evolution_config')
-        .select('id')
+        .select('id, updated_at')
         .eq('instance_name', instance)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (configs && payload.qrcode) {

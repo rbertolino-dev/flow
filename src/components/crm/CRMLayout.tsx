@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ interface CRMLayoutProps {
 
 export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -43,6 +44,16 @@ export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps
     { id: "contacts" as const, label: "Contatos", icon: Users },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserEmail(user?.email ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <div className="flex h-screen bg-background">
@@ -92,12 +103,12 @@ export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps
         <div className="p-4 border-t border-sidebar-border space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
-              CM
+              {(userEmail?.split('@')[0].slice(0,2).toUpperCase() || 'US')}
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Carlos Mendes</p>
-                <p className="text-xs text-sidebar-foreground/70 truncate">Vendedor</p>
+                <p className="text-sm font-medium truncate">{userEmail || 'Usuário'}</p>
+                <p className="text-xs text-sidebar-foreground/70 truncate">Conectado</p>
               </div>
             )}
           </div>

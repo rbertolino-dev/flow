@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useEvolutionConfig } from "@/hooks/useEvolutionConfig";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,16 @@ export default function Settings() {
   const [verificationResults, setVerificationResults] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
+  // Sync form with loaded config
+  if (config && (formData.api_url === '' && formData.instance_name === '' && formData.api_key === '')) {
+    // Initialize once when empty to avoid overwriting user typing
+    setFormData({
+      api_url: config.api_url || '',
+      api_key: config.api_key || '',
+      instance_name: config.instance_name || '',
+    });
+  }
+
   const webhookUrl = ((import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin) + '/functions/v1/evolution-webhook';
 
   const copyWebhookUrl = async () => {
@@ -46,16 +56,20 @@ export default function Settings() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    const success = await saveConfig(formData);
-    if (success) {
-      // Após salvar, configurar o webhook automaticamente
-      await configureWebhook();
-    }
-    setSaving(false);
-  };
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setSaving(true);
+  const success = await saveConfig(formData);
+  if (success) {
+    // Após salvar, configurar o webhook automaticamente com os dados do formulário
+    await configureWebhook({
+      api_url: formData.api_url,
+      api_key: formData.api_key,
+      instance_name: formData.instance_name,
+    });
+  }
+  setSaving(false);
+};
 
   const handleTestConnection = async () => {
     await testConnection();
