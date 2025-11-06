@@ -16,7 +16,7 @@ const Index = () => {
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall } = useCallQueue();
   
   // Sincronização automática a cada 5 minutos
-  useAutoSync({ intervalMinutes: 5, enabled: true });
+  const { lastSync, nextSync, isSyncing } = useAutoSync({ intervalMinutes: 5, enabled: true });
 
   const handleLeadUpdate = (leadId: string, newStatus: LeadStatus) => {
     updateLeadStatus(leadId, newStatus);
@@ -40,7 +40,11 @@ const Index = () => {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView={activeView} onViewChange={setActiveView}>
+      <CRMLayout 
+        activeView={activeView} 
+        onViewChange={setActiveView}
+        syncInfo={{ lastSync, nextSync, isSyncing }}
+      >
       {activeView === "kanban" && (
         <div className="h-full bg-background">
           <div className="p-6 border-b border-border">

@@ -5,14 +5,20 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { SyncIndicator } from "./SyncIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
   activeView: "kanban" | "calls" | "contacts" | "settings";
   onViewChange: (view: "kanban" | "calls" | "contacts" | "settings") => void;
+  syncInfo?: {
+    lastSync: Date | null;
+    nextSync: Date | null;
+    isSyncing: boolean;
+  };
 }
 
-export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps) {
+export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRMLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -134,8 +140,21 @@ export function CRMLayout({ children, activeView, onViewChange }: CRMLayoutProps
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        {children}
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {/* Header with sync indicator */}
+        {syncInfo && (
+          <div className="border-b border-border px-6 py-3 bg-background flex items-center justify-end">
+            <SyncIndicator 
+              lastSync={syncInfo.lastSync}
+              nextSync={syncInfo.nextSync}
+              isSyncing={syncInfo.isSyncing}
+            />
+          </div>
+        )}
+        
+        <div className="flex-1 overflow-hidden">
+          {children}
+        </div>
       </main>
     </div>
   );

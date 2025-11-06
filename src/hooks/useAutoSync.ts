@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -10,8 +10,17 @@ interface AutoSyncOptions {
 export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOptions = {}) {
   const { toast } = useToast();
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [nextSync, setNextSync] = useState<Date | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const syncMessages = async () => {
+    if (isSyncing) {
+      console.log('⏭️ Sincronização já em andamento, pulando...');
+      return;
+    }
+
+    setIsSyncing(true);
     try {
       console.log('🔄 Iniciando sincronização automática...');
       
@@ -127,9 +136,12 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
       }
 
       console.log('✅ Sincronização concluída');
+      setLastSync(new Date());
 
     } catch (error: any) {
       console.error('❌ Erro na sincronização:', error);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -145,12 +157,17 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
     // Executar sincronização inicial após 10 segundos
     const initialTimeout = setTimeout(() => {
       syncMessages();
+      setNextSync(new Date(Date.now() + intervalMinutes * 60 * 1000));
     }, 10000);
 
     // Configurar intervalo de sincronização
     syncIntervalRef.current = setInterval(() => {
       syncMessages();
+      setNextSync(new Date(Date.now() + intervalMinutes * 60 * 1000));
     }, intervalMinutes * 60 * 1000);
+
+    // Calcular próxima sincronização
+    setNextSync(new Date(Date.now() + 10000 + intervalMinutes * 60 * 1000));
 
     return () => {
       clearTimeout(initialTimeout);
@@ -160,5 +177,15 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
     };
   }, [enabled, intervalMinutes]);
 
-  return { syncNow: syncMessages };
+  const manualSync = async () => {
+    await syncMessages();
+    setNextSync(new Date(Date.now() + intervalMinutes * 60 * 1000));
+  };
+
+  return { 
+    syncNow: manualSync,
+    lastSync,
+    nextSync,
+    isSyncing
+  };
 }

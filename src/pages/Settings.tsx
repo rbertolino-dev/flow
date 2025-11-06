@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useEvolutionConfig } from "@/hooks/useEvolutionConfig";
+import { useAutoSync } from "@/hooks/useAutoSync";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, Webhook, CheckCircle, AlertCircle, HelpCircle, ExternalLink, Copy, Check } from "lucide-react";
+import { Loader2, Webhook, CheckCircle, AlertCircle, HelpCircle, ExternalLink, Copy, Check, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,6 +16,7 @@ import { WebhookLogsPanel } from "@/components/crm/WebhookLogsPanel";
 
 export default function Settings() {
   const { config, loading, saveConfig, configureWebhook, testConnection, verifyIntegration } = useEvolutionConfig();
+  const { syncNow, isSyncing } = useAutoSync({ enabled: false });
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     api_url: config?.api_url || '',
@@ -81,6 +83,22 @@ const handleSubmit = async (e: React.FormEvent) => {
     const results = await verifyIntegration();
     setVerificationResults(results);
     setVerifying(false);
+  };
+
+  const handleManualSync = async () => {
+    try {
+      await syncNow();
+      toast({
+        title: "✅ Sincronização concluída",
+        description: "Mensagens do WhatsApp foram buscadas com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Erro na sincronização",
+        description: "Ocorreu um erro ao buscar mensagens.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -456,6 +474,16 @@ Headers:
                     >
                       {verifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Verificar Integração Completa
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="default" 
+                      onClick={handleManualSync}
+                      disabled={isSyncing}
+                      className="gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
                     </Button>
                   </>
                 )}
