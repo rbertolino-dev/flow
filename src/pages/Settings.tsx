@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { WebhookTestPanel } from "@/components/crm/WebhookTestPanel";
 import { SendTestMessagePanel } from "@/components/crm/SendTestMessagePanel";
+import { WebhookLogsPanel } from "@/components/crm/WebhookLogsPanel";
 
 export default function Settings() {
   const { config, loading, saveConfig, configureWebhook, testConnection, verifyIntegration } = useEvolutionConfig();
@@ -533,6 +534,9 @@ Headers:
 
         {/* Send Test Message Panel */}
         {config && <SendTestMessagePanel config={config} />}
+
+        {/* Webhook Logs Panel */}
+        {config && <WebhookLogsPanel />}
 
         {/* Webhook Test Panel */}
         {config && <WebhookTestPanel config={config} />}

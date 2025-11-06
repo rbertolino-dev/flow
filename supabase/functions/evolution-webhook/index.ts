@@ -11,14 +11,17 @@ const corsHeaders = {
 const evolutionWebhookSchema = z.object({
   event: z.string(),
   instance: z.string().min(1).max(100),
-  data: z.object({
-    key: z.object({
-      remoteJid: z.string(),
-      fromMe: z.boolean().optional(),
+  data: z.union([
+    z.object({
+      key: z.object({
+        remoteJid: z.string(),
+        fromMe: z.boolean().optional(),
+      }),
+      message: z.any().optional(),
+      pushName: z.string().optional(),
     }),
-    message: z.any().optional(),
-    pushName: z.string().optional(),
-  }).optional(),
+    z.array(z.any()),
+  ]).optional(),
   state: z.string().optional(),
   qrcode: z.string().optional(),
 });
@@ -56,6 +59,15 @@ serve(async (req) => {
 
     const payload = validationResult.data;
     const { event, instance, data } = payload;
+
+    // Ignorar eventos que não são mensagens ou que têm data como array
+    if (Array.isArray(data)) {
+      console.log(`ℹ️ Evento ${event} ignorado (data é array)`);
+      return new Response(
+        JSON.stringify({ success: true, message: 'Evento ignorado' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Processar apenas mensagens recebidas
     if (event === 'messages.upsert' && data?.key?.fromMe === false) {
