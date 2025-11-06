@@ -2,11 +2,9 @@ import { useState } from "react";
 import { Lead, LeadStatus } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
-import { DndContext, DragEndEvent, DragOverlay, closestCorners } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { usePipelineStages, PipelineStage } from "@/hooks/usePipelineStages";
+import { KanbanColumn } from "./KanbanColumn";
+import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Loader2 } from "lucide-react";
 
 interface KanbanBoardProps {
@@ -19,6 +17,14 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { stages, loading: stagesLoading } = usePipelineStages();
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   if (stagesLoading) {
     return (
@@ -32,6 +38,11 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
     setActiveId(event.active.id);
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) return;
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
@@ -39,9 +50,13 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
     if (!over) return;
 
     const leadId = active.id as string;
-    const newStageId = over.id as string;
-
-    onLeadUpdate(leadId, newStageId);
+    const overId = over.id as string;
+    
+    // Check if we're dropping over a stage column
+    const targetStage = stages.find(s => s.id === overId);
+    if (targetStage) {
+      onLeadUpdate(leadId, targetStage.id);
+    }
   };
 
   const filteredLeads = leads.filter(lead => {
@@ -57,60 +72,23 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
 
   return (
     <>
-      <DndContext collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCorners} 
+        onDragStart={handleDragStart} 
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
         <div className="flex gap-4 h-full overflow-x-auto p-6">
-            {stages.map((stage) => {
-              const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
-              const totalValue = columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
-
+          {stages.map((stage) => {
+            const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
             return (
-              <SortableContext
+              <KanbanColumn
                 key={stage.id}
-                id={stage.id}
-                items={columnLeads.map((lead) => lead.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="flex-shrink-0 w-80 bg-secondary/30 rounded-lg border border-border">
-                  <div className="p-4 border-b border-border bg-card">
-                    <div className="flex items-center justify-between mb-2">
-                      <h2 className="font-semibold text-card-foreground">{stage.name}</h2>
-                      <Badge 
-                        variant="secondary"
-                        style={{ 
-                          backgroundColor: `${stage.color}20`, 
-                          borderColor: stage.color,
-                          color: stage.color 
-                        }}
-                      >
-                        {columnLeads.length}
-                      </Badge>
-                    </div>
-                    {totalValue > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Total:{" "}
-                        {new Intl.NumberFormat("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                          minimumFractionDigits: 0,
-                        }).format(totalValue)}
-                      </p>
-                    )}
-                  </div>
-
-                  <ScrollArea className="h-[calc(100vh-280px)]">
-                    <div className="p-3 space-y-3">
-                      {columnLeads.map((lead) => (
-                        <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} />
-                      ))}
-                      {columnLeads.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          Nenhum lead nesta etapa
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </SortableContext>
+                stage={stage}
+                leads={columnLeads}
+                onLeadClick={setSelectedLead}
+              />
             );
           })}
         </div>

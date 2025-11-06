@@ -3,6 +3,7 @@ import { CRMLayout } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
 import { CallQueue } from "@/components/crm/CallQueue";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { useAutoSync } from "@/hooks/useAutoSync";
@@ -49,11 +50,14 @@ const Index = () => {
       {activeView === "kanban" && (
         <div className="h-full bg-background">
           <div className="p-6 border-b border-border space-y-4">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Funil de Vendas</h1>
-              <p className="text-muted-foreground">
-                Gerencie seus leads através do pipeline de vendas
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">Funil de Vendas</h1>
+                <p className="text-muted-foreground">
+                  Gerencie seus leads através do pipeline de vendas
+                </p>
+              </div>
+              <PipelineStageManager />
             </div>
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -36,34 +36,39 @@ export function useCallQueue() {
     try {
       const { data: queueData, error } = await (supabase as any)
         .from('call_queue')
-        .select(`
-          *,
-          leads (
-            name,
-            phone,
-            lead_tags (
-              tags (id, name, color)
-            )
-          )
-        `)
+        .select('*, leads(id, name, phone)')
         .order('scheduled_for', { ascending: true });
 
       if (error) throw error;
 
-      const formattedQueue = (queueData || []).map((item) => {
-        const leadTags = (item.leads as any)?.lead_tags || [];
-        const tags = leadTags.map((lt: any) => lt.tags).filter(Boolean);
-        
+      // Fetch tags for each lead separately
+      const queueWithTags = await Promise.all(
+        (queueData || []).map(async (item) => {
+          if (!item.leads?.id) return { ...item, tags: [] };
+          
+          const { data: leadTags } = await (supabase as any)
+            .from('lead_tags')
+            .select('tag_id, tags(id, name, color)')
+            .eq('lead_id', item.leads.id);
+          
+          return {
+            ...item,
+            tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean)
+          };
+        })
+      );
+
+      const formattedQueue = queueWithTags.map((item) => {
         return {
           id: item.id,
           leadId: item.lead_id,
-          leadName: (item.leads as any)?.name || 'Nome não disponível',
-          phone: (item.leads as any)?.phone || '',
+          leadName: item.leads?.name || 'Nome não disponível',
+          phone: item.leads?.phone || '',
           scheduledFor: item.scheduled_for ? new Date(item.scheduled_for) : undefined,
           priority: (item.priority || 'medium') as 'high' | 'medium' | 'low',
           status: (item.status || 'pending') as 'pending' | 'completed' | 'rescheduled',
           notes: item.notes || undefined,
-          tags: tags,
+          tags: item.tags || [],
         };
       }) as CallQueueItem[];
 
