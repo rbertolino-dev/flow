@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Lead, LeadStatus } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -6,7 +6,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -22,6 +22,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { stages, loading: stagesLoading } = usePipelineStages();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -78,6 +79,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
 
   const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
 
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = 400;
+      scrollContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-end p-4 border-b border-border">
@@ -101,7 +112,26 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 h-full overflow-x-auto overflow-y-hidden p-6 scrollbar-visible">
+        <div className="relative h-full">
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-background/95 backdrop-blur shadow-lg hover:bg-accent"
+            onClick={() => handleScroll('left')}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-background/95 backdrop-blur shadow-lg hover:bg-accent"
+            onClick={() => handleScroll('right')}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+
+          <div ref={scrollContainerRef} className="flex gap-4 h-full overflow-x-auto overflow-y-hidden p-6 kanban-scroll">
           {stages.map((stage) => {
             const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
             return (
@@ -115,27 +145,30 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
               />
             );
           })}
+          </div>
         </div>
 
         <style>{`
-          .scrollbar-visible::-webkit-scrollbar {
-            width: 12px;
-            height: 12px;
+          .kanban-scroll::-webkit-scrollbar {
+            width: 14px;
+            height: 14px;
           }
-          .scrollbar-visible::-webkit-scrollbar-track {
+          .kanban-scroll::-webkit-scrollbar-track {
             background: hsl(var(--muted));
-            border-radius: 6px;
+            border-radius: 8px;
+            margin: 4px;
           }
-          .scrollbar-visible::-webkit-scrollbar-thumb {
-            background: hsl(var(--muted-foreground) / 0.3);
-            border-radius: 6px;
+          .kanban-scroll::-webkit-scrollbar-thumb {
+            background: hsl(var(--primary) / 0.5);
+            border-radius: 8px;
+            border: 2px solid hsl(var(--muted));
           }
-          .scrollbar-visible::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--muted-foreground) / 0.5);
+          .kanban-scroll::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--primary) / 0.7);
           }
-          .scrollbar-visible {
-            scrollbar-width: thin;
-            scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
+          .kanban-scroll {
+            scrollbar-width: auto;
+            scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted));
           }
         `}</style>
 
