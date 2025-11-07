@@ -63,11 +63,44 @@ serve(async (req) => {
       throw createError;
     }
 
-    // Se deve ser admin, adicionar role
-    if (isAdmin && newUser.user) {
-      await supabaseAdmin
+    if (!newUser.user) {
+      throw new Error('Falha ao criar usuário');
+    }
+
+    // Criar perfil manualmente (pois admin.createUser não dispara triggers)
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        id: newUser.user.id,
+        email: email,
+        full_name: fullName || email,
+      });
+
+    if (profileError) {
+      console.error('Erro ao criar perfil:', profileError);
+      throw new Error('Erro ao criar perfil do usuário');
+    }
+
+    // Adicionar role padrão de usuário
+    const { error: userRoleError } = await supabaseAdmin
+      .from('user_roles')
+      .insert({ user_id: newUser.user.id, role: 'user' });
+
+    if (userRoleError) {
+      console.error('Erro ao adicionar role de usuário:', userRoleError);
+      throw new Error('Erro ao adicionar permissões de usuário');
+    }
+
+    // Se deve ser admin, adicionar role de admin também
+    if (isAdmin) {
+      const { error: adminRoleError } = await supabaseAdmin
         .from('user_roles')
         .insert({ user_id: newUser.user.id, role: 'admin' });
+
+      if (adminRoleError) {
+        console.error('Erro ao adicionar role de admin:', adminRoleError);
+        throw new Error('Erro ao adicionar permissões de administrador');
+      }
     }
 
     return new Response(
