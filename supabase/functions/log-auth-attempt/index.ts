@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,6 +14,9 @@ Deno.serve(async (req) => {
   try {
     const { email, success, error, ip, userAgent, method, userId } = await req.json();
 
+    const forwardedIp = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
+    const effectiveIp = ip || forwardedIp;
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -25,7 +28,7 @@ Deno.serve(async (req) => {
         email,
         success,
         error,
-        ip,
+        ip: effectiveIp,
         user_agent: userAgent,
         method,
         user_id: userId || null,
@@ -43,10 +46,11 @@ Deno.serve(async (req) => {
         status: 200,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error in log-auth-attempt:', error);
+    const message = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
