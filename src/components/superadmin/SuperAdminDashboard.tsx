@@ -84,52 +84,44 @@ export function SuperAdminDashboard() {
     try {
       setLoading(true);
       
-      const { data: orgs, error: orgsError } = await supabase
-        .from('organizations')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Usar função RPC que evita recursão RLS
+      const { data, error } = await supabase.rpc('get_all_organizations_with_members');
 
-      if (orgsError) throw orgsError;
+      if (error) throw error;
 
-      // Fetch members for each organization
-      const orgsWithMembers = await Promise.all(
-        (orgs || []).map(async (org) => {
-          const { data: members } = await supabase
-            .from('organization_members')
-            .select('user_id, role, created_at')
-            .eq('organization_id', org.id);
+      // Agrupar dados por organização
+      const orgMap = new Map<string, OrganizationWithMembers>();
+      
+      (data || []).forEach((row: any) => {
+        if (!orgMap.has(row.org_id)) {
+          orgMap.set(row.org_id, {
+            id: row.org_id,
+            name: row.org_name,
+            created_at: row.org_created_at,
+            organization_members: [],
+          });
+        }
 
-          // For each member, fetch profile and roles
-          const membersWithData = await Promise.all(
-            (members || []).map(async (member) => {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('email, full_name')
-                .eq('id', member.user_id)
-                .single();
+        const org = orgMap.get(row.org_id)!;
+        
+        // Adicionar membro se existir
+        if (row.member_user_id) {
+          org.organization_members.push({
+            user_id: row.member_user_id,
+            role: row.member_role,
+            created_at: row.member_created_at,
+            profiles: {
+              email: row.member_email || '',
+              full_name: row.member_full_name || null,
+            },
+            user_roles: row.member_roles || [],
+          });
+        }
+      });
 
-              const { data: roles } = await supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', member.user_id);
-
-              return {
-                ...member,
-                profiles: profile || { email: '', full_name: '' },
-                user_roles: roles || [],
-              };
-            })
-          );
-
-          return {
-            ...org,
-            organization_members: membersWithData,
-          };
-        })
-      );
-
-      setOrganizations(orgsWithMembers);
+      setOrganizations(Array.from(orgMap.values()));
     } catch (error: any) {
+      console.error('Erro ao carregar organizações:', error);
       toast({
         title: "Erro ao carregar organizações",
         description: error.message,

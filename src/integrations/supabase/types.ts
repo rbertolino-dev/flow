@@ -1106,6 +1106,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_all_organizations_with_members: {
+        Args: never
+        Returns: {
+          member_created_at: string
+          member_email: string
+          member_full_name: string
+          member_role: string
+          member_roles: Json
+          member_user_id: string
+          org_created_at: string
+          org_id: string
+          org_name: string
+        }[]
+      }
       get_user_organization: { Args: { _user_id: string }; Returns: string }
       get_user_permissions: {
         Args: { _user_id: string }
