@@ -2,8 +2,8 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User } from "lucide-react";
-import { format } from "date-fns";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon } from "lucide-react";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { buildCopyNumber } from "@/lib/phoneUtils";
 import { useState } from "react";
+import { RescheduleCallDialog } from "./RescheduleCallDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface CallQueueProps {
   callQueue: CallQueueItem[];
   onCallComplete: (id: string, callNotes?: string) => void;
-  onCallReschedule: (id: string) => void;
+  onCallReschedule: (id: string, newDate: Date) => void;
 }
 
 const priorityColors = {
@@ -34,6 +39,16 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCallNotes, setActiveCallNotes] = useState<Record<string, string>>({});
+  const [rescheduleDialog, setRescheduleDialog] = useState<{ open: boolean; callId: string; currentDate?: Date }>({
+    open: false,
+    callId: "",
+  });
+  
+  // Filtros
+  const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   const handleCopyPhone = (phone: string) => {
     const formattedPhone = buildCopyNumber(phone);
@@ -45,14 +60,46 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
   };
 
   const filteredCalls = callQueue.filter(call => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      call.leadName.toLowerCase().includes(query) ||
-      call.phone.includes(query) ||
-      call.tags?.some(tag => tag.name.toLowerCase().includes(query))
-    );
+    // Filtro de busca por texto
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        call.leadName.toLowerCase().includes(query) ||
+        call.phone.includes(query) ||
+        call.tags?.some(tag => tag.name.toLowerCase().includes(query));
+      if (!matchesSearch) return false;
+    }
+
+    // Filtro de usuário (apenas para concluídas)
+    if (call.status === "completed" && selectedUser !== "all" && call.completedBy !== selectedUser) {
+      return false;
+    }
+
+    // Filtro de data (apenas para concluídas)
+    if (call.status === "completed" && call.completedAt) {
+      const completedDate = new Date(call.completedAt);
+      completedDate.setHours(0, 0, 0, 0);
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      
+      if (completedDate < from || completedDate > to) {
+        return false;
+      }
+    }
+
+    return true;
   });
+
+  // Obter lista de usuários únicos
+  const uniqueUsers = Array.from(
+    new Set(
+      callQueue
+        .filter(call => call.status === "completed" && call.completedBy)
+        .map(call => call.completedBy!)
+    )
+  );
 
   const pendingCalls = filteredCalls.filter((call) => call.status === "pending");
   const completedCalls = filteredCalls.filter((call) => call.status === "completed");
@@ -63,17 +110,107 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
         <div>
           <h1 className="text-3xl font-bold mb-2">Fila de Ligações</h1>
           <p className="text-muted-foreground">
-            {pendingCalls.length} ligações pendentes
+            {pendingCalls.length} ligações pendentes • {completedCalls.length} concluídas (neste período)
           </p>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, telefone ou etiqueta..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, telefone ou etiqueta..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filtros
+            </Button>
+          </div>
+
+          {showFilters && (
+            <Card className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Inicial</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateFrom ? format(dateFrom, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={(date) => date && setDateFrom(date)}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Final</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateTo ? format(dateTo, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={(date) => date && setDateTo(date)}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Usuário</label>
+                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os usuários" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
+                      {uniqueUsers.map(user => (
+                        <SelectItem key={user} value={user}>{user}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -187,7 +324,11 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => onCallReschedule(call.id)}
+                          onClick={() => setRescheduleDialog({ 
+                            open: true, 
+                            callId: call.id, 
+                            currentDate: call.scheduledFor 
+                          })}
                           className="whitespace-nowrap"
                         >
                           <RotateCcw className="h-4 w-4 mr-2" />
@@ -283,6 +424,13 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
           )}
         </div>
       </ScrollArea>
+      
+      <RescheduleCallDialog
+        open={rescheduleDialog.open}
+        onOpenChange={(open) => setRescheduleDialog({ ...rescheduleDialog, open })}
+        onConfirm={(newDate) => onCallReschedule(rescheduleDialog.callId, newDate)}
+        currentDate={rescheduleDialog.currentDate}
+      />
     </div>
   );
 }

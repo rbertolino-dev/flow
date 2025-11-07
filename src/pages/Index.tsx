@@ -24,12 +24,12 @@ const Index = () => {
     updateLeadStatus(leadId, newStatus);
   };
 
-  const handleCallComplete = (callId: string) => {
-    completeCall(callId);
+  const handleCallComplete = (callId: string, callNotes?: string) => {
+    completeCall(callId, callNotes);
   };
 
-  const handleCallReschedule = (callId: string) => {
-    rescheduleCall(callId);
+  const handleCallReschedule = (callId: string, newDate: Date) => {
+    rescheduleCall(callId, newDate);
   };
 
   if (leadsLoading || queueLoading) {

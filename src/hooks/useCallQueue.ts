@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CallQueueItem } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export function useCallQueue() {
   const [callQueue, setCallQueue] = useState<CallQueueItem[]>([]);
@@ -159,11 +161,33 @@ export function useCallQueue() {
     }
   };
 
-  const rescheduleCall = async (callId: string) => {
-    toast({
-      title: "Reagendar ligação",
-      description: "Funcionalidade de reagendamento será implementada em breve.",
-    });
+  const rescheduleCall = async (callId: string, newDate: Date) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .update({ 
+          status: 'pending',
+          scheduled_for: newDate.toISOString(),
+        })
+        .eq('id', callId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Ligação reagendada",
+        description: `Nova data: ${format(newDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+      });
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao reagendar ligação",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
   };
 
   const addToQueue = async (item: Omit<CallQueueItem, 'id' | 'status'>) => {
