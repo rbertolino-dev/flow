@@ -66,6 +66,8 @@ serve(async (req) => {
         const personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
 
         // Enviar mensagem via Evolution API
+        console.log(`📤 Enviando para ${item.phone} via ${campaign.instance.api_url}/message/sendText/${campaign.instance.instance_name}`);
+        
         const evolutionResponse = await fetch(
           `${campaign.instance.api_url}/message/sendText/${campaign.instance.instance_name}`,
           {

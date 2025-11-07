@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Send, Pause, Play, Trash2, Plus } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,8 @@ export default function BroadcastCampaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<any[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -264,6 +267,27 @@ export default function BroadcastCampaigns() {
     }
   };
 
+  const handleViewLogs = async (campaignId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("broadcast_queue")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setSelectedCampaignLogs(data || []);
+      setLogsDialogOpen(true);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao buscar logs",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, any> = {
       draft: { variant: "outline", label: "Rascunho" },
@@ -445,6 +469,14 @@ export default function BroadcastCampaigns() {
                       Iniciar
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleViewLogs(campaign.id)}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Logs
+                  </Button>
                 </div>
               </div>
             ))}
@@ -456,6 +488,72 @@ export default function BroadcastCampaigns() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Logs de Disparo</DialogTitle>
+            <DialogDescription>
+              Histórico detalhado de todos os disparos desta campanha
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[500px] pr-4">
+            <div className="space-y-3">
+              {selectedCampaignLogs.map((log) => (
+                <Card key={log.id} className={log.status === 'failed' ? 'border-destructive' : ''}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          {log.status === 'sent' && <CheckCircle2 className="h-4 w-4 text-success" />}
+                          {log.status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
+                          {log.status === 'scheduled' && <Clock className="h-4 w-4 text-warning" />}
+                          {log.status === 'pending' && <Loader2 className="h-4 w-4 text-muted-foreground" />}
+                          <span className="font-medium">{log.phone}</span>
+                          {log.name && <span className="text-muted-foreground">({log.name})</span>}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {log.status === 'scheduled' && log.scheduled_for && (
+                            <span>Agendado para: {new Date(log.scheduled_for).toLocaleString()}</span>
+                          )}
+                          {log.status === 'sent' && log.sent_at && (
+                            <span>Enviado em: {new Date(log.sent_at).toLocaleString()}</span>
+                          )}
+                          {log.status === 'pending' && <span>Aguardando processamento</span>}
+                        </div>
+                        {log.error_message && (
+                          <div className="mt-2 p-3 bg-destructive/10 rounded-md">
+                            <p className="text-sm font-medium text-destructive mb-1">Erro:</p>
+                            <p className="text-sm text-destructive/90 font-mono whitespace-pre-wrap">
+                              {log.error_message}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant={
+                        log.status === 'sent' ? 'default' :
+                        log.status === 'failed' ? 'destructive' :
+                        log.status === 'scheduled' ? 'secondary' :
+                        'outline'
+                      }>
+                        {log.status === 'sent' ? 'Enviado' :
+                         log.status === 'failed' ? 'Falhou' :
+                         log.status === 'scheduled' ? 'Agendado' :
+                         'Pendente'}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {selectedCampaignLogs.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum log encontrado
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
