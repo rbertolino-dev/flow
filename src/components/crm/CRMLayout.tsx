@@ -75,21 +75,28 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
   useEffect(() => {
     const checkUserRole = async (userId: string) => {
-      const { data } = await supabase
+      // Check admin role
+      const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .eq('role', 'admin')
-        .single();
+        .maybeSingle();
       
-      setIsAdmin(!!data);
+      setIsAdmin(!!roleData);
 
       // Check if user belongs to pubdigital org
       const { data: orgMember } = await supabase
         .from('organization_members')
         .select('organization_id, organizations(name)')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
+
+      console.log('Organization check:', {
+        orgMember,
+        orgName: orgMember?.organizations?.name,
+        isPubdig: orgMember?.organizations?.name?.toLowerCase().includes('pubdigital')
+      });
 
       const isPubdig = orgMember?.organizations?.name?.toLowerCase().includes('pubdigital') ?? false;
       setIsPubdigitalUser(isPubdig);
