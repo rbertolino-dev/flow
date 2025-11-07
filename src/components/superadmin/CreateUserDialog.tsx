@@ -54,13 +54,26 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email.trim() || !password.trim() || !selectedOrgId) {
+    const emailTrim = email.trim();
+    const passwordTrim = password.trim();
+
+    if (!emailTrim || !passwordTrim || !selectedOrgId) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Validações básicas
+    const emailRegex = /[^@\s]+@[^@\s]+\.[^@\s]+/;
+    if (!emailRegex.test(emailTrim)) {
+      toast({ title: "Email inválido", description: "Informe um email válido.", variant: "destructive" });
+      return;
+    }
+    if (passwordTrim.length < 6) {
+      toast({ title: "Senha muito curta", description: "A senha deve ter pelo menos 6 caracteres.", variant: "destructive" });
       return;
     }
 
@@ -145,6 +158,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
+                minLength={6}
               />
             </div>
 

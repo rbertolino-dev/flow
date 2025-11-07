@@ -52,6 +52,13 @@ serve(async (req) => {
       throw new Error('Email, senha e organização são obrigatórios');
     }
 
+    if (typeof password === 'string' && password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: 'A senha deve ter pelo menos 6 caracteres.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
     console.log('Criando usuário:', { email, fullName, organizationId, makeAdmin });
 
     // Criar usuário usando Admin API (não dispara trigger handle_new_user)
@@ -66,7 +73,20 @@ serve(async (req) => {
 
     if (createError) {
       console.error('Erro ao criar usuário no auth:', createError);
-      throw createError;
+      const rawMsg = (createError as any)?.message || '';
+      let friendly = 'Erro ao criar usuário';
+      const lower = String(rawMsg).toLowerCase();
+      if (lower.includes('already registered') || lower.includes('duplicate')) {
+        friendly = 'Este email já está cadastrado.';
+      } else if (lower.includes('password')) {
+        friendly = 'A senha não atende aos requisitos mínimos (6+ caracteres).';
+      } else if (lower.includes('database error creating new user')) {
+        friendly = 'Falha ao criar usuário. Verifique email e senha e tente novamente.';
+      }
+      return new Response(
+        JSON.stringify({ error: friendly }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     if (!newUser.user) {
