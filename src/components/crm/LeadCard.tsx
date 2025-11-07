@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Building2, Calendar, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone } from "lucide-react";
+import { Phone, Mail, Building2, Calendar as CalendarIcon, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSortable } from "@dnd-kit/sortable";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
 
 interface LeadCardProps {
   lead: Lead;
@@ -44,6 +45,7 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
   const [editingValue, setEditingValue] = useState(false);
   const [tempName, setTempName] = useState(lead.name);
   const [tempValue, setTempValue] = useState(lead.value?.toString() || "");
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -276,9 +278,23 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t border-border">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Calendar className="h-3 w-3" />
-            {format(lead.lastContact, "dd/MM", { locale: ptBR })}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <CalendarIcon className="h-3 w-3" />
+              {format(lead.lastContact, "dd/MM", { locale: ptBR })}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs hover:text-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                setScheduleDialogOpen(true);
+              }}
+            >
+              <CalendarIcon className="h-3 w-3 mr-1" />
+              Agendar
+            </Button>
           </div>
           {editingValue ? (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -374,6 +390,13 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
           </div>
         )}
       </div>
+
+      <ScheduleGoogleEventDialog
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+        leadName={lead.name}
+        leadPhone={lead.phone}
+      />
     </Card>
   );
 }
