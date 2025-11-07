@@ -614,26 +614,26 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             {priorityLabels[call.priority]}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
                           <Phone className="h-4 w-4" />
                           <span onClick={() => handleCopyPhone(call.phone)} className="cursor-pointer underline decoration-dotted" title="Clique para copiar">{call.phone}</span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleCopyPhone(call.phone)}
-                            className="h-6 w-6 p-0"
+                            className="h-8 w-8 p-0"
                             title="Copiar telefone"
                           >
-                            <Copy className="h-3 w-3" />
+                            <Copy className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleWhatsAppContact(call.phone)}
-                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                             title="Abrir WhatsApp"
                           >
-                            <MessageCircle className="h-4 w-4" />
+                            <MessageCircle className="h-5 w-5" />
                           </Button>
                         </div>
                         {call.tags && call.tags.length > 0 && (
