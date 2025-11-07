@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
 import { BulkImportPanel } from "./BulkImportPanel";
+import { ConvertCallToLeadDialog } from "./ConvertCallToLeadDialog";
 import { CallQueueStats } from "./CallQueueStats";
 import { CallQueueHistory } from "./CallQueueHistory";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -59,6 +60,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     open: false,
     callId: "",
     currentTags: [],
+  });
+  const [convertDialog, setConvertDialog] = useState<{ open: boolean; callItem: CallQueueItem | null }>({
+    open: false,
+    callItem: null,
   });
   
   // Filtros
@@ -539,7 +544,19 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           className="w-full mt-2"
                         >
                           <TagIcon className="h-3 w-3 mr-2" />
-                          Gerenciar Etiquetas
+                          Etiquetas
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setConvertDialog({ 
+                            open: true, 
+                            callItem: call 
+                          })}
+                          className="w-full mt-2"
+                        >
+                          <TrendingUp className="h-3 w-3 mr-2" />
+                          Enviar ao Funil
                         </Button>
                         {call.scheduledFor && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -711,6 +728,19 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
         currentTags={tagManager.currentTags}
         onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
         onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
+      />
+
+      <ConvertCallToLeadDialog
+        callItem={convertDialog.callItem}
+        open={convertDialog.open}
+        onOpenChange={(open) => setConvertDialog({ ...convertDialog, open })}
+        onConverted={() => {
+          onRefetch();
+          toast({
+            title: "Sucesso",
+            description: "Contato adicionado ao funil de vendas",
+          });
+        }}
       />
     </div>
   );
