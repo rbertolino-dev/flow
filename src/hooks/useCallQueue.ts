@@ -216,7 +216,20 @@ export function useCallQueue() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
-      const orgId = await getUserOrganizationId();
+      // Obter organização de forma consistente via função segura
+      const { data: orgId, error: orgErr } = await supabase
+        .rpc('get_user_organization', { _user_id: session.user.id });
+
+      if (orgErr) throw orgErr;
+      if (!orgId) {
+        toast({
+          title: 'Organização não encontrada',
+          description: 'Seu usuário não está vinculado a nenhuma organização.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       const { error } = await (supabase as any)
         .from('call_queue')
         .insert({
@@ -234,9 +247,9 @@ export function useCallQueue() {
       return true;
     } catch (error: any) {
       toast({
-        title: "Erro ao adicionar à fila",
+        title: 'Erro ao adicionar à fila',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
       return false;
     }
