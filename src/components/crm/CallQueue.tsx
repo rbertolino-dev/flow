@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2 } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2, MessageCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -81,6 +81,22 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     toast({
       title: "Telefone copiado",
       description: `${formattedPhone} copiado para a área de transferência`,
+    });
+  };
+
+  const handleWhatsAppContact = (phone: string) => {
+    // Remover todos os caracteres não numéricos
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // Se não começar com 55 (código do Brasil), adicionar
+    const whatsappNumber = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    
+    // Abrir WhatsApp Web
+    window.open(`https://wa.me/${whatsappNumber}`, '_blank');
+    
+    toast({
+      title: "Abrindo WhatsApp",
+      description: "Redirecionando para conversa...",
     });
   };
 
@@ -606,8 +622,18 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             size="sm"
                             onClick={() => handleCopyPhone(call.phone)}
                             className="h-6 w-6 p-0"
+                            title="Copiar telefone"
                           >
                             <Copy className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleWhatsAppContact(call.phone)}
+                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            title="Abrir WhatsApp"
+                          >
+                            <MessageCircle className="h-4 w-4" />
                           </Button>
                         </div>
                         {call.tags && call.tags.length > 0 && (
