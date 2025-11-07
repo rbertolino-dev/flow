@@ -46,4 +46,6 @@ export interface CallQueueItem {
   tags?: Tag[];
   callNotes?: string;
   callCount: number;
+  completedBy?: string;
+  completedAt?: Date;
 }

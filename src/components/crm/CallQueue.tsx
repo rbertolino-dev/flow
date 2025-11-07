@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -246,9 +246,18 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                             Total de ligações: <strong>{call.callCount}</strong>
                           </span>
                         </div>
+                        {call.completedBy && call.completedAt && (
+                          <div className="flex items-center gap-2 text-sm mt-2 p-2 bg-success/10 rounded border border-success/20">
+                            <User className="h-4 w-4 text-success" />
+                            <span className="text-success">
+                              <strong>{call.completedBy}</strong> completou em{' '}
+                              {format(call.completedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </span>
+                          </div>
+                        )}
                         {call.callNotes && (
                           <p className="text-sm text-muted-foreground mt-2 p-2 bg-muted rounded">
-                            <strong>Observações:</strong> {call.callNotes}
+                            <strong>Observações da ligação:</strong> {call.callNotes}
                           </p>
                         )}
                         {call.notes && (

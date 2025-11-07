@@ -57,6 +57,8 @@ export type Database = {
           call_count: number | null
           call_notes: string | null
           completed_at: string | null
+          completed_by: string | null
+          completed_by_user_id: string | null
           created_at: string | null
           id: string
           lead_id: string
@@ -69,6 +71,8 @@ export type Database = {
           call_count?: number | null
           call_notes?: string | null
           completed_at?: string | null
+          completed_by?: string | null
+          completed_by_user_id?: string | null
           created_at?: string | null
           id?: string
           lead_id: string
@@ -81,6 +85,8 @@ export type Database = {
           call_count?: number | null
           call_notes?: string | null
           completed_at?: string | null
+          completed_by?: string | null
+          completed_by_user_id?: string | null
           created_at?: string | null
           id?: string
           lead_id?: string

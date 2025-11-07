@@ -71,6 +71,8 @@ export function useCallQueue() {
           tags: item.tags || [],
           callNotes: item.call_notes || undefined,
           callCount: item.call_count || 0,
+          completedBy: item.completed_by || undefined,
+          completedAt: item.completed_at ? new Date(item.completed_at) : undefined,
         };
       }) as CallQueueItem[];
 
@@ -88,20 +90,37 @@ export function useCallQueue() {
 
   const completeCall = async (callId: string, callNotes?: string) => {
     try {
-      // Get current call count
-      const { data: currentCall } = await (supabase as any)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Erro",
+          description: "Usuário não autenticado",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get current call to increment count
+      const { data: currentCall, error: fetchError } = await (supabase as any)
         .from('call_queue')
         .select('call_count')
         .eq('id', callId)
         .single();
 
+      if (fetchError) throw fetchError;
+
+      const newCallCount = (currentCall?.call_count || 0) + 1;
+      const now = new Date().toISOString();
+
       const { error } = await (supabase as any)
         .from('call_queue')
         .update({ 
           status: 'completed',
-          completed_at: new Date().toISOString(),
+          completed_at: now,
           call_notes: callNotes,
-          call_count: (currentCall?.call_count || 0) + 1
+          call_count: newCallCount,
+          completed_by: user.email || 'Usuário',
+          completed_by_user_id: user.id
         })
         .eq('id', callId);
 
