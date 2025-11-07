@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CallQueueItem } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -124,8 +124,22 @@ export function useCallQueue() {
       const newCallCount = (queueItem.leads?.call_count || 0) + 1;
       const now = new Date().toISOString();
 
-      // Save to history
-      const orgId = await getUserOrganizationId();
+      // Optimistic UI update: move card to concluídas
+      setCallQueue((prev) => prev.map((c) =>
+        c.id === callId
+          ? {
+              ...c,
+              status: 'completed',
+              completedAt: new Date(now),
+              callNotes: callNotes || c.callNotes,
+              callCount: newCallCount,
+              completedBy: user.email || 'Usuário',
+            }
+          : c
+      ));
+
+      // Garantir organização e salvar histórico
+      const orgId = await ensureUserOrganization();
       await (supabase as any)
         .from('call_queue_history')
         .insert({
