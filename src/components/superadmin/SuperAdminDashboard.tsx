@@ -49,14 +49,9 @@ export function SuperAdminDashboard() {
       const hasAdminRole = !!roleData;
       setIsAdmin(hasAdminRole);
 
-      // Check if user belongs to pubdigital org
-      const { data: orgMember } = await supabase
-        .from('organization_members')
-        .select('organization_id, organizations(name)')
-        .eq('user_id', user.id)
-        .single();
-
-      const isPubdig = orgMember?.organizations?.name?.toLowerCase().includes('pubdigital') ?? false;
+      // Check if user is pubdigital via DB function
+      const { data: isPubdigFn } = await supabase.rpc('is_pubdigital_user', { _user_id: user.id });
+      const isPubdig = !!isPubdigFn;
       setIsPubdigitalUser(isPubdig);
 
       // Only fetch all orgs if user is admin or pubdigital

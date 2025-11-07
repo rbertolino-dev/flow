@@ -63,7 +63,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "users" as const, label: "Usuários", icon: UserCog },
   ];
 
-  const superAdminMenuItems = isPubdigitalUser ? [
+  const superAdminMenuItems = (isPubdigitalUser || isAdmin) ? [
     { id: "superadmin" as const, label: "Super Admin", icon: UserCog },
   ] : [];
 
@@ -85,21 +85,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       
       setIsAdmin(!!roleData);
 
-      // Check if user belongs to pubdigital org
-      const { data: orgMember } = await supabase
-        .from('organization_members')
-        .select('organization_id, organizations(name)')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      console.log('Organization check:', {
-        orgMember,
-        orgName: orgMember?.organizations?.name,
-        isPubdig: orgMember?.organizations?.name?.toLowerCase().includes('pubdigital')
-      });
-
-      const isPubdig = orgMember?.organizations?.name?.toLowerCase().includes('pubdigital') ?? false;
-      setIsPubdigitalUser(isPubdig);
+      // Check if user is pubdigital via DB function
+      const { data: isPubdigFn } = await supabase.rpc('is_pubdigital_user', { _user_id: userId });
+      console.log('Pubdigital check via RPC:', { isPubdigFn });
+      setIsPubdigitalUser(!!isPubdigFn);
     };
 
     supabase.auth.getUser().then(({ data: { user } }) => {
