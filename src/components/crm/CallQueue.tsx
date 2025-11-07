@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { buildCopyNumber } from "@/lib/phoneUtils";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
 import { BulkImportPanel } from "./BulkImportPanel";
@@ -160,20 +161,76 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
             </p>
           </div>
           
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <History className="h-4 w-4" />
-                Ver Histórico
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl h-[80vh]">
-              <DialogHeader>
-                <DialogTitle>Histórico da Fila de Ligações</DialogTitle>
-              </DialogHeader>
-              <CallQueueHistory />
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={async () => {
+                if (pendingCalls.length === 0) {
+                  toast({
+                    title: "Fila vazia",
+                    description: "Não há ligações pendentes para limpar",
+                  });
+                  return;
+                }
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                // Mover ligações pendentes para o histórico
+                for (const call of pendingCalls) {
+                  await supabase.from('call_queue_history').insert({
+                    user_id: user.id,
+                    lead_id: call.leadId,
+                    lead_name: call.leadName,
+                    lead_phone: call.phone,
+                    scheduled_for: call.scheduledFor?.toISOString() || new Date().toISOString(),
+                    priority: call.priority,
+                    status: call.status,
+                    notes: call.notes,
+                    call_notes: call.callNotes,
+                    call_count: call.callCount,
+                    action: 'deleted',
+                  });
+                }
+
+                // Remover da fila
+                const { error } = await supabase
+                  .from('call_queue')
+                  .delete()
+                  .eq('status', 'pending')
+                  .in('id', pendingCalls.map(c => c.id));
+
+                if (error) throw error;
+
+                toast({
+                  title: "Fila limpa",
+                  description: `${pendingCalls.length} ligação(ões) movida(s) para o histórico`,
+                });
+
+                onRefetch();
+              }}
+              disabled={pendingCalls.length === 0}
+            >
+              <Trash2 className="h-4 w-4" />
+              Limpar Fila
+            </Button>
+
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <History className="h-4 w-4" />
+                  Ver Histórico
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle>Histórico da Fila de Ligações</DialogTitle>
+                </DialogHeader>
+                <CallQueueHistory />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <div className="relative">
