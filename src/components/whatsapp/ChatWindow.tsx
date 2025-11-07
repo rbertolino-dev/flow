@@ -124,9 +124,17 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
       let mediaUrl = null;
 
       if (selectedImage) {
-        // Upload da imagem e envio
-        const formData = new FormData();
-        formData.append('file', selectedImage);
+        // Converter imagem para base64
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(selectedImage);
+        });
+        
+        const base64Image = await base64Promise;
         
         // Enviar imagem via Evolution
         response = await fetch(
@@ -134,9 +142,15 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
           {
             method: 'POST',
             headers: {
+              'Content-Type': 'application/json',
               'apikey': activeConfig.api_key,
             },
-            body: formData,
+            body: JSON.stringify({
+              number: phone,
+              mediatype: 'image',
+              media: base64Image,
+              caption: message || '',
+            }),
           }
         );
         
@@ -159,7 +173,10 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
         );
       }
 
-      if (!response.ok) throw new Error('Erro ao enviar mensagem');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao enviar mensagem');
+      }
 
       // Salvar no banco
       const { data: { user } } = await supabase.auth.getUser();

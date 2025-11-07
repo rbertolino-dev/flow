@@ -3,6 +3,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { MessageSquare } from "lucide-react";
 import { ChatList } from "@/components/whatsapp/ChatList";
 import { ChatWindow } from "@/components/whatsapp/ChatWindow";
+import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { useWhatsAppChats } from "@/hooks/useWhatsAppChats";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +28,7 @@ export default function WhatsApp() {
   return (
     <AuthGuard>
       <div className="h-screen flex flex-col bg-[#0a0a0a]">
+        <WhatsAppNav />
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar de conversas */}
           <div className={`${isMobile ? (selectedPhone ? 'hidden' : 'w-full') : 'w-96'} border-r border-border/50 bg-[#111111] flex flex-col`}>
