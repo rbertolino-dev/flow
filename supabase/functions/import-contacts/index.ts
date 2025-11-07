@@ -196,18 +196,27 @@ serve(async (req) => {
 
     const leadsToInsert = filteredContacts
       .filter((contact: any) => {
-        // Filtrar apenas contatos válidos (não grupos) e com número extraível
         const raw = contact.number || contact.phone || contact.remoteJid || contact.id || contact.key?.remoteJid || contact.wid?.user || contact.jid;
         const rawStr = typeof raw === 'string' ? raw : '';
-        const phoneDigits = (rawStr.match(/\d{7,15}/)?.[0] || '').replace(/\D/g, '');
-        const isValid = phoneDigits.length >= 10 && !rawStr.includes('@g.us');
+        const phoneDigits = (rawStr.match(/\d{10,15}/)?.[0] || '').replace(/\D/g, '');
+        
+        // Validar apenas números brasileiros
+        const isBrazilian = phoneDigits.startsWith('55') && phoneDigits.length >= 12 && phoneDigits.length <= 13;
+        const isValidBR = phoneDigits.length >= 10 && phoneDigits.length <= 11 && !phoneDigits.startsWith('55');
+        const isGroup = rawStr.includes('@g.us');
+        const isLid = rawStr.includes('@lid'); // IDs do WhatsApp, não telefones reais
+        
+        const isValid = (isBrazilian || isValidBR) && !isGroup && !isLid;
         
         console.log('[IMPORT] Filter check:', {
           raw: rawStr.substring(0, 30),
           digits: phoneDigits,
           length: phoneDigits.length,
-          isValid,
-          isGroup: rawStr.includes('@g.us')
+          isBrazilian,
+          isValidBR,
+          isLid,
+          isGroup,
+          isValid
         });
         
         return isValid;
@@ -228,18 +237,15 @@ serve(async (req) => {
           let extracted = '';
           
           if (typeof raw === 'string') {
-            // Tentar extrair número antes do @
             if (raw.includes('@')) {
               extracted = raw.split('@')[0].replace(/\D/g, '');
             } else {
-              // Extrair sequência de dígitos
               const match = raw.match(/\d{10,15}/);
               extracted = match ? match[0] : raw.replace(/\D/g, '');
             }
           }
           
           console.log('[IMPORT] Phone extraction:', {
-            source: candidates.filter(c => c).slice(0, 3),
             raw: typeof raw === 'string' ? raw.substring(0, 30) : raw,
             extracted: extracted,
             length: extracted.length
