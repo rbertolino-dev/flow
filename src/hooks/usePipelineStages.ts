@@ -183,8 +183,12 @@ export function usePipelineStages() {
 
   const deleteStage = async (id: string) => {
     try {
+      console.log('Tentando excluir etapa:', id);
+      
       // Verificar se é a primeira etapa (position = 0)
       const stageToDelete = stages.find(s => s.id === id);
+      console.log('Etapa encontrada:', stageToDelete);
+      
       if (stageToDelete?.position === 0) {
         toast({
           title: "Não permitido",
@@ -195,11 +199,14 @@ export function usePipelineStages() {
       }
 
       // Verificar se há leads vinculados a esta etapa
+      console.log('Verificando leads vinculados...');
       const { data: leadsInStage, error: checkError } = await (supabase as any)
         .from('leads')
         .select('id')
         .eq('stage_id', id)
         .limit(1);
+
+      console.log('Leads encontrados:', leadsInStage, 'Erro:', checkError);
 
       if (checkError) throw checkError;
 
@@ -212,10 +219,13 @@ export function usePipelineStages() {
         return false;
       }
 
+      console.log('Executando delete...');
       const { error } = await (supabase as any)
         .from('pipeline_stages')
         .delete()
         .eq('id', id);
+
+      console.log('Resultado do delete - Erro:', error);
 
       if (error) throw error;
 
@@ -227,6 +237,7 @@ export function usePipelineStages() {
       await fetchStages();
       return true;
     } catch (error: any) {
+      console.error('Erro completo ao deletar etapa:', error);
       toast({
         title: "Erro ao remover etapa",
         description: error.message,
