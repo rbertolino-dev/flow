@@ -100,6 +100,22 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     });
   };
 
+  const handleDirectCall = (phone: string) => {
+    // Remover todos os caracteres não numéricos
+    let cleanPhone = phone.replace(/\D/g, '');
+    
+    // Remover o 55 do início se existir
+    if (cleanPhone.startsWith('55')) {
+      cleanPhone = cleanPhone.substring(2);
+    }
+    
+    // Adicionar 021 antes do DDD e número
+    const formattedPhone = `021${cleanPhone}`;
+    
+    // Abrir discador do celular
+    window.location.href = `tel:${formattedPhone}`;
+  };
+
   const filteredCalls = callQueue.filter(call => {
     // Filtro de busca por texto
     if (searchQuery) {
@@ -620,7 +636,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.location.href = `tel:${call.phone}`}
+                            onClick={() => handleDirectCall(call.phone)}
                             className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             title="Ligar agora"
                           >
