@@ -68,14 +68,13 @@ export function useTags() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
-      // Obter organization_id do usuário
-      const { data: orgMember } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', session.user.id)
-        .single();
+      // Obter organization_id de forma segura usando a função RPC
+      const { data: orgId, error: orgErr } = await supabase
+        .rpc('get_user_organization', { _user_id: session.user.id });
 
-      if (!orgMember) {
+      if (orgErr) throw orgErr;
+      
+      if (!orgId) {
         toast({
           title: "Erro",
           description: "Usuário não pertence a nenhuma organização",
@@ -88,7 +87,7 @@ export function useTags() {
         .from('tags')
         .insert({
           user_id: session.user.id,
-          organization_id: orgMember.organization_id,
+          organization_id: orgId,
           name,
           color,
         });
