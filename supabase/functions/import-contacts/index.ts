@@ -196,11 +196,28 @@ serve(async (req) => {
 
     const leadsToInsert = filteredContacts
       .filter((contact: any) => {
-        // Filtrar apenas contatos válidos (não grupos, tem ID)
-        return contact.id && !contact.id.includes('@g.us');
+        // Filtrar apenas contatos válidos (não grupos) e com número extraível
+        const raw = contact.number || contact.phone || contact.remoteJid || contact.id || contact.key?.remoteJid || contact.wid?.user || contact.jid;
+        const rawStr = typeof raw === 'string' ? raw : '';
+        const phoneDigits = (rawStr.match(/\d{7,15}/)?.[0] || '').replace(/\D/g, '');
+        return phoneDigits && !rawStr.includes('@g.us');
       })
       .map((contact: any) => {
-        const phoneNumber = contact.id.split('@')[0];
+        const phoneNumber = (() => {
+          const candidates = [
+            contact.number,
+            contact.phone,
+            contact.remoteJid,
+            contact.id,
+            contact.key?.remoteJid,
+            contact.wid?.user,
+            contact.jid,
+            contact.chatId,
+          ];
+          const raw = candidates.find((v: any) => typeof v === 'string' && v.length > 0) || '';
+          const m = (raw as string).match(/\d{7,15}/);
+          return m ? m[0] : (typeof raw === 'string' && raw.includes('@') ? raw.split('@')[0].replace(/\D/g, '') : '');
+        })();
         const name = contact.pushName || contact.name || phoneNumber;
         
         return {
