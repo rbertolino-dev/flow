@@ -38,7 +38,7 @@ export function useCallQueue() {
     try {
       const { data: queueData, error } = await (supabase as any)
         .from('call_queue')
-        .select('*, leads(id, name, phone)')
+        .select('*, leads(id, name, phone, call_count)')
         .order('scheduled_for', { ascending: true });
 
       if (error) throw error;
@@ -81,7 +81,7 @@ export function useCallQueue() {
           tags: item.tags || [],
           queueTags: item.queueTags || [],
           callNotes: item.call_notes || undefined,
-          callCount: item.call_count || 0,
+          callCount: (item.leads?.call_count ?? item.call_count ?? 0),
           completedBy: item.completed_by || undefined,
           completedAt: item.completed_at ? new Date(item.completed_at) : undefined,
         };

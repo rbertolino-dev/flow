@@ -124,7 +124,23 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
   );
 
   const pendingCalls = filteredCalls.filter((call) => call.status === "pending");
-  const completedCalls = filteredCalls.filter((call) => call.status === "completed");
+  // Agrupar concluídas por lead e manter apenas a mais recente
+  const completedCalls = Object.values(
+    filteredCalls
+      .filter((call) => call.status === "completed")
+      .reduce((acc, call) => {
+        const key = call.leadId;
+        const existing = acc[key];
+        if (!existing) {
+          acc[key] = call;
+        } else {
+          const a = existing.completedAt ? new Date(existing.completedAt).getTime() : 0;
+          const b = call.completedAt ? new Date(call.completedAt).getTime() : 0;
+          if (b >= a) acc[key] = call;
+        }
+        return acc;
+      }, {} as Record<string, CallQueueItem>)
+  );
 
   return (
     <div className="h-full flex flex-col bg-background">
