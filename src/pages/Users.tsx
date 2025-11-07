@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Shield, User as UserIcon, UserPlus, Loader2 } from "lucide-react";
+import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +47,14 @@ export default function Users() {
     password: "",
     fullName: "",
     isAdmin: false,
+  });
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
+  const [editUserData, setEditUserData] = useState({
+    email: "",
+    fullName: "",
+    password: "",
   });
   const { toast } = useToast();
 
@@ -197,6 +205,74 @@ export default function Users() {
       });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleOpenEditDialog = (user: UserProfile) => {
+    setUserToEdit(user);
+    setEditUserData({
+      email: user.email,
+      fullName: user.full_name || "",
+      password: "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditUser = async () => {
+    if (!userToEdit || !editUserData.email) {
+      toast({
+        title: "Erro",
+        description: "Email é obrigatório",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditing(true);
+    try {
+      // Atualizar profile (nome)
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ full_name: editUserData.fullName })
+        .eq("id", userToEdit.id);
+
+      if (profileError) throw profileError;
+
+      // Se o email mudou, atualizar no auth
+      if (editUserData.email !== userToEdit.email) {
+        const { error: emailError } = await supabase.auth.updateUser({
+          email: editUserData.email,
+        });
+
+        if (emailError) throw emailError;
+      }
+
+      // Se forneceu nova senha, atualizar
+      if (editUserData.password) {
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: editUserData.password,
+        });
+
+        if (passwordError) throw passwordError;
+      }
+
+      toast({
+        title: "Usuário atualizado",
+        description: "As informações foram atualizadas com sucesso",
+      });
+
+      setEditDialogOpen(false);
+      setUserToEdit(null);
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Erro ao editar usuário:", error);
+      toast({
+        title: "Erro ao editar usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -393,6 +469,14 @@ export default function Users() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleOpenEditDialog(user)}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleToggleAdmin(user.id, user.roles)}
                     >
                       <Shield className="h-4 w-4 mr-1" />
@@ -433,6 +517,71 @@ export default function Users() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do usuário
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-fullName">Nome Completo</Label>
+              <Input
+                id="edit-fullName"
+                type="text"
+                placeholder="Nome do usuário"
+                value={editUserData.fullName}
+                onChange={(e) =>
+                  setEditUserData({ ...editUserData, fullName: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                placeholder="usuario@exemplo.com"
+                value={editUserData.email}
+                onChange={(e) =>
+                  setEditUserData({ ...editUserData, email: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-password">Nova Senha (opcional)</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                placeholder="Deixe em branco para não alterar"
+                value={editUserData.password}
+                onChange={(e) =>
+                  setEditUserData({ ...editUserData, password: e.target.value })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Preencha apenas se desejar alterar a senha
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={editing}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleEditUser} disabled={editing}>
+              {editing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
