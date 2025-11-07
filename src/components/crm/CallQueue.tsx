@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +13,7 @@ import { buildCopyNumber } from "@/lib/phoneUtils";
 import { useState } from "react";
 import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
+import { BulkImportPanel } from "./BulkImportPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +26,7 @@ interface CallQueueProps {
   onCallReschedule: (id: string, newDate: Date) => void;
   onAddTag: (callQueueId: string, tagId: string) => void;
   onRemoveTag: (callQueueId: string, tagId: string) => void;
+  onRefetch: () => void;
 }
 
 const priorityColors = {
@@ -39,7 +41,7 @@ const priorityLabels = {
   low: "Baixa",
 };
 
-export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag }: CallQueueProps) {
+export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onRefetch }: CallQueueProps) {
   const { toast } = useToast();
   const { tags: allTags } = useTags();
   const [searchQuery, setSearchQuery] = useState("");
@@ -163,7 +165,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant={showFilters ? "default" : "outline"}
               size="sm"
@@ -173,6 +175,18 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               <Filter className="h-4 w-4" />
               Filtros
             </Button>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Upload className="h-4 w-4" />
+                  Importar em Massa
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[600px] max-h-[80vh] overflow-y-auto p-0" align="start">
+                <BulkImportPanel onImportComplete={onRefetch} />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {showFilters && (

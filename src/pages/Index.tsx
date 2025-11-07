@@ -20,7 +20,7 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
-  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag } = useCallQueue();
+  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
   
   // Sincronização automática a cada 5 minutos
@@ -92,6 +92,7 @@ const Index = () => {
           onCallReschedule={handleCallReschedule}
           onAddTag={addCallQueueTag}
           onRemoveTag={removeCallQueueTag}
+          onRefetch={refetchCallQueue}
         />
       )}
 
