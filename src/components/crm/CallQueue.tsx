@@ -451,12 +451,12 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
         </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-6 space-y-6">
-          {/* Pending Calls */}
+        <div className="p-4 md:p-6 space-y-6">
+          {/* Pending Calls - Foco principal */}
           <div>
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2 sticky top-0 bg-background z-10 py-2">
               <AlertCircle className="h-5 w-5 text-warning" />
-              Pendentes
+              Pendentes ({pendingCalls.length})
             </h2>
             <div className="space-y-3">
               {pendingCalls.length === 0 ? (
@@ -466,9 +466,9 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               ) : (
                 pendingCalls.map((call) => (
                   <Card key={call.id} className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col lg:flex-row items-start gap-4">
+                      <div className="flex-1 space-y-2 w-full">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-lg">{call.leadName}</h3>
                           <Badge className={priorityColors[call.priority]} variant="secondary">
                             {priorityLabels[call.priority]}
@@ -566,33 +566,33 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             <label className="text-sm font-medium">Observações da ligação:</label>
                           </div>
                           <Textarea
-                            placeholder="Digite suas observações sobre esta ligação..."
+                            placeholder="Digite suas observações sobre esta ligação... (opcional)"
                             value={activeCallNotes[call.id] || call.callNotes || ''}
                             onChange={(e) => setActiveCallNotes(prev => ({ ...prev, [call.id]: e.target.value }))}
                             className="min-h-[60px]"
                           />
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex lg:flex-col gap-2 w-full lg:w-auto">
+                        <Button
+                          size="sm"
+                          onClick={() => handleCopyPhone(call.phone)}
+                          variant="outline"
+                          className="flex-1 lg:flex-none whitespace-nowrap"
+                        >
+                          <Phone className="h-4 w-4 mr-2" />
+                          Ligar
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => { 
-                            handleCopyPhone(call.phone);
                             const notes = activeCallNotes[call.id];
-                            if (!notes || notes.trim() === '') {
-                              toast({
-                                title: "Observação vazia",
-                                description: "Você não adicionou observações para esta ligação.",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
                             onCallComplete(call.id, notes);
                           }}
-                          className="whitespace-nowrap"
+                          className="flex-1 lg:flex-none whitespace-nowrap bg-success hover:bg-success/90 text-white"
                         >
-                          <Phone className="h-4 w-4 mr-2" />
-                          Iniciar
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Concluída
                         </Button>
                         <Button
                           size="sm"
@@ -602,7 +602,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             callId: call.id, 
                             currentDate: call.scheduledFor 
                           })}
-                          className="whitespace-nowrap"
+                          className="flex-1 lg:flex-none whitespace-nowrap"
                         >
                           <RotateCcw className="h-4 w-4 mr-2" />
                           Reagendar
@@ -617,10 +617,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
 
           {/* Completed Calls */}
           {completedCalls.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <div className="mt-8">
+              <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-success" />
-                Concluídas
+                Concluídas ({completedCalls.length})
               </h2>
               <div className="space-y-3">
                 {completedCalls.map((call) => (
