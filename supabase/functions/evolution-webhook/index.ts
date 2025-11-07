@@ -129,6 +129,8 @@ serve(async (req) => {
       if (configError || !configs) {
         console.error('❌ Configuração não encontrada:', configError);
         await supabase.from('evolution_logs').insert({
+          user_id: null,
+          organization_id: null,
           instance,
           event,
           level: 'error',
@@ -154,6 +156,7 @@ serve(async (req) => {
         // Registrar log
         await supabase.from('evolution_logs').insert({
           user_id: configs.user_id,
+          organization_id: configs.organization_id,
           instance,
           event,
           level: 'info',
@@ -218,6 +221,7 @@ serve(async (req) => {
         // Registrar log
         await supabase.from('evolution_logs').insert({
           user_id: configs.user_id,
+          organization_id: configs.organization_id,
           instance,
           event,
           level: 'info',
@@ -236,6 +240,7 @@ serve(async (req) => {
       // Registrar log de mensagem
       await supabase.from('evolution_logs').insert({
         user_id: configs.user_id,
+        organization_id: configs.organization_id,
         instance,
         event,
         level: 'info',

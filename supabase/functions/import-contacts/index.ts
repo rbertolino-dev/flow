@@ -65,9 +65,19 @@ serve(async (req) => {
     console.log('Importing contacts for user:', userId);
     console.log('Date range:', { startDate, endDate });
 
+    // Obter organization_id do usuário
+    const { data: orgMember } = await supabaseClient
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const organizationId = orgMember?.organization_id || null;
+
     // Salvar log de início da importação
     await supabaseClient.from('evolution_logs').insert({
       user_id: userId,
+      organization_id: organizationId,
       instance: 'import-contacts',
       event: 'import_start',
       level: 'info',
@@ -94,6 +104,7 @@ serve(async (req) => {
       // Log do erro
       await supabaseClient.from('evolution_logs').insert({
         user_id: userId,
+        organization_id: organizationId,
         event: 'import-contacts',
         level: 'error',
         message: 'Configuração da Evolution API não encontrada',
@@ -129,6 +140,7 @@ serve(async (req) => {
       
       await supabaseClient.from('evolution_logs').insert({
         user_id: userId,
+        organization_id: organizationId,
         instance: config.instance_name,
         event: 'import_error',
         level: 'error',
@@ -317,6 +329,7 @@ serve(async (req) => {
     // Salvar log de sucesso
     await supabaseClient.from('evolution_logs').insert({
       user_id: userId,
+      organization_id: organizationId,
       instance: config.instance_name,
       event: 'import_success',
       level: 'info',

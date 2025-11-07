@@ -459,6 +459,7 @@ export type Database = {
           instance: string | null
           level: string
           message: string | null
+          organization_id: string | null
           payload: Json | null
           user_id: string | null
         }
@@ -469,6 +470,7 @@ export type Database = {
           instance?: string | null
           level?: string
           message?: string | null
+          organization_id?: string | null
           payload?: Json | null
           user_id?: string | null
         }
@@ -479,10 +481,19 @@ export type Database = {
           instance?: string | null
           level?: string
           message?: string | null
+          organization_id?: string | null
           payload?: Json | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "evolution_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       international_contacts: {
         Row: {
