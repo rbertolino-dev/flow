@@ -13,9 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Tag as TagIcon, Layers, Pencil, Trash2 } from "lucide-react";
+import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
+import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 
 export default function Settings() {
   const { 
@@ -140,9 +141,13 @@ export default function Settings() {
 
       <div className="p-6 max-w-6xl space-y-6">
         <Tabs defaultValue="evolution" className="w-full">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="evolution">Evolution API</TabsTrigger>
             <TabsTrigger value="pipeline">Funil & Etiquetas</TabsTrigger>
+            <TabsTrigger value="templates">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Templates
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="evolution" className="space-y-6">
@@ -387,8 +392,12 @@ export default function Settings() {
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-        </Tabs>
+              </TabsContent>
+
+              <TabsContent value="templates" className="space-y-4">
+                <MessageTemplateManager />
+              </TabsContent>
+            </Tabs>
       </div>
 
       <EvolutionInstanceDialog

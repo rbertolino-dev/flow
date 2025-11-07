@@ -8,17 +8,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useTags } from "@/hooks/useTags";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { useLeads } from "@/hooks/useLeads";
+import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
@@ -58,9 +61,15 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
   const { addToQueue } = useCallQueue();
   const { deleteLead } = useLeads();
+  const { configs } = useEvolutionConfigs();
+  const { templates, applyTemplate } = useMessageTemplates();
   const { toast } = useToast();
   const [selectedTagId, setSelectedTagId] = useState<string>("");
   const [newComment, setNewComment] = useState<string>("");
+  const [whatsappMessage, setWhatsappMessage] = useState<string>("");
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [isSending, setIsSending] = useState(false);
 
   // Separar mensagens do WhatsApp do restante das atividades
   const whatsappMessages = useMemo(() => {
@@ -163,6 +172,60 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!whatsappMessage.trim() || !selectedInstanceId) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Selecione uma instância e digite a mensagem",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-whatsapp-message', {
+        body: {
+          instanceId: selectedInstanceId,
+          phone: lead.phone,
+          message: whatsappMessage,
+          leadId: lead.id,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Mensagem enviada",
+        description: "A mensagem foi enviada com sucesso",
+      });
+
+      setWhatsappMessage("");
+      setSelectedTemplateId("");
+    } catch (error: any) {
+      toast({
+        title: "Erro ao enviar mensagem",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      const message = applyTemplate(template.content, {
+        nome: lead.name,
+        telefone: lead.phone,
+        empresa: lead.company || '',
+      });
+      setWhatsappMessage(message);
     }
   };
 
@@ -355,6 +418,74 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
             <Separator />
 
+            {/* Enviar Mensagem WhatsApp */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+                Enviar Mensagem WhatsApp
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="instance-select">Instância Evolution</Label>
+                  <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
+                    <SelectTrigger id="instance-select">
+                      <SelectValue placeholder="Selecione uma instância" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {configs.filter(c => c.is_connected).map((config) => (
+                        <SelectItem key={config.id} value={config.id}>
+                          {config.instance_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {templates.length > 0 && (
+                  <div>
+                    <Label htmlFor="template-select">Template (opcional)</Label>
+                    <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
+                      <SelectTrigger id="template-select">
+                        <SelectValue placeholder="Usar um template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-3 w-3" />
+                              {template.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <Label htmlFor="whatsapp-message">Mensagem</Label>
+                  <Textarea
+                    id="whatsapp-message"
+                    value={whatsappMessage}
+                    onChange={(e) => setWhatsappMessage(e.target.value)}
+                    placeholder="Digite a mensagem..."
+                    rows={4}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleSendWhatsApp}
+                  disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
+                  className="w-full"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {isSending ? 'Enviando...' : 'Enviar Mensagem'}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Chat History - WhatsApp Messages */}
             {whatsappMessages.length > 0 && (
               <>
@@ -435,10 +566,6 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
           <Button variant="secondary" onClick={handleAddToCallQueue}>
             <PhoneCall className="h-4 w-4 mr-2" />
             Adicionar à Fila
-          </Button>
-          <Button className="flex-1">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Enviar WhatsApp
           </Button>
         </div>
       </DialogContent>
