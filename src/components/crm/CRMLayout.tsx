@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
+import agilizeLogo from "@/assets/agilize-logo.png";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -73,17 +74,19 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           sidebarOpen ? "w-64" : "w-16"
         )}
       >
-        <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
-          {sidebarOpen && (
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              CRM Sales
-            </h1>
+        <div className="p-4 border-b border-sidebar-border flex items-center justify-between gap-2">
+          {sidebarOpen ? (
+            <img src={agilizeLogo} alt="CRM Agilize" className="h-10 w-auto" />
+          ) : (
+            <div className="w-8 h-8 flex items-center justify-center">
+              <img src={agilizeLogo} alt="CRM" className="h-8 w-8 object-contain" />
+            </div>
           )}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent"
+            className="text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0"
           >
             <Menu className="h-5 w-5" />
           </Button>

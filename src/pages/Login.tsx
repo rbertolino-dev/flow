@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import agilizeLogo from "@/assets/agilize-logo.png";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -84,8 +85,11 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/10 to-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">CRM Evolution</CardTitle>
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <img src={agilizeLogo} alt="CRM Agilize" className="h-16 w-auto" />
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">CRM Agilize</CardTitle>
           <CardDescription className="text-center">
             Gerencie seus leads e vendas de forma inteligente
           </CardDescription>
