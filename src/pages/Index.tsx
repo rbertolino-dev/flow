@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
 import { CallQueue } from "@/components/crm/CallQueue";
+import { LidContactsList } from "@/components/crm/LidContactsList";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
@@ -95,12 +96,7 @@ const Index = () => {
       )}
 
       {activeView === "contacts" && (
-        <div className="h-full flex items-center justify-center bg-background">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold">Contatos</h2>
-            <p className="text-muted-foreground">Em desenvolvimento</p>
-          </div>
-        </div>
+        <LidContactsList />
       )}
 
       {activeView === "settings" && <Settings />}
