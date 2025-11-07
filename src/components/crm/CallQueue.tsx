@@ -166,54 +166,71 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               variant="outline" 
               className="gap-2"
               onClick={async () => {
-                const allCalls = [...pendingCalls, ...completedCalls];
-                
-                if (allCalls.length === 0) {
-                  toast({
-                    title: "Fila vazia",
-                    description: "Não há ligações para limpar",
-                  });
-                  return;
-                }
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) return;
 
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
+                  const { data: queueData, error: fetchError } = await (supabase as any)
+                    .from('call_queue')
+                    .select('id, lead_id, scheduled_for, completed_at, completed_by, completed_by_user_id, priority, status, notes, call_notes, call_count, leads(name, phone)')
+                    .order('scheduled_for', { ascending: true });
 
-                // Mover todas as ligações para o histórico
-                for (const call of allCalls) {
-                  await supabase.from('call_queue_history').insert({
+                  if (fetchError) throw fetchError;
+
+                  const allQueue = queueData || [];
+                  if (allQueue.length === 0) {
+                    toast({
+                      title: "Fila vazia",
+                      description: "Não há ligações para limpar",
+                    });
+                    return;
+                  }
+
+                  const records = allQueue.map((item: any) => ({
                     user_id: user.id,
-                    lead_id: call.leadId,
-                    lead_name: call.leadName,
-                    lead_phone: call.phone,
-                    scheduled_for: call.scheduledFor?.toISOString() || new Date().toISOString(),
-                    completed_at: call.completedAt?.toISOString() || null,
-                    completed_by: call.completedBy || null,
-                    priority: call.priority,
-                    status: call.status,
-                    notes: call.notes,
-                    call_notes: call.callNotes,
-                    call_count: call.callCount,
+                    lead_id: item.lead_id,
+                    lead_name: item.leads?.name || 'Nome não disponível',
+                    lead_phone: item.leads?.phone || '',
+                    scheduled_for: item.scheduled_for,
+                    completed_at: item.completed_at,
+                    completed_by: item.completed_by,
+                    completed_by_user_id: item.completed_by_user_id,
+                    priority: item.priority,
+                    status: item.status,
+                    notes: item.notes,
+                    call_notes: item.call_notes,
+                    call_count: item.call_count ?? 0,
                     action: 'deleted',
+                  }));
+
+                  if (records.length > 0) {
+                    const { error: insertError } = await (supabase as any)
+                      .from('call_queue_history')
+                      .insert(records);
+                    if (insertError) throw insertError;
+                  }
+
+                  const ids = allQueue.map((q: any) => q.id);
+                  const { error: deleteError } = await (supabase as any)
+                    .from('call_queue')
+                    .delete()
+                    .in('id', ids);
+                  if (deleteError) throw deleteError;
+
+                  toast({
+                    title: "Fila zerada",
+                    description: `${ids.length} ligação(ões) movida(s) para o histórico`,
+                  });
+
+                  onRefetch();
+                } catch (error: any) {
+                  toast({
+                    title: "Erro ao limpar fila",
+                    description: error.message,
+                    variant: "destructive",
                   });
                 }
-
-                // Remover todas da fila
-                const { error } = await supabase
-                  .from('call_queue')
-                  .delete()
-                  .in('id', allCalls.map(c => c.id));
-
-                if (error) throw error;
-
-                toast({
-                  title: "Fila limpa",
-                  description: `${allCalls.length} ligação(ões) movida(s) para o histórico`,
-                });
-
-                onRefetch();
               }}
-              disabled={pendingCalls.length === 0 && completedCalls.length === 0}
             >
               <Trash2 className="h-4 w-4" />
               Limpar Fila
