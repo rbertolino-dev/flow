@@ -53,6 +53,7 @@ export default function Users() {
     fullName: "",
     isAdmin: false,
   });
+  const [currentOrgId, setCurrentOrgId] = useState<string>("");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
@@ -70,6 +71,7 @@ export default function Users() {
   useEffect(() => {
     fetchUsers();
     fetchCurrentUserRoles();
+    fetchCurrentOrgId();
   }, []);
 
   const fetchCurrentUserRoles = async () => {
@@ -86,6 +88,18 @@ export default function Users() {
       setCurrentUserRoles(data.map(r => r.role));
     } catch (error: any) {
       console.error('Error fetching user roles:', error);
+    }
+  };
+
+  const fetchCurrentOrgId = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: orgId, error } = await supabase.rpc('get_user_organization', { _user_id: user.id });
+      if (error) throw error;
+      setCurrentOrgId(orgId || "");
+    } catch (error) {
+      console.error('Erro ao buscar organização atual:', error);
     }
   };
 
@@ -167,20 +181,31 @@ export default function Users() {
       return;
     }
 
+    if (newUserData.password.length < 6) {
+      toast({ title: "Senha muito curta", description: "Mínimo de 6 caracteres.", variant: "destructive" });
+      return;
+    }
+
+    if (!currentOrgId) {
+      toast({ title: "Organização não definida", description: "Não foi possível identificar sua organização para vincular o novo usuário.", variant: "destructive" });
+      return;
+    }
+
     setCreating(true);
     try {
-      // Chamar edge function para criar usuário (não desloga o admin)
+      // Chamar edge function para criar usuário na organização atual do admin
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: newUserData.email,
           password: newUserData.password,
           fullName: newUserData.fullName,
           isAdmin: newUserData.isAdmin,
+          organizationId: currentOrgId,
         },
       });
 
       if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Usuário criado",
@@ -418,7 +443,7 @@ export default function Users() {
                     >
                       Cancelar
                     </Button>
-                    <Button onClick={handleCreateUser} disabled={creating}>
+                    <Button onClick={handleCreateUser} disabled={creating || !currentOrgId || newUserData.password.length < 6}>
                       {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                       Criar Usuário
                     </Button>
