@@ -65,23 +65,27 @@ serve(async (req) => {
         // Preparar mensagem personalizada
         const personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
 
-        // Enviar mensagem via Evolution API
-        console.log(`📤 Enviando para ${item.phone} via ${campaign.instance.api_url}/message/sendText/${campaign.instance.instance_name}`);
+        // Limpar api_url e construir endpoint correto
+        let baseUrl = campaign.instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
+        if (baseUrl.endsWith('/manager')) {
+          baseUrl = baseUrl.slice(0, -8); // Remove '/manager' se existir
+        }
         
-        const evolutionResponse = await fetch(
-          `${campaign.instance.api_url}/message/sendText/${campaign.instance.instance_name}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: campaign.instance.api_key,
-            },
-            body: JSON.stringify({
-              number: item.phone,
-              text: personalizedMessage,
-            }),
-          }
-        );
+        const evolutionUrl = `${baseUrl}/message/sendText/${campaign.instance.instance_name}`;
+        console.log(`📤 Enviando para ${item.phone} via ${evolutionUrl}`);
+
+        // Enviar mensagem via Evolution API
+        const evolutionResponse = await fetch(evolutionUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: campaign.instance.api_key,
+          },
+          body: JSON.stringify({
+            number: item.phone,
+            text: personalizedMessage,
+          }),
+        });
 
         if (!evolutionResponse.ok) {
           const errorText = await evolutionResponse.text();
