@@ -115,16 +115,16 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
         </CardHeader>
 
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-muted-foreground" />
               <h3 className="text-lg font-semibold">
                 Membros ({organization.organization_members.length})
               </h3>
             </div>
-            <Button onClick={() => setCreateUserOpen(true)}>
+            <Button onClick={() => setCreateUserOpen(true)} size="lg">
               <UserPlus className="h-4 w-4 mr-2" />
-              Adicionar Usuário
+              Adicionar Usuário Nesta Empresa
             </Button>
           </div>
 
