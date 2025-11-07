@@ -154,6 +154,23 @@ serve(async (req) => {
       throw new Error('Erro ao adicionar usuário à organização');
     }
 
+    // Criar estágios padrão do pipeline para o novo usuário
+    const { error: stagesError } = await supabaseAdmin
+      .from('pipeline_stages')
+      .insert([
+        { user_id: newUser.user.id, organization_id: organizationId, name: 'Novo Lead', color: '#10b981', position: 0 },
+        { user_id: newUser.user.id, organization_id: organizationId, name: 'Contato Feito', color: '#3b82f6', position: 1 },
+        { user_id: newUser.user.id, organization_id: organizationId, name: 'Proposta Enviada', color: '#8b5cf6', position: 2 },
+        { user_id: newUser.user.id, organization_id: organizationId, name: 'Em Negociação', color: '#f59e0b', position: 3 },
+        { user_id: newUser.user.id, organization_id: organizationId, name: 'Ganho', color: '#22c55e', position: 4 },
+        { user_id: newUser.user.id, organization_id: organizationId, name: 'Perdido', color: '#ef4444', position: 5 },
+      ]);
+
+    if (stagesError && !stagesError.message?.includes('duplicate')) {
+      console.error('Erro ao criar estágios do pipeline:', stagesError);
+      // Não quebrar a criação do usuário por causa dos estágios
+    }
+
     console.log('Usuário criado com sucesso:', newUser.user.id);
 
     return new Response(

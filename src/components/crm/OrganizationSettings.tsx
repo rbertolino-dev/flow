@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
-import { Loader2, Users, Building2, Trash2 } from "lucide-react";
+import { Loader2, Users, Building2, Trash2, UserPlus } from "lucide-react";
+import { CreateUserDialog } from "@/components/superadmin/CreateUserDialog";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,10 +37,12 @@ export function OrganizationSettings() {
     updateOrganizationName,
     removeMember,
     updateMemberRole,
+    refetch,
   } = useOrganization();
   
   const [orgName, setOrgName] = useState(organization?.name ?? "");
   const [saving, setSaving] = useState(false);
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
 
   const handleSaveOrgName = async () => {
     if (!orgName.trim()) {
@@ -140,13 +144,21 @@ export function OrganizationSettings() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Membros da Equipe
-          </CardTitle>
-          <CardDescription>
-            {members.length} {members.length === 1 ? 'membro' : 'membros'} na organização
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Membros da Equipe
+              </CardTitle>
+              <CardDescription>
+                {members.length} {members.length === 1 ? 'membro' : 'membros'} na organização
+              </CardDescription>
+            </div>
+            <Button onClick={() => setCreateUserDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Adicionar Usuário
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -213,6 +225,19 @@ export function OrganizationSettings() {
           </div>
         </CardContent>
       </Card>
+
+      <CreateUserDialog
+        open={createUserDialogOpen}
+        onOpenChange={setCreateUserDialogOpen}
+        onSuccess={() => {
+          refetch();
+          toast({
+            title: "Usuário criado",
+            description: "O novo usuário foi adicionado à organização com sucesso.",
+          });
+        }}
+        preselectedOrgId={organization?.id}
+      />
     </div>
   );
 }
