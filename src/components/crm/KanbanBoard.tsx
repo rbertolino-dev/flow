@@ -83,7 +83,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 h-full overflow-x-auto p-6">
+        <div className="flex gap-4 h-full overflow-x-auto overflow-y-hidden p-6 scrollbar-visible">
           {stages.map((stage) => {
             const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
             return (
@@ -98,6 +98,28 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
             );
           })}
         </div>
+
+        <style>{`
+          .scrollbar-visible::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+          }
+          .scrollbar-visible::-webkit-scrollbar-track {
+            background: hsl(var(--muted));
+            border-radius: 6px;
+          }
+          .scrollbar-visible::-webkit-scrollbar-thumb {
+            background: hsl(var(--muted-foreground) / 0.3);
+            border-radius: 6px;
+          }
+          .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--muted-foreground) / 0.5);
+          }
+          .scrollbar-visible {
+            scrollbar-width: thin;
+            scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
+          }
+        `}</style>
 
         <DragOverlay>
           {activeLead ? (
