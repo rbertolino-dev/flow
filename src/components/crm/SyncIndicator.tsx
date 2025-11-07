@@ -3,14 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface SyncIndicatorProps {
   lastSync: Date | null;
   nextSync: Date | null;
   isSyncing: boolean;
+  compact?: boolean;
 }
 
-export function SyncIndicator({ lastSync, nextSync, isSyncing }: SyncIndicatorProps) {
+export function SyncIndicator({ lastSync, nextSync, isSyncing, compact }: SyncIndicatorProps) {
   const getStatusText = () => {
     if (isSyncing) return "Sincronizando...";
     if (lastSync) {
@@ -24,6 +26,19 @@ export function SyncIndicator({ lastSync, nextSync, isSyncing }: SyncIndicatorPr
     return `Próxima: ${formatDistanceToNow(nextSync, { addSuffix: true, locale: ptBR })}`;
   };
 
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1">
+        <RefreshCw 
+          className={cn(
+            "h-3.5 w-3.5",
+            isSyncing ? "animate-spin text-primary" : "text-muted-foreground"
+          )} 
+        />
+      </div>
+    );
+  }
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -33,9 +48,12 @@ export function SyncIndicator({ lastSync, nextSync, isSyncing }: SyncIndicatorPr
             className="gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
           >
             <RefreshCw 
-              className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-primary' : 'text-muted-foreground'}`} 
+              className={cn(
+                "h-3.5 w-3.5",
+                isSyncing ? "animate-spin text-primary" : "text-muted-foreground"
+              )} 
             />
-            <span className="text-xs">{getStatusText()}</span>
+            <span className="text-xs hidden sm:inline">{getStatusText()}</span>
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">

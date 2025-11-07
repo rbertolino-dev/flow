@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut } from "lucide-react";
+import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import agilizeLogo from "@/assets/agilize-logo.png";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -20,7 +21,8 @@ interface CRMLayoutProps {
 }
 
 export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRMLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -66,11 +68,11 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   }, []);
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "bg-sidebar text-sidebar-foreground transition-all duration-300 flex flex-col border-r border-sidebar-border",
+          "hidden md:flex bg-sidebar text-sidebar-foreground transition-all duration-300 flex-col border-r border-sidebar-border",
           sidebarOpen ? "w-64" : "w-16"
         )}
       >
@@ -92,7 +94,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           </Button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {menuItems.map((item) => (
             <Button
               key={item.id}
@@ -106,7 +108,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
               )}
               onClick={() => onViewChange(item.id)}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-5 w-5 shrink-0" />
               {sidebarOpen && <span className="ml-3">{item.label}</span>}
             </Button>
           ))}
@@ -114,7 +116,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
         <div className="p-4 border-t border-sidebar-border space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold shrink-0">
               {(userEmail?.split('@')[0].slice(0,2).toUpperCase() || 'US')}
             </div>
             {sidebarOpen && (
@@ -142,11 +144,87 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         </div>
       </aside>
 
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
+        <div className="flex items-center justify-between p-3">
+          <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto" />
+          
+          <div className="flex items-center gap-2">
+            {syncInfo && (
+              <SyncIndicator 
+                lastSync={syncInfo.lastSync}
+                nextSync={syncInfo.nextSync}
+                isSyncing={syncInfo.isSyncing}
+                compact
+              />
+            )}
+            
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-64 p-0">
+                <div className="flex flex-col h-full">
+                  <div className="p-4 border-b flex items-center justify-between">
+                    <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto" />
+                  </div>
+                  
+                  <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                    {menuItems.map((item) => (
+                      <Button
+                        key={item.id}
+                        variant={activeView === item.id ? "default" : "ghost"}
+                        className={cn(
+                          "w-full justify-start",
+                          activeView === item.id
+                            ? "bg-primary text-primary-foreground"
+                            : ""
+                        )}
+                        onClick={() => {
+                          onViewChange(item.id);
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <item.icon className="h-5 w-5" />
+                        <span className="ml-3">{item.label}</span>
+                      </Button>
+                    ))}
+                  </nav>
+
+                  <div className="p-4 border-t space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
+                        {(userEmail?.split('@')[0].slice(0,2).toUpperCase() || 'US')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{userEmail || 'Usuário'}</p>
+                      </div>
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLogout}
+                      className="w-full"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span className="ml-2">Sair</span>
+                    </Button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Header with sync indicator */}
+      <main className="flex-1 overflow-hidden flex flex-col pt-14 md:pt-0">
+        {/* Desktop Header with sync indicator */}
         {syncInfo && (
-          <div className="border-b border-border px-6 py-3 bg-background flex items-center justify-end">
+          <div className="hidden md:flex border-b border-border px-4 lg:px-6 py-3 bg-background items-center justify-end">
             <SyncIndicator 
               lastSync={syncInfo.lastSync}
               nextSync={syncInfo.nextSync}

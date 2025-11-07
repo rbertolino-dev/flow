@@ -175,15 +175,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
 
   return (
     <>
-      <div className="flex items-center justify-end p-4 border-b border-border">
+      <div className="flex items-center justify-end p-2 sm:p-4 border-b border-border">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Upload className="h-4 w-4" />
-              Importar em Massa
+            <Button variant="outline" size="sm" className="gap-2 text-xs sm:text-sm">
+              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Importar em Massa</span>
+              <span className="sm:hidden">Importar</span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[600px] max-h-[80vh] overflow-y-auto p-0" align="end">
+          <PopoverContent className="w-[95vw] sm:w-[600px] max-h-[80vh] overflow-y-auto p-0" align="end">
             <BulkImportPanel onImportComplete={onRefetch} showStageSelector={true} />
           </PopoverContent>
         </Popover>
@@ -200,7 +201,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
           <Button
             variant="outline"
             size="icon"
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-background/95 backdrop-blur shadow-lg hover:bg-accent"
+            className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-background/95 backdrop-blur shadow-lg hover:bg-accent"
             onClick={() => handleScroll('left')}
           >
             <ChevronLeft className="h-5 w-5" />
@@ -209,13 +210,13 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
           <Button
             variant="outline"
             size="icon"
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-background/95 backdrop-blur shadow-lg hover:bg-accent"
+            className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-background/95 backdrop-blur shadow-lg hover:bg-accent"
             onClick={() => handleScroll('right')}
           >
             <ChevronRight className="h-5 w-5" />
           </Button>
 
-          <div ref={scrollContainerRef} className="flex gap-4 h-full overflow-x-auto overflow-y-hidden p-6 pb-24 kanban-scroll">
+          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 h-full overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-20 sm:pb-24 kanban-scroll">
             {stages.map((stage) => {
               const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
               return (
@@ -274,40 +275,40 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
 
       {/* Barra de ações para seleção múltipla */}
       {selectedLeadIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-lg shadow-2xl border border-primary-foreground/20 px-6 py-4 flex items-center gap-4 animate-scale-in">
-          <Badge variant="secondary" className="px-3 py-1 text-base font-semibold">
-            {selectedLeadIds.size} selecionado{selectedLeadIds.size > 1 ? 's' : ''}
+        <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-lg shadow-2xl border border-primary-foreground/20 px-3 sm:px-6 py-2 sm:py-4 flex items-center gap-2 sm:gap-4 animate-scale-in max-w-[95vw]">
+          <Badge variant="secondary" className="px-2 sm:px-3 py-1 text-xs sm:text-base font-semibold shrink-0">
+            {selectedLeadIds.size}
           </Badge>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
             <Button
               size="sm"
               variant="secondary"
               onClick={handleMoveToNextStage}
-              className="gap-2"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
             >
-              <ArrowRight className="h-4 w-4" />
-              Próxima Etapa
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Próxima Etapa</span>
+              <span className="sm:hidden">Próx.</span>
             </Button>
             
             <Button
               size="sm"
               variant="secondary"
               onClick={handleAddToCallQueue}
-              className="gap-2"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
             >
-              <Phone className="h-4 w-4" />
-              Fila de Ligações
+              <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Fila</span>
             </Button>
             
             <Button
               size="sm"
               variant="destructive"
               onClick={handleDeleteSelected}
-              className="gap-2"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm"
             >
-              <Trash2 className="h-4 w-4" />
-              Excluir
+              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </div>
 
@@ -315,9 +316,9 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
             size="sm"
             variant="ghost"
             onClick={clearSelection}
-            className="ml-2 hover:bg-primary-foreground/20"
+            className="ml-1 sm:ml-2 hover:bg-primary-foreground/20 shrink-0"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3 w-3 sm:h-4 sm:w-4" />
           </Button>
         </div>
       )}
