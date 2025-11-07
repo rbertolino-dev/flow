@@ -100,24 +100,42 @@ export function useCallQueue() {
         return;
       }
 
-      // Get current call to increment count
-      const { data: currentCall, error: fetchError } = await (supabase as any)
+      // Get the call queue item to find the lead
+      const { data: queueItem, error: fetchError } = await (supabase as any)
         .from('call_queue')
-        .select('call_count')
+        .select('lead_id')
         .eq('id', callId)
         .single();
 
       if (fetchError) throw fetchError;
 
-      const newCallCount = (currentCall?.call_count || 0) + 1;
+      // Get current lead call count
+      const { data: lead, error: leadError } = await (supabase as any)
+        .from('leads')
+        .select('call_count')
+        .eq('id', queueItem.lead_id)
+        .single();
+
+      if (leadError) throw leadError;
+
+      const newCallCount = (lead?.call_count || 0) + 1;
       const now = new Date().toISOString();
 
+      // Update lead call count
+      const { error: updateLeadError } = await (supabase as any)
+        .from('leads')
+        .update({ call_count: newCallCount })
+        .eq('id', queueItem.lead_id);
+
+      if (updateLeadError) throw updateLeadError;
+
+      // Update call queue item
       const { error } = await (supabase as any)
         .from('call_queue')
         .update({ 
           status: 'completed',
           completed_at: now,
-          call_notes: callNotes,
+          call_notes: callNotes || null,
           call_count: newCallCount,
           completed_by: user.email || 'Usuário',
           completed_by_user_id: user.id

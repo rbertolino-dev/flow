@@ -167,8 +167,17 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                         <Button
                           size="sm"
                           onClick={() => { 
-                            handleCopyPhone(call.phone); 
-                            onCallComplete(call.id, activeCallNotes[call.id]);
+                            handleCopyPhone(call.phone);
+                            const notes = activeCallNotes[call.id];
+                            if (!notes || notes.trim() === '') {
+                              toast({
+                                title: "Observação vazia",
+                                description: "Você não adicionou observações para esta ligação.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            onCallComplete(call.id, notes);
                           }}
                           className="whitespace-nowrap"
                         >

@@ -176,6 +176,7 @@ export type Database = {
       leads: {
         Row: {
           assigned_to: string | null
+          call_count: number | null
           company: string | null
           created_at: string | null
           deleted_at: string | null
@@ -194,6 +195,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          call_count?: number | null
           company?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -212,6 +214,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          call_count?: number | null
           company?: string | null
           created_at?: string | null
           deleted_at?: string | null
