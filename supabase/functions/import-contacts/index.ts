@@ -59,6 +59,16 @@ serve(async (req) => {
     console.log('Importing contacts for user:', user.id);
     console.log('Date range:', { startDate, endDate });
 
+    // Salvar log de início da importação
+    await supabaseClient.from('evolution_logs').insert({
+      user_id: user.id,
+      instance: 'import-contacts',
+      event: 'import_start',
+      level: 'info',
+      message: `Iniciando importação para usuário ${user.id}`,
+      payload: { startDate, endDate },
+    });
+
     // Buscar configuração da Evolution API
     const { data: config, error: configError } = await supabaseClient
       .from('evolution_config')
@@ -123,6 +133,16 @@ serve(async (req) => {
     if (!contentType.includes('application/json')) {
       const rawText = await contactsResponse.text();
       console.error('Evolution API returned non-JSON:', rawText?.slice(0, 500));
+
+      await supabaseClient.from('evolution_logs').insert({
+        user_id: user.id,
+        instance: config.instance_name,
+        event: 'import_error',
+        level: 'error',
+        message: 'Evolution API retornou HTML (não JSON). URL pode estar incorreta.',
+        payload: { url: evolutionUrl, response: rawText?.slice(0, 500) },
+      });
+
       return new Response(
         JSON.stringify({ error: 'Resposta inválida da Evolution API (não JSON). Verifique URL/instance/apikey.', details: rawText?.slice(0, 500) }),
         {
@@ -226,6 +246,16 @@ serve(async (req) => {
 
     const importedCount = insertedLeads?.length || 0;
     console.log('Successfully imported:', importedCount);
+
+    // Salvar log de sucesso
+    await supabaseClient.from('evolution_logs').insert({
+      user_id: user.id,
+      instance: config.instance_name,
+      event: 'import_success',
+      level: 'info',
+      message: `Importação concluída: ${importedCount}/${leadsToInsert.length} contatos`,
+      payload: { total: leadsToInsert.length, imported: importedCount, startDate, endDate },
+    });
 
     return new Response(
       JSON.stringify({
