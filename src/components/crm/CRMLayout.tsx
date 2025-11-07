@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, X, UserCog, Send, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, UserCog, Send, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp";
+  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin";
   onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => void;
   syncInfo?: {
     lastSync: Date | null;
@@ -26,6 +26,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPubdigitalUser, setIsPubdigitalUser] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -62,7 +63,15 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "users" as const, label: "Usuários", icon: UserCog },
   ];
 
-  const menuItems = isAdmin ? [...baseMenuItems, ...adminMenuItems] : baseMenuItems;
+  const superAdminMenuItems = isPubdigitalUser ? [
+    { id: "superadmin" as const, label: "Super Admin", icon: UserCog },
+  ] : [];
+
+  const menuItems = [
+    ...baseMenuItems,
+    ...(isAdmin ? adminMenuItems : []),
+    ...superAdminMenuItems
+  ];
 
   useEffect(() => {
     const checkUserRole = async (userId: string) => {
@@ -74,6 +83,16 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         .single();
       
       setIsAdmin(!!data);
+
+      // Check if user belongs to pubdigital org
+      const { data: orgMember } = await supabase
+        .from('organization_members')
+        .select('organization_id, organizations(name)')
+        .eq('user_id', userId)
+        .single();
+
+      const isPubdig = orgMember?.organizations?.name?.toLowerCase().includes('pubdigital') ?? false;
+      setIsPubdigitalUser(isPubdig);
     };
 
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -90,6 +109,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         checkUserRole(session.user.id);
       } else {
         setIsAdmin(false);
+        setIsPubdigitalUser(false);
       }
     });
     return () => subscription.unsubscribe();
@@ -134,7 +154,13 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               )}
-              onClick={() => onViewChange(item.id)}
+              onClick={() => {
+                if (item.id === 'superadmin') {
+                  window.location.href = '/superadmin';
+                } else {
+                  onViewChange(item.id);
+                }
+              }}
             >
               <item.icon className="h-5 w-5 shrink-0" />
               {sidebarOpen && <span className="ml-3">{item.label}</span>}
@@ -211,7 +237,11 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                             : ""
                         )}
                         onClick={() => {
-                          onViewChange(item.id);
+                          if (item.id === 'superadmin') {
+                            window.location.href = '/superadmin';
+                          } else {
+                            onViewChange(item.id);
+                          }
                           setMobileMenuOpen(false);
                         }}
                       >

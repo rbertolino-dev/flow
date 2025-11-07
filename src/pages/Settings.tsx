@@ -127,19 +127,21 @@ export default function Settings() {
   };
 
   if (loading) {
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
-      navigate('/broadcast');
-    } else if (view === "whatsapp") {
-      navigate('/whatsapp');
-    } else if (view === "settings") {
-      // já estamos aqui
-    } else {
-      navigate('/');
-    }
-  };
+    const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin") => {
+      if (view === "users") {
+        navigate('/users');
+      } else if (view === "broadcast") {
+        navigate('/broadcast');
+      } else if (view === "whatsapp") {
+        navigate('/whatsapp');
+      } else if (view === "superadmin") {
+        navigate('/superadmin');
+      } else if (view === "settings") {
+        // já estamos aqui
+      } else {
+        navigate('/');
+      }
+    };
 
   return (
     <AuthGuard>
