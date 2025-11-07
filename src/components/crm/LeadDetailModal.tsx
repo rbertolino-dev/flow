@@ -72,8 +72,13 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const [isSending, setIsSending] = useState(false);
 
   const connectedInstances = useMemo(() => 
-    configs?.filter(c => c.is_connected) || [], 
+    configs || [], 
     [configs]
+  );
+  
+  const hasConnectedInstances = useMemo(() => 
+    connectedInstances.some(c => c.is_connected),
+    [connectedInstances]
   );
 
   // Separar mensagens do WhatsApp do restante das atividades
@@ -440,7 +445,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                     <SelectTrigger id="instance-select">
                       <SelectValue placeholder={
                         connectedInstances.length === 0 
-                          ? "Nenhuma instância conectada" 
+                          ? "Nenhuma instância configurada" 
                           : "Selecione uma instância"
                       } />
                     </SelectTrigger>
@@ -451,8 +456,18 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                         </div>
                       ) : (
                         connectedInstances.map((config) => (
-                          <SelectItem key={config.id} value={config.id}>
-                            {config.instance_name}
+                          <SelectItem 
+                            key={config.id} 
+                            value={config.id}
+                            disabled={!config.is_connected}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${config.is_connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                              {config.instance_name}
+                              {!config.is_connected && (
+                                <span className="text-xs text-muted-foreground">(desconectada)</span>
+                              )}
+                            </div>
                           </SelectItem>
                         ))
                       )}
@@ -461,6 +476,11 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                   {connectedInstances.length === 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Vá em Configurações → Evolution API para conectar uma instância
+                    </p>
+                  )}
+                  {connectedInstances.length > 0 && !hasConnectedInstances && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ Todas as instâncias estão desconectadas. Teste a conexão em Configurações.
                     </p>
                   )}
                 </div>
