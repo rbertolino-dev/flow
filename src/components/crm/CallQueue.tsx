@@ -735,10 +735,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           Enviar ao Funil
                         </Button>
                         {call.scheduledFor && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            <span>
-                              Agendada para: {format(call.scheduledFor, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                            <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            <span className="text-base font-semibold text-blue-700 dark:text-blue-300">
+                              Agendada: {format(call.scheduledFor, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                             </span>
                           </div>
                         )}

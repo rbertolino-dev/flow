@@ -209,6 +209,17 @@ export function useCallQueue() {
 
   const rescheduleCall = async (callId: string, newDate: Date) => {
     try {
+      // Atualização otimista da UI
+      setCallQueue((prev) => prev.map((c) =>
+        c.id === callId
+          ? {
+              ...c,
+              scheduledFor: newDate,
+              status: 'pending' as const,
+            }
+          : c
+      ));
+
       const { error } = await (supabase as any)
         .from('call_queue')
         .update({ 
@@ -224,9 +235,12 @@ export function useCallQueue() {
         description: `Nova data: ${format(newDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
       });
 
+      // Forçar recarregamento para garantir sincronização
       await fetchCallQueue();
       return true;
     } catch (error: any) {
+      // Reverter mudança otimista em caso de erro
+      await fetchCallQueue();
       toast({
         title: "Erro ao reagendar ligação",
         description: error.message,
