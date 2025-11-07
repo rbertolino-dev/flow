@@ -25,6 +25,19 @@ export function ImportContactsPanel() {
     setLoading(true);
 
     try {
+      // Verificar autenticação primeiro
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: "Erro de autenticação",
+          description: "Você precisa estar logado para importar contatos",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       let requestData: any = {};
 
       if (filterType === "month") {
