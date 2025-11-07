@@ -112,10 +112,14 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     onClick();
   };
 
+  const dragListeners = editingName || editingValue ? {} : listeners;
+
   return (
     <Card
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...dragListeners}
       className={`p-4 transition-all duration-200 bg-card border ${
         isDragging 
           ? 'border-primary shadow-lg scale-105 rotate-2' 
@@ -123,13 +127,6 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       }`}
       onClick={handleCardClick}
     >
-      <div {...attributes} {...listeners} className="absolute top-2 right-2 w-8 h-8 cursor-grab active:cursor-grabbing flex items-center justify-center rounded hover:bg-secondary/50 transition-colors">
-        <div className="flex flex-col gap-0.5">
-          <div className="w-4 h-0.5 bg-muted-foreground/40 rounded"></div>
-          <div className="w-4 h-0.5 bg-muted-foreground/40 rounded"></div>
-          <div className="w-4 h-0.5 bg-muted-foreground/40 rounded"></div>
-        </div>
-      </div>
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-2">
           {editingName ? (

@@ -22,7 +22,7 @@ export function KanbanColumn({ stage, leads, onLeadClick }: KanbanColumnProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-80 bg-secondary/30 rounded-lg border transition-colors ${
+      className={`flex-shrink-0 w-80 bg-secondary/30 rounded-lg border transition-colors flex flex-col ${
         isOver ? "border-primary bg-primary/5" : "border-border"
       }`}
     >
@@ -52,12 +52,12 @@ export function KanbanColumn({ stage, leads, onLeadClick }: KanbanColumnProps) {
         )}
       </div>
 
-      <ScrollArea className="h-[calc(100vh-280px)]">
+      <ScrollArea className="flex-1 min-h-0">
         <SortableContext
           items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-3 min-h-full">
             {leads.map((lead) => (
               <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
             ))}
