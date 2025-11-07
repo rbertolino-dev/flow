@@ -101,9 +101,12 @@ serve(async (req) => {
       );
     }
 
-    // Processar apenas mensagens recebidas
-    if (event === 'messages.upsert' && data?.key?.fromMe === false) {
-      console.log('📨 Processando mensagem recebida...');
+    // Processar mensagens recebidas E enviadas
+    if (event === 'messages.upsert' && data?.key) {
+      const isFromMe = data.key.fromMe === true;
+      const direction = isFromMe ? 'outgoing' : 'incoming';
+      
+      console.log(`📨 Processando mensagem ${direction}...`);
       
       const remoteJid = data.key.remoteJid;
       const messageContent = data.message?.conversation || 
@@ -154,8 +157,8 @@ serve(async (req) => {
           instance,
           event,
           level: 'info',
-          message: `Nova mensagem de LID ${contactName} (${lid})`,
-          payload: { lid, messageContent, contactName },
+          message: `Nova mensagem ${direction} de LID ${contactName} (${lid})`,
+          payload: { lid, messageContent, contactName, direction },
         });
 
         // Verificar se já existe este contato LID
@@ -218,8 +221,8 @@ serve(async (req) => {
           instance,
           event,
           level: 'info',
-          message: `Mensagem de número internacional ignorado: ${contactName} (${phoneNumber})`,
-          payload: { phoneNumber, messageContent, contactName },
+          message: `Mensagem ${direction} de número internacional ignorado: ${contactName} (${phoneNumber})`,
+          payload: { phoneNumber, messageContent, contactName, direction },
         });
 
         return new Response(
@@ -228,16 +231,16 @@ serve(async (req) => {
         );
       }
 
-      console.log(`👤 Nova mensagem de ${contactName} (${phoneNumber}): ${messageContent}`);
+      console.log(`👤 Mensagem ${direction} ${isFromMe ? 'para' : 'de'} ${contactName} (${phoneNumber}): ${messageContent}`);
 
-      // Registrar log de mensagem recebida
+      // Registrar log de mensagem
       await supabase.from('evolution_logs').insert({
         user_id: configs.user_id,
         instance,
         event,
         level: 'info',
-        message: `Nova mensagem de ${contactName} (${phoneNumber})`,
-        payload: { phoneNumber, messageContent, contactName },
+        message: `Mensagem ${direction} ${isFromMe ? 'para' : 'de'} ${contactName} (${phoneNumber})`,
+        payload: { phoneNumber, messageContent, contactName, direction },
       });
 
       // Verificar se já existe um lead com este telefone (incluindo excluídos)
@@ -266,9 +269,9 @@ serve(async (req) => {
           await supabase.from('activities').insert({
             lead_id: existingLead.id,
             type: 'whatsapp',
-            content: `[Retorno] ${messageContent}`,
-            user_name: contactName,
-            direction: 'inbound',
+            content: isFromMe ? messageContent : `[Retorno] ${messageContent}`,
+            user_name: isFromMe ? 'Você' : contactName,
+            direction,
           });
 
           console.log(`✅ Lead restaurado com ID: ${existingLead.id}`);
@@ -280,8 +283,8 @@ serve(async (req) => {
             lead_id: existingLead.id,
             type: 'whatsapp',
             content: messageContent,
-            user_name: contactName,
-            direction: 'inbound',
+            user_name: isFromMe ? 'Você' : contactName,
+            direction,
           });
 
           await supabase
@@ -293,39 +296,43 @@ serve(async (req) => {
         }
 
       } else {
-        // Criar novo lead
-        console.log('🆕 Criando novo lead...');
-        
-        const { data: newLead, error: leadError } = await supabase
-          .from('leads')
-          .insert({
-            user_id: configs.user_id,
-            name: contactName,
-            phone: phoneNumber,
-            source: 'whatsapp',
-            status: 'novo',
-            last_contact: new Date().toISOString(),
-          })
-          .select()
-          .single();
+        // Criar novo lead apenas se a mensagem for recebida (não criar lead quando você envia primeira mensagem)
+        if (!isFromMe) {
+          console.log('🆕 Criando novo lead...');
+          
+          const { data: newLead, error: leadError } = await supabase
+            .from('leads')
+            .insert({
+              user_id: configs.user_id,
+              name: contactName,
+              phone: phoneNumber,
+              source: 'whatsapp',
+              status: 'novo',
+              last_contact: new Date().toISOString(),
+            })
+            .select()
+            .single();
 
-        if (leadError) {
-          console.error('❌ Erro ao criar lead:', leadError);
-          throw leadError;
+          if (leadError) {
+            console.error('❌ Erro ao criar lead:', leadError);
+            throw leadError;
+          }
+
+          console.log(`✅ Lead criado com ID: ${newLead.id}`);
+
+          // Adicionar primeira atividade
+          await supabase.from('activities').insert({
+            lead_id: newLead.id,
+            type: 'whatsapp',
+            content: messageContent,
+            user_name: contactName,
+            direction,
+          });
+
+          console.log(`✅ Primeira atividade registrada para lead ${newLead.id}`);
+        } else {
+          console.log(`ℹ️ Mensagem enviada para número não existente como lead, ignorando`);
         }
-
-        console.log(`✅ Lead criado com ID: ${newLead.id}`);
-
-        // Adicionar primeira atividade
-        await supabase.from('activities').insert({
-          lead_id: newLead.id,
-          type: 'whatsapp',
-          content: messageContent,
-          user_name: contactName,
-          direction: 'inbound',
-        });
-
-        console.log(`✅ Primeira atividade registrada para lead ${newLead.id}`);
       }
 
       return new Response(
