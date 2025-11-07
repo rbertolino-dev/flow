@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,9 +15,11 @@ import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { CallQueueStats } from "./CallQueueStats";
+import { CallQueueHistory } from "./CallQueueHistory";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useTags } from "@/hooks/useTags";
 
@@ -148,33 +150,50 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
   );
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      <div className="p-6 border-b border-border space-y-4">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Fila de Ligações</h1>
-          <p className="text-muted-foreground">
-            {pendingCalls.length} ligações pendentes • {completedCalls.length} concluídas (neste período)
-          </p>
-        </div>
-        
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, telefone ou etiqueta..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+    <>
+      <div className="h-full flex flex-col bg-background">
+        <div className="p-6 border-b border-border space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Fila de Ligações</h1>
+            <p className="text-muted-foreground">
+              {pendingCalls.length} ligações pendentes • {completedCalls.length} concluídas (neste período)
+            </p>
           </div>
+          
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <History className="h-4 w-4" />
+                Ver Histórico
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl h-[80vh]">
+              <DialogHeader>
+                <DialogTitle>Histórico da Fila de Ligações</DialogTitle>
+              </DialogHeader>
+              <CallQueueHistory />
+            </DialogContent>
+          </Dialog>
+        </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant={showStats ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowStats(!showStats)}
-              className="gap-2"
-            >
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, telefone ou etiqueta..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant={showStats ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowStats(!showStats)}
+            className="gap-2"
+          >
               <TrendingUp className="h-4 w-4" />
               Relatório
             </Button>
@@ -600,21 +619,22 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           )}
         </div>
       </ScrollArea>
-      
-      <RescheduleCallDialog
-        open={rescheduleDialog.open}
-        onOpenChange={(open) => setRescheduleDialog({ ...rescheduleDialog, open })}
-        onConfirm={(newDate) => onCallReschedule(rescheduleDialog.callId, newDate)}
-        currentDate={rescheduleDialog.currentDate}
-      />
-
-      <CallQueueTagManager
-        open={tagManager.open}
-        onOpenChange={(open) => setTagManager({ ...tagManager, open })}
-        currentTags={tagManager.currentTags}
-        onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
-        onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
-      />
     </div>
+    
+    <RescheduleCallDialog
+      open={rescheduleDialog.open}
+      onOpenChange={(open) => setRescheduleDialog({ ...rescheduleDialog, open })}
+      onConfirm={(newDate) => onCallReschedule(rescheduleDialog.callId, newDate)}
+      currentDate={rescheduleDialog.currentDate}
+    />
+
+    <CallQueueTagManager
+      open={tagManager.open}
+      onOpenChange={(open) => setTagManager({ ...tagManager, open })}
+      currentTags={tagManager.currentTags}
+      onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
+      onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
+    />
+    </>
   );
 }

@@ -111,34 +111,43 @@ export function useCallQueue() {
         return;
       }
 
-      // Get the call queue item to find the lead
+      // Get the call queue item with lead data
       const { data: queueItem, error: fetchError } = await (supabase as any)
         .from('call_queue')
-        .select('lead_id')
+        .select('*, leads(id, name, phone, call_count)')
         .eq('id', callId)
         .single();
 
       if (fetchError) throw fetchError;
 
-      // Get current lead call count
-      const { data: lead, error: leadError } = await (supabase as any)
-        .from('leads')
-        .select('call_count')
-        .eq('id', queueItem.lead_id)
-        .single();
-
-      if (leadError) throw leadError;
-
-      const newCallCount = (lead?.call_count || 0) + 1;
+      const newCallCount = (queueItem.leads?.call_count || 0) + 1;
       const now = new Date().toISOString();
 
+      // Save to history
+      await (supabase as any)
+        .from('call_queue_history')
+        .insert({
+          lead_id: queueItem.lead_id,
+          lead_name: queueItem.leads?.name || 'Nome não disponível',
+          lead_phone: queueItem.leads?.phone || '',
+          scheduled_for: queueItem.scheduled_for,
+          completed_at: now,
+          completed_by: user.email || 'Usuário',
+          completed_by_user_id: user.id,
+          status: 'completed',
+          priority: queueItem.priority,
+          notes: queueItem.notes,
+          call_notes: callNotes,
+          call_count: newCallCount,
+          action: 'completed',
+          user_id: user.id,
+        });
+
       // Update lead call count
-      const { error: updateLeadError } = await (supabase as any)
+      await (supabase as any)
         .from('leads')
         .update({ call_count: newCallCount })
         .eq('id', queueItem.lead_id);
-
-      if (updateLeadError) throw updateLeadError;
 
       // Update call queue item
       const { error } = await (supabase as any)
@@ -157,7 +166,7 @@ export function useCallQueue() {
 
       toast({
         title: "Ligação concluída",
-        description: "A ligação foi marcada como concluída.",
+        description: "A ligação foi marcada como concluída e salva no histórico.",
       });
 
       await fetchCallQueue();

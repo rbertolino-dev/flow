@@ -105,6 +105,63 @@ export type Database = {
           },
         ]
       }
+      call_queue_history: {
+        Row: {
+          action: string
+          call_count: number | null
+          call_notes: string | null
+          completed_at: string | null
+          completed_by: string | null
+          completed_by_user_id: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          lead_name: string
+          lead_phone: string
+          notes: string | null
+          priority: string | null
+          scheduled_for: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          call_count?: number | null
+          call_notes?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          lead_name: string
+          lead_phone: string
+          notes?: string | null
+          priority?: string | null
+          scheduled_for: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          call_count?: number | null
+          call_notes?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_by_user_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          lead_name?: string
+          lead_phone?: string
+          notes?: string | null
+          priority?: string | null
+          scheduled_for?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       call_queue_tags: {
         Row: {
           call_queue_id: string
