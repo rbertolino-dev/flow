@@ -118,12 +118,15 @@ export function ImportContactsPanel() {
       // Recarregar a página para mostrar os novos leads
       window.location.reload();
     } catch (error: any) {
-      console.error('Import error:', error);
-      setImportProgress({ stage: 'error', message: 'Erro ao importar contatos' });
+      console.group('[ImportContacts] Error');
+      console.error('Current filters:', { filterType, selectedMonth, startDate, endDate });
+      console.error('Import error object:', error);
+      console.groupEnd();
+      setImportProgress({ stage: 'error', message: error?.message || 'Erro ao importar contatos' });
       toast({
-        title: "Erro na importação",
-        description: error.message || "Não foi possível importar os contatos",
-        variant: "destructive",
+        title: 'Erro na importação',
+        description: error?.message || 'Não foi possível importar os contatos. Verifique suas credenciais da Evolution API em Configurações.',
+        variant: 'destructive',
       });
     } finally {
       setTimeout(() => {

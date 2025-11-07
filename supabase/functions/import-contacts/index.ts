@@ -39,11 +39,12 @@ serve(async (req) => {
       }
     );
 
-    // Verificar autenticação
+    // Verificar autenticação usando o token enviado no header
+    const token = (authHeader || '').replace('Bearer', '').trim();
     const {
       data: { user },
       error: userError,
-    } = await supabaseClient.auth.getUser();
+    } = await supabaseClient.auth.getUser(token);
 
     if (userError || !user) {
       console.error('Authentication error:', userError);
