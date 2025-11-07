@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,6 +14,7 @@ import { useState } from "react";
 import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
 import { BulkImportPanel } from "./BulkImportPanel";
+import { CallQueueStats } from "./CallQueueStats";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -62,6 +63,8 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
   const [selectedUser, setSelectedUser] = useState<string>("all");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+
 
   const handleCopyPhone = (phone: string) => {
     const formattedPhone = buildCopyNumber(phone);
@@ -167,6 +170,16 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
 
           <div className="flex gap-2 flex-wrap">
             <Button
+              variant={showStats ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowStats(!showStats)}
+              className="gap-2"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Relatório
+            </Button>
+
+            <Button
               variant={showFilters ? "default" : "outline"}
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
@@ -188,6 +201,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               </PopoverContent>
             </Popover>
           </div>
+
+          {showStats && (
+            <CallQueueStats callQueue={callQueue} />
+          )}
 
           {showFilters && (
             <Card className="p-4 space-y-4">
