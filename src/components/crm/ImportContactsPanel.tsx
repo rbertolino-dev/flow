@@ -5,17 +5,25 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Loader2, Calendar } from "lucide-react";
+import { Download, Loader2, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 
 export function ImportContactsPanel() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    stage: 'idle' | 'fetching' | 'processing' | 'saving' | 'complete' | 'error';
+    message: string;
+    total?: number;
+    imported?: number;
+    percentage?: number;
+  }>({ stage: 'idle', message: '' });
   const [filterType, setFilterType] = useState<"all" | "month" | "range">("month");
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [startDate, setStartDate] = useState<Date>();
@@ -23,12 +31,14 @@ export function ImportContactsPanel() {
 
   const handleImport = async () => {
     setLoading(true);
+    setImportProgress({ stage: 'fetching', message: 'Conectando à Evolution API...', percentage: 10 });
 
     try {
       // Verificar autenticação primeiro
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
+        setImportProgress({ stage: 'error', message: 'Erro de autenticação' });
         toast({
           title: "Erro de autenticação",
           description: "Você precisa estar logado para importar contatos",
@@ -54,28 +64,68 @@ export function ImportContactsPanel() {
         };
       }
 
+      setImportProgress({ stage: 'fetching', message: 'Buscando contatos da Evolution API...', percentage: 30 });
+
       const { data, error } = await supabase.functions.invoke('import-contacts', {
         body: requestData,
       });
 
       if (error) throw error;
 
+      setImportProgress({ 
+        stage: 'processing', 
+        message: `${data.total} contatos encontrados, processando...`, 
+        total: data.total,
+        percentage: 60 
+      });
+
+      // Simular o processamento
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      setImportProgress({ 
+        stage: 'saving', 
+        message: `Salvando ${data.imported} contatos no funil...`, 
+        total: data.total,
+        imported: data.imported,
+        percentage: 80 
+      });
+
+      // Simular o salvamento
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      setImportProgress({ 
+        stage: 'complete', 
+        message: `${data.imported} de ${data.total} contatos importados com sucesso!`, 
+        total: data.total,
+        imported: data.imported,
+        percentage: 100 
+      });
+
       toast({
         title: "Importação concluída",
         description: data.message || `${data.imported} contatos importados com sucesso`,
       });
 
+      // Aguardar um momento para mostrar o progresso completo
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       // Recarregar a página para mostrar os novos leads
       window.location.reload();
     } catch (error: any) {
       console.error('Import error:', error);
+      setImportProgress({ stage: 'error', message: 'Erro ao importar contatos' });
       toast({
         title: "Erro na importação",
         description: error.message || "Não foi possível importar os contatos",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        setLoading(false);
+        if (importProgress.stage !== 'complete') {
+          setImportProgress({ stage: 'idle', message: '' });
+        }
+      }, 2000);
     }
   };
 
@@ -193,6 +243,31 @@ export function ImportContactsPanel() {
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
+        )}
+
+        {importProgress.stage !== 'idle' && (
+          <div className="space-y-3 p-4 bg-muted rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {importProgress.stage === 'complete' ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : importProgress.stage === 'error' ? (
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                ) : (
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                )}
+                <span className="text-sm font-medium">{importProgress.message}</span>
+              </div>
+              {importProgress.imported !== undefined && importProgress.total !== undefined && (
+                <span className="text-sm text-muted-foreground">
+                  {importProgress.imported}/{importProgress.total}
+                </span>
+              )}
+            </div>
+            {importProgress.percentage !== undefined && (
+              <Progress value={importProgress.percentage} className="h-2" />
+            )}
           </div>
         )}
 
