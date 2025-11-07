@@ -30,6 +30,8 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  const canSubmit = !!email.trim() && password.trim().length >= 6 && !!selectedOrgId && !loading;
+
   useEffect(() => {
     if (open) {
       fetchOrganizations();
@@ -49,6 +51,11 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
       console.error("Erro ao carregar organizações:", error);
     } else {
       setOrganizations(data || []);
+      // Auto-seleciona a org passada por props ou a primeira disponível
+      const defaultOrgId = preselectedOrgId || (data && data.length > 0 ? data[0].id : "");
+      if (!selectedOrgId && defaultOrgId) {
+        setSelectedOrgId(defaultOrgId);
+      }
     }
   };
 
@@ -211,7 +218,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={!canSubmit}>
               {loading ? "Criando..." : "Criar Usuário"}
             </Button>
           </DialogFooter>
