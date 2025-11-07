@@ -54,6 +54,15 @@ export function usePipelineStages() {
 
       // Se não houver etapas, criamos etapas padrão automaticamente
       if (!data || data.length === 0) {
+        // Obter organization_id do usuário
+        const { data: orgMember } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (!orgMember) return;
+
         const defaults = [
           { name: 'Novo Lead', color: '#10b981', position: 0 },
           { name: 'Contato Feito', color: '#3b82f6', position: 1 },
@@ -65,7 +74,11 @@ export function usePipelineStages() {
 
         const { error: insertError } = await (supabase as any)
           .from('pipeline_stages')
-          .insert(defaults.map(d => ({ ...d, user_id: session.user.id })));
+          .insert(defaults.map(d => ({ 
+            ...d, 
+            user_id: session.user.id,
+            organization_id: orgMember.organization_id 
+          })));
 
         if (insertError) throw insertError;
 
@@ -95,12 +108,29 @@ export function usePipelineStages() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
+      // Obter organization_id do usuário
+      const { data: orgMember } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!orgMember) {
+        toast({
+          title: "Erro",
+          description: "Usuário não pertence a nenhuma organização",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const maxPosition = stages.length > 0 ? Math.max(...stages.map(s => s.position)) : -1;
 
       const { error } = await (supabase as any)
         .from('pipeline_stages')
         .insert({
           user_id: session.user.id,
+          organization_id: orgMember.organization_id,
           name,
           color,
           position: maxPosition + 1,

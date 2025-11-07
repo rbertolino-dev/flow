@@ -68,10 +68,27 @@ export function useTags() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
+      // Obter organization_id do usuário
+      const { data: orgMember } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!orgMember) {
+        toast({
+          title: "Erro",
+          description: "Usuário não pertence a nenhuma organização",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const { error } = await (supabase as any)
         .from('tags')
         .insert({
           user_id: session.user.id,
+          organization_id: orgMember.organization_id,
           name,
           color,
         });

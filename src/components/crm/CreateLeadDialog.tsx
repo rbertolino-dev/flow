@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -56,10 +57,14 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) throw new Error("Usuário não pertence a uma organização");
+
       const { error } = await (supabase as any)
         .from('leads')
         .insert({
           user_id: user.id,
+          organization_id: organizationId,
           name: formData.name,
           phone: normalizePhone(formData.phone),
           email: formData.email || null,
