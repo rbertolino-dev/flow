@@ -21,7 +21,7 @@ serve(async (req) => {
     const body = await req.json();
     console.log('📋 [send-whatsapp-message] Body recebido:', JSON.stringify(body, null, 2));
 
-    const { instanceId, phone, message, leadId } = body;
+    const { instanceId, phone, message, leadId, mediaUrl, mediaType } = body;
 
     if (!instanceId || !phone || !message) {
       console.error('❌ [send-whatsapp-message] Parâmetros faltando:', { instanceId, phone, message });
@@ -89,16 +89,34 @@ serve(async (req) => {
 
     console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone, remoteJid });
 
-    // Enviar mensagem via Evolution API
-    // Remove /manager do final da URL se existir
+    // Definir endpoint e payload baseado no tipo de mensagem
     const baseUrl = config.api_url.replace(/\/manager\/?$/, '');
-    const evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
+    let evolutionUrl: string;
+    let payload: any;
+
+    if (mediaUrl) {
+      // Enviar mensagem com mídia
+      evolutionUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
+      payload = {
+        number: remoteJid,
+        mediaMessage: {
+          mediaType: mediaType || 'image',
+          media: mediaUrl,
+          caption: message || '',
+        },
+      };
+      console.log('🖼️ [send-whatsapp-message] Enviando mensagem com mídia:', { mediaType: mediaType || 'image', mediaUrl });
+    } else {
+      // Enviar mensagem de texto simples
+      evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
+      payload = {
+        number: remoteJid,
+        text: message,
+      };
+    }
     
     console.log('🔗 [send-whatsapp-message] URL da Evolution:', evolutionUrl);
-    console.log('📤 [send-whatsapp-message] Enviando payload para Evolution:', {
-      number: remoteJid,
-      textLength: message.length
-    });
+    console.log('📤 [send-whatsapp-message] Enviando payload para Evolution:', JSON.stringify(payload, null, 2));
 
     const evolutionResponse = await fetch(evolutionUrl, {
       method: 'POST',
@@ -106,10 +124,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'apikey': config.api_key || '',
       },
-      body: JSON.stringify({
-        number: remoteJid,
-        text: message,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const responseStatus = evolutionResponse.status;

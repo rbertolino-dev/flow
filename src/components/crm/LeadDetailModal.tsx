@@ -235,11 +235,19 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     }
 
     setIsSending(true);
+    
+    // Obter mídia do template selecionado (se houver)
+    const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+    const mediaUrl = selectedTemplate?.media_url || undefined;
+    const mediaType = selectedTemplate?.media_type || undefined;
+    
     console.log('📤 [Frontend] Iniciando envio de mensagem...', {
       instanceId: selectedInstanceId,
       phone: lead.phone,
       messageLength: whatsappMessage.length,
-      leadId: lead.id
+      leadId: lead.id,
+      hasMedia: !!mediaUrl,
+      mediaType
     });
 
     try {
@@ -249,6 +257,8 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
           phone: lead.phone,
           message: whatsappMessage,
           leadId: lead.id,
+          mediaUrl,
+          mediaType,
         },
       });
 

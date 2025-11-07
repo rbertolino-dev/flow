@@ -7,6 +7,8 @@ export interface MessageTemplate {
   user_id: string;
   name: string;
   content: string;
+  media_url?: string | null;
+  media_type?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,7 +31,7 @@ export function useMessageTemplates() {
   });
 
   const createTemplate = useMutation({
-    mutationFn: async (template: { name: string; content: string }) => {
+    mutationFn: async (template: { name: string; content: string; media_url?: string; media_type?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
@@ -39,6 +41,8 @@ export function useMessageTemplates() {
           user_id: user.id,
           name: template.name,
           content: template.content,
+          media_url: template.media_url || null,
+          media_type: template.media_type || null,
         })
         .select()
         .single();
@@ -63,12 +67,14 @@ export function useMessageTemplates() {
   });
 
   const updateTemplate = useMutation({
-    mutationFn: async (template: { id: string; name: string; content: string }) => {
+    mutationFn: async (template: { id: string; name: string; content: string; media_url?: string; media_type?: string }) => {
       const { error } = await supabase
         .from('message_templates')
         .update({
           name: template.name,
           content: template.content,
+          media_url: template.media_url || null,
+          media_type: template.media_type || null,
         })
         .eq('id', template.id);
 
