@@ -68,27 +68,22 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
 
     try {
       // Criar usuário via edge function
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
           email: email.trim(),
           password: password.trim(),
           fullName: fullName.trim() || email.trim(),
           isAdmin,
-          organizationId: selectedOrgId, // Enviar organizationId
-        }),
+          organizationId: selectedOrgId,
+        },
       });
 
-      const result = await response.json();
+      if (error) {
+        throw new Error(error.message || 'Erro ao criar usuário');
+      }
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao criar usuário');
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       // Não precisa mais adicionar manualmente, a edge function já faz isso
