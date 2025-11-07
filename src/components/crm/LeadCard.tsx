@@ -146,11 +146,20 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
     >
       <div className="space-y-3">
         {onToggleSelection && (
-          <div className="flex items-center justify-end" onClick={handleCheckboxClick}>
+          <div 
+            className="flex items-center justify-end touch-none" 
+            onClick={handleCheckboxClick}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onToggleSelection();
+            }}
+          >
             <Checkbox
               checked={isSelected}
               onCheckedChange={onToggleSelection}
-              className="h-5 w-5"
+              className="h-5 w-5 touch-none"
+              onClick={(e) => e.stopPropagation()}
             />
           </div>
         )}
