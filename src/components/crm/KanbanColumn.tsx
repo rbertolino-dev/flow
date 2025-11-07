@@ -57,7 +57,7 @@ export function KanbanColumn({ stage, leads, onLeadClick }: KanbanColumnProps) {
           items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="p-3 space-y-3">
+          <div className="p-4 space-y-3">
             {leads.map((lead) => (
               <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
             ))}
