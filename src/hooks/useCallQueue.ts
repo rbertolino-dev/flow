@@ -209,13 +209,13 @@ export function useCallQueue() {
 
   const rescheduleCall = async (callId: string, newDate: Date) => {
     try {
-      // Atualização otimista da UI
+      // Atualização otimista da UI - mudar status para 'rescheduled'
       setCallQueue((prev) => prev.map((c) =>
         c.id === callId
           ? {
               ...c,
               scheduledFor: newDate,
-              status: 'pending' as const,
+              status: 'rescheduled' as const,
             }
           : c
       ));
@@ -223,7 +223,7 @@ export function useCallQueue() {
       const { error } = await (supabase as any)
         .from('call_queue')
         .update({ 
-          status: 'pending',
+          status: 'rescheduled',
           scheduled_for: newDate.toISOString(),
         })
         .eq('id', callId);
@@ -232,7 +232,7 @@ export function useCallQueue() {
 
       toast({
         title: "Ligação reagendada",
-        description: `Nova data: ${format(newDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+        description: `Nova data: ${format(newDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. Movida para seção Reagendadas.`,
       });
 
       // Forçar recarregamento para garantir sincronização

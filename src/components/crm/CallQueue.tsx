@@ -170,6 +170,8 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
   );
 
   const pendingCalls = filteredCalls.filter((call) => call.status === "pending");
+  const rescheduledCalls = filteredCalls.filter((call) => call.status === "rescheduled");
+  
   // Agrupar concluídas por lead e manter apenas a mais recente
   const completedCalls = Object.values(
     filteredCalls
@@ -197,6 +199,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
             <h1 className="text-xl md:text-3xl font-bold">Fila de Ligações</h1>
             <p className="text-sm md:text-base text-muted-foreground">
               <span className="font-semibold text-primary">{pendingCalls.length}</span> pendentes • 
+              <span className="ml-1 font-semibold text-orange-600">{rescheduledCalls.length}</span> reagendadas •
               <span className="ml-1">{completedCalls.length} concluídas</span>
             </p>
           </div>
@@ -807,6 +810,111 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               )}
             </div>
           </div>
+
+          {/* Rescheduled Calls */}
+          {rescheduledCalls.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2">
+                <RotateCcw className="h-5 w-5 text-orange-600" />
+                Reagendadas ({rescheduledCalls.length})
+              </h2>
+              <div className="space-y-3">
+                {rescheduledCalls.map((call) => (
+                  <Card key={call.id} className="p-4 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
+                    <div className="flex flex-col lg:flex-row items-start gap-4">
+                      <div className="flex-1 space-y-2 w-full">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-lg">{call.leadName}</h3>
+                          <Badge className="bg-orange-100 text-orange-700 border-orange-300" variant="secondary">
+                            Reagendada
+                          </Badge>
+                          <Badge className={priorityColors[call.priority]} variant="secondary">
+                            {priorityLabels[call.priority]}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-5 w-5 text-muted-foreground" />
+                          <span 
+                            onClick={() => handleCopyPhone(call.phone)} 
+                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold" 
+                            title="Clique para copiar"
+                          >
+                            {call.phone}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDirectCall(call.phone)}
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Ligar agora"
+                          >
+                            <PhoneCall className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyPhone(call.phone)}
+                            className="h-8 w-8 p-0"
+                            title="Copiar telefone"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleWhatsAppContact(call.phone)}
+                            className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            title="Abrir WhatsApp"
+                          >
+                            <MessageCircle className="h-5 w-5" />
+                          </Button>
+                        </div>
+                        {call.scheduledFor && (
+                          <div className="flex items-center gap-2 p-2 bg-orange-100 dark:bg-orange-900 rounded-md border border-orange-300 dark:border-orange-700">
+                            <Clock className="h-5 w-5 text-orange-700 dark:text-orange-300" />
+                            <span className="text-base font-semibold text-orange-800 dark:text-orange-200">
+                              Nova data: {format(call.scheduledFor, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </span>
+                          </div>
+                        )}
+                        {call.notes && (
+                          <details className="text-sm">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                              Ver notas do lead
+                            </summary>
+                            <p className="mt-2 p-2 bg-muted rounded">{call.notes}</p>
+                          </details>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 w-full lg:w-auto">
+                        <Button
+                          onClick={() => onCallComplete(call.id)}
+                          className="flex-1 lg:flex-none whitespace-nowrap"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Concluir
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setRescheduleDialog({
+                              open: true,
+                              callId: call.id,
+                              currentDate: call.scheduledFor,
+                            })
+                          }
+                          className="flex-1 lg:flex-none whitespace-nowrap"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Reagendar Novamente
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Completed Calls */}
           {completedCalls.length > 0 && (
