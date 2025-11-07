@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { WebhookTestPanel } from "@/components/crm/WebhookTestPanel";
 import { SendTestMessagePanel } from "@/components/crm/SendTestMessagePanel";
 import { WebhookLogsPanel } from "@/components/crm/WebhookLogsPanel";
+import { ImportContactsPanel } from "@/components/crm/ImportContactsPanel";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useTags } from "@/hooks/useTags";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -882,6 +883,9 @@ Headers:
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* Importar Contatos */}
+        <ImportContactsPanel />
       </div>
     </div>
   );
