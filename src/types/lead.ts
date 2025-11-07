@@ -30,6 +30,8 @@ export interface Lead {
   assignedTo: string;
   lastContact: Date;
   createdAt: Date;
+  returnDate?: Date;
+  sourceInstanceId?: string;
   notes?: string;
   activities: Activity[];
   tags?: Tag[];

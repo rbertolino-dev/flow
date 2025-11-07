@@ -363,7 +363,9 @@ export type Database = {
           name: string
           notes: string | null
           phone: string
+          return_date: string | null
           source: string | null
+          source_instance_id: string | null
           stage_id: string | null
           status: string
           updated_at: string | null
@@ -382,7 +384,9 @@ export type Database = {
           name: string
           notes?: string | null
           phone: string
+          return_date?: string | null
           source?: string | null
+          source_instance_id?: string | null
           stage_id?: string | null
           status?: string
           updated_at?: string | null
@@ -401,7 +405,9 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string
+          return_date?: string | null
           source?: string | null
+          source_instance_id?: string | null
           stage_id?: string | null
           status?: string
           updated_at?: string | null
@@ -409,6 +415,13 @@ export type Database = {
           value?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "leads_source_instance_id_fkey"
+            columns: ["source_instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leads_stage_id_fkey"
             columns: ["stage_id"]

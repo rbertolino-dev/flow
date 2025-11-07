@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Lead, LeadStatus } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -6,6 +6,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
@@ -19,15 +20,30 @@ interface KanbanBoardProps {
   onLeadUpdate: (leadId: string, newStatus: string) => void;
   searchQuery?: string;
   onRefetch: () => void;
+  filterInstance?: string;
+  filterCreatedDateStart?: string;
+  filterCreatedDateEnd?: string;
+  filterReturnDateStart?: string;
+  filterReturnDateEnd?: string;
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "" }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const { stages, loading: stagesLoading } = usePipelineStages();
+  const { configs } = useEvolutionConfigs();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  // Criar mapa de instâncias para lookup rápido
+  const instanceMap = useMemo(() => {
+    const map = new Map<string, string>();
+    configs?.forEach(config => {
+      map.set(config.id, config.instance_name);
+    });
+    return map;
+  }, [configs]);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -71,15 +87,49 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
   };
 
   const filteredLeads = leads.filter(lead => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    const normalizedQuery = normalizePhone(searchQuery);
-    const normalizedLeadPhone = normalizePhone(lead.phone);
-    
-    const matchesName = lead.name.toLowerCase().includes(query);
-    const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
-    const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
-    return matchesName || matchesPhone || matchesTags;
+    // Filtro de busca
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const normalizedQuery = normalizePhone(searchQuery);
+      const normalizedLeadPhone = normalizePhone(lead.phone);
+      
+      const matchesName = lead.name.toLowerCase().includes(query);
+      const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
+      const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+      
+      if (!matchesName && !matchesPhone && !matchesTags) return false;
+    }
+
+    // Filtro de instância
+    if (filterInstance && filterInstance !== "all") {
+      if (lead.sourceInstanceId !== filterInstance) return false;
+    }
+
+    // Filtro de data de criação
+    if (filterCreatedDateStart) {
+      const startDate = new Date(filterCreatedDateStart);
+      startDate.setHours(0, 0, 0, 0);
+      if (new Date(lead.createdAt) < startDate) return false;
+    }
+    if (filterCreatedDateEnd) {
+      const endDate = new Date(filterCreatedDateEnd);
+      endDate.setHours(23, 59, 59, 999);
+      if (new Date(lead.createdAt) > endDate) return false;
+    }
+
+    // Filtro de data de retorno
+    if (filterReturnDateStart && lead.returnDate) {
+      const startDate = new Date(filterReturnDateStart);
+      startDate.setHours(0, 0, 0, 0);
+      if (new Date(lead.returnDate) < startDate) return false;
+    }
+    if (filterReturnDateEnd && lead.returnDate) {
+      const endDate = new Date(filterReturnDateEnd);
+      endDate.setHours(23, 59, 59, 999);
+      if (new Date(lead.returnDate) > endDate) return false;
+    }
+
+    return true;
   });
 
   const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
@@ -226,12 +276,13 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
                   leads={columnLeads}
                   selectedLeadIds={selectedLeadIds}
                   onToggleSelection={toggleLeadSelection}
-                onLeadClick={setSelectedLead}
-                allStages={stages}
-                onStageChange={onLeadUpdate}
-              />
-            );
-          })}
+                  onLeadClick={setSelectedLead}
+                  allStages={stages}
+                  onStageChange={onLeadUpdate}
+                  instanceMap={instanceMap}
+                />
+              );
+            })}
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Building2, Calendar, DollarSign, Edit2, Check, X, MoveRight } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSortable } from "@dnd-kit/sortable";
@@ -23,6 +23,7 @@ interface LeadCardProps {
   onStageChange: (leadId: string, newStageId: string) => void;
   isSelected?: boolean;
   onToggleSelection?: () => void;
+  instanceName?: string;
 }
 
 const sourceColors: Record<string, string> = {
@@ -33,7 +34,7 @@ const sourceColors: Record<string, string> = {
   Facebook: "bg-accent text-accent-foreground",
 };
 
-export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection }: LeadCardProps) {
+export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
@@ -202,9 +203,23 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
               </div>
             )}
           </div>
-          <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
-            {lead.source}
-          </Badge>
+          <div className="flex flex-wrap gap-1">
+            <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
+              {lead.source}
+            </Badge>
+            {instanceName && (
+              <Badge variant="outline" className="text-xs">
+                <Smartphone className="h-3 w-3 mr-1" />
+                {instanceName}
+              </Badge>
+            )}
+            {lead.returnDate && (
+              <Badge variant="outline" className="text-xs">
+                <Clock className="h-3 w-3 mr-1" />
+                {format(new Date(lead.returnDate), "dd/MM/yy", { locale: ptBR })}
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>

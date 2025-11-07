@@ -15,6 +15,7 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useTags } from "@/hooks/useTags";
 import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -73,6 +74,9 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [showSchedulePanel, setShowSchedulePanel] = useState(false);
+  const [returnDate, setReturnDate] = useState<string>(
+    lead.returnDate ? format(new Date(lead.returnDate), "yyyy-MM-dd") : ""
+  );
 
   const connectedInstances = useMemo(() => 
     configs || [], 
@@ -311,6 +315,28 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     }
   };
 
+  const handleUpdateReturnDate = async () => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ return_date: returnDate || null })
+        .eq('id', lead.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Data atualizada",
+        description: "Data de retorno atualizada com sucesso",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const availableTags = tags.filter(
     tag => !lead.tags?.some(lt => lt.id === tag.id)
   );
@@ -380,6 +406,20 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                   <span>
                     Último contato: {format(lead.lastContact, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2 flex-1">
+                    <Label htmlFor="return-date" className="text-sm">Data de Retorno:</Label>
+                    <Input
+                      id="return-date"
+                      type="date"
+                      value={returnDate}
+                      onChange={(e) => setReturnDate(e.target.value)}
+                      onBlur={handleUpdateReturnDate}
+                      className="h-8 w-40"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

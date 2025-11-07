@@ -14,9 +14,10 @@ interface KanbanColumnProps {
   onLeadClick: (lead: Lead) => void;
   allStages: PipelineStage[];
   onStageChange: (leadId: string, newStageId: string) => void;
+  instanceMap?: Map<string, string>;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange, instanceMap }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -62,17 +63,24 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
           strategy={verticalListSortingStrategy}
         >
           <div className="p-4 space-y-3 min-h-full">
-            {leads.map((lead) => (
-              <LeadCard 
-                key={lead.id} 
-                lead={lead} 
-                onClick={() => onLeadClick(lead)}
-                stages={allStages}
-                onStageChange={onStageChange}
-                isSelected={selectedLeadIds?.has(lead.id) || false}
-                onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}
-              />
-            ))}
+            {leads.map((lead) => {
+              const instanceName = lead.sourceInstanceId && instanceMap 
+                ? instanceMap.get(lead.sourceInstanceId) 
+                : undefined;
+              
+              return (
+                <LeadCard 
+                  key={lead.id} 
+                  lead={lead} 
+                  onClick={() => onLeadClick(lead)}
+                  stages={allStages}
+                  onStageChange={onStageChange}
+                  isSelected={selectedLeadIds?.has(lead.id) || false}
+                  onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}
+                  instanceName={instanceName}
+                />
+              );
+            })}
             {leads.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 Nenhum lead nesta etapa
