@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search } from "lucide-react";
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -44,6 +44,9 @@ export default function BroadcastCampaigns() {
   const [instances, setInstances] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [pastedList, setPastedList] = useState("");
+  const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
+  const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const { toast } = useToast();
 
   const [newCampaign, setNewCampaign] = useState({
@@ -112,10 +115,10 @@ export default function BroadcastCampaigns() {
   };
 
   const handleCreateCampaign = async () => {
-    if (!newCampaign.name || !newCampaign.instanceId || !csvFile) {
+    if (!newCampaign.name || !newCampaign.instanceId || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim())) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha nome, instância e upload de arquivo CSV",
+        description: "Preencha nome, instância e forneça uma lista de contatos",
         variant: "destructive",
       });
       return;
@@ -133,8 +136,13 @@ export default function BroadcastCampaigns() {
     try {
       setLoading(true);
 
-      // Ler arquivo CSV
-      const text = await csvFile.text();
+      // Ler contatos
+      let text: string;
+      if (importMode === "csv" && csvFile) {
+        text = await csvFile.text();
+      } else {
+        text = pastedList;
+      }
       const contacts = parseCSV(text);
 
       if (contacts.length === 0) {
@@ -203,6 +211,8 @@ export default function BroadcastCampaigns() {
         maxDelay: 60,
       });
       setCsvFile(null);
+      setPastedList("");
+      setImportMode("csv");
       fetchCampaigns();
     } catch (error: any) {
       toast({
@@ -437,17 +447,58 @@ export default function BroadcastCampaigns() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="csv">Arquivo CSV com Contatos *</Label>
-                  <Input
-                    id="csv"
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Formato: telefone,nome (um por linha). Exemplo: 5511999999999,João Silva
-                  </p>
+                  <Label>Modo de Importação *</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={importMode === "csv" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setImportMode("csv")}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload CSV
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={importMode === "paste" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setImportMode("paste")}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Colar Lista
+                    </Button>
+                  </div>
                 </div>
+
+                {importMode === "csv" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="csv">Arquivo CSV com Contatos *</Label>
+                    <Input
+                      id="csv"
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Formato: telefone,nome (um por linha). Exemplo: 5511999999999,João Silva
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="pastedList">Lista de Contatos *</Label>
+                    <Textarea
+                      id="pastedList"
+                      placeholder="Cole sua lista aqui (um por linha)&#10;Formato: telefone,nome ou apenas telefone&#10;Exemplo:&#10;5511999999999,João Silva&#10;5511888888888,Maria Santos&#10;5511777777777"
+                      value={pastedList}
+                      onChange={(e) => setPastedList(e.target.value)}
+                      rows={8}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Formato aceito: telefone,nome (opcional). Um contato por linha.
+                    </p>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
@@ -516,9 +567,25 @@ export default function BroadcastCampaigns() {
               Histórico detalhado de todos os disparos desta campanha
             </DialogDescription>
           </DialogHeader>
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar por número de telefone..."
+                value={logsSearchQuery}
+                onChange={(e) => setLogsSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
           <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-3">
-              {selectedCampaignLogs.map((log) => (
+              {selectedCampaignLogs
+                .filter((log) => 
+                  !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""))
+                )
+                .map((log) => (
                 <Card key={log.id} className={log.status === 'failed' ? 'border-destructive' : ''}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
@@ -564,9 +631,11 @@ export default function BroadcastCampaigns() {
                   </CardContent>
                 </Card>
               ))}
-              {selectedCampaignLogs.length === 0 && (
+              {selectedCampaignLogs.filter((log) => 
+                !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""))
+              ).length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  Nenhum log encontrado
+                  {logsSearchQuery ? 'Nenhum log encontrado para este número' : 'Nenhum log encontrado'}
                 </div>
               )}
             </div>
