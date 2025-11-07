@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle } from "lucide-react";
+import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
+import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 
 interface EvolutionInstanceCardProps {
@@ -23,7 +25,10 @@ export function EvolutionInstanceCard({
   onTest,
   onConfigureWebhook,
 }: EvolutionInstanceCardProps) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
+    <div className="space-y-0">
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -98,7 +103,29 @@ export function EvolutionInstanceCard({
             Configurar Webhook
           </Button>
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full mt-2"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="h-4 w-4 mr-2" />
+              Ocultar Detalhes
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-4 w-4 mr-2" />
+              Ver Logs, Webhook e Importar
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
+
+    {expanded && <EvolutionInstanceDetails config={config} />}
+    </div>
   );
 }
