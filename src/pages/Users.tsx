@@ -230,31 +230,16 @@ export default function Users() {
 
     setEditing(true);
     try {
-      // Atualizar profile (nome)
+      // Atualizar profile (nome e email)
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ full_name: editUserData.fullName })
+        .update({ 
+          full_name: editUserData.fullName,
+          email: editUserData.email 
+        })
         .eq("id", userToEdit.id);
 
       if (profileError) throw profileError;
-
-      // Se o email mudou, atualizar no auth
-      if (editUserData.email !== userToEdit.email) {
-        const { error: emailError } = await supabase.auth.updateUser({
-          email: editUserData.email,
-        });
-
-        if (emailError) throw emailError;
-      }
-
-      // Se forneceu nova senha, atualizar
-      if (editUserData.password) {
-        const { error: passwordError } = await supabase.auth.updateUser({
-          password: editUserData.password,
-        });
-
-        if (passwordError) throw passwordError;
-      }
 
       toast({
         title: "Usuário atualizado",
@@ -550,20 +535,20 @@ export default function Users() {
                   setEditUserData({ ...editUserData, email: e.target.value })
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                Atenção: Alterar o email não afeta o login do usuário
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-password">Nova Senha (opcional)</Label>
+            <div className="space-y-2 opacity-50 pointer-events-none">
+              <Label htmlFor="edit-password">Nova Senha</Label>
               <Input
                 id="edit-password"
                 type="password"
-                placeholder="Deixe em branco para não alterar"
-                value={editUserData.password}
-                onChange={(e) =>
-                  setEditUserData({ ...editUserData, password: e.target.value })
-                }
+                placeholder="Alteração de senha não disponível"
+                disabled
               />
               <p className="text-xs text-muted-foreground">
-                Preencha apenas se desejar alterar a senha
+                A alteração de senha por administrador não está disponível no momento
               </p>
             </div>
           </div>
