@@ -1,7 +1,7 @@
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import { WhatsAppMessage } from "@/hooks/useWhatsAppMessages";
-import { Volume2 } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Check, CheckCheck } from "lucide-react";
 
 interface MessageBubbleProps {
   message: WhatsAppMessage;
@@ -11,60 +11,38 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isOutgoing = message.direction === 'outgoing';
 
   return (
-    <div
-      className={cn(
-        "flex mb-2",
-        isOutgoing ? "justify-end" : "justify-start"
-      )}
-    >
+    <div className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'} mb-1`}>
       <div
-        className={cn(
-          "max-w-[70%] rounded-lg px-4 py-2",
+        className={`max-w-[70%] rounded-lg px-3 py-2 shadow-sm ${
           isOutgoing
-            ? "bg-primary text-primary-foreground rounded-br-none"
-            : "bg-muted rounded-bl-none"
-        )}
+            ? 'bg-[#005c4b] text-white rounded-br-none'
+            : 'bg-[#1e1e1e] text-foreground rounded-bl-none'
+        }`}
       >
-        {message.messageType === 'audio' ? (
-          <div className="flex items-center gap-2">
-            <Volume2 className="h-4 w-4" />
-            <span className="text-sm">Mensagem de áudio</span>
-            {message.mediaUrl && (
-              <audio controls className="max-w-full">
-                <source src={message.mediaUrl} />
-              </audio>
-            )}
+        {message.messageType === 'audio' && message.mediaUrl ? (
+          <audio controls src={message.mediaUrl} className="max-w-full" />
+        ) : message.messageType === 'image' && message.mediaUrl ? (
+          <div className="mb-1">
+            <img src={message.mediaUrl} alt="Imagem" className="max-w-full rounded" />
           </div>
-        ) : message.messageType === 'image' ? (
-          <div className="space-y-2">
-            {message.mediaUrl && (
-              <img
-                src={message.mediaUrl}
-                alt="Imagem"
-                className="rounded max-w-full"
-              />
-            )}
-            {message.messageText && (
-              <p className="text-sm whitespace-pre-wrap break-words">
-                {message.messageText}
-              </p>
-            )}
-          </div>
-        ) : (
+        ) : null}
+        
+        {message.messageText && message.messageText !== '[Imagem]' && (
           <p className="text-sm whitespace-pre-wrap break-words">
             {message.messageText}
           </p>
         )}
-
-        <div className={cn(
-          "flex items-center justify-end gap-1 mt-1",
-          isOutgoing ? "text-primary-foreground/70" : "text-muted-foreground"
-        )}>
-          <span className="text-xs">
-            {format(message.timestamp, 'HH:mm')}
+        
+        <div className={`flex items-center gap-1 justify-end mt-1 ${isOutgoing ? 'text-white/60' : 'text-muted-foreground'}`}>
+          <span className="text-[11px]">
+            {format(message.timestamp, "HH:mm", { locale: ptBR })}
           </span>
           {isOutgoing && (
-            <span className="text-xs">✓✓</span>
+            message.readStatus ? (
+              <CheckCheck className="h-3 w-3 text-[#53bdeb]" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )
           )}
         </div>
       </div>

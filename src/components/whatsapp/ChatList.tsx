@@ -15,18 +15,18 @@ interface ChatListProps {
 export function ChatList({ chats, selectedPhone, onSelectChat }: ChatListProps) {
   return (
     <ScrollArea className="h-full">
-      <div className="space-y-1 p-2">
+      <div className="p-0">
         {chats.map((chat) => (
           <div
             key={chat.phone}
             onClick={() => onSelectChat(chat.phone)}
             className={cn(
-              "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-accent",
-              selectedPhone === chat.phone && "bg-accent"
+              "flex items-center gap-3 p-3 cursor-pointer transition-colors border-b border-border/30 hover:bg-muted/50",
+              selectedPhone === chat.phone && "bg-muted/80"
             )}
           >
             <Avatar className="h-12 w-12 flex-shrink-0">
-              <AvatarFallback className="bg-primary text-primary-foreground">
+              <AvatarFallback className="bg-[#25d366] text-white">
                 {chat.contactName.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
