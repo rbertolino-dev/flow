@@ -69,6 +69,8 @@ export function useCallQueue() {
           status: (item.status || 'pending') as 'pending' | 'completed' | 'rescheduled',
           notes: item.notes || undefined,
           tags: item.tags || [],
+          callNotes: item.call_notes || undefined,
+          callCount: item.call_count || 0,
         };
       }) as CallQueueItem[];
 
@@ -84,13 +86,22 @@ export function useCallQueue() {
     }
   };
 
-  const completeCall = async (callId: string) => {
+  const completeCall = async (callId: string, callNotes?: string) => {
     try {
+      // Get current call count
+      const { data: currentCall } = await (supabase as any)
+        .from('call_queue')
+        .select('call_count')
+        .eq('id', callId)
+        .single();
+
       const { error } = await (supabase as any)
         .from('call_queue')
         .update({ 
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          call_notes: callNotes,
+          call_count: (currentCall?.call_count || 0) + 1
         })
         .eq('id', callId);
 

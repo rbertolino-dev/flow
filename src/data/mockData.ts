@@ -171,6 +171,7 @@ export const mockCallQueue: CallQueueItem[] = [
     priority: "high",
     status: "pending",
     notes: "Ligar para falar sobre proposta",
+    callCount: 0,
   },
   {
     id: "c2",
@@ -181,6 +182,7 @@ export const mockCallQueue: CallQueueItem[] = [
     priority: "medium",
     status: "pending",
     notes: "Follow-up pós-primeira ligação",
+    callCount: 1,
   },
   {
     id: "c3",
@@ -190,5 +192,6 @@ export const mockCallQueue: CallQueueItem[] = [
     priority: "high",
     status: "pending",
     notes: "Retornar sobre desconto solicitado",
+    callCount: 0,
   },
 ];

@@ -44,4 +44,6 @@ export interface CallQueueItem {
   status: "pending" | "completed" | "rescheduled";
   notes?: string;
   tags?: Tag[];
+  callNotes?: string;
+  callCount: number;
 }

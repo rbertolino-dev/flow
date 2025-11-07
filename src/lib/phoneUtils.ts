@@ -4,5 +4,8 @@ export function normalizePhone(phone: string): string {
 
 export function buildCopyNumber(phone: string): string {
   const digits = normalizePhone(phone);
-  return `021${digits}`;
+  // Remove country code (55) if present and build: 021 + DDD + number
+  // Example: 5511977823434 -> 02111977823434
+  const cleanDigits = digits.startsWith('55') ? digits.substring(2) : digits;
+  return `021${cleanDigits}`;
 }

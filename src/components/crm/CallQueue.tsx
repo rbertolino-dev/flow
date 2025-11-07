@@ -2,18 +2,19 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { buildCopyNumber } from "@/lib/phoneUtils";
 import { useState } from "react";
 
 interface CallQueueProps {
   callQueue: CallQueueItem[];
-  onCallComplete: (id: string) => void;
+  onCallComplete: (id: string, callNotes?: string) => void;
   onCallReschedule: (id: string) => void;
 }
 
@@ -32,6 +33,7 @@ const priorityLabels = {
 export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQueueProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeCallNotes, setActiveCallNotes] = useState<Record<string, string>>({});
 
   const handleCopyPhone = (phone: string) => {
     const formattedPhone = buildCopyNumber(phone);
@@ -139,14 +141,35 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                         )}
                         {call.notes && (
                           <p className="text-sm text-muted-foreground mt-2 p-2 bg-muted rounded">
-                            {call.notes}
+                            <strong>Notas do lead:</strong> {call.notes}
                           </p>
                         )}
+                        <div className="flex items-center gap-2 text-sm mt-2">
+                          <PhoneCall className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">
+                            Ligações: <strong>{call.callCount}</strong>
+                          </span>
+                        </div>
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                            <label className="text-sm font-medium">Observações da ligação:</label>
+                          </div>
+                          <Textarea
+                            placeholder="Digite suas observações sobre esta ligação..."
+                            value={activeCallNotes[call.id] || call.callNotes || ''}
+                            onChange={(e) => setActiveCallNotes(prev => ({ ...prev, [call.id]: e.target.value }))}
+                            className="min-h-[60px]"
+                          />
+                        </div>
                       </div>
                       <div className="flex flex-col gap-2">
                         <Button
                           size="sm"
-                          onClick={() => { handleCopyPhone(call.phone); onCallComplete(call.id); }}
+                          onClick={() => { 
+                            handleCopyPhone(call.phone); 
+                            onCallComplete(call.id, activeCallNotes[call.id]);
+                          }}
                           className="whitespace-nowrap"
                         >
                           <Phone className="h-4 w-4 mr-2" />
@@ -217,8 +240,21 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                             ))}
                           </div>
                         )}
+                        <div className="flex items-center gap-2 text-sm">
+                          <PhoneCall className="h-4 w-4 text-success" />
+                          <span className="text-muted-foreground">
+                            Total de ligações: <strong>{call.callCount}</strong>
+                          </span>
+                        </div>
+                        {call.callNotes && (
+                          <p className="text-sm text-muted-foreground mt-2 p-2 bg-muted rounded">
+                            <strong>Observações:</strong> {call.callNotes}
+                          </p>
+                        )}
                         {call.notes && (
-                          <p className="text-sm text-muted-foreground">{call.notes}</p>
+                          <p className="text-sm text-muted-foreground mt-1 p-2 bg-muted/50 rounded">
+                            <strong>Notas do lead:</strong> {call.notes}
+                          </p>
                         )}
                       </div>
                     </div>

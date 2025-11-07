@@ -100,6 +100,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
       phone: lead.phone,
       priority: 'medium',
       notes,
+      callCount: 0,
     });
 
     if (success) {

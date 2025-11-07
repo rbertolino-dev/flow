@@ -54,6 +54,8 @@ export type Database = {
       }
       call_queue: {
         Row: {
+          call_count: number | null
+          call_notes: string | null
           completed_at: string | null
           created_at: string | null
           id: string
@@ -64,6 +66,8 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          call_count?: number | null
+          call_notes?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
@@ -74,6 +78,8 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          call_count?: number | null
+          call_notes?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
