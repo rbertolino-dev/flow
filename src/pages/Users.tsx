@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Shield, User as UserIcon } from "lucide-react";
+import { Trash2, Shield, User as UserIcon, UserPlus, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +15,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface UserProfile {
   id: string;
@@ -28,6 +40,14 @@ export default function Users() {
   const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUserData, setNewUserData] = useState({
+    email: "",
+    password: "",
+    fullName: "",
+    isAdmin: false,
+  });
   const { toast } = useToast();
 
   const isAdmin = currentUserRoles.includes('admin');
@@ -122,6 +142,64 @@ export default function Users() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUserData.email || !newUserData.password) {
+      toast({
+        title: "Erro",
+        description: "Email e senha são obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Criar usuário usando admin API
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUserData.email,
+        password: newUserData.password,
+        options: {
+          data: {
+            full_name: newUserData.fullName || newUserData.email,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Se deve ser admin, adicionar role
+        if (newUserData.isAdmin) {
+          const { error: roleError } = await supabase
+            .from("user_roles")
+            .insert({ user_id: authData.user.id, role: "admin" });
+
+          if (roleError) {
+            console.error("Erro ao adicionar role de admin:", roleError);
+          }
+        }
+
+        toast({
+          title: "Usuário criado",
+          description: `Usuário ${newUserData.email} foi criado com sucesso`,
+        });
+
+        setCreateDialogOpen(false);
+        setNewUserData({ email: "", password: "", fullName: "", isAdmin: false });
+        fetchUsers();
+      }
+    } catch (error: any) {
+      console.error("Erro ao criar usuário:", error);
+      toast({
+        title: "Erro ao criar usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleToggleAdmin = async (userId: string, currentRoles: string[]) => {
     if (!isAdmin) {
       toast({
@@ -182,11 +260,92 @@ export default function Users() {
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <UserIcon className="h-6 w-6" />
             Gerenciamento de Usuários
           </CardTitle>
+          {isAdmin && (
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Criar Usuário
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Novo Usuário</DialogTitle>
+                  <DialogDescription>
+                    Preencha os dados para criar um novo usuário no sistema
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="usuario@exemplo.com"
+                      value={newUserData.email}
+                      onChange={(e) =>
+                        setNewUserData({ ...newUserData, email: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      value={newUserData.password}
+                      onChange={(e) =>
+                        setNewUserData({ ...newUserData, password: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Nome Completo</Label>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="Nome do usuário"
+                      value={newUserData.fullName}
+                      onChange={(e) =>
+                        setNewUserData({ ...newUserData, fullName: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isAdmin"
+                      checked={newUserData.isAdmin}
+                      onCheckedChange={(checked) =>
+                        setNewUserData({ ...newUserData, isAdmin: checked as boolean })
+                      }
+                    />
+                    <Label htmlFor="isAdmin" className="cursor-pointer">
+                      Tornar administrador
+                    </Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCreateDialogOpen(false)}
+                    disabled={creating}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleCreateUser} disabled={creating}>
+                    {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Criar Usuário
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent>
           {!isAdmin && (
