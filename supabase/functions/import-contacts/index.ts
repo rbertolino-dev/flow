@@ -39,6 +39,11 @@ serve(async (req) => {
       }
     );
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     // Verificar autenticação usando o token enviado no header
     const token = (authHeader || '').replace('Bearer', '').trim();
     const {
@@ -55,17 +60,18 @@ serve(async (req) => {
     }
 
     const { startDate, endDate }: ImportRequest = await req.json();
+    const userId = user.id;
 
-    console.log('Importing contacts for user:', user.id);
+    console.log('Importing contacts for user:', userId);
     console.log('Date range:', { startDate, endDate });
 
     // Salvar log de início da importação
     await supabaseClient.from('evolution_logs').insert({
-      user_id: user.id,
+      user_id: userId,
       instance: 'import-contacts',
       event: 'import_start',
       level: 'info',
-      message: `Iniciando importação para usuário ${user.id}`,
+      message: `Iniciando importação para usuário ${userId}`,
       payload: { startDate, endDate },
     });
 
@@ -73,7 +79,7 @@ serve(async (req) => {
     const { data: config, error: configError } = await supabaseClient
       .from('evolution_config')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     const cleanApiUrl = (url: string) =>
@@ -87,7 +93,7 @@ serve(async (req) => {
       
       // Log do erro
       await supabaseClient.from('evolution_logs').insert({
-        user_id: user.id,
+        user_id: userId,
         event: 'import-contacts',
         level: 'error',
         message: 'Configuração da Evolution API não encontrada',
@@ -103,219 +109,231 @@ serve(async (req) => {
       );
     }
 
-    // Buscar contatos da Evolution API
-    const baseUrl = cleanApiUrl(config.api_url);
-    const evolutionUrl = `${baseUrl}/chat/findContacts/${config.instance_name}`;
-    console.log('Fetching contacts from:', evolutionUrl);
+    const baseApiUrl = cleanApiUrl(config.api_url);
+    const apiUrl = `${baseApiUrl}/chat/findContacts/${config.instance_name}`;
 
-    const contactsResponse = await fetch(evolutionUrl, {
-      method: 'POST',
+    console.log('Fetching contacts from:', apiUrl);
+
+    // Buscar contatos da Evolution API
+    const response = await fetch(apiUrl, {
+      method: 'GET',
       headers: {
-        'apikey': config.api_key || '',
+        'apikey': config.api_key,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({}),
     });
 
-    const contentType = contactsResponse.headers.get('content-type') || '';
-
-    if (!contactsResponse.ok) {
-      const errorText = await contactsResponse.text();
-      console.error('Evolution API error:', contactsResponse.status, errorText?.slice(0, 500));
-      return new Response(
-        JSON.stringify({ error: `Erro na Evolution API: ${contactsResponse.status}`, details: errorText?.slice(0, 500) }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    if (!contentType.includes('application/json')) {
-      const rawText = await contactsResponse.text();
-      console.error('Evolution API returned non-JSON:', rawText?.slice(0, 500));
-
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Evolution API error:', errorText);
+      
       await supabaseClient.from('evolution_logs').insert({
-        user_id: user.id,
+        user_id: userId,
         instance: config.instance_name,
         event: 'import_error',
         level: 'error',
-        message: 'Evolution API retornou HTML (não JSON). URL pode estar incorreta.',
-        payload: { url: evolutionUrl, response: rawText?.slice(0, 500) },
+        message: 'Erro ao buscar contatos da Evolution API',
+        payload: { error: errorText, status: response.status },
       });
 
       return new Response(
-        JSON.stringify({ error: 'Resposta inválida da Evolution API (não JSON). Verifique URL/instance/apikey.', details: rawText?.slice(0, 500) }),
+        JSON.stringify({ error: 'Erro ao buscar contatos da Evolution API' }),
         {
-          status: 502,
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    const contacts = await contactsResponse.json();
-    console.log('Total contacts fetched:', Array.isArray(contacts) ? contacts.length : Object.keys(contacts || {}).length);
+    const contacts = await response.json();
+    console.log('Total contacts fetched:', contacts.length);
 
-    // Buscar primeiro estágio do pipeline
-    const { data: firstStage } = await supabaseClient
-      .from('pipeline_stages')
-      .select('id')
-      .eq('user_id', user.id)
-      .order('position', { ascending: true })
-      .limit(1)
-      .single();
-
-    // Filtrar e preparar leads
+    // Filtrar contatos por data se fornecido
     let filteredContacts = contacts;
     
     if (startDate || endDate) {
+      const start = startDate ? new Date(startDate).getTime() : 0;
+      const end = endDate ? new Date(endDate).getTime() : Date.now();
+
       filteredContacts = contacts.filter((contact: any) => {
-        // Tentar obter data de criação do contato
-        // A Evolution API pode retornar timestamp ou não ter essa info
-        const contactDate = contact.timestamp || contact.createdAt || contact.date;
+        const contactTimestamp = contact.timestamp || contact.createdAt || contact.lastMessageTimestamp;
+        if (!contactTimestamp) return false;
         
-        if (!contactDate) return true; // Se não tem data, incluir
+        const contactDate = new Date(contactTimestamp * 1000).getTime();
+        const isInRange = contactDate >= start && contactDate <= end;
         
-        const contactTimestamp = new Date(contactDate).getTime();
-        
-        if (startDate) {
-          const startTimestamp = new Date(startDate).getTime();
-          if (contactTimestamp < startTimestamp) return false;
-        }
-        
-        if (endDate) {
-          const endTimestamp = new Date(endDate).getTime();
-          if (contactTimestamp > endTimestamp) return false;
-        }
-        
-        return true;
+        return isInRange;
       });
     }
 
     console.log('Contacts after date filter:', filteredContacts.length);
 
-    const leadsToInsert = filteredContacts
-      .filter((contact: any) => {
-        const raw = contact.number || contact.phone || contact.remoteJid || contact.id || contact.key?.remoteJid || contact.wid?.user || contact.jid;
-        const rawStr = typeof raw === 'string' ? raw : '';
-        const phoneDigits = (rawStr.match(/\d{10,15}/)?.[0] || '').replace(/\D/g, '');
+    // Separar contatos em 3 categorias
+    const brazilianLeads: any[] = [];
+    const internationalContacts: any[] = [];
+    const lidContacts: any[] = [];
+
+    filteredContacts.forEach((contact: any) => {
+      const raw = contact.number || contact.phone || contact.remoteJid || contact.id || contact.key?.remoteJid || contact.wid?.user || contact.jid;
+      const rawStr = typeof raw === 'string' ? raw : '';
+      const contactDate = contact.timestamp || contact.createdAt || new Date().toISOString();
+      
+      // Verificar se é LID (WhatsApp Business/Canal)
+      if (rawStr.includes('@lid')) {
+        const lid = rawStr.split('@')[0];
+        const name = contact.pushName || contact.name || lid;
+        const profilePicUrl = contact.profilePicUrl || contact.profilePictureUrl || null;
         
-        // Validar apenas números brasileiros
-        const isBrazilian = phoneDigits.startsWith('55') && phoneDigits.length >= 12 && phoneDigits.length <= 13;
-        const isValidBR = phoneDigits.length >= 10 && phoneDigits.length <= 11 && !phoneDigits.startsWith('55');
-        const isGroup = rawStr.includes('@g.us');
-        const isLid = rawStr.includes('@lid'); // IDs do WhatsApp, não telefones reais
-        
-        const isValid = (isBrazilian || isValidBR) && !isGroup && !isLid;
-        
-        console.log('[IMPORT] Filter check:', {
-          raw: rawStr.substring(0, 30),
-          digits: phoneDigits,
-          length: phoneDigits.length,
-          isBrazilian,
-          isValidBR,
-          isLid,
-          isGroup,
-          isValid
+        lidContacts.push({
+          lid,
+          name,
+          profile_pic_url: profilePicUrl,
+          last_contact: contactDate,
         });
         
-        return isValid;
-      })
-      .map((contact: any) => {
-        const phoneNumber = (() => {
-          const candidates = [
-            contact.number,
-            contact.phone,
-            contact.remoteJid,
-            contact.id,
-            contact.key?.remoteJid,
-            contact.wid?.user,
-            contact.jid,
-            contact.chatId,
-          ];
-          const raw = candidates.find((v: any) => typeof v === 'string' && v.length > 0) || '';
-          let extracted = '';
-          
-          if (typeof raw === 'string') {
-            if (raw.includes('@')) {
-              extracted = raw.split('@')[0].replace(/\D/g, '');
-            } else {
-              const match = raw.match(/\d{10,15}/);
-              extracted = match ? match[0] : raw.replace(/\D/g, '');
-            }
-          }
-          
-          console.log('[IMPORT] Phone extraction:', {
-            raw: typeof raw === 'string' ? raw.substring(0, 30) : raw,
-            extracted: extracted,
-            length: extracted.length
-          });
-          
-          return extracted;
-        })();
-        const name = contact.pushName || contact.name || phoneNumber;
-        
-        return {
-          user_id: user.id,
-          name: name,
-          phone: phoneNumber,
-          source: 'whatsapp_import',
-          status: 'new',
-          assigned_to: user.email || 'Sistema',
-          stage_id: firstStage?.id || null,
-          created_at: contact.timestamp || contact.createdAt || new Date().toISOString(),
-          last_contact: contact.timestamp || contact.createdAt || new Date().toISOString(),
-        };
-      });
+        console.log('[IMPORT] LID contact:', { lid, name });
+        return;
+      }
+      
+      // Verificar se é grupo
+      if (rawStr.includes('@g.us')) {
+        console.log('[IMPORT] Skipping group:', rawStr.substring(0, 30));
+        return;
+      }
+      
+      // Extrair telefone
+      const phoneDigits = rawStr.includes('@') 
+        ? rawStr.split('@')[0].replace(/\D/g, '') 
+        : rawStr.replace(/\D/g, '');
+      
+      if (phoneDigits.length < 10) {
+        console.log('[IMPORT] Phone too short:', phoneDigits);
+        return;
+      }
+      
+      const name = contact.pushName || contact.name || phoneDigits;
+      
+      // Verificar se é brasileiro
+      const isBrazilian = phoneDigits.startsWith('55') && phoneDigits.length >= 12 && phoneDigits.length <= 13;
+      const isBRWithoutCode = phoneDigits.length >= 10 && phoneDigits.length <= 11 && !phoneDigits.startsWith('55');
+      
+      if (isBrazilian || isBRWithoutCode) {
+        brazilianLeads.push({
+          phone: phoneDigits,
+          name,
+          last_contact: contactDate,
+        });
+        console.log('[IMPORT] Brazilian lead:', { phone: phoneDigits, name });
+      } else {
+        // É internacional
+        const countryCode = phoneDigits.length > 11 ? phoneDigits.substring(0, phoneDigits.length - 10) : null;
+        internationalContacts.push({
+          phone: phoneDigits,
+          name,
+          country_code: countryCode,
+          last_contact: contactDate,
+        });
+        console.log('[IMPORT] International contact:', { phone: phoneDigits, name, countryCode });
+      }
+    });
 
-    console.log('Leads to insert:', leadsToInsert.length);
+    console.log('Import summary:', {
+      brazilian: brazilianLeads.length,
+      international: internationalContacts.length,
+      lid: lidContacts.length
+    });
 
-    if (leadsToInsert.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          imported: 0,
-          message: 'Nenhum contato encontrado no período selecionado' 
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    let importedBR = 0;
+    let importedInt = 0;
+    let importedLID = 0;
+
+    // Inserir leads brasileiros
+    if (brazilianLeads.length > 0) {
+      const { error: leadsError, count } = await supabaseAdmin
+        .from('leads')
+        .upsert(
+          brazilianLeads.map(lead => ({
+            user_id: userId,
+            ...lead,
+            status: 'new',
+            source: 'whatsapp',
+            assigned_to: 'Sistema',
+          })),
+          { onConflict: 'user_id,phone', ignoreDuplicates: true, count: 'exact' }
+        );
+
+      if (leadsError) {
+        console.error('Error inserting Brazilian leads:', leadsError);
+      } else {
+        importedBR = count || 0;
+        console.log(`Inserted ${count} Brazilian leads`);
+      }
     }
 
-    // Inserir leads (ignorar duplicados)
-    const { data: insertedLeads, error: insertError } = await supabaseClient
-      .from('leads')
-      .upsert(leadsToInsert, { 
-        onConflict: 'user_id,phone',
-        ignoreDuplicates: true 
-      })
-      .select();
+    // Inserir contatos internacionais
+    if (internationalContacts.length > 0) {
+      const { error: intError, count } = await supabaseAdmin
+        .from('international_contacts')
+        .upsert(
+          internationalContacts.map(contact => ({
+            user_id: userId,
+            ...contact,
+            source: 'whatsapp',
+          })),
+          { onConflict: 'user_id,phone', ignoreDuplicates: true, count: 'exact' }
+        );
 
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      // Mesmo com erro, alguns podem ter sido inseridos
+      if (intError) {
+        console.error('Error inserting international contacts:', intError);
+      } else {
+        importedInt = count || 0;
+        console.log(`Inserted ${count} international contacts`);
+      }
     }
 
-    const importedCount = insertedLeads?.length || 0;
-    console.log('Successfully imported:', importedCount);
+    // Inserir contatos LID
+    if (lidContacts.length > 0) {
+      const { error: lidError, count } = await supabaseAdmin
+        .from('whatsapp_lid_contacts')
+        .upsert(
+          lidContacts.map(contact => ({
+            user_id: userId,
+            ...contact,
+          })),
+          { onConflict: 'lid', ignoreDuplicates: true, count: 'exact' }
+        );
+
+      if (lidError) {
+        console.error('Error inserting LID contacts:', lidError);
+      } else {
+        importedLID = count || 0;
+        console.log(`Inserted ${count} LID contacts`);
+      }
+    }
+
+    const totalImported = importedBR + importedInt + importedLID;
+    console.log(`Successfully imported: ${totalImported} (BR: ${importedBR}, Int: ${importedInt}, LID: ${importedLID})`);
 
     // Salvar log de sucesso
     await supabaseClient.from('evolution_logs').insert({
-      user_id: user.id,
+      user_id: userId,
       instance: config.instance_name,
       event: 'import_success',
       level: 'info',
-      message: `Importação concluída: ${importedCount}/${leadsToInsert.length} contatos`,
-      payload: { total: leadsToInsert.length, imported: importedCount, startDate, endDate },
+      message: `Importação concluída: BR=${importedBR}, Int=${importedInt}, LID=${importedLID}`,
+      payload: { brazilian: importedBR, international: importedInt, lid: importedLID, startDate, endDate },
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        imported: importedCount,
-        total: leadsToInsert.length,
-        message: `${importedCount} contatos importados com sucesso`
+        imported: {
+          brazilian: importedBR,
+          international: importedInt,
+          lid: importedLID,
+          total: totalImported
+        },
+        message: `${totalImported} contatos importados (BR: ${importedBR}, Int: ${importedInt}, LID: ${importedLID})`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

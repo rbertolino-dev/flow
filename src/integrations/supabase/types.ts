@@ -213,6 +213,54 @@ export type Database = {
         }
         Relationships: []
       }
+      international_contacts: {
+        Row: {
+          company: string | null
+          country_code: string | null
+          created_at: string | null
+          deleted_at: string | null
+          email: string | null
+          id: string
+          last_contact: string | null
+          name: string
+          notes: string | null
+          phone: string
+          source: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          country_code?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          last_contact?: string | null
+          name: string
+          notes?: string | null
+          phone: string
+          source?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          country_code?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          last_contact?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string
+          source?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       lead_tags: {
         Row: {
           created_at: string
@@ -360,6 +408,45 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_lid_contacts: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          last_contact: string | null
+          lid: string
+          name: string
+          notes: string | null
+          profile_pic_url: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          last_contact?: string | null
+          lid: string
+          name: string
+          notes?: string | null
+          profile_pic_url?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          last_contact?: string | null
+          lid?: string
+          name?: string
+          notes?: string | null
+          profile_pic_url?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
