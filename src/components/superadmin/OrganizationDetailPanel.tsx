@@ -64,13 +64,22 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
   const handleRemoveMember = async () => {
     if (!memberToRemove) return;
     
+    console.log('Tentando remover membro:', {
+      organization_id: organization.id,
+      user_id: memberToRemove.user_id,
+      email: memberToRemove.profiles.email
+    });
+    
     setRemoving(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("organization_members")
         .delete()
         .eq("organization_id", organization.id)
-        .eq("user_id", memberToRemove.user_id);
+        .eq("user_id", memberToRemove.user_id)
+        .select();
+
+      console.log('Resultado da exclusão:', { data, error });
 
       if (error) throw error;
 
@@ -82,7 +91,7 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
       setMemberToRemove(null);
       onUpdate();
     } catch (error: any) {
-      console.error("Erro ao remover membro:", error);
+      console.error("Erro completo ao remover membro:", error);
       toast({
         title: "Erro ao remover membro",
         description: error.message,
