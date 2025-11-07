@@ -166,10 +166,12 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               variant="outline" 
               className="gap-2"
               onClick={async () => {
-                if (pendingCalls.length === 0) {
+                const allCalls = [...pendingCalls, ...completedCalls];
+                
+                if (allCalls.length === 0) {
                   toast({
                     title: "Fila vazia",
-                    description: "Não há ligações pendentes para limpar",
+                    description: "Não há ligações para limpar",
                   });
                   return;
                 }
@@ -177,14 +179,16 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
 
-                // Mover ligações pendentes para o histórico
-                for (const call of pendingCalls) {
+                // Mover todas as ligações para o histórico
+                for (const call of allCalls) {
                   await supabase.from('call_queue_history').insert({
                     user_id: user.id,
                     lead_id: call.leadId,
                     lead_name: call.leadName,
                     lead_phone: call.phone,
                     scheduled_for: call.scheduledFor?.toISOString() || new Date().toISOString(),
+                    completed_at: call.completedAt?.toISOString() || null,
+                    completed_by: call.completedBy || null,
                     priority: call.priority,
                     status: call.status,
                     notes: call.notes,
@@ -194,23 +198,22 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                   });
                 }
 
-                // Remover da fila
+                // Remover todas da fila
                 const { error } = await supabase
                   .from('call_queue')
                   .delete()
-                  .eq('status', 'pending')
-                  .in('id', pendingCalls.map(c => c.id));
+                  .in('id', allCalls.map(c => c.id));
 
                 if (error) throw error;
 
                 toast({
                   title: "Fila limpa",
-                  description: `${pendingCalls.length} ligação(ões) movida(s) para o histórico`,
+                  description: `${allCalls.length} ligação(ões) movida(s) para o histórico`,
                 });
 
                 onRefetch();
               }}
-              disabled={pendingCalls.length === 0}
+              disabled={pendingCalls.length === 0 && completedCalls.length === 0}
             >
               <Trash2 className="h-4 w-4" />
               Limpar Fila
