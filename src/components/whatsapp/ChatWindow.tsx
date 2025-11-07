@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/popover";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { ensureUserOrganization, getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface ChatWindowProps {
   phone: string;
@@ -281,7 +281,7 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
       }
 
       // Adicionar à fila
-      const orgId = await getUserOrganizationId();
+      const orgId = await ensureUserOrganization();
       const { error } = await supabase.from('call_queue').insert({
         lead_id: lead.id,
         organization_id: orgId,

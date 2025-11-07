@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -187,24 +187,34 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
     
-    const orgId = await getUserOrganizationId();
-    for (const lead of selectedLeads) {
-      await supabase.from('call_queue').insert({
-        lead_id: lead.id,
-        organization_id: orgId,
-        scheduled_for: new Date().toISOString(),
-        priority: 'normal',
-        status: 'pending',
+    try {
+      const orgId = await ensureUserOrganization();
+
+      for (const lead of selectedLeads) {
+        const { error } = await supabase.from('call_queue').insert({
+          lead_id: lead.id,
+          organization_id: orgId,
+          scheduled_for: new Date().toISOString(),
+          priority: 'normal',
+          status: 'pending',
+        });
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Adicionado à fila",
+        description: `${selectedLeads.length} lead(s) adicionado(s) à fila de ligações`,
+      });
+
+      clearSelection();
+      onRefetch();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao adicionar à fila',
+        description: error.message,
+        variant: 'destructive',
       });
     }
-
-    toast({
-      title: "Adicionado à fila",
-      description: `${selectedLeads.length} lead(s) adicionado(s) à fila de ligações`,
-    });
-
-    clearSelection();
-    onRefetch();
   };
 
   const handleDeleteSelected = async () => {
