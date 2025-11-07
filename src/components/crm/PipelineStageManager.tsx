@@ -47,9 +47,10 @@ interface SortableStageItemProps {
   stage: { id: string; name: string; color: string; position: number };
   onEdit: () => void;
   onDelete: () => void;
+  isFirstStage: boolean;
 }
 
-function SortableStageItem({ stage, onEdit, onDelete }: SortableStageItemProps) {
+function SortableStageItem({ stage, onEdit, onDelete, isFirstStage }: SortableStageItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: stage.id,
   });
@@ -76,13 +77,18 @@ function SortableStageItem({ stage, onEdit, onDelete }: SortableStageItemProps) 
         >
           {stage.name}
         </Badge>
+        {isFirstStage && (
+          <span className="text-xs text-muted-foreground">(Etapa inicial - não pode ser excluída)</span>
+        )}
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" size="icon" onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {!isFirstStage && (
+            <Button variant="ghost" size="icon" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       </div>
     </Card>
@@ -168,6 +174,7 @@ export function PipelineStageManager() {
                       stage={stage}
                       onEdit={() => handleEdit(stage)}
                       onDelete={() => setDeletingStage(stage.id)}
+                      isFirstStage={stage.position === 0}
                     />
                   ))}
                 </div>
@@ -232,10 +239,10 @@ export function PipelineStageManager() {
       <AlertDialog open={!!deletingStage} onOpenChange={() => setDeletingStage(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir esta etapa?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Os leads nesta etapa não serão excluídos, mas
-              ficarão sem etapa atribuída.
+              Esta ação não pode ser desfeita. Esta etapa só pode ser excluída se não houver
+              leads vinculados a ela. A primeira etapa não pode ser excluída.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

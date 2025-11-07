@@ -183,6 +183,35 @@ export function usePipelineStages() {
 
   const deleteStage = async (id: string) => {
     try {
+      // Verificar se é a primeira etapa (position = 0)
+      const stageToDelete = stages.find(s => s.id === id);
+      if (stageToDelete?.position === 0) {
+        toast({
+          title: "Não permitido",
+          description: "A primeira etapa não pode ser excluída. Você pode editá-la se desejar.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Verificar se há leads vinculados a esta etapa
+      const { data: leadsInStage, error: checkError } = await (supabase as any)
+        .from('leads')
+        .select('id')
+        .eq('stage_id', id)
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (leadsInStage && leadsInStage.length > 0) {
+        toast({
+          title: "Não é possível excluir",
+          description: "Esta etapa possui leads vinculados. Mova os leads para outra etapa antes de excluir.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const { error } = await (supabase as any)
         .from('pipeline_stages')
         .delete()
