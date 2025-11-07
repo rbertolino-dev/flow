@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { buildCopyNumber } from "@/lib/phoneUtils";
 import { useState } from "react";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
@@ -186,8 +187,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                     return;
                   }
 
+                  const orgId = await getUserOrganizationId();
                   const records = allQueue.map((item: any) => ({
                     user_id: user.id,
+                    organization_id: orgId,
                     lead_id: item.lead_id,
                     lead_name: item.leads?.name || 'Nome não disponível',
                     lead_phone: item.leads?.phone || '',

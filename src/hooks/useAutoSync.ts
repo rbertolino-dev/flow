@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getUserOrganizationId } from '@/lib/organizationUtils';
 
 interface AutoSyncOptions {
   intervalMinutes?: number;
@@ -105,10 +106,12 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
 
             if (!existingLead) {
               // Criar novo lead
+              const orgId = await getUserOrganizationId();
               const { data: newLead, error: leadError } = await (supabase as any)
                 .from('leads')
                 .insert({
                   user_id: user.id,
+                  organization_id: orgId,
                   name: contactName,
                   phone: phoneNumber,
                   source: 'whatsapp',

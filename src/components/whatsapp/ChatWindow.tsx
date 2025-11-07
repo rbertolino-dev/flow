@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/popover";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface ChatWindowProps {
   phone: string;
@@ -186,9 +187,11 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
       // Salvar no banco
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const orgId = await getUserOrganizationId();
 
       await supabase.from('whatsapp_messages').insert({
         user_id: user.id,
+        organization_id: orgId,
         phone,
         contact_name: contactName,
         message_text: message || '[Imagem]',
@@ -225,8 +228,10 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
 
       const activeConfig = configs.find(c => c.is_connected);
 
+      const orgId = await getUserOrganizationId();
       const { error } = await supabase.from('leads').insert({
         user_id: user.id,
+        organization_id: orgId,
         name: contactName,
         phone,
         source: 'whatsapp',
@@ -276,8 +281,10 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
       }
 
       // Adicionar à fila
+      const orgId = await getUserOrganizationId();
       const { error } = await supabase.from('call_queue').insert({
         lead_id: lead.id,
+        organization_id: orgId,
         scheduled_for: new Date().toISOString(),
         priority: 'normal',
       });

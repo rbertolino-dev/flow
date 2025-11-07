@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export interface EvolutionConfig {
   id: string;
@@ -95,10 +96,12 @@ export function useEvolutionConfigs() {
       
       if (!user) throw new Error("Usuário não autenticado");
 
+      const orgId = await getUserOrganizationId();
       const { error } = await (supabase as any)
         .from('evolution_config')
         .insert({
           user_id: user.id,
+          organization_id: orgId,
           api_url: normalizeApiUrl(configData.api_url),
           api_key: configData.api_key,
           instance_name: configData.instance_name,

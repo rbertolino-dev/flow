@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export interface MessageTemplate {
   id: string;
@@ -35,10 +36,12 @@ export function useMessageTemplates() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      const orgId = await getUserOrganizationId();
       const { data, error } = await supabase
         .from('message_templates')
         .insert({
           user_id: user.id,
+          organization_id: orgId,
           name: template.name,
           content: template.content,
           media_url: template.media_url || null,

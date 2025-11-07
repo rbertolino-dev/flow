@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -186,9 +187,11 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
     
+    const orgId = await getUserOrganizationId();
     for (const lead of selectedLeads) {
       await supabase.from('call_queue').insert({
         lead_id: lead.id,
+        organization_id: orgId,
         scheduled_for: new Date().toISOString(),
         priority: 'normal',
         status: 'pending',

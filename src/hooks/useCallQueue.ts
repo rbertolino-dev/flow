@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CallQueueItem } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -124,10 +125,12 @@ export function useCallQueue() {
       const now = new Date().toISOString();
 
       // Save to history
+      const orgId = await getUserOrganizationId();
       await (supabase as any)
         .from('call_queue_history')
         .insert({
           lead_id: queueItem.lead_id,
+          organization_id: orgId,
           lead_name: queueItem.leads?.name || 'Nome não disponível',
           lead_phone: queueItem.leads?.phone || '',
           scheduled_for: queueItem.scheduled_for,
@@ -213,10 +216,12 @@ export function useCallQueue() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
+      const orgId = await getUserOrganizationId();
       const { error } = await (supabase as any)
         .from('call_queue')
         .insert({
           lead_id: item.leadId,
+          organization_id: orgId,
           scheduled_for: (item.scheduledFor ?? new Date()).toISOString(),
           priority: item.priority,
           notes: item.notes,
