@@ -61,7 +61,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
   const { addToQueue } = useCallQueue();
   const { deleteLead } = useLeads();
-  const { configs } = useEvolutionConfigs();
+  const { configs, loading: configsLoading } = useEvolutionConfigs();
   const { templates, applyTemplate } = useMessageTemplates();
   const { toast } = useToast();
   const [selectedTagId, setSelectedTagId] = useState<string>("");
@@ -70,6 +70,11 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
+
+  const connectedInstances = useMemo(() => 
+    configs?.filter(c => c.is_connected) || [], 
+    [configs]
+  );
 
   // Separar mensagens do WhatsApp do restante das atividades
   const whatsappMessages = useMemo(() => {
@@ -427,18 +432,37 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="instance-select">Instância Evolution</Label>
-                  <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
+                  <Select 
+                    value={selectedInstanceId} 
+                    onValueChange={setSelectedInstanceId}
+                    disabled={connectedInstances.length === 0}
+                  >
                     <SelectTrigger id="instance-select">
-                      <SelectValue placeholder="Selecione uma instância" />
+                      <SelectValue placeholder={
+                        connectedInstances.length === 0 
+                          ? "Nenhuma instância conectada" 
+                          : "Selecione uma instância"
+                      } />
                     </SelectTrigger>
                     <SelectContent>
-                      {configs.filter(c => c.is_connected).map((config) => (
-                        <SelectItem key={config.id} value={config.id}>
-                          {config.instance_name}
-                        </SelectItem>
-                      ))}
+                      {connectedInstances.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          Configure uma instância em Configurações
+                        </div>
+                      ) : (
+                        connectedInstances.map((config) => (
+                          <SelectItem key={config.id} value={config.id}>
+                            {config.instance_name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
+                  {connectedInstances.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Vá em Configurações → Evolution API para conectar uma instância
+                    </p>
+                  )}
                 </div>
 
                 {templates.length > 0 && (
