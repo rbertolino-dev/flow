@@ -100,12 +100,12 @@ serve(async (req) => {
       payload = {
         number: remoteJid,
         mediaMessage: {
-          mediaType: mediaType || 'image',
+          mediatype: mediaType || 'image', // Evolution API usa "mediatype" em lowercase
           media: mediaUrl,
           caption: message || '',
         },
       };
-      console.log('🖼️ [send-whatsapp-message] Enviando mensagem com mídia:', { mediaType: mediaType || 'image', mediaUrl });
+      console.log('🖼️ [send-whatsapp-message] Enviando mensagem com mídia:', { mediatype: mediaType || 'image', mediaUrl });
     } else {
       // Enviar mensagem de texto simples
       evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
