@@ -60,12 +60,14 @@ export type Database = {
           completed_by: string | null
           completed_by_user_id: string | null
           created_at: string | null
+          created_by: string | null
           id: string
           lead_id: string
           notes: string | null
           priority: string | null
           scheduled_for: string
           status: string | null
+          updated_by: string | null
         }
         Insert: {
           call_count?: number | null
@@ -74,12 +76,14 @@ export type Database = {
           completed_by?: string | null
           completed_by_user_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           id?: string
           lead_id: string
           notes?: string | null
           priority?: string | null
           scheduled_for: string
           status?: string | null
+          updated_by?: string | null
         }
         Update: {
           call_count?: number | null
@@ -88,19 +92,35 @@ export type Database = {
           completed_by?: string | null
           completed_by_user_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           id?: string
           lead_id?: string
           notes?: string | null
           priority?: string | null
           scheduled_for?: string
           status?: string | null
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "call_queue_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "call_queue_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_queue_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -356,6 +376,7 @@ export type Database = {
           call_count: number | null
           company: string | null
           created_at: string | null
+          created_by: string | null
           deleted_at: string | null
           email: string | null
           id: string
@@ -369,6 +390,7 @@ export type Database = {
           stage_id: string | null
           status: string
           updated_at: string | null
+          updated_by: string | null
           user_id: string
           value: number | null
         }
@@ -377,6 +399,7 @@ export type Database = {
           call_count?: number | null
           company?: string | null
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           email?: string | null
           id?: string
@@ -390,6 +413,7 @@ export type Database = {
           stage_id?: string | null
           status?: string
           updated_at?: string | null
+          updated_by?: string | null
           user_id: string
           value?: number | null
         }
@@ -398,6 +422,7 @@ export type Database = {
           call_count?: number | null
           company?: string | null
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           email?: string | null
           id?: string
@@ -411,10 +436,18 @@ export type Database = {
           stage_id?: string | null
           status?: string
           updated_at?: string | null
+          updated_by?: string | null
           user_id?: string
           value?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "leads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leads_source_instance_id_fkey"
             columns: ["source_instance_id"]
@@ -427,6 +460,13 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -491,6 +531,30 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
