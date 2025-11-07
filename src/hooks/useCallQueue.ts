@@ -255,6 +255,23 @@ export function useCallQueue() {
         return false;
       }
 
+      // Verificar se já existe uma ligação pendente com o mesmo número
+      const { data: existingCall } = await (supabase as any)
+        .from('call_queue')
+        .select('id, leads(phone)')
+        .eq('lead_id', item.leadId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (existingCall) {
+        toast({
+          title: 'Número duplicado',
+          description: 'Já existe uma ligação pendente para este número na fila.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       const { error } = await (supabase as any)
         .from('call_queue')
         .insert({

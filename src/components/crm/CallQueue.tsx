@@ -630,9 +630,15 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             {priorityLabels[call.priority]}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <Phone className="h-4 w-4" />
-                          <span onClick={() => handleCopyPhone(call.phone)} className="cursor-pointer underline decoration-dotted" title="Clique para copiar">{call.phone}</span>
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-5 w-5 text-muted-foreground" />
+                          <span 
+                            onClick={() => handleCopyPhone(call.phone)} 
+                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold" 
+                            title="Clique para copiar"
+                          >
+                            {call.phone}
+                          </span>
                           <Button
                             variant="ghost"
                             size="sm"
