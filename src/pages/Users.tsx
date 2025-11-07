@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ interface UserProfile {
 }
 
 export default function Users() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -302,6 +304,20 @@ export default function Users() {
     }
   };
 
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+    if (view === "users") {
+      // já estamos aqui
+    } else if (view === "broadcast") {
+      navigate('/broadcast');
+    } else if (view === "whatsapp") {
+      navigate('/whatsapp');
+    } else if (view === "settings") {
+      navigate('/settings');
+    } else {
+      navigate('/');
+    }
+  };
+
   if (loading) {
     return (
       <AuthGuard>
@@ -314,9 +330,9 @@ export default function Users() {
     );
   }
 
-  return (
-    <AuthGuard>
-      <CRMLayout activeView="kanban" onViewChange={() => {}}>
+    return (
+      <AuthGuard>
+        <CRMLayout activeView="users" onViewChange={handleViewChange}>
         <div className="container mx-auto p-6 max-w-6xl">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { 
     configs, 
     loading, 
@@ -125,9 +127,23 @@ export default function Settings() {
   };
 
   if (loading) {
-    return (
-      <AuthGuard>
-        <CRMLayout activeView="settings" onViewChange={() => {}}>
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+    if (view === "users") {
+      navigate('/users');
+    } else if (view === "broadcast") {
+      navigate('/broadcast');
+    } else if (view === "whatsapp") {
+      navigate('/whatsapp');
+    } else if (view === "settings") {
+      // já estamos aqui
+    } else {
+      navigate('/');
+    }
+  };
+
+  return (
+    <AuthGuard>
+      <CRMLayout activeView="settings" onViewChange={handleViewChange}>
           <div className="h-full w-full flex items-center justify-center bg-background">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>

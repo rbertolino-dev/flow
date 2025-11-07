@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { CRMLayout } from "@/components/crm/CRMLayout";
 import { MessageSquare } from "lucide-react";
 import { ChatList } from "@/components/whatsapp/ChatList";
 import { ChatWindow } from "@/components/whatsapp/ChatWindow";
@@ -10,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function WhatsApp() {
+  const navigate = useNavigate();
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [selectedInstance, setSelectedInstance] = useState<string>("all");
   const { chats, loading } = useWhatsAppChats();
@@ -25,8 +28,23 @@ export default function WhatsApp() {
 
   const selectedChat = filteredChats.find(c => c.phone === selectedPhone);
 
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+    if (view === "users") {
+      navigate('/users');
+    } else if (view === "broadcast") {
+      navigate('/broadcast');
+    } else if (view === "whatsapp") {
+      // já estamos aqui
+    } else if (view === "settings") {
+      navigate('/settings');
+    } else {
+      navigate('/');
+    }
+  };
+
   return (
     <AuthGuard>
+      <CRMLayout activeView="whatsapp" onViewChange={handleViewChange}>
       <div className="h-screen flex flex-col bg-[#0a0a0a]">
         <WhatsAppNav />
         <div className="flex-1 flex overflow-hidden">
@@ -93,6 +111,7 @@ export default function WhatsApp() {
           </div>
         </div>
       </div>
+      </CRMLayout>
     </AuthGuard>
   );
 }
