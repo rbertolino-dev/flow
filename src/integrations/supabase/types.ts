@@ -481,6 +481,57 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_messages: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          instance_id: string
+          lead_id: string
+          media_type: string | null
+          media_url: string | null
+          message: string
+          phone: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instance_id: string
+          lead_id: string
+          media_type?: string | null
+          media_url?: string | null
+          message: string
+          phone: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instance_id?: string
+          lead_id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          phone?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           color: string
