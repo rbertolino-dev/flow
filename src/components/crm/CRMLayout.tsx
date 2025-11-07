@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, X } from "lucide-react";
+import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, X, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,8 +11,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "contacts" | "settings";
-  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings") => void;
+  activeView: "kanban" | "calls" | "contacts" | "settings" | "users";
+  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -25,6 +25,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -48,21 +49,46 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     }
   };
 
-  const menuItems = [
+  const baseMenuItems = [
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "contacts" as const, label: "Contatos", icon: Users },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
+  const adminMenuItems = [
+    { id: "users" as const, label: "Usuários", icon: UserCog },
+  ];
+
+  const menuItems = isAdmin ? [...baseMenuItems, ...adminMenuItems] : baseMenuItems;
+
   useEffect(() => {
+    const checkUserRole = async (userId: string) => {
+      const { data } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .single();
+      
+      setIsAdmin(!!data);
+    };
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUserEmail(user?.email ?? null);
       setUserId(user?.id ?? null);
+      if (user?.id) {
+        checkUserRole(user.id);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserEmail(session?.user?.email ?? null);
       setUserId(session?.user?.id ?? null);
+      if (session?.user?.id) {
+        checkUserRole(session.user.id);
+      } else {
+        setIsAdmin(false);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);

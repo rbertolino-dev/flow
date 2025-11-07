@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
 import { CallQueue } from "@/components/crm/CallQueue";
@@ -20,7 +21,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 
 const Index = () => {
-  const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings">("kanban");
+  const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings" | "users">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
@@ -57,11 +59,19 @@ const Index = () => {
     );
   }
 
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users") => {
+    if (view === "users") {
+      navigate('/users');
+    } else {
+      setActiveView(view);
+    }
+  };
+
   return (
     <AuthGuard>
       <CRMLayout 
         activeView={activeView} 
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         syncInfo={{ lastSync, nextSync, isSyncing }}
       >
       {activeView === "kanban" && (
