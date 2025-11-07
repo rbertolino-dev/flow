@@ -150,9 +150,8 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
   );
 
   return (
-    <>
-      <div className="h-full flex flex-col bg-background">
-        <div className="p-6 border-b border-border space-y-4">
+    <div className="h-full flex flex-col bg-background">
+      <div className="p-6 border-b border-border space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Fila de Ligações</h1>
@@ -370,7 +369,6 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
             </Card>
           )}
         </div>
-      </div>
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-6">
@@ -619,22 +617,21 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           )}
         </div>
       </ScrollArea>
-    </div>
-    
-    <RescheduleCallDialog
-      open={rescheduleDialog.open}
-      onOpenChange={(open) => setRescheduleDialog({ ...rescheduleDialog, open })}
-      onConfirm={(newDate) => onCallReschedule(rescheduleDialog.callId, newDate)}
-      currentDate={rescheduleDialog.currentDate}
-    />
+      
+      <RescheduleCallDialog
+        open={rescheduleDialog.open}
+        onOpenChange={(open) => setRescheduleDialog({ ...rescheduleDialog, open })}
+        onConfirm={(newDate) => onCallReschedule(rescheduleDialog.callId, newDate)}
+        currentDate={rescheduleDialog.currentDate}
+      />
 
-    <CallQueueTagManager
-      open={tagManager.open}
-      onOpenChange={(open) => setTagManager({ ...tagManager, open })}
-      currentTags={tagManager.currentTags}
-      onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
-      onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
-    />
-    </>
+      <CallQueueTagManager
+        open={tagManager.open}
+        onOpenChange={(open) => setTagManager({ ...tagManager, open })}
+        currentTags={tagManager.currentTags}
+        onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
+        onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
+      />
+    </div>
   );
 }
