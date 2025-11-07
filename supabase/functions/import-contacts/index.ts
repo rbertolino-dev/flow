@@ -66,6 +66,12 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
+    const cleanApiUrl = (url: string) =>
+      (url || '')
+        .replace(/\/$/, '')
+        .replace(/\/(manager|dashboard|app)$/i, '');
+
+
     if (configError || !config) {
       console.error('Config error:', configError);
       return new Response(
@@ -78,7 +84,8 @@ serve(async (req) => {
     }
 
     // Buscar contatos da Evolution API
-    const evolutionUrl = `${config.api_url}/chat/findContacts/${config.instance_name}`;
+    const baseUrl = cleanApiUrl(config.api_url);
+    const evolutionUrl = `${baseUrl}/chat/findContacts/${config.instance_name}`;
     console.log('Fetching contacts from:', evolutionUrl);
 
     const contactsResponse = await fetch(evolutionUrl, {

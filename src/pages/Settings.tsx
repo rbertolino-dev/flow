@@ -34,6 +34,7 @@ export default function Settings() {
   const [verifying, setVerifying] = useState(false);
   const [verificationResults, setVerificationResults] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; httpStatus: number | null; details: any } | null>(null);
 
   // Stage management
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
@@ -94,7 +95,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 };
 
   const handleTestConnection = async () => {
-    await testConnection();
+    const result = await testConnection();
+    setTestResult(result as any);
   };
 
   const handleVerifyIntegration = async () => {
@@ -569,6 +571,21 @@ Headers:
                   </>
                 )}
               </div>
+
+              {testResult && (
+                <div className="mt-4">
+                  <Alert variant={testResult.success ? 'default' : 'destructive'}>
+                    <AlertTitle>
+                      {testResult.success ? 'Conexão OK' : 'Falha na conexão'}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {typeof testResult.httpStatus === 'number' ? `HTTP ${testResult.httpStatus}. ` : ''}
+                      {typeof testResult.details === 'string' ? testResult.details : ''}
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+
 
               {verificationResults && verificationResults.steps.length > 0 && (
                 <div className="mt-6 p-4 bg-muted rounded-lg space-y-3">

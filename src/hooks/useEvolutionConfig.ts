@@ -212,46 +212,53 @@ export function useEvolutionConfig() {
   };
 
   const testConnection = async () => {
-    if (!config) return { success: false, details: null };
+    if (!config) return { success: false, httpStatus: null, details: null } as any;
 
     try {
-      const response = await fetch(buildApiPath(`/instance/connectionState/${config.instance_name}`), {
+      const url = buildApiPath(`/instance/connectionState/${config.instance_name}`);
+      const response = await fetch(url, {
         headers: {
           'apikey': config.api_key || '',
         },
       });
 
+      const status = response.status;
+
       if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
+        const text = await response.text();
+        const reason = status === 401
+          ? 'API Key inválida ou ausente'
+          : status === 404
+          ? 'Instância não encontrada'
+          : `Erro HTTP ${status}`;
+
+        toast({
+          title: '❌ Falha ao conectar',
+          description: `${reason}. Prévia: ${text.slice(0, 120)}`,
+          variant: 'destructive',
+        });
+
+        return { success: false, httpStatus: status, details: text.slice(0, 300) };
       }
 
       const data = await parseJsonSafe(response);
-
       const isConnected = data.state === 'open';
-      
       toast({
-        title: isConnected ? "✅ Conexão bem-sucedida" : "⚠️ WhatsApp desconectado",
-        description: isConnected 
-          ? `Instância "${config.instance_name}" está conectada e funcionando`
-          : `Status: ${data.state || 'Desconhecido'}. Escaneie o QR Code para conectar.`,
-        variant: isConnected ? "default" : "destructive",
+        title: isConnected ? '✅ Conexão bem-sucedida' : '⚠️ WhatsApp desconectado',
+        description: isConnected
+          ? `Instância "${config.instance_name}" está conectada`
+          : `Status: ${data.state || 'Desconhecido'} (escaneie o QR Code)`,
+        variant: isConnected ? 'default' : 'destructive',
       });
 
-      return {
-        success: true,
-        details: {
-          state: data.state,
-          instance: data.instance,
-          connected: isConnected,
-        }
-      };
+      return { success: true, httpStatus: status, details: data };
     } catch (error: any) {
       toast({
-        title: "❌ Erro ao testar conexão",
+        title: '❌ Erro ao testar conexão',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
-      return { success: false, details: null };
+      return { success: false, httpStatus: null, details: error.message };
     }
   };
 
