@@ -3,18 +3,22 @@ import { Lead, LeadStatus } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { KanbanColumn } from "./KanbanColumn";
+import { BulkImportPanel } from "./BulkImportPanel";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface KanbanBoardProps {
   leads: Lead[];
   onLeadUpdate: (leadId: string, newStatus: string) => void;
   searchQuery?: string;
+  onRefetch: () => void;
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { stages, loading: stagesLoading } = usePipelineStages();
@@ -76,6 +80,20 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
 
   return (
     <>
+      <div className="flex items-center justify-end p-4 border-b border-border">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Importar em Massa
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[600px] max-h-[80vh] overflow-y-auto p-0" align="end">
+            <BulkImportPanel onImportComplete={onRefetch} />
+          </PopoverContent>
+        </Popover>
+      </div>
+
       <DndContext 
         sensors={sensors}
         collisionDetection={closestCorners} 

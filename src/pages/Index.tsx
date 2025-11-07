@@ -81,7 +81,7 @@ const Index = () => {
               />
             </div>
           </div>
-          <KanbanBoard leads={leads} onLeadUpdate={handleLeadUpdate} searchQuery={searchQuery} />
+          <KanbanBoard leads={leads} onLeadUpdate={handleLeadUpdate} searchQuery={searchQuery} onRefetch={refetchLeads} />
         </div>
       )}
 
