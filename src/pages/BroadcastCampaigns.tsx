@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { CRMLayout } from "@/components/crm/CRMLayout";
 import {
   Dialog,
   DialogContent,
@@ -309,8 +310,8 @@ export default function BroadcastCampaigns() {
 
   return (
     <AuthGuard>
+      <CRMLayout activeView="kanban" onViewChange={() => {}}>
       <div className="min-h-screen bg-background">
-        <WhatsAppNav />
         <div className="container mx-auto p-6 max-w-7xl">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -561,6 +562,7 @@ export default function BroadcastCampaigns() {
       </Dialog>
         </div>
       </div>
+      </CRMLayout>
     </AuthGuard>
   );
 }

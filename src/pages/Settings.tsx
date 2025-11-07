@@ -17,6 +17,8 @@ import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare } from "lucide-re
 import { Badge } from "@/components/ui/badge";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { CRMLayout } from "@/components/crm/CRMLayout";
 
 export default function Settings() {
   const { 
@@ -124,20 +126,26 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <AuthGuard>
+        <CRMLayout activeView="settings" onViewChange={() => {}}>
+          <div className="h-full w-full flex items-center justify-center bg-background">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </CRMLayout>
+      </AuthGuard>
     );
   }
 
   return (
-    <div className="h-full bg-background overflow-y-auto">
-      <div className="p-6 border-b border-border">
-        <h1 className="text-3xl font-bold mb-2">Configurações</h1>
-        <p className="text-muted-foreground">
-          Gerencie suas integrações e configurações do sistema
-        </p>
-      </div>
+    <AuthGuard>
+      <CRMLayout activeView="settings" onViewChange={() => {}}>
+        <div className="h-full bg-background overflow-y-auto">
+          <div className="p-6 border-b border-border">
+            <h1 className="text-3xl font-bold mb-2">Configurações</h1>
+            <p className="text-muted-foreground">
+              Gerencie suas integrações e configurações do sistema
+            </p>
+          </div>
 
       <div className="p-6 max-w-6xl space-y-6">
         <Tabs defaultValue="evolution" className="w-full">
@@ -471,7 +479,7 @@ export default function Settings() {
                   </CardContent>
                 </Card>
               </TabsContent>
-            </Tabs>
+        </Tabs>
       </div>
 
       <EvolutionInstanceDialog
@@ -480,10 +488,22 @@ export default function Settings() {
           setDialogOpen(open);
           if (!open) setEditingConfig(null);
         }}
-        onSave={createConfig}
-        onUpdate={updateConfig}
         editingConfig={editingConfig}
+        onSave={async (data) => {
+          await createConfig(data);
+          setDialogOpen(false);
+          setEditingConfig(null);
+          return true;
+        }}
+        onUpdate={async (id, data) => {
+          await updateConfig(id, data);
+          setDialogOpen(false);
+          setEditingConfig(null);
+          return true;
+        }}
       />
-    </div>
+        </div>
+      </CRMLayout>
+    </AuthGuard>
   );
 }

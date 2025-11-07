@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2 } from "lucide-react";
 import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { CRMLayout } from "@/components/crm/CRMLayout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -315,14 +317,20 @@ export default function Users() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Carregando usuários...</div>
-      </div>
+      <AuthGuard>
+        <CRMLayout activeView="kanban" onViewChange={() => {}}>
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-lg">Carregando usuários...</div>
+          </div>
+        </CRMLayout>
+      </AuthGuard>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <AuthGuard>
+      <CRMLayout activeView="kanban" onViewChange={() => {}}>
+        <div className="container mx-auto p-6 max-w-6xl">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -591,5 +599,7 @@ export default function Users() {
         />
       )}
     </div>
+      </CRMLayout>
+    </AuthGuard>
   );
 }
