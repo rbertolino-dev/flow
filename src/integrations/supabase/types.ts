@@ -210,6 +210,7 @@ export type Database = {
           qr_code: string | null
           updated_at: string | null
           user_id: string
+          webhook_enabled: boolean
         }
         Insert: {
           api_key?: string | null
@@ -222,6 +223,7 @@ export type Database = {
           qr_code?: string | null
           updated_at?: string | null
           user_id: string
+          webhook_enabled?: boolean
         }
         Update: {
           api_key?: string | null
@@ -234,6 +236,7 @@ export type Database = {
           qr_code?: string | null
           updated_at?: string | null
           user_id?: string
+          webhook_enabled?: boolean
         }
         Relationships: []
       }
