@@ -1,24 +1,30 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
+import { CreateUserDialog } from "./CreateUserDialog";
+import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
 
 interface OrganizationWithMembers {
   id: string;
   name: string;
   created_at: string;
-  members: Array<{
-    id: string;
-    role: string;
+  organization_members: Array<{
     user_id: string;
+    role: string;
+    created_at: string;
     profiles: {
       email: string;
       full_name: string | null;
-    } | null;
+    };
+    user_roles: Array<{
+      role: string;
+    }>;
   }>;
 }
 
@@ -27,6 +33,9 @@ export function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [isPubdigitalUser, setIsPubdigitalUser] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [createOrgOpen, setCreateOrgOpen] = useState(false);
+  const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<OrganizationWithMembers | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -44,7 +53,7 @@ export function SuperAdminDashboard() {
         .select('role')
         .eq('user_id', user.id)
         .eq('role', 'admin')
-        .single();
+        .maybeSingle();
 
       const hasAdminRole = !!roleData;
       setIsAdmin(hasAdminRole);
@@ -75,7 +84,6 @@ export function SuperAdminDashboard() {
     try {
       setLoading(true);
       
-      // Fetch all organizations with members
       const { data: orgs, error: orgsError } = await supabase
         .from('organizations')
         .select('*')
@@ -83,37 +91,39 @@ export function SuperAdminDashboard() {
 
       if (orgsError) throw orgsError;
 
-      // For each org, fetch members with profile data
-      const orgsWithMembers: OrganizationWithMembers[] = await Promise.all(
+      // Fetch members for each organization
+      const orgsWithMembers = await Promise.all(
         (orgs || []).map(async (org) => {
           const { data: members } = await supabase
             .from('organization_members')
-            .select(`
-              id,
-              role,
-              user_id
-            `)
+            .select('user_id, role, created_at')
             .eq('organization_id', org.id);
 
-          // Fetch profiles separately
-          const membersWithProfiles = await Promise.all(
+          // For each member, fetch profile and roles
+          const membersWithData = await Promise.all(
             (members || []).map(async (member) => {
               const { data: profile } = await supabase
                 .from('profiles')
                 .select('email, full_name')
                 .eq('id', member.user_id)
-                .maybeSingle();
+                .single();
+
+              const { data: roles } = await supabase
+                .from('user_roles')
+                .select('role')
+                .eq('user_id', member.user_id);
 
               return {
                 ...member,
-                profiles: profile,
+                profiles: profile || { email: '', full_name: '' },
+                user_roles: roles || [],
               };
             })
           );
 
           return {
             ...org,
-            members: membersWithProfiles,
+            organization_members: membersWithData,
           };
         })
       );
@@ -127,24 +137,6 @@ export function SuperAdminDashboard() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'owner': return 'bg-purple-500';
-      case 'admin': return 'bg-blue-500';
-      case 'member': return 'bg-gray-500';
-      default: return 'bg-gray-400';
-    }
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'owner': return 'Proprietário';
-      case 'admin': return 'Administrador';
-      case 'member': return 'Membro';
-      default: return role;
     }
   };
 
@@ -163,25 +155,54 @@ export function SuperAdminDashboard() {
           <ShieldAlert className="h-4 w-4" />
           <AlertDescription>
             <strong>Acesso Negado</strong>
-            <p className="mt-2">Você não tem permissão para acessar o painel de Super Administrador. Esta área é restrita a usuários da Pubdigital.</p>
+            <p className="mt-2">Você não tem permissão para acessar o painel de Super Administrador. Esta área é restrita a administradores.</p>
           </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  const totalMembers = organizations.reduce((sum, org) => sum + org.members.length, 0);
+  if (selectedOrg) {
+    return (
+      <div className="h-full overflow-auto bg-background p-6">
+        <OrganizationDetailPanel
+          organization={selectedOrg}
+          onClose={() => setSelectedOrg(null)}
+          onUpdate={() => {
+            fetchAllOrganizations();
+            setSelectedOrg(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const totalMembers = organizations.reduce((sum, org) => sum + org.organization_members.length, 0);
 
   return (
     <div className="h-full bg-background overflow-y-auto">
       <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-3 mb-2">
-          <Crown className="h-8 w-8 text-yellow-500" />
-          <h1 className="text-3xl font-bold">Painel Super Administrador</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Crown className="h-8 w-8 text-yellow-500" />
+              <h1 className="text-3xl font-bold">Painel Super Administrador</h1>
+            </div>
+            <p className="text-muted-foreground">
+              Gerenciamento completo de organizações e usuários
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => setCreateUserOpen(true)} variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Usuário
+            </Button>
+            <Button onClick={() => setCreateOrgOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Organização
+            </Button>
+          </div>
         </div>
-        <p className="text-muted-foreground">
-          Visão completa de todas as empresas e usuários do sistema
-        </p>
       </div>
 
       <div className="p-6 space-y-6">
@@ -221,82 +242,64 @@ export function SuperAdminDashboard() {
         </div>
 
         {/* Organizations List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Empresas Cadastradas</CardTitle>
-            <CardDescription>
-              Lista completa de todas as organizações e seus membros
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[600px] pr-4">
-              <div className="space-y-4">
-                {organizations.map((org) => (
-                  <Card key={org.id} className="border-2">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-5 w-5 text-primary" />
-                          <div>
-                            <CardTitle className="text-lg">{org.name}</CardTitle>
-                            <CardDescription className="text-xs mt-1">
-                              Criada em {new Date(org.created_at).toLocaleDateString('pt-BR')}
-                            </CardDescription>
-                          </div>
-                        </div>
-                        <Badge variant="outline">
-                          {org.members.length} {org.members.length === 1 ? 'usuário' : 'usuários'}
-                        </Badge>
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Organizações Cadastradas</h2>
+          <div className="space-y-4">
+            {organizations.map((org) => (
+              <Card key={org.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Building2 className="h-5 w-5 text-primary" />
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-sm text-muted-foreground mb-3">Membros:</h4>
-                        {org.members.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">Nenhum membro nesta organização</p>
-                        ) : (
-                          <div className="grid gap-2">
-                            {org.members.map((member) => (
-                              <div
-                                key={member.id}
-                                className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/50"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-sm">
-                                    {member.profiles?.email?.substring(0, 2).toUpperCase() || 'U'}
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-sm">
-                                      {member.profiles?.full_name || member.profiles?.email || 'Usuário'}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {member.profiles?.email || 'Email não disponível'}
-                                    </p>
-                                  </div>
-                                </div>
-                                <Badge className={getRoleBadgeColor(member.role)}>
-                                  {getRoleLabel(member.role)}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                      <div>
+                        <CardTitle className="text-lg">{org.name}</CardTitle>
+                        <CardDescription>
+                          Criada em {new Date(org.created_at).toLocaleDateString('pt-BR')}
+                        </CardDescription>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {organizations.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma organização cadastrada ainda</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">
+                        <Users className="h-3 w-3 mr-1" />
+                        {org.organization_members.length} membros
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedOrg(org)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver Detalhes
+                      </Button>
+                    </div>
                   </div>
-                )}
+                </CardHeader>
+              </Card>
+            ))}
+
+            {organizations.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhuma organização cadastrada ainda</p>
               </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+            )}
+          </div>
+        </div>
       </div>
+
+      <CreateOrganizationDialog
+        open={createOrgOpen}
+        onOpenChange={setCreateOrgOpen}
+        onSuccess={fetchAllOrganizations}
+      />
+
+      <CreateUserDialog
+        open={createUserOpen}
+        onOpenChange={setCreateUserOpen}
+        onSuccess={fetchAllOrganizations}
+      />
     </div>
   );
 }
