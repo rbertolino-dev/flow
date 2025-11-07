@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.create-google-calendar-event]
 verify_jwt = false
+
+[functions.log-auth-attempt]
+verify_jwt = false

@@ -21,9 +21,22 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
+      });
+
+      // Log auth attempt
+      await supabase.functions.invoke('log-auth-attempt', {
+        body: {
+          email,
+          success: !error,
+          error: error?.message || null,
+          ip: null,
+          userAgent: navigator.userAgent,
+          method: 'signin',
+          userId: data?.user?.id || null,
+        },
       });
 
       if (error) throw error;
@@ -50,9 +63,22 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
+      });
+
+      // Log signup attempt
+      await supabase.functions.invoke('log-auth-attempt', {
+        body: {
+          email,
+          success: !error,
+          error: error?.message || null,
+          ip: null,
+          userAgent: navigator.userAgent,
+          method: 'signup',
+          userId: data?.user?.id || null,
+        },
       });
 
       if (error) throw error;
@@ -63,9 +89,22 @@ export default function Login() {
       });
 
       // Auto login after signup
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
+      });
+
+      // Log auto signin attempt
+      await supabase.functions.invoke('log-auth-attempt', {
+        body: {
+          email,
+          success: !signInError,
+          error: signInError?.message || null,
+          ip: null,
+          userAgent: navigator.userAgent,
+          method: 'auto-signin',
+          userId: signInData?.user?.id || null,
+        },
       });
 
       if (signInError) throw signInError;

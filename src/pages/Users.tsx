@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2 } from "lucide-react";
+import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2, ShieldAlert } from "lucide-react";
 import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -341,85 +341,91 @@ export default function Users() {
             Gerenciamento de Usuários
           </CardTitle>
           {isAdmin && (
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Criar Usuário
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Usuário</DialogTitle>
-                  <DialogDescription>
-                    Preencha os dados para criar um novo usuário no sistema
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="usuario@exemplo.com"
-                      value={newUserData.email}
-                      onChange={(e) =>
-                        setNewUserData({ ...newUserData, email: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha *</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Mínimo 6 caracteres"
-                      value={newUserData.password}
-                      onChange={(e) =>
-                        setNewUserData({ ...newUserData, password: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Nome Completo</Label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Nome do usuário"
-                      value={newUserData.fullName}
-                      onChange={(e) =>
-                        setNewUserData({ ...newUserData, fullName: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="isAdmin"
-                      checked={newUserData.isAdmin}
-                      onCheckedChange={(checked) =>
-                        setNewUserData({ ...newUserData, isAdmin: checked as boolean })
-                      }
-                    />
-                    <Label htmlFor="isAdmin" className="cursor-pointer">
-                      Tornar administrador
-                    </Label>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setCreateDialogOpen(false)}
-                    disabled={creating}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleCreateUser} disabled={creating}>
-                    {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate('/auth-logs')}>
+                <ShieldAlert className="h-4 w-4 mr-2" />
+                Logs de Autenticação
+              </Button>
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <UserPlus className="h-4 w-4 mr-2" />
                     Criar Usuário
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Criar Novo Usuário</DialogTitle>
+                    <DialogDescription>
+                      Preencha os dados para criar um novo usuário no sistema
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="usuario@exemplo.com"
+                        value={newUserData.email}
+                        onChange={(e) =>
+                          setNewUserData({ ...newUserData, email: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Senha *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        value={newUserData.password}
+                        onChange={(e) =>
+                          setNewUserData({ ...newUserData, password: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Nome Completo</Label>
+                      <Input
+                        id="fullName"
+                        type="text"
+                        placeholder="Nome do usuário"
+                        value={newUserData.fullName}
+                        onChange={(e) =>
+                          setNewUserData({ ...newUserData, fullName: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="isAdmin"
+                        checked={newUserData.isAdmin}
+                        onCheckedChange={(checked) =>
+                          setNewUserData({ ...newUserData, isAdmin: checked as boolean })
+                        }
+                      />
+                      <Label htmlFor="isAdmin" className="cursor-pointer">
+                        Tornar administrador
+                      </Label>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setCreateDialogOpen(false)}
+                      disabled={creating}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleCreateUser} disabled={creating}>
+                      {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Criar Usuário
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </CardHeader>
         <CardContent>

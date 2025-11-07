@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
 import WhatsApp from "./pages/WhatsApp";
+import AuthLogs from "./pages/AuthLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />
           <Route path="/whatsapp" element={<WhatsApp />} />
+          <Route path="/auth-logs" element={<AuthLogs />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
