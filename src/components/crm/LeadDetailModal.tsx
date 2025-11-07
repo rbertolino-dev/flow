@@ -14,7 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useTags } from "@/hooks/useTags";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
@@ -32,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
+import { ChatHistory } from "./ChatHistory";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -60,6 +61,23 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { toast } = useToast();
   const [selectedTagId, setSelectedTagId] = useState<string>("");
   const [newComment, setNewComment] = useState<string>("");
+
+  // Separar mensagens do WhatsApp do restante das atividades
+  const whatsappMessages = useMemo(() => {
+    return lead.activities
+      .filter(a => a.type === 'whatsapp')
+      .map(a => ({
+        id: a.id,
+        content: a.content,
+        timestamp: a.timestamp,
+        direction: a.direction || 'incoming' as 'incoming' | 'outgoing',
+        user_name: a.user_name,
+      }));
+  }, [lead.activities]);
+
+  const otherActivities = useMemo(() => {
+    return lead.activities.filter(a => a.type !== 'whatsapp');
+  }, [lead.activities]);
 
   const handleDeleteLead = async () => {
     const success = await deleteLead(lead.id);
@@ -337,11 +355,30 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
             <Separator />
 
-            {/* Activity Timeline */}
+            {/* Chat History - WhatsApp Messages */}
+            {whatsappMessages.length > 0 && (
+              <>
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Conversas WhatsApp
+                  </h3>
+                  <div className="border border-border rounded-lg bg-muted/20">
+                    <ChatHistory messages={whatsappMessages} className="h-[300px]" />
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
+
+            {/* Activity Timeline - Other Activities */}
             <div className="space-y-3">
-              <h3 className="font-semibold text-lg">Histórico de Atividades</h3>
+              <h3 className="font-semibold text-lg">Outras Atividades</h3>
               <div className="space-y-4">
-                {lead.activities.map((activity) => {
+                {otherActivities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma atividade adicional</p>
+                ) : (
+                  otherActivities.map((activity) => {
                   const Icon = activityIcons[activity.type];
                   const colorClass = activityColors[activity.type];
 
@@ -360,7 +397,8 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                       </div>
                     </div>
                   );
-                })}
+                  })
+                )}
               </div>
             </div>
           </div>

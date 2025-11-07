@@ -14,6 +14,8 @@ export interface Activity {
   content: string;
   timestamp: Date;
   user: string;
+  direction?: 'incoming' | 'outgoing';
+  user_name?: string | null;
 }
 
 export interface Lead {
