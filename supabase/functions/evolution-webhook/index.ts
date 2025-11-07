@@ -243,6 +243,25 @@ serve(async (req) => {
         payload: { phoneNumber, messageContent, contactName, direction },
       });
 
+      // Salvar mensagem no histórico do WhatsApp
+      await supabase.from('whatsapp_messages').insert({
+        user_id: configs.user_id,
+        phone: phoneNumber,
+        contact_name: contactName,
+        message_text: messageContent,
+        message_type: data.message?.audioMessage ? 'audio' : 
+                      data.message?.imageMessage ? 'image' :
+                      data.message?.videoMessage ? 'video' :
+                      data.message?.documentMessage ? 'document' : 'text',
+        media_url: data.message?.audioMessage?.url || 
+                   data.message?.imageMessage?.url ||
+                   data.message?.videoMessage?.url ||
+                   data.message?.documentMessage?.url,
+        direction,
+        timestamp: new Date().toISOString(),
+        read_status: isFromMe, // Mensagens enviadas já são lidas
+      });
+
       // Verificar se já existe um lead com este telefone (incluindo excluídos)
       const { data: existingLead } = await supabase
         .from('leads')

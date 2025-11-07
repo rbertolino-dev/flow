@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, X, UserCog, Send } from "lucide-react";
+import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, X, UserCog, Send, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,8 +11,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast";
-  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast") => void;
+  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp";
+  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -53,6 +53,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "contacts" as const, label: "Contatos", icon: Users },
+    { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];

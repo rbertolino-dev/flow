@@ -814,6 +814,51 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_messages: {
+        Row: {
+          contact_name: string | null
+          created_at: string | null
+          direction: string
+          id: string
+          media_url: string | null
+          message_id: string | null
+          message_text: string | null
+          message_type: string
+          phone: string
+          read_status: boolean | null
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          contact_name?: string | null
+          created_at?: string | null
+          direction: string
+          id?: string
+          media_url?: string | null
+          message_id?: string | null
+          message_text?: string | null
+          message_type?: string
+          phone: string
+          read_status?: boolean | null
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          contact_name?: string | null
+          created_at?: string | null
+          direction?: string
+          id?: string
+          media_url?: string | null
+          message_id?: string | null
+          message_text?: string | null
+          message_type?: string
+          phone?: string
+          read_status?: boolean | null
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

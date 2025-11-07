@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Users from "./pages/Users";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
+import WhatsApp from "./pages/WhatsApp";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/users" element={<Users />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />
+          <Route path="/whatsapp" element={<WhatsApp />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

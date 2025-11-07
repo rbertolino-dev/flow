@@ -59,11 +59,13 @@ const Index = () => {
     );
   }
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast") => {
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
       navigate('/broadcast');
+    } else if (view === "whatsapp") {
+      navigate('/whatsapp');
     } else {
       setActiveView(view);
     }
