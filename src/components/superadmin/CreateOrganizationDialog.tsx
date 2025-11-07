@@ -32,11 +32,11 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from("organizations")
-        .insert({ name: name.trim() })
-        .select()
-        .single();
+      // Usar RPC para criar org + owner em transação atômica (evita problemas RLS)
+      const { data: newOrgId, error } = await supabase.rpc(
+        'create_organization_with_owner',
+        { org_name: name.trim() }
+      );
 
       if (error) throw error;
 

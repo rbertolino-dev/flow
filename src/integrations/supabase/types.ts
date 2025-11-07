@@ -1106,6 +1106,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_organization_with_owner: {
+        Args: { org_name: string; owner_user_id?: string }
+        Returns: string
+      }
       get_all_organizations_with_members: {
         Args: never
         Returns: {
@@ -1145,6 +1149,10 @@ export type Database = {
           }
       is_pubdigital_user: { Args: { _user_id: string }; Returns: boolean }
       user_belongs_to_org: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_is_org_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
