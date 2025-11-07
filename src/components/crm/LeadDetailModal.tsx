@@ -1,4 +1,5 @@
 import { Lead } from "@/types/lead";
+import { useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +81,44 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     connectedInstances.some(c => c.is_connected),
     [connectedInstances]
   );
+
+  // Verificar status real das instâncias quando abrir o modal
+  useEffect(() => {
+    if (!open || connectedInstances.length === 0) return;
+
+    const checkInstancesStatus = async () => {
+      for (const config of connectedInstances) {
+        try {
+          const url = `${config.api_url}/instance/connectionState/${config.instance_name}`;
+          const response = await fetch(url, {
+            headers: {
+              'apikey': config.api_key || '',
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const isConnected = data.state === 'open';
+            
+            // Atualizar no banco se o status mudou
+            if (isConnected !== config.is_connected) {
+              await supabase
+                .from('evolution_config')
+                .update({ 
+                  is_connected: isConnected,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', config.id);
+            }
+          }
+        } catch (error) {
+          console.error(`Erro ao verificar status da instância ${config.instance_name}:`, error);
+        }
+      }
+    };
+
+    checkInstancesStatus();
+  }, [open, connectedInstances]);
 
   // Separar mensagens do WhatsApp do restante das atividades
   const whatsappMessages = useMemo(() => {
