@@ -14,12 +14,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PipelineStage } from "@/hooks/usePipelineStages";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface LeadCardProps {
   lead: Lead;
   onClick: () => void;
   stages: PipelineStage[];
   onStageChange: (leadId: string, newStageId: string) => void;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
 }
 
 const sourceColors: Record<string, string> = {
@@ -30,7 +33,7 @@ const sourceColors: Record<string, string> = {
   Facebook: "bg-accent text-accent-foreground",
 };
 
-export function LeadCard({ lead, onClick, stages, onStageChange }: LeadCardProps) {
+export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
@@ -46,6 +49,13 @@ export function LeadCard({ lead, onClick, stages, onStageChange }: LeadCardProps
     transition,
     opacity: isDragging ? 0.5 : 1,
     cursor: isDragging ? 'grabbing' : 'grab',
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSelection) {
+      onToggleSelection();
+    }
   };
 
   const handleSaveName = async () => {
@@ -127,11 +137,22 @@ export function LeadCard({ lead, onClick, stages, onStageChange }: LeadCardProps
       className={`p-4 transition-all duration-200 bg-card border ${
         isDragging 
           ? 'border-primary shadow-lg scale-105 rotate-2' 
-          : 'border-border hover:shadow-md hover:border-primary/50'
+          : isSelected
+            ? 'border-primary shadow-md ring-2 ring-primary/50'
+            : 'border-border hover:shadow-md hover:border-primary/50'
       }`}
       onClick={handleCardClick}
     >
       <div className="space-y-3">
+        {onToggleSelection && (
+          <div className="flex items-center justify-end" onClick={handleCheckboxClick}>
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onToggleSelection}
+              className="h-5 w-5"
+            />
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             {editingName ? (

@@ -9,12 +9,14 @@ import { PipelineStage } from "@/hooks/usePipelineStages";
 interface KanbanColumnProps {
   stage: PipelineStage;
   leads: Lead[];
+  selectedLeadIds?: Set<string>;
+  onToggleSelection?: (leadId: string) => void;
   onLeadClick: (lead: Lead) => void;
   allStages: PipelineStage[];
   onStageChange: (leadId: string, newStageId: string) => void;
 }
 
-export function KanbanColumn({ stage, leads, onLeadClick, allStages, onStageChange }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -67,6 +69,8 @@ export function KanbanColumn({ stage, leads, onLeadClick, allStages, onStageChan
                 onClick={() => onLeadClick(lead)}
                 stages={allStages}
                 onStageChange={onStageChange}
+                isSelected={selectedLeadIds?.has(lead.id) || false}
+                onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}
               />
             ))}
             {leads.length === 0 && (

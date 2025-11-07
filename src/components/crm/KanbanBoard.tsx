@@ -6,10 +6,13 @@ import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
-import { Loader2, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -21,8 +24,10 @@ interface KanbanBoardProps {
 export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const { stages, loading: stagesLoading } = usePipelineStages();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -89,6 +94,85 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
     }
   };
 
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedLeadIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(leadId)) {
+        newSet.delete(leadId);
+      } else {
+        newSet.add(leadId);
+      }
+      return newSet;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedLeadIds(new Set());
+  };
+
+  const handleMoveToNextStage = async () => {
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
+    
+    for (const lead of selectedLeads) {
+      const currentStageIndex = stages.findIndex(s => s.id === lead.stageId);
+      if (currentStageIndex < stages.length - 1) {
+        const nextStage = stages[currentStageIndex + 1];
+        await onLeadUpdate(lead.id, nextStage.id);
+      }
+    }
+
+    toast({
+      title: "Leads movidos",
+      description: `${selectedLeads.length} lead(s) movido(s) para a próxima etapa`,
+    });
+
+    clearSelection();
+    onRefetch();
+  };
+
+  const handleAddToCallQueue = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
+    
+    for (const lead of selectedLeads) {
+      await supabase.from('call_queue').insert({
+        lead_id: lead.id,
+        scheduled_for: new Date().toISOString(),
+        priority: 'normal',
+        status: 'pending',
+      });
+    }
+
+    toast({
+      title: "Adicionado à fila",
+      description: `${selectedLeads.length} lead(s) adicionado(s) à fila de ligações`,
+    });
+
+    clearSelection();
+    onRefetch();
+  };
+
+  const handleDeleteSelected = async () => {
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
+    
+    for (const lead of selectedLeads) {
+      await supabase
+        .from('leads')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', lead.id);
+    }
+
+    toast({
+      title: "Leads excluídos",
+      description: `${selectedLeads.length} lead(s) excluído(s)`,
+    });
+
+    clearSelection();
+    onRefetch();
+  };
+
   return (
     <>
       <div className="flex items-center justify-end p-4 border-b border-border">
@@ -131,14 +215,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
             <ChevronRight className="h-5 w-5" />
           </Button>
 
-          <div ref={scrollContainerRef} className="flex gap-4 h-full overflow-x-auto overflow-y-hidden p-6 kanban-scroll">
-          {stages.map((stage) => {
-            const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
-            return (
-              <KanbanColumn
-                key={stage.id}
-                stage={stage}
-                leads={columnLeads}
+          <div ref={scrollContainerRef} className="flex gap-4 h-full overflow-x-auto overflow-y-hidden p-6 pb-24 kanban-scroll">
+            {stages.map((stage) => {
+              const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
+              return (
+                <KanbanColumn
+                  key={stage.id}
+                  stage={stage}
+                  leads={columnLeads}
+                  selectedLeadIds={selectedLeadIds}
+                  onToggleSelection={toggleLeadSelection}
                 onLeadClick={setSelectedLead}
                 allStages={stages}
                 onStageChange={onLeadUpdate}
@@ -179,10 +265,62 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
               onClick={() => {}}
               stages={stages}
               onStageChange={() => {}}
+              isSelected={false}
+              onToggleSelection={() => {}}
             />
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Barra de ações para seleção múltipla */}
+      {selectedLeadIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-lg shadow-2xl border border-primary-foreground/20 px-6 py-4 flex items-center gap-4 animate-scale-in">
+          <Badge variant="secondary" className="px-3 py-1 text-base font-semibold">
+            {selectedLeadIds.size} selecionado{selectedLeadIds.size > 1 ? 's' : ''}
+          </Badge>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleMoveToNextStage}
+              className="gap-2"
+            >
+              <ArrowRight className="h-4 w-4" />
+              Próxima Etapa
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleAddToCallQueue}
+              className="gap-2"
+            >
+              <Phone className="h-4 w-4" />
+              Fila de Ligações
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDeleteSelected}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Excluir
+            </Button>
+          </div>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={clearSelection}
+            className="ml-2 hover:bg-primary-foreground/20"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {selectedLead && (
         <LeadDetailModal
