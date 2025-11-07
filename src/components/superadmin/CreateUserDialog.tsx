@@ -81,6 +81,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
           password: password.trim(),
           fullName: fullName.trim() || email.trim(),
           isAdmin,
+          organizationId: selectedOrgId, // Enviar organizationId
         }),
       });
 
@@ -90,17 +91,7 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
         throw new Error(result.error || 'Erro ao criar usuário');
       }
 
-      // Adicionar usuário à organização
-      const { error: memberError } = await supabase
-        .from("organization_members")
-        .insert({
-          user_id: result.user.id,
-          organization_id: selectedOrgId,
-          role: isAdmin ? 'admin' : 'member',
-        });
-
-      if (memberError) throw memberError;
-
+      // Não precisa mais adicionar manualmente, a edge function já faz isso
       toast({
         title: "Sucesso!",
         description: "Usuário criado e adicionado à organização",

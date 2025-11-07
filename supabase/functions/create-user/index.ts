@@ -23,7 +23,7 @@ serve(async (req) => {
       }
     );
 
-    // Verificar se o usuário atual é admin
+    // Verificar se o usuário atual é admin ou pubdigital
     const authHeader = req.headers.get('Authorization')!;
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
@@ -32,24 +32,29 @@ serve(async (req) => {
       throw new Error('Não autorizado');
     }
 
-    // Verificar se é admin
-    const { data: roles } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin');
+    // Verificar se é admin OU pubdigital
+    const { data: isAdmin } = await supabaseAdmin.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
 
-    if (!roles || roles.length === 0) {
+    const { data: isPubdigital } = await supabaseAdmin.rpc('is_pubdigital_user', {
+      _user_id: user.id
+    });
+
+    if (!isAdmin && !isPubdigital) {
       throw new Error('Apenas administradores podem criar usuários');
     }
 
-    const { email, password, fullName, isAdmin } = await req.json();
+    const { email, password, fullName, isAdmin: makeAdmin, organizationId } = await req.json();
 
-    if (!email || !password) {
-      throw new Error('Email e senha são obrigatórios');
+    if (!email || !password || !organizationId) {
+      throw new Error('Email, senha e organização são obrigatórios');
     }
 
-    // Criar usuário usando Admin API
+    console.log('Criando usuário:', { email, fullName, organizationId, makeAdmin });
+
+    // Criar usuário usando Admin API (não dispara trigger handle_new_user)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -60,6 +65,7 @@ serve(async (req) => {
     });
 
     if (createError) {
+      console.error('Erro ao criar usuário no auth:', createError);
       throw createError;
     }
 
@@ -67,7 +73,9 @@ serve(async (req) => {
       throw new Error('Falha ao criar usuário');
     }
 
-    // Criar perfil manualmente (pois admin.createUser não dispara triggers)
+    console.log('Usuário criado no auth:', newUser.user.id);
+
+    // Criar perfil manualmente
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .insert({
@@ -78,7 +86,10 @@ serve(async (req) => {
 
     if (profileError) {
       console.error('Erro ao criar perfil:', profileError);
-      throw new Error('Erro ao criar perfil do usuário');
+      // Se perfil já existe (por causa de trigger), ignorar erro
+      if (!profileError.message?.includes('duplicate')) {
+        throw new Error('Erro ao criar perfil do usuário');
+      }
     }
 
     // Adicionar role padrão de usuário
@@ -88,20 +99,42 @@ serve(async (req) => {
 
     if (userRoleError) {
       console.error('Erro ao adicionar role de usuário:', userRoleError);
-      throw new Error('Erro ao adicionar permissões de usuário');
+      // Se role já existe, ignorar erro
+      if (!userRoleError.message?.includes('duplicate')) {
+        throw new Error('Erro ao adicionar permissões de usuário');
+      }
     }
 
     // Se deve ser admin, adicionar role de admin também
-    if (isAdmin) {
+    if (makeAdmin) {
       const { error: adminRoleError } = await supabaseAdmin
         .from('user_roles')
         .insert({ user_id: newUser.user.id, role: 'admin' });
 
       if (adminRoleError) {
         console.error('Erro ao adicionar role de admin:', adminRoleError);
-        throw new Error('Erro ao adicionar permissões de administrador');
+        // Se role já existe, ignorar erro
+        if (!adminRoleError.message?.includes('duplicate')) {
+          throw new Error('Erro ao adicionar permissões de administrador');
+        }
       }
     }
+
+    // Adicionar usuário à organização especificada
+    const { error: memberError } = await supabaseAdmin
+      .from('organization_members')
+      .insert({
+        user_id: newUser.user.id,
+        organization_id: organizationId,
+        role: makeAdmin ? 'admin' : 'member',
+      });
+
+    if (memberError) {
+      console.error('Erro ao adicionar membro à organização:', memberError);
+      throw new Error('Erro ao adicionar usuário à organização');
+    }
+
+    console.log('Usuário criado com sucesso:', newUser.user.id);
 
     return new Response(
       JSON.stringify({ 
