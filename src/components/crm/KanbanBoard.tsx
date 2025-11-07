@@ -89,7 +89,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[600px] max-h-[80vh] overflow-y-auto p-0" align="end">
-            <BulkImportPanel onImportComplete={onRefetch} />
+            <BulkImportPanel onImportComplete={onRefetch} showStageSelector={true} />
           </PopoverContent>
         </Popover>
       </div>

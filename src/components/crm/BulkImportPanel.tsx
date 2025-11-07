@@ -7,9 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Upload, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { Badge } from "@/components/ui/badge";
 
 interface BulkImportPanelProps {
   onImportComplete: () => void;
+  showStageSelector?: boolean;
 }
 
 interface ParsedContact {
@@ -19,11 +23,13 @@ interface ParsedContact {
   error?: string;
 }
 
-export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
+export function BulkImportPanel({ onImportComplete, showStageSelector = false }: BulkImportPanelProps) {
   const [inputText, setInputText] = useState("");
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<ParsedContact[]>([]);
+  const [selectedStageId, setSelectedStageId] = useState<string>("");
   const { toast } = useToast();
+  const { stages, loading: stagesLoading } = usePipelineStages();
 
   const parseContacts = (text: string): ParsedContact[] => {
     if (!text.trim()) return [];
@@ -110,6 +116,15 @@ export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
       return;
     }
 
+    if (showStageSelector && !selectedStageId) {
+      toast({
+        title: "Selecione uma etapa",
+        description: "Escolha a etapa do funil para os leads importados",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setImporting(true);
 
     try {
@@ -134,6 +149,14 @@ export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
 
           if (existingLead) {
             leadId = existingLead.id;
+            
+            // Se tiver seletor de etapa, atualizar a etapa do lead existente
+            if (showStageSelector && selectedStageId) {
+              await (supabase as any)
+                .from('leads')
+                .update({ stage_id: selectedStageId })
+                .eq('id', leadId);
+            }
           } else {
             // Criar novo lead
             const { data: newLead, error: leadError } = await (supabase as any)
@@ -145,6 +168,7 @@ export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
                 status: 'new',
                 user_id: user.id,
                 assigned_to: user.email,
+                stage_id: showStageSelector ? selectedStageId : null,
               })
               .select('id')
               .single();
@@ -182,6 +206,7 @@ export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
 
       setInputText("");
       setPreview([]);
+      setSelectedStageId("");
       onImportComplete();
     } catch (error: any) {
       toast({
@@ -221,6 +246,33 @@ export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
           </p>
         </div>
 
+        {showStageSelector && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Etapa do Funil *</label>
+            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a etapa inicial" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: stage.color }}
+                      />
+                      {stage.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Todos os leads importados serão adicionados nesta etapa
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <Button 
             onClick={handlePreview} 
@@ -231,7 +283,7 @@ export function BulkImportPanel({ onImportComplete }: BulkImportPanelProps) {
           </Button>
           <Button 
             onClick={handleImport}
-            disabled={preview.length === 0 || importing || !preview.some(c => c.valid)}
+            disabled={preview.length === 0 || importing || !preview.some(c => c.valid) || (showStageSelector && !selectedStageId)}
           >
             {importing ? "Importando..." : `Importar ${preview.filter(c => c.valid).length} contatos`}
           </Button>
