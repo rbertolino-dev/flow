@@ -746,6 +746,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_permissions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          permission: Database["public"]["Enums"]["app_permission"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          permission: Database["public"]["Enums"]["app_permission"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          permission?: Database["public"]["Enums"]["app_permission"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -864,6 +888,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_permissions: {
+        Args: { _user_id: string }
+        Returns: {
+          permission: Database["public"]["Enums"]["app_permission"]
+        }[]
+      }
+      has_permission: {
+        Args: {
+          _permission: Database["public"]["Enums"]["app_permission"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -873,6 +910,25 @@ export type Database = {
       }
     }
     Enums: {
+      app_permission:
+        | "view_leads"
+        | "create_leads"
+        | "edit_leads"
+        | "delete_leads"
+        | "view_call_queue"
+        | "manage_call_queue"
+        | "view_broadcast"
+        | "create_broadcast"
+        | "view_whatsapp"
+        | "send_whatsapp"
+        | "view_templates"
+        | "manage_templates"
+        | "view_pipeline"
+        | "manage_pipeline"
+        | "view_settings"
+        | "manage_settings"
+        | "manage_users"
+        | "view_reports"
       app_role: "admin" | "user"
     }
     CompositeTypes: {
@@ -1001,6 +1057,26 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_permission: [
+        "view_leads",
+        "create_leads",
+        "edit_leads",
+        "delete_leads",
+        "view_call_queue",
+        "manage_call_queue",
+        "view_broadcast",
+        "create_broadcast",
+        "view_whatsapp",
+        "send_whatsapp",
+        "view_templates",
+        "manage_templates",
+        "view_pipeline",
+        "manage_pipeline",
+        "view_settings",
+        "manage_settings",
+        "manage_users",
+        "view_reports",
+      ],
       app_role: ["admin", "user"],
     },
   },

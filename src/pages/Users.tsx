@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit } from "lucide-react";
+import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2 } from "lucide-react";
+import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,8 @@ export default function Users() {
     fullName: "",
     password: "",
   });
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+  const [userForPermissions, setUserForPermissions] = useState<UserProfile | null>(null);
   const { toast } = useToast();
 
   const isAdmin = currentUserRoles.includes('admin');
@@ -462,6 +465,17 @@ export default function Users() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => {
+                        setUserForPermissions(user);
+                        setPermissionsDialogOpen(true);
+                      }}
+                    >
+                      <Settings2 className="h-4 w-4 mr-1" />
+                      Permissões
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleToggleAdmin(user.id, user.roles)}
                     >
                       <Shield className="h-4 w-4 mr-1" />
@@ -562,11 +576,20 @@ export default function Users() {
             </Button>
             <Button onClick={handleEditUser} disabled={editing}>
               {editing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salvar Alterações
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {userForPermissions && (
+        <UserPermissionsDialog
+          open={permissionsDialogOpen}
+          onOpenChange={setPermissionsDialogOpen}
+          userId={userForPermissions.id}
+          userName={userForPermissions.full_name || userForPermissions.email}
+        />
+      )}
     </div>
   );
 }
