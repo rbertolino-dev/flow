@@ -43,7 +43,8 @@ export interface CallQueueItem {
   priority: "high" | "medium" | "low";
   status: "pending" | "completed" | "rescheduled";
   notes?: string;
-  tags?: Tag[];
+  tags?: Tag[]; // Tags do lead
+  queueTags?: Tag[]; // Tags específicas da ligação
   callNotes?: string;
   callCount: number;
   completedBy?: string;

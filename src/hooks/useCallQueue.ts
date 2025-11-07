@@ -43,19 +43,27 @@ export function useCallQueue() {
 
       if (error) throw error;
 
-      // Fetch tags for each lead separately
+      // Fetch tags for each queue item and lead
       const queueWithTags = await Promise.all(
         (queueData || []).map(async (item) => {
-          if (!item.leads?.id) return { ...item, tags: [] };
+          if (!item.leads?.id) return { ...item, tags: [], queueTags: [] };
           
+          // Get lead tags
           const { data: leadTags } = await (supabase as any)
             .from('lead_tags')
             .select('tag_id, tags(id, name, color)')
             .eq('lead_id', item.leads.id);
+
+          // Get call queue tags
+          const { data: callQueueTags } = await (supabase as any)
+            .from('call_queue_tags')
+            .select('tag_id, tags(id, name, color)')
+            .eq('call_queue_id', item.id);
           
           return {
             ...item,
-            tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean)
+            tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
+            queueTags: (callQueueTags || []).map((qt: any) => qt.tags).filter(Boolean)
           };
         })
       );
@@ -71,6 +79,7 @@ export function useCallQueue() {
           status: (item.status || 'pending') as 'pending' | 'completed' | 'rescheduled',
           notes: item.notes || undefined,
           tags: item.tags || [],
+          queueTags: item.queueTags || [],
           callNotes: item.call_notes || undefined,
           callCount: item.call_count || 0,
           completedBy: item.completed_by || undefined,
@@ -219,5 +228,56 @@ export function useCallQueue() {
     }
   };
 
-  return { callQueue, loading, completeCall, rescheduleCall, addToQueue, refetch: fetchCallQueue };
+  const addCallQueueTag = async (callQueueId: string, tagId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue_tags')
+        .insert({ call_queue_id: callQueueId, tag_id: tagId });
+
+      if (error) throw error;
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao adicionar etiqueta",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const removeCallQueueTag = async (callQueueId: string, tagId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue_tags')
+        .delete()
+        .eq('call_queue_id', callQueueId)
+        .eq('tag_id', tagId);
+
+      if (error) throw error;
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover etiqueta",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  return { 
+    callQueue, 
+    loading, 
+    completeCall, 
+    rescheduleCall, 
+    addToQueue, 
+    refetch: fetchCallQueue,
+    addCallQueueTag,
+    removeCallQueueTag
+  };
 }

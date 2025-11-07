@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,15 +12,19 @@ import { useToast } from "@/hooks/use-toast";
 import { buildCopyNumber } from "@/lib/phoneUtils";
 import { useState } from "react";
 import { RescheduleCallDialog } from "./RescheduleCallDialog";
+import { CallQueueTagManager } from "./CallQueueTagManager";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useTags } from "@/hooks/useTags";
 
 interface CallQueueProps {
   callQueue: CallQueueItem[];
   onCallComplete: (id: string, callNotes?: string) => void;
   onCallReschedule: (id: string, newDate: Date) => void;
+  onAddTag: (callQueueId: string, tagId: string) => void;
+  onRemoveTag: (callQueueId: string, tagId: string) => void;
 }
 
 const priorityColors = {
@@ -35,19 +39,26 @@ const priorityLabels = {
   low: "Baixa",
 };
 
-export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQueueProps) {
+export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag }: CallQueueProps) {
   const { toast } = useToast();
+  const { tags: allTags } = useTags();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCallNotes, setActiveCallNotes] = useState<Record<string, string>>({});
   const [rescheduleDialog, setRescheduleDialog] = useState<{ open: boolean; callId: string; currentDate?: Date }>({
     open: false,
     callId: "",
   });
+  const [tagManager, setTagManager] = useState<{ open: boolean; callId: string; currentTags: any[] }>({
+    open: false,
+    callId: "",
+    currentTags: [],
+  });
   
   // Filtros
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
   const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   const handleCopyPhone = (phone: string) => {
@@ -66,8 +77,19 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
       const matchesSearch = 
         call.leadName.toLowerCase().includes(query) ||
         call.phone.includes(query) ||
-        call.tags?.some(tag => tag.name.toLowerCase().includes(query));
+        call.tags?.some(tag => tag.name.toLowerCase().includes(query)) ||
+        call.queueTags?.some(tag => tag.name.toLowerCase().includes(query));
       if (!matchesSearch) return false;
+    }
+
+    // Filtro por tags
+    if (selectedTagIds.length > 0) {
+      const callTagIds = [
+        ...(call.tags?.map(t => t.id) || []),
+        ...(call.queueTags?.map(t => t.id) || [])
+      ];
+      const hasSelectedTag = selectedTagIds.some(tagId => callTagIds.includes(tagId));
+      if (!hasSelectedTag) return false;
     }
 
     // Filtro de usuário (apenas para concluídas)
@@ -208,6 +230,76 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Etiquetas</label>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[42px]">
+                    {selectedTagIds.length === 0 ? (
+                      <span className="text-sm text-muted-foreground">Todas as etiquetas</span>
+                    ) : (
+                      selectedTagIds.map(tagId => {
+                        const tag = allTags.find(t => t.id === tagId);
+                        if (!tag) return null;
+                        return (
+                          <Badge
+                            key={tagId}
+                            variant="outline"
+                            style={{
+                              backgroundColor: `${tag.color}20`,
+                              borderColor: tag.color,
+                              color: tag.color,
+                            }}
+                            className="gap-1 cursor-pointer"
+                            onClick={() => setSelectedTagIds(prev => prev.filter(id => id !== tagId))}
+                          >
+                            {tag.name}
+                            <button className="ml-1 hover:opacity-70">
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        );
+                      })
+                    )}
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <TagIcon className="mr-2 h-4 w-4" />
+                        Adicionar Etiqueta
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-2">
+                      <ScrollArea className="h-[200px]">
+                        <div className="space-y-1">
+                          {allTags.map(tag => (
+                            <Button
+                              key={tag.id}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start"
+                              onClick={() => {
+                                if (!selectedTagIds.includes(tag.id)) {
+                                  setSelectedTagIds(prev => [...prev, tag.id]);
+                                }
+                              }}
+                            >
+                              <Badge
+                                variant="outline"
+                                style={{
+                                  backgroundColor: `${tag.color}20`,
+                                  borderColor: tag.color,
+                                  color: tag.color,
+                                }}
+                              >
+                                {tag.name}
+                              </Badge>
+                            </Button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </Card>
           )}
@@ -251,23 +343,60 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
                           </Button>
                         </div>
                         {call.tags && call.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {call.tags.map((tag) => (
-                              <Badge
-                                key={tag.id}
-                                variant="outline"
-                                style={{
-                                  backgroundColor: `${tag.color}20`,
-                                  borderColor: tag.color,
-                                  color: tag.color,
-                                }}
-                                className="text-xs"
-                              >
-                                {tag.name}
-                              </Badge>
-                            ))}
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Etiquetas do lead:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {call.tags.map((tag) => (
+                                <Badge
+                                  key={tag.id}
+                                  variant="outline"
+                                  style={{
+                                    backgroundColor: `${tag.color}20`,
+                                    borderColor: tag.color,
+                                    color: tag.color,
+                                  }}
+                                  className="text-xs"
+                                >
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
                         )}
+                        {call.queueTags && call.queueTags.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Classificação:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {call.queueTags.map((tag) => (
+                                <Badge
+                                  key={tag.id}
+                                  variant="outline"
+                                  style={{
+                                    backgroundColor: `${tag.color}20`,
+                                    borderColor: tag.color,
+                                    color: tag.color,
+                                  }}
+                                  className="text-xs font-semibold"
+                                >
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTagManager({ 
+                            open: true, 
+                            callId: call.id, 
+                            currentTags: call.queueTags || [] 
+                          })}
+                          className="w-full mt-2"
+                        >
+                          <TagIcon className="h-3 w-3 mr-2" />
+                          Gerenciar Etiquetas
+                        </Button>
                         {call.scheduledFor && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Clock className="h-4 w-4" />
@@ -430,6 +559,14 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule }: CallQ
         onOpenChange={(open) => setRescheduleDialog({ ...rescheduleDialog, open })}
         onConfirm={(newDate) => onCallReschedule(rescheduleDialog.callId, newDate)}
         currentDate={rescheduleDialog.currentDate}
+      />
+
+      <CallQueueTagManager
+        open={tagManager.open}
+        onOpenChange={(open) => setTagManager({ ...tagManager, open })}
+        currentTags={tagManager.currentTags}
+        onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
+        onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
       />
     </div>
   );

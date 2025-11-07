@@ -105,6 +105,42 @@ export type Database = {
           },
         ]
       }
+      call_queue_tags: {
+        Row: {
+          call_queue_id: string
+          created_at: string | null
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          call_queue_id: string
+          created_at?: string | null
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          call_queue_id?: string
+          created_at?: string | null
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_queue_tags_call_queue_id_fkey"
+            columns: ["call_queue_id"]
+            isOneToOne: false
+            referencedRelation: "call_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_queue_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evolution_config: {
         Row: {
           api_key: string | null

@@ -15,7 +15,7 @@ const Index = () => {
   const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
   const { leads, loading: leadsLoading, updateLeadStatus } = useLeads();
-  const { callQueue, loading: queueLoading, completeCall, rescheduleCall } = useCallQueue();
+  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag } = useCallQueue();
   
   // Sincronização automática a cada 5 minutos
   const { lastSync, nextSync, isSyncing } = useAutoSync({ intervalMinutes: 5, enabled: true });
@@ -78,6 +78,8 @@ const Index = () => {
           callQueue={callQueue}
           onCallComplete={handleCallComplete}
           onCallReschedule={handleCallReschedule}
+          onAddTag={addCallQueueTag}
+          onRemoveTag={removeCallQueueTag}
         />
       )}
 
