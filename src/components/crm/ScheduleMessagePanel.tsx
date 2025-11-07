@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Clock, Send, X, Trash2 } from "lucide-react";
+import { Calendar, Clock, Send, X, Trash2, Image as ImageIcon } from "lucide-react";
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +25,8 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [message, setMessage] = useState<string>("");
   const [scheduledDate, setScheduledDate] = useState<string>("");
   const [scheduledTime, setScheduledTime] = useState<string>("");
+  const [mediaUrl, setMediaUrl] = useState<string>("");
+  const [mediaType, setMediaType] = useState<'image' | 'video' | 'document'>('image');
   const [isScheduling, setIsScheduling] = useState(false);
 
   const handleSchedule = async () => {
@@ -41,12 +43,16 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
         phone: leadPhone,
         message,
         scheduledFor,
+        mediaUrl: mediaUrl || undefined,
+        mediaType: mediaUrl ? mediaType : undefined,
       });
 
       // Limpar formulário
       setMessage("");
       setScheduledDate("");
       setScheduledTime("");
+      setMediaUrl("");
+      setMediaType('image');
     } finally {
       setIsScheduling(false);
     }
@@ -139,6 +145,45 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
           </div>
         </div>
 
+        <div className="border-t pt-4">
+          <Label className="flex items-center gap-2 mb-2">
+            <ImageIcon className="h-4 w-4" />
+            Mídia (Opcional)
+          </Label>
+          
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="schedule-media-type" className="text-sm">Tipo de Mídia</Label>
+              <Select
+                value={mediaType}
+                onValueChange={(value) => setMediaType(value as 'image' | 'video' | 'document')}
+              >
+                <SelectTrigger id="schedule-media-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="image">Imagem</SelectItem>
+                  <SelectItem value="video">Vídeo</SelectItem>
+                  <SelectItem value="document">Documento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="schedule-media-url" className="text-sm">URL da Mídia</Label>
+              <Input
+                id="schedule-media-url"
+                placeholder="https://exemplo.com/imagem.jpg"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Insira a URL pública da imagem, vídeo ou documento
+              </p>
+            </div>
+          </div>
+        </div>
+
         <Button
           onClick={handleSchedule}
           disabled={!instanceId || !message.trim() || !scheduledDate || !scheduledTime || isScheduling}
@@ -167,6 +212,12 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                    {msg.media_url && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <ImageIcon className="h-3 w-3" />
+                        <span>{msg.media_type}: {msg.media_url}</span>
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
@@ -200,6 +251,12 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                    {msg.media_url && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <ImageIcon className="h-3 w-3" />
+                        <span>{msg.media_type}: {msg.media_url}</span>
+                      </div>
+                    )}
                     {msg.error_message && (
                       <p className="text-xs text-red-600 mt-1">Erro: {msg.error_message}</p>
                     )}
