@@ -8,16 +8,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2 } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useTags } from "@/hooks/useTags";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { useLeads } from "@/hooks/useLeads";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +59,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { deleteLead } = useLeads();
   const { toast } = useToast();
   const [selectedTagId, setSelectedTagId] = useState<string>("");
+  const [newComment, setNewComment] = useState<string>("");
 
   const handleDeleteLead = async () => {
     const success = await deleteLead(lead.id);
@@ -107,6 +110,40 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
       toast({
         title: "Adicionado à fila",
         description: "O lead foi adicionado à fila de ligações.",
+      });
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { error } = await (supabase as any)
+        .from('activities')
+        .insert({
+          lead_id: lead.id,
+          type: 'note',
+          content: newComment,
+          user_name: user?.email || 'Usuário',
+          direction: 'internal',
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Comentário adicionado",
+        description: "O comentário foi registrado no histórico",
+      });
+
+      setNewComment("");
+      // A atividade será atualizada automaticamente via realtime
+    } catch (error: any) {
+      toast({
+        title: "Erro ao adicionar comentário",
+        description: error.message,
+        variant: "destructive",
       });
     }
   };
@@ -272,6 +309,30 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                   </div>
                 )}
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Adicionar Comentário */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">Adicionar Comentário</h3>
+              <div className="flex gap-2">
+                <Textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Digite um comentário ou observação..."
+                  rows={3}
+                  className="flex-1"
+                />
+              </div>
+              <Button
+                onClick={handleAddComment}
+                disabled={!newComment.trim()}
+                size="sm"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Adicionar Comentário
+              </Button>
             </div>
 
             <Separator />

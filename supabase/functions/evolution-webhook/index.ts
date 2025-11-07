@@ -240,32 +240,57 @@ serve(async (req) => {
         payload: { phoneNumber, messageContent, contactName },
       });
 
-      // Verificar se já existe um lead com este telefone
+      // Verificar se já existe um lead com este telefone (incluindo excluídos)
       const { data: existingLead } = await supabase
         .from('leads')
-        .select('id')
+        .select('id, deleted_at')
         .eq('phone', phoneNumber)
         .eq('user_id', configs.user_id)
         .maybeSingle();
 
       if (existingLead) {
-        // Lead já existe, apenas adicionar atividade
-        console.log(`♻️ Lead já existe (ID: ${existingLead.id}), adicionando atividade`);
-        
-        await supabase.from('activities').insert({
-          lead_id: existingLead.id,
-          type: 'whatsapp',
-          content: messageContent,
-          user_name: contactName,
-          direction: 'inbound',
-        });
+        // Se foi excluído, recriar
+        if (existingLead.deleted_at) {
+          console.log(`🔄 Lead foi excluído, recriando (ID: ${existingLead.id})`);
+          
+          await supabase
+            .from('leads')
+            .update({
+              deleted_at: null,
+              name: contactName,
+              last_contact: new Date().toISOString(),
+            })
+            .eq('id', existingLead.id);
 
-        await supabase
-          .from('leads')
-          .update({ last_contact: new Date().toISOString() })
-          .eq('id', existingLead.id);
-        
-        console.log(`✅ Atividade registrada para lead ${existingLead.id}`);
+          // Adicionar atividade de retorno
+          await supabase.from('activities').insert({
+            lead_id: existingLead.id,
+            type: 'whatsapp',
+            content: `[Retorno] ${messageContent}`,
+            user_name: contactName,
+            direction: 'inbound',
+          });
+
+          console.log(`✅ Lead restaurado com ID: ${existingLead.id}`);
+        } else {
+          // Lead existe e não foi excluído, apenas adicionar atividade
+          console.log(`♻️ Lead já existe (ID: ${existingLead.id}), adicionando atividade`);
+          
+          await supabase.from('activities').insert({
+            lead_id: existingLead.id,
+            type: 'whatsapp',
+            content: messageContent,
+            user_name: contactName,
+            direction: 'inbound',
+          });
+
+          await supabase
+            .from('leads')
+            .update({ last_contact: new Date().toISOString() })
+            .eq('id', existingLead.id);
+          
+          console.log(`✅ Atividade registrada para lead ${existingLead.id}`);
+        }
 
       } else {
         // Criar novo lead
