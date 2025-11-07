@@ -52,6 +52,119 @@ export type Database = {
           },
         ]
       }
+      broadcast_campaigns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          custom_message: string | null
+          failed_count: number | null
+          id: string
+          instance_id: string
+          max_delay_seconds: number
+          message_template_id: string | null
+          min_delay_seconds: number
+          name: string
+          sent_count: number | null
+          started_at: string | null
+          status: string
+          total_contacts: number | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          custom_message?: string | null
+          failed_count?: number | null
+          id?: string
+          instance_id: string
+          max_delay_seconds?: number
+          message_template_id?: string | null
+          min_delay_seconds?: number
+          name: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          custom_message?: string | null
+          failed_count?: number | null
+          id?: string
+          instance_id?: string
+          max_delay_seconds?: number
+          message_template_id?: string | null
+          min_delay_seconds?: number
+          name?: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_campaigns_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_campaigns_message_template_id_fkey"
+            columns: ["message_template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcast_queue: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          name: string | null
+          phone: string
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          phone: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          phone?: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_queue: {
         Row: {
           call_count: number | null

@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings" | "users">("kanban");
+  const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
@@ -59,9 +59,11 @@ const Index = () => {
     );
   }
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users") => {
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast") => {
     if (view === "users") {
       navigate('/users');
+    } else if (view === "broadcast") {
+      navigate('/broadcast');
     } else {
       setActiveView(view);
     }
