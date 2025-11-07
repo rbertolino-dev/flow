@@ -124,6 +124,17 @@ export function useCallQueue() {
       const newCallCount = (queueItem.leads?.call_count || 0) + 1;
       const now = new Date().toISOString();
 
+      // Se o item não tiver organização, corrige antes de atualizar (evita falha por RLS)
+      if (!queueItem.organization_id) {
+        try {
+          await supabase.functions.invoke('patch-call-queue-org', {
+            body: { callQueueId: callId },
+          });
+        } catch (e) {
+          // segue mesmo assim; o update abaixo pode falhar se não patchar
+        }
+      }
+
       // Optimistic UI update: move card to concluídas
       setCallQueue((prev) => prev.map((c) =>
         c.id === callId
