@@ -90,7 +90,9 @@ serve(async (req) => {
     console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone, remoteJid });
 
     // Enviar mensagem via Evolution API
-    const evolutionUrl = `${config.api_url}/message/sendText/${config.instance_name}`;
+    // Remove /manager do final da URL se existir
+    const baseUrl = config.api_url.replace(/\/manager\/?$/, '');
+    const evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
     
     console.log('🔗 [send-whatsapp-message] URL da Evolution:', evolutionUrl);
     console.log('📤 [send-whatsapp-message] Enviando payload para Evolution:', {
