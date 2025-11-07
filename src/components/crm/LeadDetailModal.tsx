@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { ChatHistory } from "./ChatHistory";
+import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -71,6 +72,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
+  const [showSchedulePanel, setShowSchedulePanel] = useState(false);
 
   const connectedInstances = useMemo(() => 
     configs || [], 
@@ -587,16 +589,39 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                   />
                 </div>
 
-                <Button
-                  onClick={handleSendWhatsApp}
-                  disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
-                  className="w-full"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  {isSending ? 'Enviando...' : 'Enviar Mensagem'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSendWhatsApp}
+                    disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
+                    className="flex-1"
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    {isSending ? 'Enviando...' : 'Enviar Agora'}
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setShowSchedulePanel(!showSchedulePanel)}
+                    variant="outline"
+                    disabled={connectedInstances.length === 0}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    Agendar
+                  </Button>
+                </div>
               </div>
             </div>
+
+            {showSchedulePanel && (
+              <>
+                <Separator />
+                <ScheduleMessagePanel 
+                  leadId={lead.id}
+                  leadPhone={lead.phone}
+                  instances={connectedInstances}
+                  onClose={() => setShowSchedulePanel(false)}
+                />
+              </>
+            )}
 
             <Separator />
 
