@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { formatBrazilianPhone } from "@/lib/phoneUtils";
 
 interface LeadCardProps {
   lead: Lead;
@@ -51,7 +52,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         <div className="space-y-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Phone className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">{lead.phone}</span>
+            <span className="truncate">{formatBrazilianPhone(lead.phone)}</span>
           </div>
           {lead.email && (
             <div className="flex items-center gap-2">

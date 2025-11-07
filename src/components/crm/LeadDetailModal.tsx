@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { buildCopyNumber } from "@/lib/phoneUtils";
+import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -151,7 +151,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
               <div className="grid gap-3">
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{lead.phone}</span>
+                  <span>{formatBrazilianPhone(lead.phone)}</span>
                   <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
                     const formatted = buildCopyNumber(lead.phone);
                     navigator.clipboard.writeText(formatted);
