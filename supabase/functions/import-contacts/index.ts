@@ -89,20 +89,34 @@ serve(async (req) => {
       },
     });
 
+    const contentType = contactsResponse.headers.get('content-type') || '';
+
     if (!contactsResponse.ok) {
       const errorText = await contactsResponse.text();
-      console.error('Evolution API error:', errorText);
+      console.error('Evolution API error:', contactsResponse.status, errorText?.slice(0, 500));
       return new Response(
-        JSON.stringify({ error: `Erro na Evolution API: ${contactsResponse.status}` }),
+        JSON.stringify({ error: `Erro na Evolution API: ${contactsResponse.status}`, details: errorText?.slice(0, 500) }),
         {
-          status: 500,
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!contentType.includes('application/json')) {
+      const rawText = await contactsResponse.text();
+      console.error('Evolution API returned non-JSON:', rawText?.slice(0, 500));
+      return new Response(
+        JSON.stringify({ error: 'Resposta inválida da Evolution API (não JSON). Verifique URL/instance/apikey.', details: rawText?.slice(0, 500) }),
+        {
+          status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
     const contacts = await contactsResponse.json();
-    console.log('Total contacts fetched:', contacts.length);
+    console.log('Total contacts fetched:', Array.isArray(contacts) ? contacts.length : Object.keys(contacts || {}).length);
 
     // Buscar primeiro estágio do pipeline
     const { data: firstStage } = await supabaseClient
