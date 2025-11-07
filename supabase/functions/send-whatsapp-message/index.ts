@@ -11,14 +11,20 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  console.log('📨 [send-whatsapp-message] Iniciando requisição...');
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { instanceId, phone, message, leadId } = await req.json();
+    const body = await req.json();
+    console.log('📋 [send-whatsapp-message] Body recebido:', JSON.stringify(body, null, 2));
+
+    const { instanceId, phone, message, leadId } = body;
 
     if (!instanceId || !phone || !message) {
+      console.error('❌ [send-whatsapp-message] Parâmetros faltando:', { instanceId, phone, message });
       return new Response(
         JSON.stringify({ error: 'Parâmetros obrigatórios: instanceId, phone, message' }),
         { 
@@ -28,7 +34,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`📤 Enviando mensagem via instância ${instanceId} para ${phone}`);
+    console.log(`🔍 [send-whatsapp-message] Buscando configuração da instância ${instanceId}...`);
 
     // Buscar configuração da instância Evolution
     const { data: config, error: configError } = await supabase
@@ -37,8 +43,19 @@ serve(async (req) => {
       .eq('id', instanceId)
       .maybeSingle();
 
-    if (configError || !config) {
-      console.error('❌ Configuração não encontrada:', configError);
+    if (configError) {
+      console.error('❌ [send-whatsapp-message] Erro ao buscar config:', configError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao buscar configuração', details: configError.message }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!config) {
+      console.error('❌ [send-whatsapp-message] Configuração não encontrada para ID:', instanceId);
       return new Response(
         JSON.stringify({ error: 'Instância Evolution não encontrada ou não configurada' }),
         { 
@@ -48,7 +65,15 @@ serve(async (req) => {
       );
     }
 
+    console.log('✅ [send-whatsapp-message] Configuração encontrada:', {
+      instance_name: config.instance_name,
+      api_url: config.api_url,
+      is_connected: config.is_connected,
+      has_api_key: !!config.api_key
+    });
+
     if (!config.is_connected) {
+      console.warn('⚠️ [send-whatsapp-message] Instância não está conectada');
       return new Response(
         JSON.stringify({ error: 'Instância Evolution não está conectada' }),
         { 
@@ -62,10 +87,16 @@ serve(async (req) => {
     const formattedPhone = phone.replace(/\D/g, '');
     const remoteJid = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@s.whatsapp.net`;
 
+    console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone, remoteJid });
+
     // Enviar mensagem via Evolution API
     const evolutionUrl = `${config.api_url}/message/sendText/${config.instance_name}`;
     
-    console.log(`🔗 URL da Evolution: ${evolutionUrl}`);
+    console.log('🔗 [send-whatsapp-message] URL da Evolution:', evolutionUrl);
+    console.log('📤 [send-whatsapp-message] Enviando payload para Evolution:', {
+      number: remoteJid,
+      textLength: message.length
+    });
 
     const evolutionResponse = await fetch(evolutionUrl, {
       method: 'POST',
@@ -79,20 +110,38 @@ serve(async (req) => {
       }),
     });
 
+    const responseStatus = evolutionResponse.status;
+    console.log(`📊 [send-whatsapp-message] Status da Evolution API: ${responseStatus}`);
+
     if (!evolutionResponse.ok) {
       const errorText = await evolutionResponse.text();
-      console.error('❌ Erro da Evolution API:', errorText);
-      throw new Error(`Evolution API retornou erro: ${evolutionResponse.status} - ${errorText}`);
+      console.error('❌ [send-whatsapp-message] Erro da Evolution API:', {
+        status: responseStatus,
+        statusText: evolutionResponse.statusText,
+        error: errorText
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: `Evolution API retornou erro: ${responseStatus}`,
+          details: errorText,
+          url: evolutionUrl
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     const evolutionData = await evolutionResponse.json();
-    console.log('✅ Mensagem enviada com sucesso:', evolutionData);
+    console.log('✅ [send-whatsapp-message] Resposta da Evolution:', JSON.stringify(evolutionData, null, 2));
 
     // Registrar atividade no lead (se leadId foi fornecido)
     if (leadId) {
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log(`💾 [send-whatsapp-message] Registrando atividade para lead ${leadId}...`);
       
-      await supabase.from('activities').insert({
+      const { error: activityError } = await supabase.from('activities').insert({
         lead_id: leadId,
         type: 'whatsapp',
         content: message,
@@ -100,14 +149,26 @@ serve(async (req) => {
         direction: 'outgoing',
       });
 
+      if (activityError) {
+        console.error('⚠️ [send-whatsapp-message] Erro ao registrar atividade:', activityError);
+      } else {
+        console.log('✅ [send-whatsapp-message] Atividade registrada com sucesso');
+      }
+
       // Atualizar last_contact do lead
-      await supabase
+      const { error: updateError } = await supabase
         .from('leads')
         .update({ last_contact: new Date().toISOString() })
         .eq('id', leadId);
 
-      console.log(`✅ Atividade registrada para lead ${leadId}`);
+      if (updateError) {
+        console.error('⚠️ [send-whatsapp-message] Erro ao atualizar last_contact:', updateError);
+      } else {
+        console.log('✅ [send-whatsapp-message] last_contact atualizado');
+      }
     }
+
+    console.log('🎉 [send-whatsapp-message] Mensagem enviada com sucesso!');
 
     return new Response(
       JSON.stringify({ 
@@ -121,10 +182,16 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('💥 Erro ao enviar mensagem:', error);
+    console.error('💥 [send-whatsapp-message] Erro crítico:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: 'Erro interno ao enviar mensagem',
+        details: error.message,
         stack: error.stack 
       }),
       { 

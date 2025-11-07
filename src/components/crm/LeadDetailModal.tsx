@@ -235,8 +235,15 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     }
 
     setIsSending(true);
+    console.log('📤 [Frontend] Iniciando envio de mensagem...', {
+      instanceId: selectedInstanceId,
+      phone: lead.phone,
+      messageLength: whatsappMessage.length,
+      leadId: lead.id
+    });
+
     try {
-      const { error } = await supabase.functions.invoke('send-whatsapp-message', {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
         body: {
           instanceId: selectedInstanceId,
           phone: lead.phone,
@@ -245,7 +252,19 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
         },
       });
 
-      if (error) throw error;
+      console.log('📥 [Frontend] Resposta do edge function:', { data, error });
+
+      if (error) {
+        console.error('❌ [Frontend] Erro retornado:', error);
+        throw error;
+      }
+
+      if (data?.error) {
+        console.error('❌ [Frontend] Erro no data:', data);
+        throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+      }
+
+      console.log('✅ [Frontend] Mensagem enviada com sucesso!');
 
       toast({
         title: "Mensagem enviada",
@@ -255,9 +274,11 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
       setWhatsappMessage("");
       setSelectedTemplateId("");
     } catch (error: any) {
+      console.error('💥 [Frontend] Erro crítico:', error);
+      
       toast({
         title: "Erro ao enviar mensagem",
-        description: error.message,
+        description: error.message || "Erro desconhecido. Verifique os logs do console.",
         variant: "destructive",
       });
     } finally {
