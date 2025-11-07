@@ -183,11 +183,8 @@ export function usePipelineStages() {
 
   const deleteStage = async (id: string) => {
     try {
-      console.log('Tentando excluir etapa:', id);
-      
       // Verificar se é a primeira etapa (position = 0)
       const stageToDelete = stages.find(s => s.id === id);
-      console.log('Etapa encontrada:', stageToDelete);
       
       if (stageToDelete?.position === 0) {
         toast({
@@ -198,40 +195,37 @@ export function usePipelineStages() {
         return false;
       }
 
-      // Verificar se há leads vinculados a esta etapa
-      console.log('Verificando leads vinculados...');
-      const { data: leadsInStage, error: checkError } = await (supabase as any)
-        .from('leads')
-        .select('id')
-        .eq('stage_id', id)
-        .limit(1);
-
-      console.log('Leads encontrados:', leadsInStage, 'Erro:', checkError);
-
-      if (checkError) throw checkError;
-
-      if (leadsInStage && leadsInStage.length > 0) {
+      // Obter a primeira etapa (para mover os leads)
+      const firstStage = stages.find(s => s.position === 0);
+      
+      if (!firstStage) {
         toast({
-          title: "Não é possível excluir",
-          description: "Esta etapa possui leads vinculados. Mova os leads para outra etapa antes de excluir.",
+          title: "Erro",
+          description: "Não foi possível encontrar a primeira etapa do funil.",
           variant: "destructive",
         });
         return false;
       }
 
-      console.log('Executando delete...');
+      // Mover todos os leads desta etapa para a primeira etapa
+      const { error: updateLeadsError } = await (supabase as any)
+        .from('leads')
+        .update({ stage_id: firstStage.id })
+        .eq('stage_id', id);
+
+      if (updateLeadsError) throw updateLeadsError;
+
+      // Deletar a etapa
       const { error } = await (supabase as any)
         .from('pipeline_stages')
         .delete()
         .eq('id', id);
 
-      console.log('Resultado do delete - Erro:', error);
-
       if (error) throw error;
 
       toast({
         title: "Etapa removida",
-        description: "Etapa removida com sucesso.",
+        description: "Etapa removida com sucesso. Os leads foram movidos para a primeira etapa.",
       });
 
       await fetchStages();
