@@ -158,16 +158,19 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="p-6 border-b border-border space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="p-3 md:p-6 border-b border-border space-y-3 md:space-y-4">
+        {/* Header - Compacto no mobile */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Fila de Ligações</h1>
-            <p className="text-muted-foreground">
-              {pendingCalls.length} ligações pendentes • {completedCalls.length} concluídas (neste período)
+            <h1 className="text-xl md:text-3xl font-bold">Fila de Ligações</h1>
+            <p className="text-sm md:text-base text-muted-foreground">
+              <span className="font-semibold text-primary">{pendingCalls.length}</span> pendentes • 
+              <span className="ml-1">{completedCalls.length} concluídas</span>
             </p>
           </div>
           
-          <div className="flex gap-2">
+          {/* Botões principais - apenas desktop */}
+          <div className="hidden md:flex gap-2">
             <Button 
               variant="outline" 
               className="gap-2"
@@ -261,49 +264,165 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           </div>
         </div>
 
+        {/* Busca */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, telefone ou etiqueta..."
+            placeholder="Buscar por nome, telefone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
 
+        {/* Botões de ação - Mobile compacto, Desktop expandido */}
         <div className="flex gap-2 flex-wrap">
           <Button
             variant={showStats ? "default" : "outline"}
             size="sm"
-            onClick={() => setShowStats(!showStats)}
+            onClick={() => {
+              setShowStats(!showStats);
+              if (!showStats) setShowFilters(false);
+            }}
             className="gap-2"
           >
-              <TrendingUp className="h-4 w-4" />
-              Relatório
-            </Button>
+            <TrendingUp className="h-4 w-4" />
+            <span className="hidden md:inline">Relatório</span>
+          </Button>
 
-            <Button
-              variant={showFilters ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="h-4 w-4" />
-              Filtros
-            </Button>
-            
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Upload className="h-4 w-4" />
-                  Importar em Massa
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowFilters(!showFilters);
+              if (!showFilters) setShowStats(false);
+            }}
+            className="gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            <span className="hidden md:inline">Filtros</span>
+          </Button>
+          
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Upload className="h-4 w-4" />
+                <span className="hidden md:inline">Importar</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[95vw] md:w-[600px] max-h-[80vh] overflow-y-auto p-0" align="start">
+              <BulkImportPanel onImportComplete={onRefetch} />
+            </PopoverContent>
+          </Popover>
+
+          {/* Botão de menu mobile */}
+          <div className="md:hidden ml-auto">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Mais
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[600px] max-h-[80vh] overflow-y-auto p-0" align="start">
-                <BulkImportPanel onImportComplete={onRefetch} />
-              </PopoverContent>
-            </Popover>
+              </DialogTrigger>
+              <DialogContent className="w-[95vw]">
+                <DialogHeader>
+                  <DialogTitle>Opções</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full gap-2 justify-start">
+                        <History className="h-4 w-4" />
+                        Ver Histórico
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="w-[95vw] max-w-4xl h-[80vh]">
+                      <DialogHeader>
+                        <DialogTitle>Histórico da Fila</DialogTitle>
+                      </DialogHeader>
+                      <CallQueueHistory />
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button 
+                    variant="outline" 
+                    className="w-full gap-2 justify-start"
+                    onClick={async () => {
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (!user) return;
+
+                        const { data: queueData, error: fetchError } = await (supabase as any)
+                          .from('call_queue')
+                          .select('id, lead_id, scheduled_for, completed_at, completed_by, completed_by_user_id, priority, status, notes, call_notes, call_count, leads(name, phone)')
+                          .order('scheduled_for', { ascending: true });
+
+                        if (fetchError) throw fetchError;
+
+                        const allQueue = queueData || [];
+                        if (allQueue.length === 0) {
+                          toast({
+                            title: "Fila vazia",
+                            description: "Não há ligações para limpar",
+                          });
+                          return;
+                        }
+
+                        const orgId = await getUserOrganizationId();
+                        const records = allQueue.map((item: any) => ({
+                          user_id: user.id,
+                          organization_id: orgId,
+                          lead_id: item.lead_id,
+                          lead_name: item.leads?.name || 'Nome não disponível',
+                          lead_phone: item.leads?.phone || '',
+                          scheduled_for: item.scheduled_for,
+                          completed_at: item.completed_at,
+                          completed_by: item.completed_by,
+                          completed_by_user_id: item.completed_by_user_id,
+                          priority: item.priority,
+                          status: item.status,
+                          notes: item.notes,
+                          call_notes: item.call_notes,
+                          call_count: item.call_count ?? 0,
+                          action: 'deleted',
+                        }));
+
+                        if (records.length > 0) {
+                          const { error: insertError } = await (supabase as any)
+                            .from('call_queue_history')
+                            .insert(records);
+                          if (insertError) throw insertError;
+                        }
+
+                        const ids = allQueue.map((q: any) => q.id);
+                        const { error: deleteError } = await (supabase as any)
+                          .from('call_queue')
+                          .delete()
+                          .in('id', ids);
+                        if (deleteError) throw deleteError;
+
+                        toast({
+                          title: "Fila zerada",
+                          description: `${ids.length} ligação(ões) movida(s) para o histórico`,
+                        });
+
+                        onRefetch();
+                      } catch (error: any) {
+                        toast({
+                          title: "Erro ao limpar fila",
+                          description: error.message,
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Limpar Fila
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
+        </div>
 
           {showStats && (
             <CallQueueStats callQueue={callQueue} />
