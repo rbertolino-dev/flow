@@ -620,6 +620,15 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => window.location.href = `tel:${call.phone}`}
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Ligar agora"
+                          >
+                            <PhoneCall className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleCopyPhone(call.phone)}
                             className="h-8 w-8 p-0"
                             title="Copiar telefone"
