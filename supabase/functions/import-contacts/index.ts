@@ -109,11 +109,12 @@ serve(async (req) => {
     console.log('Fetching contacts from:', evolutionUrl);
 
     const contactsResponse = await fetch(evolutionUrl, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'apikey': config.api_key || '',
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({}),
     });
 
     const contentType = contactsResponse.headers.get('content-type') || '';
