@@ -105,14 +105,12 @@ serve(async (req) => {
     if (event === 'messages.upsert' && data?.key?.fromMe === false) {
       console.log('📨 Processando mensagem recebida...');
       
-      const phoneNumber = data.key.remoteJid.replace('@s.whatsapp.net', '');
+      const remoteJid = data.key.remoteJid;
       const messageContent = data.message?.conversation || 
                             data.message?.extendedTextMessage?.text || 
                             '[Mensagem de mídia]';
       
-      const contactName = data.pushName || phoneNumber;
-
-      console.log(`👤 Nova mensagem de ${contactName} (${phoneNumber}): ${messageContent}`);
+      const contactName = data.pushName || remoteJid;
 
       // Verificar configuração da Evolution para este webhook
       console.log(`🔍 Verificando configuração para instância: ${instance}`);
@@ -145,6 +143,93 @@ serve(async (req) => {
 
       console.log(`✅ Configuração encontrada para usuário: ${configs.user_id}`);
 
+      // Verificar se é @lid (WhatsApp Business/Canal)
+      if (remoteJid.includes('@lid')) {
+        const lid = remoteJid.split('@')[0];
+        console.log(`💼 Mensagem de LID: ${lid}`);
+
+        // Registrar log
+        await supabase.from('evolution_logs').insert({
+          user_id: configs.user_id,
+          instance,
+          event,
+          level: 'info',
+          message: `Nova mensagem de LID ${contactName} (${lid})`,
+          payload: { lid, messageContent, contactName },
+        });
+
+        // Verificar se já existe este contato LID
+        const { data: existingLID } = await supabase
+          .from('whatsapp_lid_contacts')
+          .select('id')
+          .eq('lid', lid)
+          .eq('user_id', configs.user_id)
+          .maybeSingle();
+
+        if (existingLID) {
+          // Atualizar última interação
+          await supabase
+            .from('whatsapp_lid_contacts')
+            .update({ 
+              last_contact: new Date().toISOString(),
+              name: contactName 
+            })
+            .eq('id', existingLID.id);
+          
+          console.log(`✅ Contato LID atualizado (ID: ${existingLID.id})`);
+        } else {
+          // Criar novo contato LID
+          const { error: lidError } = await supabase
+            .from('whatsapp_lid_contacts')
+            .insert({
+              user_id: configs.user_id,
+              lid,
+              name: contactName,
+              last_contact: new Date().toISOString(),
+              notes: `Primeira mensagem: ${messageContent.substring(0, 100)}`,
+            });
+
+          if (lidError) {
+            console.error('❌ Erro ao criar contato LID:', lidError);
+          } else {
+            console.log(`✅ Novo contato LID criado: ${lid}`);
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Mensagem LID processada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Processar telefone normal (@s.whatsapp.net)
+      const phoneNumber = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+      
+      // Verificar se é brasileiro
+      const isBrazilian = phoneNumber.startsWith('55') && phoneNumber.length >= 12 && phoneNumber.length <= 13;
+      const isBRWithoutCode = phoneNumber.length >= 10 && phoneNumber.length <= 11 && !phoneNumber.startsWith('55');
+
+      if (!isBrazilian && !isBRWithoutCode) {
+        console.log(`🌍 Número internacional detectado: ${phoneNumber}`);
+        
+        // Registrar log
+        await supabase.from('evolution_logs').insert({
+          user_id: configs.user_id,
+          instance,
+          event,
+          level: 'info',
+          message: `Mensagem de número internacional ignorado: ${contactName} (${phoneNumber})`,
+          payload: { phoneNumber, messageContent, contactName },
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Número internacional ignorado' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`👤 Nova mensagem de ${contactName} (${phoneNumber}): ${messageContent}`);
+
       // Registrar log de mensagem recebida
       await supabase.from('evolution_logs').insert({
         user_id: configs.user_id,
@@ -161,7 +246,7 @@ serve(async (req) => {
         .select('id')
         .eq('phone', phoneNumber)
         .eq('user_id', configs.user_id)
-        .single();
+        .maybeSingle();
 
       if (existingLead) {
         // Lead já existe, apenas adicionar atividade
