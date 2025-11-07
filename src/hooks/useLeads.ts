@@ -17,7 +17,34 @@ export function useLeads() {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'leads'
+        },
+        (payload) => {
+          const newLead = payload.new as any;
+          toast({
+            title: "Novo contato adicionado!",
+            description: `${newLead.name || newLead.phone} foi adicionado ao funil`,
+          });
+          fetchLeads();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leads'
+        },
+        () => {
+          fetchLeads();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
           schema: 'public',
           table: 'leads'
         },

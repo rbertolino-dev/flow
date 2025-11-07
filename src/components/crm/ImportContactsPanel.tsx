@@ -66,8 +66,14 @@ export function ImportContactsPanel() {
 
       setImportProgress({ stage: 'fetching', message: 'Buscando contatos da Evolution API...', percentage: 30 });
 
+      // Obter token de autenticação
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
       const { data, error } = await supabase.functions.invoke('import-contacts', {
         body: requestData,
+        headers: {
+          Authorization: `Bearer ${currentSession?.access_token}`,
+        },
       });
 
       if (error) throw error;
