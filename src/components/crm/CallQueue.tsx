@@ -610,7 +610,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
         </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 md:p-6 space-y-6">
+        <div className="p-3 md:p-6 space-y-6">
           {/* Pending Calls - Foco principal */}
           <div>
             <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2 sticky top-0 bg-background z-10 py-2">
@@ -624,7 +624,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                 </Card>
               ) : (
                 pendingCalls.map((call) => (
-                  <Card key={call.id} className="p-4">
+                  <Card key={call.id} className="p-3 sm:p-4">
                     <div className="flex flex-col lg:flex-row items-start gap-4">
                       <div className="flex-1 space-y-2 w-full">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -633,11 +633,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             {priorityLabels[call.priority]}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Phone className="h-5 w-5 text-muted-foreground" />
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span 
                             onClick={() => handleCopyPhone(call.phone)} 
-                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold" 
+                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold break-all" 
                             title="Clique para copiar"
                           >
                             {call.phone}
@@ -820,7 +819,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               </h2>
               <div className="space-y-3">
                 {rescheduledCalls.map((call) => (
-                  <Card key={call.id} className="p-4 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
+                  <Card key={call.id} className="p-3 sm:p-4 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
                     <div className="flex flex-col lg:flex-row items-start gap-4">
                       <div className="flex-1 space-y-2 w-full">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -832,11 +831,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             {priorityLabels[call.priority]}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Phone className="h-5 w-5 text-muted-foreground" />
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span 
                             onClick={() => handleCopyPhone(call.phone)} 
-                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold" 
+                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold break-all" 
                             title="Clique para copiar"
                           >
                             {call.phone}
@@ -925,7 +923,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
               </h2>
               <div className="space-y-3">
                 {completedCalls.map((call) => (
-                  <Card key={call.id} className="p-4 bg-muted/30">
+                  <Card key={call.id} className="p-3 sm:p-4 bg-muted/30">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
@@ -934,9 +932,14 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             Concluída
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-4 w-4" />
-                          <span onClick={() => handleCopyPhone(call.phone)} className="cursor-pointer underline decoration-dotted" title="Clique para copiar">{call.phone}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span 
+                            onClick={() => handleCopyPhone(call.phone)} 
+                            className="cursor-pointer underline decoration-dotted text-2xl md:text-3xl font-bold break-all" 
+                            title="Clique para copiar"
+                          >
+                            {call.phone}
+                          </span>
                           <Button
                             variant="ghost"
                             size="sm"
