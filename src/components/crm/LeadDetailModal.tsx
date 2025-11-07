@@ -172,20 +172,20 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <DialogTitle className="text-2xl mb-2">{lead.name}</DialogTitle>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{lead.source}</Badge>
-                <Badge variant="outline">{lead.status}</Badge>
+      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full">
+        <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-xl sm:text-2xl mb-2 truncate">{lead.name}</DialogTitle>
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                <Badge variant="secondary" className="text-xs sm:text-sm">{lead.source}</Badge>
+                <Badge variant="outline" className="text-xs sm:text-sm">{lead.status}</Badge>
               </div>
             </div>
             {lead.value && (
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Valor do Negócio</p>
-                <p className="text-2xl font-bold text-primary">
+              <div className="text-right shrink-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Valor</p>
+                <p className="text-lg sm:text-2xl font-bold text-primary">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
@@ -198,8 +198,8 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
         <Separator />
 
-        <ScrollArea className="max-h-[60vh]">
-          <div className="p-6 space-y-6">
+        <ScrollArea className="max-h-[55vh] sm:max-h-[60vh]">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Informações de Contato</h3>
@@ -359,12 +359,12 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
             {whatsappMessages.length > 0 && (
               <>
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
+                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
                     Conversas WhatsApp
                   </h3>
                   <div className="border border-border rounded-lg bg-muted/20">
-                    <ChatHistory messages={whatsappMessages} className="h-[300px]" />
+                    <ChatHistory messages={whatsappMessages} className="h-[250px] sm:h-[300px]" />
                   </div>
                 </div>
                 <Separator />
@@ -406,7 +406,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
         <Separator />
 
-        <div className="p-6 pt-4 flex gap-2">
+        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex flex-wrap gap-2">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">

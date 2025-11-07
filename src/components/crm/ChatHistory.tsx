@@ -31,7 +31,7 @@ export function ChatHistory({ messages, className }: ChatHistoryProps) {
 
   return (
     <ScrollArea className={cn("w-full", className)}>
-      <div className="space-y-3 p-4">
+      <div className="space-y-2 p-3 md:p-4">
         {sortedMessages.map((message) => {
           const isOutgoing = message.direction === 'outgoing';
           
@@ -45,15 +45,20 @@ export function ChatHistory({ messages, className }: ChatHistoryProps) {
             >
               <div
                 className={cn(
-                  "max-w-[75%] rounded-lg px-4 py-2 shadow-sm",
+                  "max-w-[85%] sm:max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
                   isOutgoing
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-muted rounded-bl-sm"
                 )}
               >
                 {!isOutgoing && message.user_name && (
                   <div className="text-xs font-semibold mb-1 opacity-70">
                     {message.user_name}
+                  </div>
+                )}
+                {isOutgoing && (
+                  <div className="text-xs font-semibold mb-1 opacity-70">
+                    Você
                   </div>
                 )}
                 <div className="text-sm whitespace-pre-wrap break-words">
