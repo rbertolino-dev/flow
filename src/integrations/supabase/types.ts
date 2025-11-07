@@ -180,6 +180,39 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_logs: {
+        Row: {
+          created_at: string
+          event: string
+          id: string
+          instance: string | null
+          level: string
+          message: string | null
+          payload: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event: string
+          id?: string
+          instance?: string | null
+          level?: string
+          message?: string | null
+          payload?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          id?: string
+          instance?: string | null
+          level?: string
+          message?: string | null
+          payload?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       lead_tags: {
         Row: {
           created_at: string

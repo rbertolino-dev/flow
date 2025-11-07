@@ -123,10 +123,17 @@ serve(async (req) => {
         .eq('instance_name', instance)
         .order('updated_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (configError || !configs) {
         console.error('❌ Configuração não encontrada:', configError);
+        await supabase.from('evolution_logs').insert({
+          instance,
+          event,
+          level: 'error',
+          message: 'Instância não configurada ou desconectada',
+          payload: { error: configError?.message },
+        });
         return new Response(
           JSON.stringify({ success: false, message: 'Instância não configurada ou desconectada' }),
           { 
@@ -137,6 +144,16 @@ serve(async (req) => {
       }
 
       console.log(`✅ Configuração encontrada para usuário: ${configs.user_id}`);
+
+      // Registrar log de mensagem recebida
+      await supabase.from('evolution_logs').insert({
+        user_id: configs.user_id,
+        instance,
+        event,
+        level: 'info',
+        message: `Nova mensagem de ${contactName} (${phoneNumber})`,
+        payload: { phoneNumber, messageContent, contactName },
+      });
 
       // Verificar se já existe um lead com este telefone
       const { data: existingLead } = await supabase

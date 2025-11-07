@@ -74,6 +74,16 @@ serve(async (req) => {
 
     if (configError || !config) {
       console.error('Config error:', configError);
+      
+      // Log do erro
+      await supabaseClient.from('evolution_logs').insert({
+        user_id: user.id,
+        event: 'import-contacts',
+        level: 'error',
+        message: 'Configuração da Evolution API não encontrada',
+        payload: { error: configError?.message },
+      });
+
       return new Response(
         JSON.stringify({ error: 'Configuração da Evolution API não encontrada' }),
         {
