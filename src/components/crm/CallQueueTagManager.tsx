@@ -11,24 +11,21 @@ interface CallQueueTagManagerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentTags: Tag[];
-  onAddTag: (tagId: string) => void;
-  onRemoveTag: (tagId: string) => void;
+  onToggleTag: (tagId: string, isCurrentlySelected: boolean) => void;
 }
 
 export function CallQueueTagManager({
   open,
   onOpenChange,
   currentTags,
-  onAddTag,
-  onRemoveTag,
+  onToggleTag,
 }: CallQueueTagManagerProps) {
   const { tags } = useTags();
   const [searchQuery, setSearchQuery] = useState("");
 
   const currentTagIds = new Set(currentTags.map((t) => t.id));
-  const availableTags = tags.filter((tag) => !currentTagIds.has(tag.id));
 
-  const filteredAvailableTags = availableTags.filter((tag) =>
+  const filteredTags = tags.filter((tag) =>
     tag.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -40,73 +37,49 @@ export function CallQueueTagManager({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Etiquetas atuais */}
+          {/* Todas as etiquetas com toggle */}
           <div>
-            <h3 className="text-sm font-medium mb-2">Etiquetas Atuais</h3>
-            {currentTags.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma etiqueta adicionada</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {currentTags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    variant="outline"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      borderColor: tag.color,
-                      color: tag.color,
-                    }}
-                    className="gap-1"
-                  >
-                    {tag.name}
-                    <button
-                      onClick={() => onRemoveTag(tag.id)}
-                      className="ml-1 hover:opacity-70"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Adicionar etiquetas */}
-          <div>
-            <h3 className="text-sm font-medium mb-2">Adicionar Etiquetas</h3>
-            <ScrollArea className="h-[200px] border rounded-md p-3">
-              {filteredAvailableTags.length === 0 ? (
+            <h3 className="text-sm font-medium mb-2">Etiquetas Disponíveis</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Clique nas etiquetas para selecionar ou desselecionar
+            </p>
+            <ScrollArea className="h-[300px] border rounded-md p-3">
+              {filteredTags.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  {availableTags.length === 0
-                    ? "Todas as etiquetas já foram adicionadas"
-                    : "Nenhuma etiqueta encontrada"}
+                  Nenhuma etiqueta encontrada
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {filteredAvailableTags.map((tag) => (
-                    <div
-                      key={tag.id}
-                      className="flex items-center justify-between p-2 rounded-md hover:bg-muted"
-                    >
-                      <Badge
-                        variant="outline"
-                        style={{
-                          backgroundColor: `${tag.color}20`,
-                          borderColor: tag.color,
-                          color: tag.color,
-                        }}
+                  {filteredTags.map((tag) => {
+                    const isSelected = currentTagIds.has(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => onToggleTag(tag.id, isSelected)}
+                        className="w-full flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
                       >
-                        {tag.name}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onAddTag(tag.id)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                        <Badge
+                          variant="outline"
+                          style={{
+                            backgroundColor: isSelected ? tag.color : `${tag.color}20`,
+                            borderColor: tag.color,
+                            color: isSelected ? '#fff' : tag.color,
+                          }}
+                        >
+                          {tag.name}
+                        </Badge>
+                        {isSelected ? (
+                          <Badge variant="secondary" className="text-xs">
+                            Selecionada
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            Clique para adicionar
+                          </Badge>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

@@ -83,12 +83,29 @@ export function useTags() {
         return false;
       }
 
+      // Verificar se já existe uma etiqueta com o mesmo nome na organização
+      const { data: existingTag } = await (supabase as any)
+        .from('tags')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('name', name.trim())
+        .maybeSingle();
+
+      if (existingTag) {
+        toast({
+          title: "Nome duplicado",
+          description: "Já existe uma etiqueta com este nome na organização",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const { error } = await (supabase as any)
         .from('tags')
         .insert({
           user_id: session.user.id,
           organization_id: orgId,
-          name,
+          name: name.trim(),
           color,
         });
 

@@ -896,8 +896,13 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
         open={tagManager.open}
         onOpenChange={(open) => setTagManager({ ...tagManager, open })}
         currentTags={tagManager.currentTags}
-        onAddTag={(tagId) => onAddTag(tagManager.callId, tagId)}
-        onRemoveTag={(tagId) => onRemoveTag(tagManager.callId, tagId)}
+        onToggleTag={async (tagId, isCurrentlySelected) => {
+          if (isCurrentlySelected) {
+            await onRemoveTag(tagManager.callId, tagId);
+          } else {
+            await onAddTag(tagManager.callId, tagId);
+          }
+        }}
       />
 
       <ConvertCallToLeadDialog
