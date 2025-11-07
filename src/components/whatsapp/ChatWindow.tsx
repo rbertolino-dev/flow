@@ -125,12 +125,17 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
 
       if (selectedImage) {
         // Converter imagem para base64
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve) => {
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
           reader.onloadend = () => {
-            const base64 = (reader.result as string).split(',')[1];
-            resolve(base64);
+            if (reader.result && typeof reader.result === 'string') {
+              const base64 = reader.result.split(',')[1];
+              resolve(base64);
+            } else {
+              reject(new Error('Erro ao converter imagem'));
+            }
           };
+          reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
           reader.readAsDataURL(selectedImage);
         });
         

@@ -18,12 +18,6 @@ export function WhatsAppNav() {
       path: "/broadcast-campaigns",
     },
     {
-      label: "Templates",
-      icon: FileText,
-      path: "/settings",
-      hash: "templates",
-    },
-    {
       label: "Configurações",
       icon: Settings,
       path: "/settings",
@@ -40,22 +34,16 @@ export function WhatsAppNav() {
           return (
             <button
               key={item.path}
-              onClick={() => {
-                if (item.hash) {
-                  navigate(`${item.path}#${item.hash}`);
-                } else {
-                  navigate(item.path);
-                }
-              }}
+              onClick={() => navigate(item.path)}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
+                "flex items-center gap-2 px-6 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
                 isActive
-                  ? "text-[#25d366] border-[#25d366]"
-                  : "text-muted-foreground border-transparent hover:text-foreground hover:border-border"
+                  ? "text-[#25d366] border-[#25d366] bg-[#25d366]/10"
+                  : "text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
               )}
             >
               <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{item.label}</span>
+              <span>{item.label}</span>
             </button>
           );
         })}
