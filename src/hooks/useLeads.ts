@@ -108,6 +108,8 @@ export function useLeads() {
             assignedTo: lead.assigned_to || 'Não atribuído',
             lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
             createdAt: new Date(lead.created_at!),
+            returnDate: lead.return_date ? new Date(lead.return_date) : undefined,
+            sourceInstanceId: lead.source_instance_id || undefined,
             notes: lead.notes || undefined,
             stageId: lead.stage_id || undefined,
             activities: (activities || []).map((a) => ({
