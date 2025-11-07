@@ -6,6 +6,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Loader2 } from "lucide-react";
+import { normalizePhone } from "@/lib/phoneUtils";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -62,8 +63,11 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
   const filteredLeads = leads.filter(lead => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
+    const normalizedQuery = normalizePhone(searchQuery);
+    const normalizedLeadPhone = normalizePhone(lead.phone);
+    
     const matchesName = lead.name.toLowerCase().includes(query);
-    const matchesPhone = lead.phone.includes(query);
+    const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
     const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
     return matchesName || matchesPhone || matchesTags;
   });

@@ -2,6 +2,12 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+export function isValidBrazilianPhone(phone: string): boolean {
+  const digits = normalizePhone(phone);
+  const cleanDigits = digits.startsWith('55') ? digits.substring(2) : digits;
+  return cleanDigits.length >= 10 && cleanDigits.length <= 11;
+}
+
 export function formatBrazilianPhone(phone: string): string {
   const digits = normalizePhone(phone);
   

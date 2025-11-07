@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -40,6 +41,15 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
       return;
     }
 
+    if (!isValidBrazilianPhone(formData.phone)) {
+      toast({
+        title: "Telefone inválido",
+        description: "Digite um telefone brasileiro válido com 10 ou 11 dígitos (ex: 11987654321 ou (11) 98765-4321)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -51,7 +61,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         .insert({
           user_id: user.id,
           name: formData.name,
-          phone: formData.phone,
+          phone: normalizePhone(formData.phone),
           email: formData.email || null,
           company: formData.company || null,
           value: formData.value ? parseFloat(formData.value) : null,
@@ -116,9 +126,12 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               id="phone"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="(11) 98765-4321"
+              placeholder="(11) 98765-4321 ou 11987654321"
               required
             />
+            <p className="text-xs text-muted-foreground">
+              Digite 10-11 dígitos (DDD + número)
+            </p>
           </div>
 
           <div className="space-y-2">
