@@ -10,9 +10,11 @@ interface KanbanColumnProps {
   stage: PipelineStage;
   leads: Lead[];
   onLeadClick: (lead: Lead) => void;
+  allStages: PipelineStage[];
+  onStageChange: (leadId: string, newStageId: string) => void;
 }
 
-export function KanbanColumn({ stage, leads, onLeadClick }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, onLeadClick, allStages, onStageChange }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -59,7 +61,13 @@ export function KanbanColumn({ stage, leads, onLeadClick }: KanbanColumnProps) {
         >
           <div className="p-4 space-y-3 min-h-full">
             {leads.map((lead) => (
-              <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
+              <LeadCard 
+                key={lead.id} 
+                lead={lead} 
+                onClick={() => onLeadClick(lead)}
+                stages={allStages}
+                onStageChange={onStageChange}
+              />
             ))}
             {leads.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">

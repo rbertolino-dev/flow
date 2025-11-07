@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Building2, Calendar, DollarSign, Edit2, Check, X } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, Edit2, Check, X, MoveRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSortable } from "@dnd-kit/sortable";
@@ -12,10 +12,14 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PipelineStage } from "@/hooks/usePipelineStages";
 
 interface LeadCardProps {
   lead: Lead;
   onClick: () => void;
+  stages: PipelineStage[];
+  onStageChange: (leadId: string, newStageId: string) => void;
 }
 
 const sourceColors: Record<string, string> = {
@@ -26,7 +30,7 @@ const sourceColors: Record<string, string> = {
   Facebook: "bg-accent text-accent-foreground",
 };
 
-export function LeadCard({ lead, onClick }: LeadCardProps) {
+export function LeadCard({ lead, onClick, stages, onStageChange }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
@@ -129,55 +133,82 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     >
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-2">
-          {editingName ? (
-            <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
-              <Input
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                className="h-7 text-sm"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveName();
-                  if (e.key === 'Escape') {
+          <div className="flex-1 min-w-0">
+            {editingName ? (
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <Input
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className="h-7 text-sm"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Escape') {
+                      setTempName(lead.name);
+                      setEditingName(false);
+                    }
+                  }}
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveName}>
+                  <Check className="h-4 w-4 text-success" />
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-7 w-7 p-0"
+                  onClick={() => {
                     setTempName(lead.name);
                     setEditingName(false);
-                  }
-                }}
-              />
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveName}>
-                <Check className="h-4 w-4 text-success" />
-              </Button>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="h-7 w-7 p-0"
-                onClick={() => {
-                  setTempName(lead.name);
-                  setEditingName(false);
-                }}
-              >
-                <X className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 flex-1 min-w-0 group">
-              <h3 className="font-semibold text-card-foreground line-clamp-1 flex-1">{lead.name}</h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingName(true);
-                }}
-              >
-                <Edit2 className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
+                  }}
+                >
+                  <X className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h3 className="font-semibold text-card-foreground line-clamp-1 flex-1">{lead.name}</h3>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingName(true);
+                  }}
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
           <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
             {lead.source}
           </Badge>
+        </div>
+
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <MoveRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Select
+            value={lead.stageId || ''}
+            onValueChange={(value) => onStageChange(lead.id, value)}
+          >
+            <SelectTrigger className="h-8 text-xs flex-1">
+              <SelectValue placeholder="Selecione a etapa" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover z-50">
+              {stages.map((stage) => (
+                <SelectItem key={stage.id} value={stage.id}>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: stage.color }}
+                    />
+                    {stage.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2 text-sm text-muted-foreground">

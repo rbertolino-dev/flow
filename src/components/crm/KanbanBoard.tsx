@@ -92,13 +92,22 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "" }: KanbanBoa
                 stage={stage}
                 leads={columnLeads}
                 onLeadClick={setSelectedLead}
+                allStages={stages}
+                onStageChange={onLeadUpdate}
               />
             );
           })}
         </div>
 
         <DragOverlay>
-          {activeLead ? <LeadCard lead={activeLead} onClick={() => {}} /> : null}
+          {activeLead ? (
+            <LeadCard 
+              lead={activeLead} 
+              onClick={() => {}}
+              stages={stages}
+              onStageChange={() => {}}
+            />
+          ) : null}
         </DragOverlay>
       </DndContext>
 
