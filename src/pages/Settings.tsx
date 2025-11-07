@@ -126,26 +126,24 @@ export default function Settings() {
     }
   };
 
-  if (loading) {
-    const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin") => {
-      if (view === "users") {
-        navigate('/users');
-      } else if (view === "broadcast") {
-        navigate('/broadcast');
-      } else if (view === "whatsapp") {
-        navigate('/whatsapp');
-      } else if (view === "superadmin") {
-        navigate('/superadmin');
-      } else if (view === "settings") {
-        // já estamos aqui
-      } else {
-        navigate('/');
-      }
-    };
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+    if (view === "users") {
+      navigate('/users');
+    } else if (view === "broadcast") {
+      navigate('/broadcast-campaigns');
+    } else if (view === "whatsapp") {
+      navigate('/whatsapp');
+    } else if (view === "settings") {
+      // já estamos aqui
+    } else {
+      navigate('/');
+    }
+  };
 
-  return (
-    <AuthGuard>
-      <CRMLayout activeView="settings" onViewChange={handleViewChange}>
+  if (loading) {
+    return (
+      <AuthGuard>
+        <CRMLayout activeView="settings" onViewChange={handleViewChange}>
           <div className="h-full w-full flex items-center justify-center bg-background">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -156,7 +154,7 @@ export default function Settings() {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="settings" onViewChange={() => {}}>
+      <CRMLayout activeView="settings" onViewChange={handleViewChange}>
         <div className="h-full bg-background overflow-y-auto">
           <div className="p-6 border-b border-border">
             <h1 className="text-3xl font-bold mb-2">Configurações</h1>

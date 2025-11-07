@@ -156,6 +156,23 @@ export function useTags() {
 
   const deleteTag = async (id: string) => {
     try {
+      // Primeiro, remover todas as associações da tag com leads
+      const { error: leadTagsError } = await (supabase as any)
+        .from('lead_tags')
+        .delete()
+        .eq('tag_id', id);
+
+      if (leadTagsError) throw leadTagsError;
+
+      // Remover todas as associações da tag com fila de chamadas
+      const { error: callTagsError } = await (supabase as any)
+        .from('call_queue_tags')
+        .delete()
+        .eq('tag_id', id);
+
+      if (callTagsError) throw callTagsError;
+
+      // Agora deletar a tag
       const { error } = await (supabase as any)
         .from('tags')
         .delete()
