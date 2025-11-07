@@ -282,6 +282,23 @@ export function useCallQueue() {
 
   const addCallQueueTag = async (callQueueId: string, tagId: string) => {
     try {
+      // Verificar se a etiqueta já existe para evitar duplicação
+      const { data: existing } = await (supabase as any)
+        .from('call_queue_tags')
+        .select('id')
+        .eq('call_queue_id', callQueueId)
+        .eq('tag_id', tagId)
+        .maybeSingle();
+
+      if (existing) {
+        toast({
+          title: "Etiqueta já adicionada",
+          description: "Esta etiqueta já está vinculada a esta ligação",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const { error } = await (supabase as any)
         .from('call_queue_tags')
         .insert({ call_queue_id: callQueueId, tag_id: tagId });
@@ -289,6 +306,10 @@ export function useCallQueue() {
       if (error) throw error;
 
       await fetchCallQueue();
+      toast({
+        title: "Etiqueta adicionada",
+        description: "Etiqueta vinculada à ligação com sucesso",
+      });
       return true;
     } catch (error: any) {
       toast({
