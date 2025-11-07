@@ -167,40 +167,27 @@ export default function Users() {
 
     setCreating(true);
     try {
-      // Criar usuário usando admin API
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newUserData.email,
-        password: newUserData.password,
-        options: {
-          data: {
-            full_name: newUserData.fullName || newUserData.email,
-          },
+      // Chamar edge function para criar usuário (não desloga o admin)
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newUserData.email,
+          password: newUserData.password,
+          fullName: newUserData.fullName,
+          isAdmin: newUserData.isAdmin,
         },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      if (authData.user) {
-        // Se deve ser admin, adicionar role
-        if (newUserData.isAdmin) {
-          const { error: roleError } = await supabase
-            .from("user_roles")
-            .insert({ user_id: authData.user.id, role: "admin" });
+      toast({
+        title: "Usuário criado",
+        description: `Usuário ${newUserData.email} foi criado com sucesso`,
+      });
 
-          if (roleError) {
-            console.error("Erro ao adicionar role de admin:", roleError);
-          }
-        }
-
-        toast({
-          title: "Usuário criado",
-          description: `Usuário ${newUserData.email} foi criado com sucesso`,
-        });
-
-        setCreateDialogOpen(false);
-        setNewUserData({ email: "", password: "", fullName: "", isAdmin: false });
-        fetchUsers();
-      }
+      setCreateDialogOpen(false);
+      setNewUserData({ email: "", password: "", fullName: "", isAdmin: false });
+      fetchUsers();
     } catch (error: any) {
       console.error("Erro ao criar usuário:", error);
       toast({
