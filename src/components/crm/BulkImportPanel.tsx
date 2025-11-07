@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Badge } from "@/components/ui/badge";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface BulkImportPanelProps {
   onImportComplete: () => void;
@@ -131,6 +132,9 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      const orgId = await getUserOrganizationId();
+      if (!orgId) throw new Error("Organização não encontrada");
+
       let successCount = 0;
       let errorCount = 0;
 
@@ -167,6 +171,7 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
                 source: 'Manual',
                 status: 'new',
                 user_id: user.id,
+                organization_id: orgId,
                 assigned_to: user.email,
                 stage_id: showStageSelector ? selectedStageId : null,
               })
@@ -185,6 +190,7 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
             .from('call_queue')
             .insert({
               lead_id: leadId,
+              organization_id: orgId,
               scheduled_for: scheduledFor.toISOString(),
               priority: 'medium',
               status: 'pending',
