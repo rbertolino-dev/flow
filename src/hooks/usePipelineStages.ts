@@ -52,46 +52,9 @@ export function usePipelineStages() {
 
       if (error) throw error;
 
-      // Se não houver etapas, criamos etapas padrão automaticamente
-      if (!data || data.length === 0) {
-        // Obter organization_id do usuário
-        const { data: orgMember } = await supabase
-          .from('organization_members')
-          .select('organization_id')
-          .eq('user_id', session.user.id)
-          .single();
+      // Apenas definir os estágios retornados; não criaremos padrões automaticamente para evitar duplicações
+      setStages(data || []);
 
-        if (!orgMember) return;
-
-        const defaults = [
-          { name: 'Novo Lead', color: '#10b981', position: 0 },
-          { name: 'Contato Feito', color: '#3b82f6', position: 1 },
-          { name: 'Proposta Enviada', color: '#8b5cf6', position: 2 },
-          { name: 'Em Negociação', color: '#f59e0b', position: 3 },
-          { name: 'Ganho', color: '#22c55e', position: 4 },
-          { name: 'Perdido', color: '#ef4444', position: 5 },
-        ];
-
-        const { error: insertError } = await (supabase as any)
-          .from('pipeline_stages')
-          .insert(defaults.map(d => ({ 
-            ...d, 
-            user_id: session.user.id,
-            organization_id: orgMember.organization_id 
-          })));
-
-        if (insertError) throw insertError;
-
-        const { data: refetched, error: refetchError } = await (supabase as any)
-          .from('pipeline_stages')
-          .select('*')
-          .order('position', { ascending: true });
-
-        if (refetchError) throw refetchError;
-        setStages(refetched || []);
-      } else {
-        setStages(data || []);
-      }
     } catch (error: any) {
       toast({
         title: "Erro ao carregar etapas",
@@ -124,6 +87,25 @@ export function usePipelineStages() {
         return false;
       }
 
+      const trimmedName = name.trim();
+
+      // Verificar duplicidade por organização
+      const { data: existingStage } = await (supabase as any)
+        .from('pipeline_stages')
+        .select('id')
+        .eq('organization_id', orgMember.organization_id)
+        .eq('name', trimmedName)
+        .maybeSingle();
+
+      if (existingStage) {
+        toast({
+          title: "Nome duplicado",
+          description: "Já existe uma etapa com este nome na organização.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const maxPosition = stages.length > 0 ? Math.max(...stages.map(s => s.position)) : -1;
 
       const { error } = await (supabase as any)
@@ -131,7 +113,7 @@ export function usePipelineStages() {
         .insert({
           user_id: session.user.id,
           organization_id: orgMember.organization_id,
-          name,
+          name: trimmedName,
           color,
           position: maxPosition + 1,
         });
@@ -241,6 +223,85 @@ export function usePipelineStages() {
     }
   };
 
+  const cleanDuplicateStages = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return false;
+
+      // Obter organização do usuário
+      const { data: orgId } = await supabase
+        .rpc('get_user_organization', { _user_id: session.user.id });
+
+      if (!orgId) {
+        toast({
+          title: "Erro",
+          description: "Organização não encontrada para o usuário.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Buscar etapas da organização
+      const { data: orgStages, error: fetchErr } = await (supabase as any)
+        .from('pipeline_stages')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('position', { ascending: true });
+
+      if (fetchErr) throw fetchErr;
+
+      const byName: Record<string, any[]> = {};
+      (orgStages || []).forEach((s: any) => {
+        const key = (s.name || '').trim().toLowerCase();
+        if (!byName[key]) byName[key] = [];
+        byName[key].push(s);
+      });
+
+      let removed = 0;
+      for (const key of Object.keys(byName)) {
+        const group = byName[key];
+        if (group.length <= 1) continue;
+
+        const primary = group[0];
+        const duplicates = group.slice(1);
+
+        for (const dup of duplicates) {
+          // mover leads do duplicado para o primário
+          const { error: updErr } = await (supabase as any)
+            .from('leads')
+            .update({ stage_id: primary.id })
+            .eq('stage_id', dup.id);
+          if (updErr) throw updErr;
+
+          // deletar o duplicado
+          const { error: delErr } = await (supabase as any)
+            .from('pipeline_stages')
+            .delete()
+            .eq('id', dup.id);
+          if (delErr) throw delErr;
+
+          removed += 1;
+        }
+      }
+
+      await fetchStages();
+
+      toast({
+        title: "Limpeza concluída",
+        description: removed > 0 ? `${removed} etapa(s) duplicada(s) removida(s).` : "Nenhuma duplicata encontrada.",
+      });
+
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao limpar duplicatas",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const reorderStages = async (reorderedStages: PipelineStage[]) => {
     try {
       const updates = reorderedStages.map((stage, index) => 
@@ -263,5 +324,5 @@ export function usePipelineStages() {
     }
   };
 
-  return { stages, loading, createStage, updateStage, deleteStage, reorderStages, refetch: fetchStages };
+  return { stages, loading, createStage, updateStage, deleteStage, reorderStages, cleanDuplicateStages, refetch: fetchStages };
 }

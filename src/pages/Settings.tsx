@@ -34,7 +34,7 @@ export default function Settings() {
     testConnection 
   } = useEvolutionConfigs();
   
-  const { stages, createStage, updateStage, deleteStage } = usePipelineStages();
+  const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages } = usePipelineStages();
   const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
 
@@ -237,50 +237,56 @@ export default function Settings() {
                       <Layers className="h-5 w-5" />
                       <CardTitle>Etapas do Funil</CardTitle>
                     </div>
-                    <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" onClick={() => {
-                          setEditingStage(null);
-                          setStageName("");
-                          setStageColor("#3b82f6");
-                        }}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Nova Etapa
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>
-                            {editingStage ? "Editar Etapa" : "Nova Etapa"}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="stage-name">Nome</Label>
-                            <Input
-                              id="stage-name"
-                              value={stageName}
-                              onChange={(e) => setStageName(e.target.value)}
-                              placeholder="Ex: Contato Feito"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="stage-color">Cor</Label>
-                            <Input
-                              id="stage-color"
-                              type="color"
-                              value={stageColor}
-                              onChange={(e) => setStageColor(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button onClick={handleSaveStage}>
-                            {editingStage ? "Salvar" : "Criar"}
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={cleanDuplicateStages}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Limpar Duplicatas
+                      </Button>
+                      <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" onClick={() => {
+                            setEditingStage(null);
+                            setStageName("");
+                            setStageColor("#3b82f6");
+                          }}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Nova Etapa
                           </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>
+                              {editingStage ? "Editar Etapa" : "Nova Etapa"}
+                            </DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="stage-name">Nome</Label>
+                              <Input
+                                id="stage-name"
+                                value={stageName}
+                                onChange={(e) => setStageName(e.target.value)}
+                                placeholder="Ex: Contato Feito"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="stage-color">Cor</Label>
+                              <Input
+                                id="stage-color"
+                                type="color"
+                                value={stageColor}
+                                onChange={(e) => setStageColor(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button onClick={handleSaveStage}>
+                              {editingStage ? "Salvar" : "Criar"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
