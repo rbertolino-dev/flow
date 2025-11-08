@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export interface EvolutionConfig {
   id: string;
@@ -79,17 +80,26 @@ export function useEvolutionConfig() {
         return;
       }
 
-      const { data, error } = await (supabase as any)
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        setConfig(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('evolution_config')
         .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         throw error;
       }
 
-      setConfig(data);
+      setConfig(data || null);
     } catch (error: any) {
       toast({
         title: "Erro ao carregar configuração",
@@ -111,8 +121,12 @@ export function useEvolutionConfig() {
       
       if (!user) throw new Error("Usuário não autenticado");
 
+      const orgId = await getUserOrganizationId();
+      if (!orgId) throw new Error("Usuário não pertence a uma organização");
+
       const configPayload = {
         user_id: user.id,
+        organization_id: orgId,
         api_url: normalizeApiUrl(configData.api_url),
         api_key: configData.api_key,
         instance_name: configData.instance_name,
@@ -138,11 +152,13 @@ export function useEvolutionConfig() {
 
       // Verificar se foi salvo no banco
       await new Promise(resolve => setTimeout(resolve, 500));
-      const { data: savedConfig, error: checkError } = await (supabase as any)
+      const { data: savedConfig, error: checkError } = await supabase
         .from('evolution_config')
         .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
       if (checkError || !savedConfig) {
         throw new Error("Erro ao verificar salvamento no banco de dados");
