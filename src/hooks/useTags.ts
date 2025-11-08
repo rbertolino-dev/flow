@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export interface Tag {
   id: string;
@@ -44,9 +45,18 @@ export function useTags() {
         return;
       }
 
+      // Filtrar pela organização ativa
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        setTags([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await (supabase as any)
         .from('tags')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('name', { ascending: true });
 
       if (error) throw error;

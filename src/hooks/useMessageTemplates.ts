@@ -21,9 +21,14 @@ export function useMessageTemplates() {
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['message-templates'],
     queryFn: async () => {
+      // Filtrar pela organização ativa
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) return [];
+
       const { data, error } = await supabase
         .from('message_templates')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('name');
 
       if (error) throw error;

@@ -37,9 +37,18 @@ export function useCallQueue() {
 
   const fetchCallQueue = async () => {
     try {
+      // Filtrar pela organização ativa
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        setCallQueue([]);
+        setLoading(false);
+        return;
+      }
+
       const { data: queueData, error } = await (supabase as any)
         .from('call_queue')
         .select('*, leads(id, name, phone, call_count)')
+        .eq('organization_id', organizationId)
         .order('scheduled_for', { ascending: true });
 
       if (error) throw error;

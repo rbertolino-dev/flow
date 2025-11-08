@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export interface PipelineStage {
   id: string;
@@ -45,11 +46,8 @@ export function usePipelineStages() {
         return;
       }
 
-      // Buscar apenas etapas da organização do usuário
-      const { data: orgId, error: orgErr } = await supabase
-        .rpc('get_user_organization', { _user_id: session.user.id });
-
-      if (orgErr) throw orgErr;
+      // Usar organização ativa do localStorage
+      const orgId = await getUserOrganizationId();
       if (!orgId) {
         setStages([]);
         setLoading(false);
@@ -64,7 +62,6 @@ export function usePipelineStages() {
 
       if (error) throw error;
 
-      // Apenas definir os estágios retornados; não criaremos padrões automaticamente para evitar duplicações
       setStages(data || []);
 
     } catch (error: any) {

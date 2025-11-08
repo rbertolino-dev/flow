@@ -66,10 +66,18 @@ export function useEvolutionConfigs() {
         return;
       }
 
+      // Filtrar pela organização ativa
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        setConfigs([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await (supabase as any)
         .from('evolution_config')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;

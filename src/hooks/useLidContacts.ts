@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export interface LidContact {
   id: string;
@@ -31,10 +32,18 @@ export function useLidContacts() {
         return;
       }
 
+      // Filtrar pela organização ativa
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        setLidContacts([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('whatsapp_lid_contacts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .is('deleted_at', null)
         .order('last_contact', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });

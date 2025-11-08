@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 
 export interface ScheduledMessage {
@@ -27,9 +28,14 @@ export function useScheduledMessages(leadId?: string) {
   const { data: scheduledMessages = [], isLoading } = useQuery({
     queryKey: ['scheduled-messages', leadId],
     queryFn: async () => {
+      // Filtrar pela organização ativa
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) return [];
+
       let query = supabase
         .from('scheduled_messages')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('scheduled_for', { ascending: true });
 
       if (leadId) {
