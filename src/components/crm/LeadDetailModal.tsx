@@ -65,7 +65,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
   const { addToQueue } = useCallQueue();
   const { deleteLead } = useLeads();
-  const { configs, loading: configsLoading, refetch: refetchConfigs } = useEvolutionConfigs();
+  const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
   const { templates, applyTemplate } = useMessageTemplates();
   const { toast } = useToast();
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
@@ -91,6 +91,13 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     enabled: open, // Só verifica quando modal está aberto
     intervalMs: 30000,
   });
+
+  // Atualização imediata ao abrir
+  useEffect(() => {
+    if (open) {
+      refreshStatuses();
+    }
+  }, [open]);
 
   // Separar mensagens do WhatsApp do restante das atividades
   const whatsappMessages = useMemo(() => {
@@ -318,10 +325,10 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const handleRefreshStatus = async () => {
     setIsRefreshingStatus(true);
     try {
-      await refetchConfigs();
+      const res = await refreshStatuses();
       toast({
         title: "Status atualizado",
-        description: "Status das instâncias foi atualizado",
+        description: res ? `${res.connected}/${res.total} conectadas` : "Status das instâncias foi atualizado",
       });
     } catch (error: any) {
       toast({

@@ -17,6 +17,18 @@ interface InstanceHealth {
   lastCheck: number;
 }
 
+// Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
+const normalizeApiUrl = (url: string) => {
+  try {
+    const u = new URL(url);
+    let base = u.origin + u.pathname.replace(/\/$/, '');
+    base = base.replace(/\/(manager|dashboard|app)$/i, '');
+    return base;
+  } catch {
+    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+  }
+};
+
 export function useInstanceHealthCheck({
   instances,
   enabled = true,
@@ -70,13 +82,14 @@ export function useInstanceHealthCheck({
         }
 
         try {
-          const url = `${instance.api_url}/instance/connectionState/${instance.instance_name}`;
+          const base = normalizeApiUrl(instance.api_url);
+          const url = `${base}/instance/connectionState/${instance.instance_name}`;
           
           const response = await fetch(url, {
             headers: {
               'apikey': instance.api_key || '',
             },
-            signal: AbortSignal.timeout(5000), // 5s timeout
+            signal: AbortSignal.timeout(8000), // 8s timeout
           });
 
           if (response.ok) {

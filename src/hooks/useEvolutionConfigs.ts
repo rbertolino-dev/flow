@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { extractConnectionState } from "@/lib/evolutionStatus";
 
 export interface EvolutionConfig {
   id: string;
@@ -315,6 +316,7 @@ export function useEvolutionConfigs() {
         headers: {
           'apikey': config.api_key || '',
         },
+        signal: AbortSignal.timeout(8000),
       });
 
       const status = response.status;
@@ -333,20 +335,33 @@ export function useEvolutionConfigs() {
           variant: 'destructive',
         });
 
+        // Persistir como desconectado
+        await supabase.from('evolution_config').update({ is_connected: false, updated_at: new Date().toISOString() }).eq('id', config.id);
         return { success: false, httpStatus: status, details: text };
       }
 
       const data = await response.json();
-      const isConnected = data.state === 'open';
+      const normalized = extractConnectionState(data);
+      const isConnected = normalized === true;
+      
+      // Persistir estado detectado
+      await supabase
+        .from('evolution_config')
+        .update({ 
+          is_connected: isConnected,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', config.id);
       
       toast({
         title: isConnected ? '✅ Conectado' : '⚠️ Desconectado',
         description: isConnected
           ? `Instância "${config.instance_name}" está conectada`
-          : `Status: ${data.state || 'Desconhecido'}`,
+          : `Status: ${String(normalized)}`,
         variant: isConnected ? 'default' : 'destructive',
       });
 
+      await fetchConfigs();
       return { success: true, httpStatus: status, details: data, isConnected };
     } catch (error: any) {
       toast({
@@ -358,6 +373,42 @@ export function useEvolutionConfigs() {
     }
   };
 
+  const refreshStatuses = async () => {
+    const results = await Promise.allSettled(
+      configs.map(async (cfg) => {
+        const base = normalizeApiUrl(cfg.api_url);
+        const url = `${base}/instance/connectionState/${cfg.instance_name}`;
+        try {
+          const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const normalized = extractConnectionState(data);
+          const isConnected = normalized === true;
+          if (cfg.is_connected !== isConnected) {
+            await supabase
+              .from('evolution_config')
+              .update({ is_connected: isConnected, updated_at: new Date().toISOString() })
+              .eq('id', cfg.id);
+          }
+          return { id: cfg.id, ok: isConnected };
+        } catch (e: any) {
+          if (cfg.is_connected) {
+            await supabase
+              .from('evolution_config')
+              .update({ is_connected: false, updated_at: new Date().toISOString() })
+              .eq('id', cfg.id);
+          }
+          return { id: cfg.id, ok: false, error: e?.message || 'Erro' };
+        }
+      })
+    );
+
+    await fetchConfigs();
+    const connected = results.filter((r: any) => r.status === 'fulfilled' && r.value.ok).length;
+    const total = results.length;
+    return { connected, total };
+  };
+
   return {
     configs,
     loading,
@@ -367,6 +418,7 @@ export function useEvolutionConfigs() {
     toggleWebhook,
     configureWebhook,
     testConnection,
+    refreshStatuses,
     refetch: fetchConfigs,
   };
 }

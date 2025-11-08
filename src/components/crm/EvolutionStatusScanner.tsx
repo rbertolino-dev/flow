@@ -12,6 +12,18 @@ interface EvolutionStatusScannerProps {
   configs: EvolutionConfig[];
 }
 
+// Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
+const normalizeApiUrl = (url: string) => {
+  try {
+    const u = new URL(url);
+    let base = u.origin + u.pathname.replace(/\/$/, '');
+    base = base.replace(/\/(manager|dashboard|app)$/i, '');
+    return base;
+  } catch {
+    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+  }
+};
+
 export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps) {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<Record<string, { status: boolean | null; error?: string }>>({});
@@ -21,8 +33,9 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
     setRunning(true);
     const entries = await Promise.allSettled(
       configs.map(async (cfg) => {
-        const url = `${cfg.api_url}/instance/connectionState/${cfg.instance_name}`;
-        const res = await fetch(url, { headers: { apikey: cfg.api_key } });
+        const base = normalizeApiUrl(cfg.api_url);
+        const url = `${base}/instance/connectionState/${cfg.instance_name}`;
+        const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const ok = extractConnectionState(data) === true;
@@ -128,8 +141,9 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
                         disabled={running}
                         onClick={async () => {
                           try {
-                            const url = `${cfg.api_url}/instance/connectionState/${cfg.instance_name}`;
-                            const res = await fetch(url, { headers: { apikey: cfg.api_key } });
+                            const base = normalizeApiUrl(cfg.api_url);
+                            const url = `${base}/instance/connectionState/${cfg.instance_name}`;
+                            const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
                             if (!res.ok) throw new Error(`HTTP ${res.status}`);
                             const data = await res.json();
                             const ok = extractConnectionState(data) === true;
