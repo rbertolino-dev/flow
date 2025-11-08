@@ -45,9 +45,21 @@ export function usePipelineStages() {
         return;
       }
 
+      // Buscar apenas etapas da organização do usuário
+      const { data: orgId, error: orgErr } = await supabase
+        .rpc('get_user_organization', { _user_id: session.user.id });
+
+      if (orgErr) throw orgErr;
+      if (!orgId) {
+        setStages([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await (supabase as any)
         .from('pipeline_stages')
         .select('*')
+        .eq('organization_id', orgId)
         .order('position', { ascending: true });
 
       if (error) throw error;
