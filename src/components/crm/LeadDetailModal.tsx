@@ -79,21 +79,10 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     lead.returnDate ? format(new Date(lead.returnDate), "yyyy-MM-dd") : ""
   );
 
-  // Filtrar apenas instâncias conectadas
-  const connectedInstances = useMemo(() => {
-    const filtered = (configs || []).filter(c => c.is_connected === true);
-    console.log('🎯 [LeadDetailModal] Filtrando instâncias:', {
-      total: configs?.length || 0,
-      connected: filtered.length,
-      configs: configs?.map(c => ({ name: c.instance_name, is_connected: c.is_connected }))
-    });
-    return filtered;
-  }, [configs]);
-  
-  const hasConnectedInstances = useMemo(() => 
-    connectedInstances.length > 0,
-    [connectedInstances]
-  );
+  // Instâncias: todas do ambiente atual, com conectadas primeiro
+  const allInstances = useMemo(() => (configs || []).slice().sort((a, b) => Number(b.is_connected) - Number(a.is_connected)), [configs]);
+  const connectedInstances = useMemo(() => (configs || []).filter(c => c.is_connected === true), [configs]);
+  const hasInstances = allInstances.length > 0;
 
   // Health check periódico apenas quando o modal está aberto
   useInstanceHealthCheck({
@@ -540,26 +529,25 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                   <Select 
                     value={selectedInstanceId} 
                     onValueChange={setSelectedInstanceId}
-                    disabled={connectedInstances.length === 0}
+                    disabled={!hasInstances}
                   >
                     <SelectTrigger id="instance-select">
                       <SelectValue placeholder={
-                        connectedInstances.length === 0 
+                        !hasInstances 
                           ? "Nenhuma instância configurada" 
                           : "Selecione uma instância"
                       } />
                     </SelectTrigger>
                     <SelectContent>
-                      {connectedInstances.length === 0 ? (
+                      {!hasInstances ? (
                         <div className="p-2 text-sm text-muted-foreground text-center">
                           Configure uma instância em Configurações
                         </div>
                       ) : (
-                        connectedInstances.map((config) => (
+                        allInstances.map((config) => (
                           <SelectItem 
                             key={config.id} 
                             value={config.id}
-                            disabled={!config.is_connected}
                           >
                             <div className="flex items-center gap-2">
                               <div className={`w-2 h-2 rounded-full ${config.is_connected ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -573,12 +561,12 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                       )}
                     </SelectContent>
                   </Select>
-                  {connectedInstances.length === 0 && (
+                  {!hasInstances && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Vá em Configurações → Evolution API para conectar uma instância
                     </p>
                   )}
-                  {connectedInstances.length > 0 && !hasConnectedInstances && (
+                  {hasInstances && connectedInstances.length === 0 && (
                     <p className="text-xs text-amber-600 mt-1">
                       ⚠️ Todas as instâncias estão desconectadas. Teste a conexão em Configurações.
                     </p>
@@ -630,7 +618,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                   <Button
                     onClick={() => setShowSchedulePanel(!showSchedulePanel)}
                     variant="outline"
-                    disabled={connectedInstances.length === 0}
+                    disabled={!hasInstances}
                   >
                     <Clock className="h-4 w-4 mr-2" />
                     Agendar
