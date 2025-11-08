@@ -39,7 +39,7 @@ serve(async (req) => {
     // Buscar configuração da instância Evolution
     const { data: config, error: configError } = await supabase
       .from('evolution_config')
-      .select('api_url, api_key, instance_name, is_connected')
+      .select('api_url, api_key, instance_name, is_connected, organization_id')
       .eq('id', instanceId)
       .maybeSingle();
 
@@ -69,19 +69,12 @@ serve(async (req) => {
       instance_name: config.instance_name,
       api_url: config.api_url,
       is_connected: config.is_connected,
-      has_api_key: !!config.api_key
+      has_api_key: !!config.api_key,
+      organization_id: config.organization_id
     });
 
-    if (!config.is_connected) {
-      console.warn('⚠️ [send-whatsapp-message] Instância não está conectada');
-      return new Response(
-        JSON.stringify({ error: 'Instância Evolution não está conectada' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    // Remover verificação de is_connected para permitir envio mesmo se o status estiver desatualizado
+    // A Evolution API retornará erro se realmente não estiver conectada
 
     // Formatar telefone para Evolution API
     const formattedPhone = phone.replace(/\D/g, '');

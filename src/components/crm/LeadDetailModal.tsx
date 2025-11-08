@@ -248,7 +248,7 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
       if (error) {
         console.error('❌ [Frontend] Erro retornado:', error);
-        throw error;
+        throw new Error(error.message || 'Erro ao chamar função de envio');
       }
 
       if (data?.error) {
@@ -265,12 +265,24 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
       setWhatsappMessage("");
       setSelectedTemplateId("");
+      
+      // Atualizar atividades do lead
+      onClose();
     } catch (error: any) {
       console.error('💥 [Frontend] Erro crítico:', error);
       
+      // Mensagem de erro mais específica
+      let errorMessage = "Erro desconhecido. Verifique os logs do console.";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Erro ao enviar mensagem",
-        description: error.message || "Erro desconhecido. Verifique os logs do console.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
