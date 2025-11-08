@@ -11,6 +11,7 @@ import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { Loader2, Search, Plus, Filter, X } from "lucide-react";
 import Settings from "./Settings";
@@ -35,6 +36,13 @@ const Index = () => {
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
+  
+  // Health check periódico das instâncias (verifica a cada 30s)
+  useInstanceHealthCheck({
+    instances: configs || [],
+    enabled: true,
+    intervalMs: 30000,
+  });
   
   // Sincronização automática a cada 5 minutos
   const { lastSync, nextSync, isSyncing } = useAutoSync({ intervalMinutes: 5, enabled: true });

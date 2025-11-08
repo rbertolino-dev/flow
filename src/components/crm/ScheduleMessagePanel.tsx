@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,12 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [mediaUrl, setMediaUrl] = useState<string>("");
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'document'>('image');
   const [isScheduling, setIsScheduling] = useState(false);
+
+  // Filtrar apenas instâncias conectadas
+  const connectedInstances = useMemo(() => 
+    instances.filter(i => i.is_connected === true),
+    [instances]
+  );
 
   const handleSchedule = async () => {
     if (!instanceId || !message.trim() || !scheduledDate || !scheduledTime) {
@@ -103,7 +109,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
               <SelectValue placeholder="Selecione uma instância" />
             </SelectTrigger>
             <SelectContent>
-              {instances.filter(i => i.is_connected).map((instance) => (
+              {connectedInstances.map((instance) => (
                 <SelectItem key={instance.id} value={instance.id}>
                   {instance.instance_name}
                 </SelectItem>
