@@ -876,7 +876,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message: string
-          organization_id: string | null
+          organization_id: string
           phone: string
           scheduled_for: string
           sent_at: string | null
@@ -893,7 +893,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message: string
-          organization_id?: string | null
+          organization_id: string
           phone: string
           scheduled_for: string
           sent_at?: string | null
@@ -910,7 +910,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message?: string
-          organization_id?: string | null
+          organization_id?: string
           phone?: string
           scheduled_for?: string
           sent_at?: string | null
