@@ -106,6 +106,10 @@ export function useEvolutionConfigs() {
 
       const orgId = await getUserOrganizationId();
       
+      if (!orgId) {
+        throw new Error("Você não pertence a nenhuma organização. Por favor, contate o administrador.");
+      }
+      
       // Normalizar e limpar dados
       const normalizedUrl = normalizeApiUrl(configData.api_url);
       const cleanedApiKey = configData.api_key.trim();
