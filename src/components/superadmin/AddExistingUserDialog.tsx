@@ -32,6 +32,12 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
 
   useEffect(() => {
     if (open) {
+      // Limpar estados anteriores
+      setUsers([]);
+      setFilteredUsers([]);
+      setSelectedUserId("");
+      setSearchQuery("");
+      // Buscar dados atualizados
       fetchAvailableUsers();
     }
   }, [open, organizationId]);
@@ -52,13 +58,22 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
   }, [searchQuery, users]);
 
   const fetchAvailableUsers = async () => {
+    setLoading(true);
     try {
+      console.log("Buscando usuários disponíveis para organização:", organizationId);
+      
       // Buscar todos os usuários do sistema
       const { data: allProfiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, email, full_name");
+        .select("id, email, full_name")
+        .order("email");
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error("Erro ao buscar profiles:", profilesError);
+        throw profilesError;
+      }
+
+      console.log("Total de profiles encontrados:", allProfiles?.length);
 
       // Buscar membros atuais da organização
       const { data: currentMembers, error: membersError } = await supabase
@@ -66,7 +81,12 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
         .select("user_id")
         .eq("organization_id", organizationId);
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.error("Erro ao buscar membros:", membersError);
+        throw membersError;
+      }
+
+      console.log("Membros atuais da organização:", currentMembers?.length);
 
       // Filtrar usuários que NÃO estão na organização
       const currentMemberIds = new Set(currentMembers?.map((m) => m.user_id) || []);
@@ -74,15 +94,19 @@ export function AddExistingUserDialog({ open, onOpenChange, onSuccess, organizat
         (profile) => !currentMemberIds.has(profile.id)
       );
 
+      console.log("Usuários disponíveis para adicionar:", availableUsers.length);
+
       setUsers(availableUsers);
       setFilteredUsers(availableUsers);
     } catch (error: any) {
       console.error("Erro ao carregar usuários:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar a lista de usuários",
+        description: error.message || "Não foi possível carregar a lista de usuários",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
