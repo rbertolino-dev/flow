@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -71,9 +72,17 @@ export function useLeads() {
         return;
       }
 
+      // Pegar a organização ativa do localStorage
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        setLeads([]);
+        return;
+      }
+
       const { data: leadsData, error: leadsError } = await (supabase as any)
         .from('leads')
         .select('*')
+        .eq('organization_id', organizationId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 

@@ -1,6 +1,32 @@
 import { supabase } from '@/integrations/supabase/client';
 
+const STORAGE_KEY = 'active_organization_id';
+
 export async function getUserOrganizationId(): Promise<string | null> {
+  // Primeiro tenta pegar a organização ativa do localStorage
+  const activeOrgId = localStorage.getItem(STORAGE_KEY);
+  
+  if (activeOrgId) {
+    // Verificar se o usuário ainda pertence a essa organização
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('organization_id', activeOrgId)
+      .maybeSingle();
+
+    if (membership) {
+      return activeOrgId;
+    }
+    
+    // Se não pertence mais, limpar do localStorage
+    localStorage.removeItem(STORAGE_KEY);
+  }
+
+  // Se não tem no localStorage ou não é mais membro, pegar a primeira organização
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
@@ -8,20 +34,26 @@ export async function getUserOrganizationId(): Promise<string | null> {
     .from('organization_members')
     .select('organization_id')
     .eq('user_id', user.id)
+    .limit(1)
     .maybeSingle();
 
-  return data?.organization_id || null;
+  const orgId = data?.organization_id || null;
+  
+  // Salvar no localStorage para próximas consultas
+  if (orgId) {
+    localStorage.setItem(STORAGE_KEY, orgId);
+  }
+
+  return orgId;
 }
 
 export async function ensureUserOrganization(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Usuário não autenticado');
 
-  // Tenta via RPC segura (respeita políticas e evita problemas de visibilidade)
-  const { data: existingOrgId, error: orgErr } = await supabase
-    .rpc('get_user_organization', { _user_id: user.id });
-  if (orgErr) throw orgErr;
-  if (existingOrgId) return existingOrgId as string;
+  // Tenta pegar organização ativa primeiro
+  const activeOrgId = await getUserOrganizationId();
+  if (activeOrgId) return activeOrgId;
 
   // Se não houver organização, cria uma padrão para o usuário atual
   const friendlyName = `Organização de ${user.email?.split('@')[0] || 'Usuário'}`;
@@ -30,6 +62,9 @@ export async function ensureUserOrganization(): Promise<string> {
 
   if (createErr) throw createErr;
   if (!createdOrgId) throw new Error('Falha ao criar organização padrão');
+
+  // Salvar no localStorage
+  localStorage.setItem(STORAGE_KEY, createdOrgId as string);
 
   return createdOrgId as string;
 }
