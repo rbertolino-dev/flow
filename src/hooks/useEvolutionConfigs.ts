@@ -129,11 +129,17 @@ export function useEvolutionConfigs() {
 
   const updateConfig = async (id: string, configData: Partial<EvolutionConfig>) => {
     try {
+      console.log('🔧 updateConfig chamado:', { id, configData });
+      
       // Normalizar URL se estiver sendo atualizada
       const updateData: any = { ...configData };
       if (updateData.api_url) {
-        updateData.api_url = normalizeApiUrl(updateData.api_url);
+        const normalizedUrl = normalizeApiUrl(updateData.api_url);
+        console.log('🔄 URL normalizada:', { original: updateData.api_url, normalized: normalizedUrl });
+        updateData.api_url = normalizedUrl;
       }
+      
+      console.log('💾 Dados a serem salvos:', updateData);
       
       const { error } = await (supabase as any)
         .from('evolution_config')
@@ -143,7 +149,12 @@ export function useEvolutionConfigs() {
         })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro do Supabase:', error);
+        throw error;
+      }
+
+      console.log('✅ Atualização concluída com sucesso');
 
       toast({
         title: "✅ Instância atualizada",
@@ -153,6 +164,7 @@ export function useEvolutionConfigs() {
       await fetchConfigs();
       return true;
     } catch (error: any) {
+      console.error('❌ Erro completo:', error);
       toast({
         title: "❌ Erro ao atualizar instância",
         description: error.message,

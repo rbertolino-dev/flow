@@ -52,15 +52,19 @@ export function EvolutionInstanceDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('📝 Formulário submetido:', { editingConfig, formData });
     setSaving(true);
 
     let success = false;
     if (editingConfig && onUpdate) {
+      console.log('✏️ Modo edição - chamando onUpdate');
       success = await onUpdate(editingConfig.id, formData);
     } else {
+      console.log('➕ Modo criação - chamando onSave');
       success = await onSave(formData);
     }
 
+    console.log('📊 Resultado:', success);
     setSaving(false);
     if (success) {
       onOpenChange(false);
