@@ -54,27 +54,20 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const organizationId = await getUserOrganizationId();
       if (!organizationId) throw new Error("Usuário não pertence a uma organização");
 
-      const { error } = await (supabase as any)
-        .from('leads')
-        .insert({
-          user_id: user.id,
-          organization_id: organizationId,
-          name: formData.name,
-          phone: normalizePhone(formData.phone),
-          email: formData.email || null,
-          company: formData.company || null,
-          value: formData.value ? parseFloat(formData.value) : null,
-          stage_id: formData.stageId || null,
-          notes: formData.notes || null,
-          status: 'new',
-          source: 'manual',
-          assigned_to: user.email || 'Sistema',
+      const { data: leadId, error } = await supabase
+        .rpc('create_lead_secure', {
+          p_org_id: organizationId,
+          p_name: formData.name,
+          p_phone: normalizePhone(formData.phone),
+          p_email: formData.email || null,
+          p_company: formData.company || null,
+          p_value: formData.value ? parseFloat(formData.value) : null,
+          p_stage_id: formData.stageId || null,
+          p_notes: formData.notes || null,
+          p_source: 'manual',
         });
 
       if (error) throw error;

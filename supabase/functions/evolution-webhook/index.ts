@@ -115,7 +115,7 @@ serve(async (req) => {
       
       const contactName = data.pushName || remoteJid;
 
-      // Verificar configuração da Evolution para este webhook
+      // Verificar configuração da Evolution EXATAMENTE na org que criou
       console.log(`🔍 Verificando configuração para instância: ${instance}`);
       
       const { data: configs, error: configError } = await supabase
@@ -123,11 +123,10 @@ serve(async (req) => {
         .select('user_id, instance_name, updated_at, id, organization_id')
         .eq('instance_name', instance)
         .order('updated_at', { ascending: false })
-        .limit(1)
         .maybeSingle();
 
       if (configError || !configs) {
-        console.error('❌ Configuração não encontrada:', configError);
+        console.error('❌ Configuração não encontrada para esta instância');
         await supabase.from('evolution_logs').insert({
           user_id: null,
           organization_id: null,
@@ -135,10 +134,10 @@ serve(async (req) => {
           event,
           level: 'error',
           message: 'Instância não configurada ou desconectada',
-          payload: { error: configError?.message },
+          payload: { error: configError?.message, instance },
         });
         return new Response(
-          JSON.stringify({ success: false, message: 'Instância não configurada ou desconectada' }),
+          JSON.stringify({ success: false, message: 'Instância não configurada' }),
           { 
             status: 403,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -146,7 +145,7 @@ serve(async (req) => {
         );
       }
 
-      console.log(`✅ Configuração encontrada para usuário: ${configs.user_id}`);
+      console.log(`✅ Config encontrada: org=${configs.organization_id}, user=${configs.user_id}`);
 
       // Verificar se é @lid (WhatsApp Business/Canal)
       if (remoteJid.includes('@lid')) {
@@ -169,7 +168,7 @@ serve(async (req) => {
           .from('whatsapp_lid_contacts')
           .select('id')
           .eq('lid', lid)
-          .eq('user_id', configs.user_id)
+          .eq('organization_id', configs.organization_id)
           .maybeSingle();
 
         if (existingLID) {
@@ -189,6 +188,7 @@ serve(async (req) => {
             .from('whatsapp_lid_contacts')
             .insert({
               user_id: configs.user_id,
+              organization_id: configs.organization_id,
               lid,
               name: contactName,
               last_contact: new Date().toISOString(),
@@ -251,6 +251,7 @@ serve(async (req) => {
       // Salvar mensagem no histórico do WhatsApp
       await supabase.from('whatsapp_messages').insert({
         user_id: configs.user_id,
+        organization_id: configs.organization_id,
         phone: phoneNumber,
         contact_name: contactName,
         message_text: messageContent,
@@ -267,12 +268,12 @@ serve(async (req) => {
         read_status: isFromMe, // Mensagens enviadas já são lidas
       });
 
-      // Verificar se já existe um lead com este telefone (incluindo excluídos)
+      // Verificar se já existe lead com este telefone NESTA organização
       const { data: existingLead } = await supabase
         .from('leads')
         .select('id, deleted_at')
         .eq('phone', phoneNumber)
-        .eq('user_id', configs.user_id)
+        .eq('organization_id', configs.organization_id)
         .maybeSingle();
 
       if (existingLead) {

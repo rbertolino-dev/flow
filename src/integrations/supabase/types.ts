@@ -422,6 +422,7 @@ export type Database = {
           updated_at: string | null
           user_id: string
           webhook_enabled: boolean
+          webhook_secret: string
         }
         Insert: {
           api_key?: string | null
@@ -436,6 +437,7 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           webhook_enabled?: boolean
+          webhook_secret?: string
         }
         Update: {
           api_key?: string | null
@@ -450,6 +452,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           webhook_enabled?: boolean
+          webhook_secret?: string
         }
         Relationships: [
           {
@@ -1145,6 +1148,20 @@ export type Database = {
       can_schedule_message_for_lead: {
         Args: { _lead_id: string; _user_id: string }
         Returns: boolean
+      }
+      create_lead_secure: {
+        Args: {
+          p_company?: string
+          p_email?: string
+          p_name: string
+          p_notes?: string
+          p_org_id: string
+          p_phone: string
+          p_source?: string
+          p_stage_id?: string
+          p_value?: number
+        }
+        Returns: string
       }
       create_organization_with_owner: {
         Args: { org_name: string; owner_user_id?: string }
