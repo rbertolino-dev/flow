@@ -80,20 +80,25 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   );
 
   // Filtrar apenas instâncias conectadas
-  const connectedInstances = useMemo(() => 
-    (configs || []).filter(c => c.is_connected === true), 
-    [configs]
-  );
+  const connectedInstances = useMemo(() => {
+    const filtered = (configs || []).filter(c => c.is_connected === true);
+    console.log('🎯 [LeadDetailModal] Filtrando instâncias:', {
+      total: configs?.length || 0,
+      connected: filtered.length,
+      configs: configs?.map(c => ({ name: c.instance_name, is_connected: c.is_connected }))
+    });
+    return filtered;
+  }, [configs]);
   
   const hasConnectedInstances = useMemo(() => 
     connectedInstances.length > 0,
     [connectedInstances]
   );
 
-  // Health check periódico de todas as instâncias (30s)
+  // Health check periódico apenas quando o modal está aberto
   useInstanceHealthCheck({
     instances: configs || [],
-    enabled: open,
+    enabled: open, // Só verifica quando modal está aberto
     intervalMs: 30000,
   });
 

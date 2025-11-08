@@ -26,16 +26,25 @@ export function useInstanceHealthCheck({
 }: UseInstanceHealthCheckOptions) {
   const intervalRef = useRef<NodeJS.Timeout>();
   const [healthMap, setHealthMap] = useState<Record<string, InstanceHealth>>({});
+  const isCheckingRef = useRef(false); // Prevenir execuções paralelas
 
   useEffect(() => {
     if (!enabled || instances.length === 0) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      isCheckingRef.current = false;
       return;
     }
 
     const checkInstanceHealth = async () => {
+      // Prevenir execuções paralelas
+      if (isCheckingRef.current) {
+        console.log('⏸️ Checagem já em andamento, pulando...');
+        return;
+      }
+
+      isCheckingRef.current = true;
       const now = Date.now();
       const updatedHealthMap = { ...healthMap };
 
@@ -151,6 +160,7 @@ export function useInstanceHealthCheck({
       }
 
       setHealthMap(updatedHealthMap);
+      isCheckingRef.current = false;
     };
 
     // Executar verificação imediata
@@ -163,8 +173,9 @@ export function useInstanceHealthCheck({
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      isCheckingRef.current = false;
     };
-  }, [instances, enabled, intervalMs, stableIntervalMs, checksUntilStable, healthMap]);
+  }, [instances, enabled, intervalMs, stableIntervalMs, checksUntilStable]);
 
   return null;
 }
