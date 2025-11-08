@@ -50,6 +50,16 @@ export default function BroadcastCampaigns() {
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const { toast } = useToast();
 
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+    if (view === "kanban") navigate('/');
+    else if (view === "calls") navigate('/');
+    else if (view === "contacts") navigate('/');
+    else if (view === "settings") navigate('/settings');
+    else if (view === "users") navigate('/users');
+    else if (view === "whatsapp") navigate('/whatsapp');
+    else if (view === "broadcast") navigate('/broadcast');
+  };
+
   const [newCampaign, setNewCampaign] = useState({
     name: "",
     instanceId: "",
@@ -348,7 +358,7 @@ export default function BroadcastCampaigns() {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="kanban" onViewChange={() => {}}>
+      <CRMLayout activeView="broadcast" onViewChange={handleViewChange}>
       <div className="min-h-screen bg-background">
         <div className="container mx-auto p-6 max-w-7xl">
       <Card>
