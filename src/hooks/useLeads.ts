@@ -143,6 +143,13 @@ export function useLeads() {
     try {
       console.log('🔄 Atualizando lead:', { leadId, newStageId });
 
+      // Optimistic UI update to move the card immediately
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId ? { ...l, stageId: newStageId, lastContact: new Date() } : l
+        )
+      );
+
       const organizationId = await getUserOrganizationId();
       if (!organizationId) throw new Error('Usuário não pertence a uma organização');
 
@@ -182,6 +189,8 @@ export function useLeads() {
         description: error.message,
         variant: 'destructive',
       });
+      // Rollback by refetching from server
+      await fetchLeads();
     }
   };
 
