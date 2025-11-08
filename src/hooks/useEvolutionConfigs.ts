@@ -66,18 +66,27 @@ export function useEvolutionConfigs() {
         return;
       }
 
-      // Filtrar pela organização ativa
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
+      // Buscar todas as organizações que o usuário tem acesso
+      const { data: userOrgs, error: orgsError } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id);
+
+      if (orgsError) throw orgsError;
+
+      if (!userOrgs || userOrgs.length === 0) {
         setConfigs([]);
         setLoading(false);
         return;
       }
 
+      const orgIds = userOrgs.map(o => o.organization_id);
+
+      // Buscar instâncias de todas as organizações que o usuário tem acesso
       const { data, error } = await (supabase as any)
         .from('evolution_config')
         .select('*')
-        .eq('organization_id', organizationId)
+        .in('organization_id', orgIds)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
