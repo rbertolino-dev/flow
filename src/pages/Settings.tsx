@@ -59,6 +59,13 @@ export default function Settings() {
     setDialogOpen(true);
   };
 
+  const handleDialogChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingConfig(null); // Limpar estado ao fechar
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm("Tem certeza que deseja remover esta instância?")) {
       await deleteConfig(id);
@@ -525,16 +532,20 @@ export default function Settings() {
         }}
         editingConfig={editingConfig}
         onSave={async (data) => {
-          await createConfig(data);
-          setDialogOpen(false);
-          setEditingConfig(null);
-          return true;
+          const success = await createConfig(data);
+          if (success) {
+            setDialogOpen(false);
+            setEditingConfig(null);
+          }
+          return success;
         }}
         onUpdate={async (id, data) => {
-          await updateConfig(id, data);
-          setDialogOpen(false);
-          setEditingConfig(null);
-          return true;
+          const success = await updateConfig(id, data);
+          if (success) {
+            setDialogOpen(false);
+            setEditingConfig(null);
+          }
+          return success;
         }}
       />
         </div>
