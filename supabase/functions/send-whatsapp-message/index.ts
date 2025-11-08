@@ -77,7 +77,18 @@ serve(async (req) => {
     // A Evolution API retornará erro se realmente não estiver conectada
 
     // Formatar telefone para Evolution API
-    const formattedPhone = phone.replace(/\D/g, '');
+    let formattedPhone = phone.replace(/\D/g, '');
+    
+    // Garantir que números brasileiros tenham código do país (55)
+    if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
+      // Verificar se parece um número brasileiro (DDD válido: 11-99)
+      const ddd = parseInt(formattedPhone.substring(0, 2));
+      if (ddd >= 11 && ddd <= 99) {
+        formattedPhone = '55' + formattedPhone;
+        console.log('➕ [send-whatsapp-message] Adicionado código do país 55');
+      }
+    }
+    
     const remoteJid = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@s.whatsapp.net`;
 
     console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone, remoteJid });
