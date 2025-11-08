@@ -21,6 +21,7 @@ export type Database = {
           direction: string | null
           id: string
           lead_id: string
+          organization_id: string | null
           type: string
           user_name: string | null
         }
@@ -30,6 +31,7 @@ export type Database = {
           direction?: string | null
           id?: string
           lead_id: string
+          organization_id?: string | null
           type: string
           user_name?: string | null
         }
@@ -39,6 +41,7 @@ export type Database = {
           direction?: string | null
           id?: string
           lead_id?: string
+          organization_id?: string | null
           type?: string
           user_name?: string | null
         }
@@ -48,6 +51,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -958,6 +968,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          organization_id: string | null
           permission: Database["public"]["Enums"]["app_permission"]
           user_id: string
         }
@@ -965,6 +976,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          organization_id?: string | null
           permission: Database["public"]["Enums"]["app_permission"]
           user_id: string
         }
@@ -972,10 +984,19 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          organization_id?: string | null
           permission?: Database["public"]["Enums"]["app_permission"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -1117,6 +1138,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_user: {
+        Args: { _manager_id: string; _target_user_id: string }
+        Returns: boolean
+      }
       create_organization_with_owner: {
         Args: { org_name: string; owner_user_id?: string }
         Returns: string
@@ -1141,6 +1166,20 @@ export type Database = {
         Returns: {
           permission: Database["public"]["Enums"]["app_permission"]
         }[]
+      }
+      get_user_permissions_for_org: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: {
+          permission: Database["public"]["Enums"]["app_permission"]
+        }[]
+      }
+      has_org_permission: {
+        Args: {
+          _org_id: string
+          _permission: Database["public"]["Enums"]["app_permission"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       has_permission: {
         Args: {

@@ -74,21 +74,35 @@ export function UserPermissionsDialog({ open, onOpenChange, userId, userName }: 
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      fetchUserPermissions();
+      fetchOrganizationAndPermissions();
     }
   }, [open, userId]);
 
-  const fetchUserPermissions = async () => {
+  const fetchOrganizationAndPermissions = async () => {
     try {
       setLoading(true);
+      
+      // Buscar organização do usuário atual (quem está gerenciando)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data: orgId, error: orgError } = await supabase
+        .rpc('get_user_organization', { _user_id: user.id });
+      
+      if (orgError) throw orgError;
+      setOrganizationId(orgId);
+
+      // Buscar permissões do usuário alvo PARA ESTA ORGANIZAÇÃO
       const { data, error } = await supabase
         .from('user_permissions')
         .select('permission')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('organization_id', orgId);
 
       if (error) throw error;
 
@@ -136,18 +150,28 @@ export function UserPermissionsDialog({ open, onOpenChange, userId, userName }: 
   };
 
   const handleSave = async () => {
+    if (!organizationId) {
+      toast({
+        title: "Erro",
+        description: "Organização não identificada.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setSaving(true);
 
-      // Primeiro, remover todas as permissões existentes
+      // Primeiro, remover permissões DESTA ORGANIZAÇÃO apenas
       const { error: deleteError } = await supabase
         .from('user_permissions')
         .delete()
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('organization_id', organizationId);
 
       if (deleteError) throw deleteError;
 
-      // Depois, inserir as novas permissões selecionadas
+      // Depois, inserir as novas permissões selecionadas PARA ESTA ORGANIZAÇÃO
       if (selectedPermissions.length > 0) {
         const { error: insertError } = await supabase
           .from('user_permissions')
@@ -155,6 +179,7 @@ export function UserPermissionsDialog({ open, onOpenChange, userId, userName }: 
             selectedPermissions.map(permission => ({
               user_id: userId,
               permission: permission as any,
+              organization_id: organizationId, // CRÍTICO: vincular à organização
             }))
           );
 
@@ -163,7 +188,7 @@ export function UserPermissionsDialog({ open, onOpenChange, userId, userName }: 
 
       toast({
         title: "Permissões atualizadas",
-        description: `As permissões de ${userName} foram atualizadas com sucesso`,
+        description: `As permissões de ${userName} foram atualizadas para esta organização.`,
       });
 
       onOpenChange(false);
@@ -188,7 +213,7 @@ export function UserPermissionsDialog({ open, onOpenChange, userId, userName }: 
             Gerenciar Permissões - {userName}
           </DialogTitle>
           <DialogDescription>
-            Selecione as funcionalidades que este usuário pode acessar
+            Selecione as funcionalidades que este usuário pode acessar nesta organização
           </DialogDescription>
         </DialogHeader>
 
