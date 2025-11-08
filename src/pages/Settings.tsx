@@ -156,39 +156,48 @@ export default function Settings() {
     <AuthGuard>
       <CRMLayout activeView="settings" onViewChange={handleViewChange}>
         <div className="h-full bg-background overflow-y-auto">
-          <div className="p-6 border-b border-border">
-            <h1 className="text-3xl font-bold mb-2">Configurações</h1>
-            <p className="text-muted-foreground">
+          <div className="p-3 sm:p-4 lg:p-6 border-b border-border">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Configurações</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Gerencie suas integrações e configurações do sistema
             </p>
           </div>
 
-      <div className="p-6 max-w-6xl space-y-6">
+      <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
         <Tabs defaultValue="evolution" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="evolution">Evolution API</TabsTrigger>
-            <TabsTrigger value="pipeline">Funil & Etiquetas</TabsTrigger>
-            <TabsTrigger value="templates">
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Templates
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+            <TabsTrigger value="evolution" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Evolution API</span>
+              <span className="sm:hidden">Evolution</span>
             </TabsTrigger>
-            <TabsTrigger value="google-calendar">Google Calendar</TabsTrigger>
+            <TabsTrigger value="pipeline" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Funil & Etiquetas</span>
+              <span className="sm:hidden">Funil</span>
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs sm:text-sm">
+              <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Templates</span>
+            </TabsTrigger>
+            <TabsTrigger value="google-calendar" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Google Calendar</span>
+              <span className="sm:hidden">Google</span>
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="evolution" className="space-y-6">
+          <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
                   <div>
-                    <CardTitle>Instâncias Evolution API</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-lg sm:text-xl">Instâncias Evolution API</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-1">
                       Gerencie suas conexões com o WhatsApp via Evolution API
                     </CardDescription>
                   </div>
                   <Button onClick={() => {
                     setEditingConfig(null);
                     setDialogOpen(true);
-                  }}>
+                  }} size="sm" className="w-full sm:w-auto">
                     <Plus className="h-4 w-4 mr-2" />
                     Nova Instância
                   </Button>
@@ -197,12 +206,12 @@ export default function Settings() {
               <CardContent>
                 {configs.length === 0 ? (
                   <Alert>
-                    <AlertDescription>
+                    <AlertDescription className="text-xs sm:text-sm">
                       Nenhuma instância configurada. Clique em "Nova Instância" para adicionar sua primeira conexão.
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
                     {configs.map((config) => (
                       <EvolutionInstanceCard
                         key={config.id}
@@ -220,7 +229,7 @@ export default function Settings() {
             </Card>
 
             <Alert>
-              <AlertDescription>
+              <AlertDescription className="text-xs sm:text-sm">
                 <strong>Dica:</strong> Você pode ativar ou desativar o webhook para cada instância individualmente. 
                 Quando desativado, mensagens recebidas naquela instância não serão processadas pelo CRM.
               </AlertDescription>
