@@ -148,56 +148,45 @@ export function useLeads() {
   const updateLeadStatus = async (leadId: string, newStageId: string) => {
     try {
       console.log('🔄 Atualizando lead:', { leadId, newStageId });
-      
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
-        throw new Error('Usuário não pertence a uma organização');
-      }
 
-      const { data: updateData, error: updateError } = await supabase
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) throw new Error('Usuário não pertence a uma organização');
+
+      const { error: updateError } = await supabase
         .from('leads')
-        .update({ 
+        .update({
           stage_id: newStageId,
-          last_contact: new Date().toISOString()
+          last_contact: new Date().toISOString(),
         })
-        .eq('id', leadId)
-        .select()
-        .single();
+        .eq('id', leadId);
 
       if (updateError) {
         console.error('❌ Erro ao atualizar lead:', updateError);
         throw updateError;
       }
 
-      console.log('✅ Lead atualizado:', updateData);
-
-      // Add activity
-      const { error: activityError } = await supabase
-        .from('activities')
-        .insert({
-          lead_id: leadId,
-          organization_id: organizationId,
-          type: 'status_change',
-          content: `Lead movido para nova etapa`,
-          user_name: 'Sistema',
-        });
-
-      if (activityError) {
-        console.error('⚠️ Erro ao criar atividade:', activityError);
-      }
+      // Add activity (org-scoped)
+      const { error: activityError } = await supabase.from('activities').insert({
+        lead_id: leadId,
+        organization_id: organizationId,
+        type: 'status_change',
+        content: 'Lead movido para nova etapa',
+        user_name: 'Sistema',
+      });
+      if (activityError) console.warn('⚠️ Erro ao criar atividade:', activityError);
 
       toast({
-        title: "Status atualizado",
-        description: "O lead foi movido para a nova etapa com sucesso.",
+        title: 'Status atualizado',
+        description: 'O lead foi movido para a nova etapa com sucesso.',
       });
 
       await fetchLeads();
     } catch (error: any) {
       console.error('💥 Erro geral ao atualizar lead:', error);
       toast({
-        title: "Erro ao atualizar lead",
+        title: 'Erro ao atualizar lead',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
     }
   };
