@@ -70,7 +70,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           email: formData.email || null,
           company: formData.company || null,
           value: formData.value ? parseFloat(formData.value) : null,
-          stage_id: formData.stageId,
+          stage_id: formData.stageId || null,
           notes: formData.notes || null,
           status: 'new',
           source: 'manual',

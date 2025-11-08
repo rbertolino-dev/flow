@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { LidContact } from "@/hooks/useLidContacts";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface ConvertLidDialogProps {
   lidContact: LidContact | null;
@@ -40,14 +41,17 @@ export function ConvertLidDialog({ lidContact, open, onOpenChange, onConverted }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      const orgId = await getUserOrganizationId();
+      if (!orgId) throw new Error("Usuário não pertence a uma organização");
+
       const normalizedPhone = normalizePhone(phone);
 
-      // Verificar se já existe lead com este telefone
+      // Verificar se já existe lead com este telefone na mesma organização
       const { data: existingLead } = await supabase
         .from('leads')
         .select('id, name')
-        .eq('user_id', user.id)
         .eq('phone', normalizedPhone)
+        .eq('organization_id', orgId)
         .maybeSingle();
 
       if (existingLead) {
@@ -65,6 +69,7 @@ export function ConvertLidDialog({ lidContact, open, onOpenChange, onConverted }
         .from('leads')
         .insert({
           user_id: user.id,
+          organization_id: orgId,
           name: lidContact.name,
           phone: normalizedPhone,
           status: 'new',
