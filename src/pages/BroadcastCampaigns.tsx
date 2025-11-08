@@ -14,6 +14,7 @@ import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircl
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 import {
   Dialog,
   DialogContent,
@@ -66,9 +67,16 @@ export default function BroadcastCampaigns() {
 
   const fetchCampaigns = async () => {
     try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        setCampaigns([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("broadcast_campaigns")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -85,12 +93,22 @@ export default function BroadcastCampaigns() {
   };
 
   const fetchInstances = async () => {
-    const { data } = await supabase.from("evolution_config").select("*");
+    const orgId = await getUserOrganizationId();
+    if (!orgId) {
+      setInstances([]);
+      return;
+    }
+    const { data } = await supabase.from("evolution_config").select("*").eq("organization_id", orgId);
     setInstances(data || []);
   };
 
   const fetchTemplates = async () => {
-    const { data } = await supabase.from("message_templates").select("*");
+    const orgId = await getUserOrganizationId();
+    if (!orgId) {
+      setTemplates([]);
+      return;
+    }
+    const { data } = await supabase.from("message_templates").select("*").eq("organization_id", orgId);
     setTemplates(data || []);
   };
 
@@ -153,11 +171,8 @@ export default function BroadcastCampaigns() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Obter organization_id do usuário via função segura (evita problemas de RLS)
-      const { data: orgId, error: orgErr } = await supabase
-        .rpc('get_user_organization', { _user_id: user.id });
-
-      if (orgErr) throw orgErr;
+      // Obter organização ativa do usuário
+      const orgId = await getUserOrganizationId();
       if (!orgId) {
         throw new Error("Usuário não pertence a nenhuma organização");
       }
