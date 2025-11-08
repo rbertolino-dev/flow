@@ -147,23 +147,44 @@ export function useLeads() {
 
   const updateLeadStatus = async (leadId: string, newStageId: string) => {
     try {
-      const { error } = await (supabase as any)
+      console.log('🔄 Atualizando lead:', { leadId, newStageId });
+      
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        throw new Error('Usuário não pertence a uma organização');
+      }
+
+      const { data: updateData, error: updateError } = await supabase
         .from('leads')
         .update({ 
           stage_id: newStageId,
           last_contact: new Date().toISOString()
         })
-        .eq('id', leadId);
+        .eq('id', leadId)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (updateError) {
+        console.error('❌ Erro ao atualizar lead:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Lead atualizado:', updateData);
 
       // Add activity
-      await (supabase as any).from('activities').insert({
-        lead_id: leadId,
-        type: 'status_change',
-        content: `Lead movido para nova etapa`,
-        user_name: 'Sistema',
-      });
+      const { error: activityError } = await supabase
+        .from('activities')
+        .insert({
+          lead_id: leadId,
+          organization_id: organizationId,
+          type: 'status_change',
+          content: `Lead movido para nova etapa`,
+          user_name: 'Sistema',
+        });
+
+      if (activityError) {
+        console.error('⚠️ Erro ao criar atividade:', activityError);
+      }
 
       toast({
         title: "Status atualizado",
@@ -172,6 +193,7 @@ export function useLeads() {
 
       await fetchLeads();
     } catch (error: any) {
+      console.error('💥 Erro geral ao atualizar lead:', error);
       toast({
         title: "Erro ao atualizar lead",
         description: error.message,
