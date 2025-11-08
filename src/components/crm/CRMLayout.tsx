@@ -59,17 +59,18 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
-  const adminMenuItems = [
+  const adminMenuItems = isAdmin ? [
     { id: "users" as const, label: "Usuários", icon: UserCog },
-  ];
+  ] : [];
 
+  // Super Admin só para usuários PubDigital ou admins do sistema
   const superAdminMenuItems = (isPubdigitalUser || isAdmin) ? [
     { id: "superadmin" as const, label: "Super Admin", icon: UserCog },
   ] : [];
 
   const menuItems = [
     ...baseMenuItems,
-    ...(isAdmin ? adminMenuItems : []),
+    ...adminMenuItems,
     ...superAdminMenuItems
   ];
 
