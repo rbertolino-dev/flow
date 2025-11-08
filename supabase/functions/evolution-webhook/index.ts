@@ -120,7 +120,7 @@ serve(async (req) => {
       
       const { data: configs, error: configError } = await supabase
         .from('evolution_config')
-        .select('user_id, instance_name, updated_at, id')
+        .select('user_id, instance_name, updated_at, id, organization_id')
         .eq('instance_name', instance)
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -324,14 +324,28 @@ serve(async (req) => {
         if (!isFromMe) {
           console.log('🆕 Criando novo lead...');
           
+          // Buscar primeiro estágio do funil da organização
+          const { data: firstStage } = await supabase
+            .from('pipeline_stages')
+            .select('id')
+            .eq('organization_id', configs.organization_id)
+            .order('position', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          console.log(`📊 Primeiro estágio do funil: ${firstStage?.id || 'não encontrado'}`);
+          
           const { data: newLead, error: leadError } = await supabase
             .from('leads')
             .insert({
               user_id: configs.user_id,
+              organization_id: configs.organization_id,
               name: contactName,
               phone: phoneNumber,
               source: 'whatsapp',
+              source_instance_id: configs.id,
               status: 'novo',
+              stage_id: firstStage?.id,
               last_contact: new Date().toISOString(),
             })
             .select()
@@ -342,7 +356,7 @@ serve(async (req) => {
             throw leadError;
           }
 
-          console.log(`✅ Lead criado com ID: ${newLead.id}`);
+          console.log(`✅ Lead criado com ID: ${newLead.id} no estágio ${firstStage?.id || 'padrão'}`);
 
           // Adicionar primeira atividade
           await supabase.from('activities').insert({
