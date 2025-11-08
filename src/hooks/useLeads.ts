@@ -188,8 +188,6 @@ export function useLeads() {
         title: 'Status atualizado',
         description: 'O lead foi movido para a nova etapa com sucesso.',
       });
-
-      await fetchLeads();
     } catch (error: any) {
       console.error('💥 Erro geral ao atualizar lead:', error);
       toast({
