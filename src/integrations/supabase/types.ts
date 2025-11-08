@@ -21,7 +21,7 @@ export type Database = {
           direction: string | null
           id: string
           lead_id: string
-          organization_id: string | null
+          organization_id: string
           type: string
           user_name: string | null
         }
@@ -31,7 +31,7 @@ export type Database = {
           direction?: string | null
           id?: string
           lead_id: string
-          organization_id?: string | null
+          organization_id: string
           type: string
           user_name?: string | null
         }
@@ -41,7 +41,7 @@ export type Database = {
           direction?: string | null
           id?: string
           lead_id?: string
-          organization_id?: string | null
+          organization_id?: string
           type?: string
           user_name?: string | null
         }
@@ -110,7 +110,7 @@ export type Database = {
           message_template_id: string | null
           min_delay_seconds: number
           name: string
-          organization_id: string | null
+          organization_id: string
           sent_count: number | null
           started_at: string | null
           status: string
@@ -128,7 +128,7 @@ export type Database = {
           message_template_id?: string | null
           min_delay_seconds?: number
           name: string
-          organization_id?: string | null
+          organization_id: string
           sent_count?: number | null
           started_at?: string | null
           status?: string
@@ -146,7 +146,7 @@ export type Database = {
           message_template_id?: string | null
           min_delay_seconds?: number
           name?: string
-          organization_id?: string | null
+          organization_id?: string
           sent_count?: number | null
           started_at?: string | null
           status?: string
@@ -233,7 +233,7 @@ export type Database = {
           id: string
           lead_id: string
           notes: string | null
-          organization_id: string | null
+          organization_id: string
           priority: string | null
           scheduled_for: string
           status: string | null
@@ -250,7 +250,7 @@ export type Database = {
           id?: string
           lead_id: string
           notes?: string | null
-          organization_id?: string | null
+          organization_id: string
           priority?: string | null
           scheduled_for: string
           status?: string | null
@@ -267,7 +267,7 @@ export type Database = {
           id?: string
           lead_id?: string
           notes?: string | null
-          organization_id?: string | null
+          organization_id?: string
           priority?: string | null
           scheduled_for?: string
           status?: string | null
@@ -416,7 +416,7 @@ export type Database = {
           id: string
           instance_name: string
           is_connected: boolean | null
-          organization_id: string | null
+          organization_id: string
           phone_number: string | null
           qr_code: string | null
           updated_at: string | null
@@ -430,7 +430,7 @@ export type Database = {
           id?: string
           instance_name: string
           is_connected?: boolean | null
-          organization_id?: string | null
+          organization_id: string
           phone_number?: string | null
           qr_code?: string | null
           updated_at?: string | null
@@ -444,7 +444,7 @@ export type Database = {
           id?: string
           instance_name?: string
           is_connected?: boolean | null
-          organization_id?: string | null
+          organization_id?: string
           phone_number?: string | null
           qr_code?: string | null
           updated_at?: string | null
@@ -606,7 +606,7 @@ export type Database = {
           last_contact: string | null
           name: string
           notes: string | null
-          organization_id: string | null
+          organization_id: string
           phone: string
           return_date: string | null
           source: string | null
@@ -630,7 +630,7 @@ export type Database = {
           last_contact?: string | null
           name: string
           notes?: string | null
-          organization_id?: string | null
+          organization_id: string
           phone: string
           return_date?: string | null
           source?: string | null
@@ -654,7 +654,7 @@ export type Database = {
           last_contact?: string | null
           name?: string
           notes?: string | null
-          organization_id?: string | null
+          organization_id?: string
           phone?: string
           return_date?: string | null
           source?: string | null
@@ -712,7 +712,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           name: string
-          organization_id: string | null
+          organization_id: string
           updated_at: string
           user_id: string
         }
@@ -723,7 +723,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           name: string
-          organization_id?: string | null
+          organization_id: string
           updated_at?: string
           user_id: string
         }
@@ -734,7 +734,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           name?: string
-          organization_id?: string | null
+          organization_id?: string
           updated_at?: string
           user_id?: string
         }
@@ -934,7 +934,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
-          organization_id: string | null
+          organization_id: string
           user_id: string
         }
         Insert: {
@@ -942,7 +942,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
-          organization_id?: string | null
+          organization_id: string
           user_id: string
         }
         Update: {
@@ -950,7 +950,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
-          organization_id?: string | null
+          organization_id?: string
           user_id?: string
         }
         Relationships: [
