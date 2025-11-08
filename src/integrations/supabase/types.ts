@@ -1150,6 +1150,10 @@ export type Database = {
         Args: { org_name: string; owner_user_id?: string }
         Returns: string
       }
+      ensure_org_has_pipeline_stages: {
+        Args: { _org_id: string }
+        Returns: undefined
+      }
       get_all_organizations_with_members: {
         Args: never
         Returns: {
