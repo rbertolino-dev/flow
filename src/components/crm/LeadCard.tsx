@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Building2, Calendar as CalendarIcon, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone } from "lucide-react";
+import { Phone, Mail, Building2, Calendar as CalendarIcon, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone, MessageCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSortable } from "@dnd-kit/sortable";
@@ -25,6 +25,7 @@ interface LeadCardProps {
   isSelected?: boolean;
   onToggleSelection?: () => void;
   instanceName?: string;
+  onDelete?: (leadId: string) => void;
 }
 
 const sourceColors: Record<string, string> = {
@@ -35,7 +36,7 @@ const sourceColors: Record<string, string> = {
   Facebook: "bg-accent text-accent-foreground",
 };
 
-export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName }: LeadCardProps) {
+export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName, onDelete }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
@@ -129,6 +130,25 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
     onClick();
   };
 
+  const handleWhatsAppClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const phone = lead.phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/${phone.startsWith('55') ? phone : '55' + phone}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handlePhoneClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.location.href = `tel:${lead.phone}`;
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(lead.id);
+    }
+  };
+
   const dragListeners = editingName || editingValue ? {} : listeners;
 
   return (
@@ -214,21 +234,23 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-1">
-            <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
-              {lead.source}
-            </Badge>
-            {instanceName && (
-              <Badge variant="outline" className="text-xs">
-                <Smartphone className="h-3 w-3 mr-1" />
-                {instanceName}
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-wrap gap-1 justify-end">
+              <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
+                {lead.source}
               </Badge>
-            )}
+              {instanceName && (
+                <Badge variant="outline" className="text-xs">
+                  <Smartphone className="h-3 w-3 mr-1" />
+                  {instanceName}
+                </Badge>
+              )}
+            </div>
             {lead.returnDate && (
-              <Badge variant="outline" className="text-xs">
-                <Clock className="h-3 w-3 mr-1" />
-                {format(new Date(lead.returnDate), "dd/MM/yy", { locale: ptBR })}
-              </Badge>
+              <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-md text-sm font-medium border border-primary/20">
+                <Clock className="h-4 w-4 inline-block mr-1.5" />
+                Retorno: {format(new Date(lead.returnDate), "dd/MM/yy", { locale: ptBR })}
+              </div>
             )}
           </div>
         </div>
@@ -260,8 +282,30 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
 
         <div className="space-y-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">{formatBrazilianPhone(lead.phone)}</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Phone className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate flex-1">{formatBrazilianPhone(lead.phone)}</span>
+            </div>
+            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                onClick={handleWhatsAppClick}
+                title="Abrir WhatsApp"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
+                onClick={handlePhoneClick}
+                title="Ligar"
+              >
+                <Phone className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           {lead.email && (
             <div className="flex items-center gap-2">
@@ -367,8 +411,21 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
           )}
         </div>
 
-        <div className="text-xs text-muted-foreground">
-          Responsável: <span className="font-medium text-foreground">{lead.assignedTo}</span>
+        <div className="flex items-center justify-between text-xs">
+          <div className="text-muted-foreground">
+            Responsável: <span className="font-medium text-foreground">{lead.assignedTo}</span>
+          </div>
+          {onDelete && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={handleDeleteClick}
+              title="Excluir lead"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {lead.tags && lead.tags.length > 0 && (

@@ -15,9 +15,10 @@ interface KanbanColumnProps {
   allStages: PipelineStage[];
   onStageChange: (leadId: string, newStageId: string) => void;
   instanceMap?: Map<string, string>;
+  onDeleteLead?: (leadId: string) => void;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange, instanceMap }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -62,7 +63,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
           items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="p-4 space-y-3 min-h-full">
+          <div className="p-3 space-y-3 min-h-full">
             {leads.map((lead) => {
               const instanceName = lead.sourceInstanceId && instanceMap 
                 ? instanceMap.get(lead.sourceInstanceId) 
@@ -78,6 +79,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                   isSelected={selectedLeadIds?.has(lead.id) || false}
                   onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}
                   instanceName={instanceName}
+                  onDelete={onDeleteLead}
                 />
               );
             })}
