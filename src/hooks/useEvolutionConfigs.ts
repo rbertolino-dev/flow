@@ -129,10 +129,16 @@ export function useEvolutionConfigs() {
 
   const updateConfig = async (id: string, configData: Partial<EvolutionConfig>) => {
     try {
+      // Normalizar URL se estiver sendo atualizada
+      const updateData: any = { ...configData };
+      if (updateData.api_url) {
+        updateData.api_url = normalizeApiUrl(updateData.api_url);
+      }
+      
       const { error } = await (supabase as any)
         .from('evolution_config')
         .update({
-          ...configData,
+          ...updateData,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
