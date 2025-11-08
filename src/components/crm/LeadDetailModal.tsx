@@ -26,6 +26,7 @@ import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { supabase } from "@/integrations/supabase/client";
+import { extractConnectionState } from "@/lib/evolutionStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +80,37 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const [returnDate, setReturnDate] = useState<string>(
     lead.returnDate ? format(new Date(lead.returnDate), "yyyy-MM-dd") : ""
   );
+  const [liveStatus, setLiveStatus] = useState<Record<string, boolean | null>>({});
+
+  // Helpers para status ao vivo
+  const normalizeApiUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      let base = u.origin + u.pathname.replace(/\/$/, '');
+      base = base.replace(/\/(manager|dashboard|app)$/i, '');
+      return base;
+    } catch {
+      return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+    }
+  };
+
+  const computeLiveStatuses = async () => {
+    const statusMap: Record<string, boolean | null> = {};
+    await Promise.allSettled((configs || []).map(async (cfg) => {
+      try {
+        const base = normalizeApiUrl(cfg.api_url);
+        const url = `${base}/instance/connectionState/${cfg.instance_name}`;
+        const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        statusMap[cfg.id] = extractConnectionState(data);
+      } catch {
+        statusMap[cfg.id] = null;
+      }
+    }));
+    setLiveStatus(statusMap);
+    return statusMap;
+  };
 
   // Instâncias: todas do ambiente atual, com conectadas primeiro
   const allInstances = useMemo(() => (configs || []).slice().sort((a, b) => Number(b.is_connected) - Number(a.is_connected)), [configs]);
@@ -95,9 +127,12 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   // Atualização imediata ao abrir
   useEffect(() => {
     if (open) {
+      // Atualiza status local e também persiste no backend
+      computeLiveStatuses();
       refreshStatuses();
     }
   }, [open]);
+
 
   // Separar mensagens do WhatsApp do restante das atividades
   const whatsappMessages = useMemo(() => {
@@ -325,10 +360,15 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const handleRefreshStatus = async () => {
     setIsRefreshingStatus(true);
     try {
-      const res = await refreshStatuses();
+      const [liveMap, res] = await Promise.all([
+        computeLiveStatuses(),
+        refreshStatuses(),
+      ]);
+      const connected = Object.values(liveMap).filter((v) => v === true).length;
+      const total = (configs || []).length;
       toast({
         title: "Status atualizado",
-        description: res ? `${res.connected}/${res.total} conectadas` : "Status das instâncias foi atualizado",
+        description: `${connected}/${total} conectadas`,
       });
     } catch (error: any) {
       toast({
@@ -589,9 +629,9 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                             value={config.id}
                           >
                             <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${config.is_connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                              <div className={`w-2 h-2 rounded-full ${(liveStatus[config.id] ?? config.is_connected) ? 'bg-success' : 'bg-destructive'}`} />
                               {config.instance_name}
-                              {!config.is_connected && (
+                              {!(liveStatus[config.id] ?? config.is_connected) && (
                                 <span className="text-xs text-muted-foreground">(desconectada)</span>
                               )}
                             </div>
