@@ -165,34 +165,52 @@ export function usePipelineStages() {
 
   const deleteStage = async (id: string) => {
     try {
-      // Verificar se é a primeira etapa (position = 0)
+      // Verificar etapa e determinar destino
       const stageToDelete = stages.find(s => s.id === id);
       
-      if (stageToDelete?.position === 0) {
-        toast({
-          title: "Não permitido",
-          description: "A primeira etapa não pode ser excluída. Você pode editá-la se desejar.",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      // Obter a primeira etapa (para mover os leads)
-      const firstStage = stages.find(s => s.position === 0);
-      
-      if (!firstStage) {
+      if (!stageToDelete) {
         toast({
           title: "Erro",
-          description: "Não foi possível encontrar a primeira etapa do funil.",
+          description: "Etapa não encontrada.",
           variant: "destructive",
         });
         return false;
       }
 
-      // Mover todos os leads desta etapa para a primeira etapa
+      // Determinar etapa de destino para os leads
+      let destinationStage: PipelineStage | undefined;
+
+      if (stageToDelete.position === 0) {
+        // Permitir excluir uma etapa na posição 0 se houver outras etapas também em 0
+        destinationStage = stages.find(s => s.position === 0 && s.id !== id);
+        if (!destinationStage) {
+          toast({
+            title: "Não permitido",
+            description: "Precisa existir pelo menos uma etapa inicial (posição 0). Mova outra etapa para 0 antes de excluir.",
+            variant: "destructive",
+          });
+          return false;
+        }
+      } else {
+        destinationStage = stages.find(s => s.position === 0);
+        if (!destinationStage) {
+          // Fallback: menor posição disponível diferente da etapa a excluir
+          destinationStage = stages.filter(s => s.id !== id).sort((a, b) => a.position - b.position)[0];
+        }
+        if (!destinationStage) {
+          toast({
+            title: "Erro",
+            description: "Não foi possível determinar a etapa de destino.",
+            variant: "destructive",
+          });
+          return false;
+        }
+      }
+
+      // Mover todos os leads desta etapa para a etapa de destino
       const { error: updateLeadsError } = await (supabase as any)
         .from('leads')
-        .update({ stage_id: firstStage.id })
+        .update({ stage_id: destinationStage.id })
         .eq('stage_id', id);
 
       if (updateLeadsError) throw updateLeadsError;
