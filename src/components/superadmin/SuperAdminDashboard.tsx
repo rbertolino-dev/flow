@@ -160,9 +160,13 @@ export function SuperAdminDashboard() {
         <OrganizationDetailPanel
           organization={selectedOrg}
           onClose={() => setSelectedOrg(null)}
-          onUpdate={() => {
-            fetchAllOrganizations();
-            setSelectedOrg(null);
+          onUpdate={async () => {
+            await fetchAllOrganizations();
+            // Atualizar a organização selecionada com os dados atualizados
+            const updatedOrg = organizations.find(o => o.id === selectedOrg.id);
+            if (updatedOrg) {
+              setSelectedOrg(updatedOrg);
+            }
           }}
         />
       </div>
