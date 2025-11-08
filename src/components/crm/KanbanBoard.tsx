@@ -178,7 +178,6 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     });
 
     clearSelection();
-    onRefetch();
   };
 
   const handleAddToCallQueue = async () => {
