@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X } from "lucide-react";
+import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck } from "lucide-react";
 import { CreateUserDialog } from "./CreateUserDialog";
+import { AddExistingUserDialog } from "./AddExistingUserDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -47,6 +48,7 @@ interface OrganizationDetailPanelProps {
 
 export function OrganizationDetailPanel({ organization, onClose, onUpdate }: OrganizationDetailPanelProps) {
   const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [addExistingUserOpen, setAddExistingUserOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
   const [removing, setRemoving] = useState(false);
   const { toast } = useToast();
@@ -131,10 +133,16 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                 Membros ({organization.organization_members.length})
               </h3>
             </div>
-            <Button onClick={() => setCreateUserOpen(true)} size="lg">
-              <UserPlus className="h-4 w-4 mr-2" />
-              Adicionar Usuário Nesta Empresa
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setAddExistingUserOpen(true)} size="lg" variant="outline">
+                <UserCheck className="h-4 w-4 mr-2" />
+                Adicionar Existente
+              </Button>
+              <Button onClick={() => setCreateUserOpen(true)} size="lg">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Criar Novo Usuário
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -196,6 +204,13 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
         onOpenChange={setCreateUserOpen}
         onSuccess={onUpdate}
         preselectedOrgId={organization.id}
+      />
+
+      <AddExistingUserDialog
+        open={addExistingUserOpen}
+        onOpenChange={setAddExistingUserOpen}
+        onSuccess={onUpdate}
+        organizationId={organization.id}
       />
 
       <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>
