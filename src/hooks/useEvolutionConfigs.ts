@@ -97,18 +97,36 @@ export function useEvolutionConfigs() {
       if (!user) throw new Error("Usuário não autenticado");
 
       const orgId = await getUserOrganizationId();
+      
+      // Normalizar e limpar dados
+      const normalizedUrl = normalizeApiUrl(configData.api_url);
+      const cleanedApiKey = configData.api_key.trim();
+      const cleanedInstanceName = configData.instance_name.trim();
+      
+      console.log('➕ Criando nova instância:', {
+        original_url: configData.api_url,
+        normalized_url: normalizedUrl,
+        instance_name: cleanedInstanceName,
+        organization_id: orgId
+      });
+      
       const { error } = await (supabase as any)
         .from('evolution_config')
         .insert({
           user_id: user.id,
           organization_id: orgId,
-          api_url: normalizeApiUrl(configData.api_url),
-          api_key: configData.api_key,
-          instance_name: configData.instance_name,
+          api_url: normalizedUrl,
+          api_key: cleanedApiKey,
+          instance_name: cleanedInstanceName,
           webhook_enabled: true,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao criar instância:', error);
+        throw error;
+      }
+
+      console.log('✅ Instância criada com sucesso');
 
       toast({
         title: "✅ Instância criada",
@@ -118,6 +136,7 @@ export function useEvolutionConfigs() {
       await fetchConfigs();
       return true;
     } catch (error: any) {
+      console.error('❌ Erro completo ao criar:', error);
       toast({
         title: "❌ Erro ao criar instância",
         description: error.message,
@@ -131,22 +150,34 @@ export function useEvolutionConfigs() {
     try {
       console.log('🔧 updateConfig chamado:', { id, configData });
       
-      // Normalizar URL se estiver sendo atualizada
-      const updateData: any = { ...configData };
-      if (updateData.api_url) {
-        const normalizedUrl = normalizeApiUrl(updateData.api_url);
-        console.log('🔄 URL normalizada:', { original: updateData.api_url, normalized: normalizedUrl });
+      // Normalizar e limpar todos os dados
+      const updateData: any = {};
+      
+      if (configData.api_url !== undefined) {
+        const normalizedUrl = normalizeApiUrl(configData.api_url);
+        console.log('🔄 URL normalizada:', { original: configData.api_url, normalized: normalizedUrl });
         updateData.api_url = normalizedUrl;
       }
+      
+      if (configData.api_key !== undefined) {
+        updateData.api_key = configData.api_key.trim();
+      }
+      
+      if (configData.instance_name !== undefined) {
+        updateData.instance_name = configData.instance_name.trim();
+      }
+      
+      if (configData.webhook_enabled !== undefined) {
+        updateData.webhook_enabled = configData.webhook_enabled;
+      }
+      
+      updateData.updated_at = new Date().toISOString();
       
       console.log('💾 Dados a serem salvos:', updateData);
       
       const { error } = await (supabase as any)
         .from('evolution_config')
-        .update({
-          ...updateData,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (error) {
