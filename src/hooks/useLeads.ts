@@ -153,18 +153,26 @@ export function useLeads() {
       const organizationId = await getUserOrganizationId();
       if (!organizationId) throw new Error('Usuário não pertence a uma organização');
 
-      const { error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from('leads')
         .update({
           stage_id: newStageId,
           last_contact: new Date().toISOString(),
         })
-        .eq('id', leadId);
+        .eq('id', leadId)
+        .select('id, stage_id')
+        .maybeSingle();
+
 
       if (updateError) {
         console.error('❌ Erro ao atualizar lead:', updateError);
         throw updateError;
       }
+      if (!updated || updated.stage_id !== newStageId) {
+        console.warn('⚠️ Update não refletiu no banco', { updated, expected: newStageId });
+        throw new Error('Falha ao confirmar atualização de etapa.');
+      }
+
 
       // Add activity (org-scoped)
       const { error: activityError } = await supabase.from('activities').insert({
