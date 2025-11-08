@@ -106,6 +106,9 @@ export function useEvolutionConfigs() {
 
       const orgId = await getUserOrganizationId();
       
+      console.log('🔍 DEBUG - Organization ID:', orgId);
+      console.log('🔍 DEBUG - User ID:', user.id);
+      
       if (!orgId) {
         throw new Error("Você não pertence a nenhuma organização. Por favor, contate o administrador.");
       }
@@ -119,8 +122,23 @@ export function useEvolutionConfigs() {
         original_url: configData.api_url,
         normalized_url: normalizedUrl,
         instance_name: cleanedInstanceName,
+        user_id: user.id,
         organization_id: orgId
       });
+      
+      // Verificar se o usuário realmente pertence a esta org
+      const { data: memberCheck, error: memberError } = await supabase
+        .from('organization_members')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('organization_id', orgId)
+        .single();
+      
+      console.log('🔍 DEBUG - Member check:', { memberCheck, memberError });
+      
+      if (memberError || !memberCheck) {
+        throw new Error('Você não tem permissão para criar instâncias nesta organização.');
+      }
       
       const { error } = await (supabase as any)
         .from('evolution_config')
