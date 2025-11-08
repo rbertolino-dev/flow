@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Badge } from "@/components/ui/badge";
-import { ensureUserOrganization } from "@/lib/organizationUtils";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface BulkImportPanelProps {
   onImportComplete: () => void;
@@ -132,7 +132,8 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const orgId = await ensureUserOrganization();
+      const orgId = await getUserOrganizationId();
+      if (!orgId) throw new Error("Usuário não pertence a uma organização");
 
       let successCount = 0;
       let errorCount = 0;
@@ -144,7 +145,7 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
             .from('leads')
             .select('id')
             .eq('phone', contact.phone)
-            .eq('user_id', user.id)
+            .eq('organization_id', orgId)
             .is('deleted_at', null)
             .maybeSingle();
 
