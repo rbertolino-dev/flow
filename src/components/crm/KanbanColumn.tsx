@@ -32,7 +32,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
         isOver ? "border-primary bg-primary/5" : "border-border"
       }`}
     >
-      <div className="p-4 border-b border-border bg-card">
+      <div className="p-3 sm:p-4 border-b border-border bg-card">
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-semibold text-card-foreground">{stage.name}</h2>
           <Badge
