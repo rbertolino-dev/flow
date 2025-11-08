@@ -64,19 +64,18 @@ export function ConvertLidDialog({ lidContact, open, onOpenChange, onConverted }
         return;
       }
 
-      // Criar lead a partir do contato LID
-      const { error: leadError } = await (supabase as any)
-        .from('leads')
-        .insert({
-          user_id: user.id,
-          organization_id: orgId,
-          name: lidContact.name,
-          phone: normalizedPhone,
-          status: 'new',
-          source: 'whatsapp_lid',
-          assigned_to: user.email || 'Sistema',
-          notes: `Convertido de LID: ${lidContact.lid}\n${lidContact.notes || ''}`,
-          last_contact: lidContact.last_contact || new Date().toISOString(),
+      // Criar lead a partir do contato LID usando RPC segura
+      const { data: newLeadId, error: leadError } = await supabase
+        .rpc('create_lead_secure', {
+          p_org_id: orgId,
+          p_name: lidContact.name,
+          p_phone: normalizedPhone,
+          p_email: null,
+          p_company: null,
+          p_value: null,
+          p_stage_id: null,
+          p_notes: `Convertido de LID: ${lidContact.lid}\n${lidContact.notes || ''}`,
+          p_source: 'whatsapp_lid',
         });
 
       if (leadError) throw leadError;

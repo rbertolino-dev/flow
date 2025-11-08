@@ -115,33 +115,47 @@ serve(async (req) => {
       
       const contactName = data.pushName || remoteJid;
 
-      // Verificar configuração da Evolution EXATAMENTE na org que criou
-      console.log(`🔍 Verificando configuração para instância: ${instance}`);
-      
+      // Verificar configuração da Evolution usando segredo exclusivo por organização
+      const url = new URL(req.url);
+      const providedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
+
+      if (!providedSecret) {
+        console.error('❌ Webhook sem segredo');
+        return new Response(
+          JSON.stringify({ success: false, error: 'Missing webhook secret' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const { data: configs, error: configError } = await supabase
         .from('evolution_config')
-        .select('user_id, instance_name, updated_at, id, organization_id')
-        .eq('instance_name', instance)
-        .order('updated_at', { ascending: false })
+        .select('user_id, instance_name, id, organization_id')
+        .eq('webhook_secret', providedSecret)
         .maybeSingle();
 
       if (configError || !configs) {
-        console.error('❌ Configuração não encontrada para esta instância');
+        console.error('❌ Segredo inválido para webhook');
         await supabase.from('evolution_logs').insert({
           user_id: null,
           organization_id: null,
           instance,
           event,
           level: 'error',
-          message: 'Instância não configurada ou desconectada',
+          message: 'Webhook com segredo inválido',
           payload: { error: configError?.message, instance },
         });
         return new Response(
-          JSON.stringify({ success: false, message: 'Instância não configurada' }),
-          { 
-            status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          JSON.stringify({ success: false, message: 'Invalid webhook secret' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Opcional: garantir que o nome da instância corresponda
+      if (configs.instance_name && configs.instance_name !== instance) {
+        console.error('❌ Instance name mismatch para o segredo informado');
+        return new Response(
+          JSON.stringify({ success: false, message: 'Instance mismatch' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -383,14 +397,16 @@ serve(async (req) => {
     // Processar eventos de conexão
     if (event === 'connection.update') {
       console.log(`🔄 Atualizando status de conexão para instância ${instance}`);
-      
+      const url = new URL(req.url);
+      const providedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
+      if (!providedSecret) {
+        return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const { data: configs } = await supabase
         .from('evolution_config')
-        .select('id, updated_at')
-        .eq('instance_name', instance)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
+        .select('id')
+        .eq('webhook_secret', providedSecret)
+        .maybeSingle();
 
       if (configs && payload.state) {
         await supabase
@@ -408,14 +424,16 @@ serve(async (req) => {
     // Processar QR Code
     if (event === 'qrcode.updated') {
       console.log(`📱 Atualizando QR Code para instância ${instance}`);
-      
+      const url = new URL(req.url);
+      const providedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
+      if (!providedSecret) {
+        return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const { data: configs } = await supabase
         .from('evolution_config')
-        .select('id, updated_at')
-        .eq('instance_name', instance)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
+        .select('id')
+        .eq('webhook_secret', providedSecret)
+        .maybeSingle();
 
       if (configs && payload.qrcode) {
         await supabase

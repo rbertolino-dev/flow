@@ -162,24 +162,21 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
                 .eq('id', leadId);
             }
           } else {
-            // Criar novo lead
-            const { data: newLead, error: leadError } = await (supabase as any)
-              .from('leads')
-              .insert({
-                name: contact.name,
-                phone: contact.phone,
-                source: 'Manual',
-                status: 'new',
-                user_id: user.id,
-                organization_id: orgId,
-                assigned_to: user.email,
-                stage_id: showStageSelector ? selectedStageId : null,
-              })
-              .select('id')
-              .single();
+            // Criar novo lead via RPC segura
+            const { data: newLeadId, error: leadError } = await supabase.rpc('create_lead_secure', {
+              p_org_id: orgId,
+              p_name: contact.name,
+              p_phone: contact.phone,
+              p_email: null,
+              p_company: null,
+              p_value: null,
+              p_stage_id: showStageSelector ? selectedStageId : null,
+              p_notes: 'Importado em massa',
+              p_source: 'manual',
+            });
 
             if (leadError) throw leadError;
-            leadId = newLead.id;
+            leadId = newLeadId as string;
           }
 
           // Adicionar à fila de chamadas

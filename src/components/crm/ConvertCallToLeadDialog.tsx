@@ -9,6 +9,7 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { normalizePhone } from "@/lib/phoneUtils";
 
 interface ConvertCallToLeadDialogProps {
   callItem: CallQueueItem | null;
@@ -72,23 +73,20 @@ export function ConvertCallToLeadDialog({ callItem, open, onOpenChange, onConver
           description: `${existingLead.name} foi movido para a etapa selecionada`,
         });
       } else {
-        // Criar novo lead
+        // Criar novo lead via RPC segura
         const selectedStage = stages.find(s => s.id === selectedStageId);
-        
-        const { error: leadError } = await (supabase as any)
-          .from('leads')
-          .insert({
-            user_id: user.id,
-            organization_id: orgId,
-            name: callItem.leadName,
-            phone: callItem.phone,
-            status: 'new',
-            source: 'call_queue',
-            assigned_to: user.email || 'Sistema',
-            stage_id: selectedStageId,
-            notes: `Convertido da fila de ligações:\n${callItem.notes || ''}\n${callItem.callNotes || ''}`.trim(),
-            last_contact: new Date().toISOString(),
-          });
+        const normalized = normalizePhone(callItem.phone);
+        const { data: newLeadId, error: leadError } = await supabase.rpc('create_lead_secure', {
+          p_org_id: orgId,
+          p_name: callItem.leadName,
+          p_phone: normalized,
+          p_email: null,
+          p_company: null,
+          p_value: null,
+          p_stage_id: selectedStageId,
+          p_notes: `Convertido da fila de ligações:\n${callItem.notes || ''}\n${callItem.callNotes || ''}`.trim(),
+          p_source: 'call_queue',
+        });
 
         if (leadError) throw leadError;
 
