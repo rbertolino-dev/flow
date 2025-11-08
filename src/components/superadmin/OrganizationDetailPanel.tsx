@@ -106,91 +106,112 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
 
   return (
     <>
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Building2 className="h-6 w-6 text-primary" />
+      <Card className="max-w-5xl mx-auto shadow-lg">
+        <CardHeader className="p-4 sm:p-6 border-b border-border bg-gradient-to-r from-primary/5 to-primary/10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="p-2 sm:p-3 bg-primary/10 rounded-lg shrink-0">
+                <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-xl sm:text-2xl truncate">{organization.name}</CardTitle>
+                <CardDescription className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span className="truncate">
+                    Criada em {format(new Date(organization.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  </span>
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-2xl">{organization.name}</CardTitle>
-              <CardDescription className="flex items-center gap-2 mt-1">
-                <Calendar className="h-3 w-3" />
-                Criada em {format(new Date(organization.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              </CardDescription>
-            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 self-start sm:self-center">
+              <X className="h-5 w-5" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+        <CardContent className="p-4 sm:p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 bg-muted/50 rounded-lg border border-border">
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <h3 className="text-lg font-semibold">
-                Membros ({organization.organization_members.length})
-              </h3>
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-semibold">
+                  Membros da Organização
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  {organization.organization_members.length} {organization.organization_members.length === 1 ? 'membro' : 'membros'}
+                </p>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => setAddExistingUserOpen(true)} size="lg" variant="outline">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button onClick={() => setAddExistingUserOpen(true)} size="default" variant="outline" className="w-full sm:w-auto">
                 <UserCheck className="h-4 w-4 mr-2" />
                 Adicionar Existente
               </Button>
-              <Button onClick={() => setCreateUserOpen(true)} size="lg">
+              <Button onClick={() => setCreateUserOpen(true)} size="default" className="w-full sm:w-auto">
                 <UserPlus className="h-4 w-4 mr-2" />
-                Criar Novo Usuário
+                Criar Novo
               </Button>
             </div>
           </div>
 
           <div className="space-y-3">
             {organization.organization_members.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Nenhum membro nesta organização</p>
-              </div>
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <div className="p-4 rounded-full bg-muted mb-3">
+                    <Users className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">Nenhum membro nesta organização</p>
+                  <Button onClick={() => setCreateUserOpen(true)} variant="outline" size="sm">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Adicionar primeiro membro
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               organization.organization_members.map((member) => (
-                <Card key={member.user_id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-primary">
-                          {(member.profiles.full_name || member.profiles.email).slice(0, 2).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">
-                            {member.profiles.full_name || member.profiles.email}
+                <Card key={member.user_id} className="hover:shadow-md transition-shadow">
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm sm:text-base font-semibold text-primary">
+                            {(member.profiles.full_name || member.profiles.email).slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-sm sm:text-base truncate">
+                              {member.profiles.full_name || member.profiles.email}
+                            </p>
+                            <Badge variant={getRoleBadgeColor(member.user_roles)} className="text-xs">
+                              <Shield className="h-3 w-3 mr-1" />
+                              {getRoleLabel(member.user_roles)}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {member.role}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{member.profiles.email}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Membro desde {format(new Date(member.created_at), "dd/MM/yyyy")}
                           </p>
-                          <Badge variant={getRoleBadgeColor(member.user_roles)}>
-                            <Shield className="h-3 w-3 mr-1" />
-                            {getRoleLabel(member.user_roles)}
-                          </Badge>
-                          <Badge variant="outline">
-                            {member.role}
-                          </Badge>
                         </div>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {member.profiles.email}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Membro desde {format(new Date(member.created_at), "dd/MM/yyyy")}
-                        </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setMemberToRemove(member)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto shrink-0"
+                      >
+                        Remover
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setMemberToRemove(member)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      Remover
-                    </Button>
                   </div>
                 </Card>
               ))

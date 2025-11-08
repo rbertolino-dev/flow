@@ -177,94 +177,116 @@ export function SuperAdminDashboard() {
 
   return (
     <div className="h-full bg-background overflow-y-auto">
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Crown className="h-8 w-8 text-yellow-500" />
-              <h1 className="text-3xl font-bold">Painel Super Administrador</h1>
+      {/* Header com gradiente */}
+      <div className="border-b border-border bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-yellow-500/10">
+                  <Crown className="h-7 w-7 text-yellow-500" />
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold">Painel Super Administrador</h1>
+              </div>
+              <p className="text-sm sm:text-base text-muted-foreground ml-12">
+                Gerenciamento completo de organizações e usuários
+              </p>
             </div>
-            <p className="text-muted-foreground">
-              Gerenciamento completo de organizações e usuários
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setCreateUserOpen(true)} variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Usuário
-            </Button>
-            <Button onClick={() => setCreateOrgOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Organização
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
+              <Button onClick={() => setCreateUserOpen(true)} variant="outline" className="w-full sm:w-auto">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Usuário
+              </Button>
+              <Button onClick={() => setCreateOrgOpen(true)} className="w-full sm:w-auto">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Organização
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+      {/* Content com max-width e padding responsivo */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        {/* Stats Cards */}
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Empresas</CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Building2 className="h-4 w-4 text-primary" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{organizations.length}</div>
+              <div className="text-2xl sm:text-3xl font-bold">{organizations.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Organizações cadastradas</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="h-4 w-4 text-primary" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalMembers}</div>
+              <div className="text-2xl sm:text-3xl font-bold">{totalMembers}</div>
+              <p className="text-xs text-muted-foreground mt-1">Membros ativos</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="hover:shadow-lg transition-shadow sm:col-span-2 lg:col-span-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Média Usuários/Empresa</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="h-4 w-4 text-primary" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl sm:text-3xl font-bold">
                 {organizations.length > 0 ? (totalMembers / organizations.length).toFixed(1) : '0'}
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Por organização</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Organizations List */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Organizações Cadastradas</h2>
-          <div className="space-y-4">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl sm:text-2xl font-semibold">Organizações Cadastradas</h2>
+            <Badge variant="outline" className="text-sm">
+              {organizations.length} {organizations.length === 1 ? 'organização' : 'organizações'}
+            </Badge>
+          </div>
+          
+          <div className="space-y-3 sm:space-y-4">
             {organizations.map((org) => (
-              <Card key={org.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
+              <Card key={org.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="p-2 bg-primary/10 rounded-lg shrink-0">
                         <Building2 className="h-5 w-5 text-primary" />
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{org.name}</CardTitle>
-                        <CardDescription>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base sm:text-lg truncate">{org.name}</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm mt-1">
                           Criada em {new Date(org.created_at).toLocaleDateString('pt-BR')}
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 sm:shrink-0">
+                      <Badge variant="secondary" className="w-fit">
                         <Users className="h-3 w-3 mr-1" />
-                        {org.organization_members.length} membros
+                        {org.organization_members.length} {org.organization_members.length === 1 ? 'membro' : 'membros'}
                       </Badge>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setSelectedOrg(org)}
+                        className="w-full sm:w-auto"
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         Ver Detalhes
@@ -276,10 +298,24 @@ export function SuperAdminDashboard() {
             ))}
 
             {organizations.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma organização cadastrada ainda</p>
-              </div>
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16">
+                  <div className="p-4 rounded-full bg-muted mb-4">
+                    <Building2 className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm sm:text-base text-muted-foreground text-center">
+                    Nenhuma organização cadastrada ainda
+                  </p>
+                  <Button 
+                    onClick={() => setCreateOrgOpen(true)} 
+                    variant="outline" 
+                    className="mt-4"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar primeira organização
+                  </Button>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
