@@ -1142,6 +1142,10 @@ export type Database = {
         Args: { _manager_id: string; _target_user_id: string }
         Returns: boolean
       }
+      can_schedule_message_for_lead: {
+        Args: { _lead_id: string; _user_id: string }
+        Returns: boolean
+      }
       create_organization_with_owner: {
         Args: { org_name: string; owner_user_id?: string }
         Returns: string
