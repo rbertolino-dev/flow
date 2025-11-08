@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck } from "lucide-react";
+import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2 } from "lucide-react";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { AddExistingUserDialog } from "./AddExistingUserDialog";
+import { DeleteUserDialog } from "./DeleteUserDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -51,6 +52,8 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
   const [addExistingUserOpen, setAddExistingUserOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [deleteUserOpen, setDeleteUserOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   const getRoleBadgeColor = (roles: Array<{ role: string }>) => {
@@ -206,10 +209,17 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setMemberToRemove(member)}
+                        onClick={() => {
+                          setUserToDelete({
+                            id: member.user_id,
+                            name: member.profiles.full_name || member.profiles.email,
+                          });
+                          setDeleteUserOpen(true);
+                        }}
                         className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto shrink-0"
                       >
-                        Remover
+                        <Trash2 className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Excluir</span>
                       </Button>
                     </div>
                   </div>
@@ -233,6 +243,17 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
         onSuccess={onUpdate}
         organizationId={organization.id}
       />
+
+      {userToDelete && (
+        <DeleteUserDialog
+          open={deleteUserOpen}
+          onOpenChange={setDeleteUserOpen}
+          onSuccess={onUpdate}
+          userId={userToDelete.id}
+          userName={userToDelete.name}
+          organizationId={organization.id}
+        />
+      )}
 
       <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>
         <AlertDialogContent>

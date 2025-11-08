@@ -1150,6 +1150,10 @@ export type Database = {
         Args: { org_name: string; owner_user_id?: string }
         Returns: string
       }
+      delete_user_from_organization: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: undefined
+      }
       ensure_org_has_pipeline_stages: {
         Args: { _org_id: string }
         Returns: undefined
@@ -1206,6 +1210,10 @@ export type Database = {
             Returns: boolean
           }
       is_pubdigital_user: { Args: { _user_id: string }; Returns: boolean }
+      transfer_user_data_to_admin: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: undefined
+      }
       user_belongs_to_org: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean

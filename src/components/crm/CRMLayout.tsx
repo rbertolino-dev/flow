@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
+import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import agilizeLogo from "@/assets/agilize-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -166,6 +167,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         </nav>
 
         <div className="p-4 border-t border-sidebar-border space-y-3">
+          {sidebarOpen && (
+            <OrganizationSwitcher />
+          )}
+          
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold shrink-0">
               {(userEmail?.split('@')[0].slice(0,2).toUpperCase() || 'US')}
@@ -249,6 +254,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   </nav>
 
                   <div className="p-4 border-t space-y-3">
+                    <OrganizationSwitcher />
+                    
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
                         {(userEmail?.split('@')[0].slice(0,2).toUpperCase() || 'US')}
