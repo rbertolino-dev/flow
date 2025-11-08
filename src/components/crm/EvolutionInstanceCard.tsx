@@ -8,6 +8,7 @@ import { useState } from "react";
 import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
+import { extractConnectionState } from "@/lib/evolutionStatus";
 
 interface EvolutionInstanceCardProps {
   config: EvolutionConfig;
@@ -45,7 +46,7 @@ export function EvolutionInstanceCard({
       }
 
       const data = await response.json();
-      const isConnected = data.state === 'open';
+      const isConnected = extractConnectionState(data) === true;
       setRealStatus(isConnected);
 
       toast({

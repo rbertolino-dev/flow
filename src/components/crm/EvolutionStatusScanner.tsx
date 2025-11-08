@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, XCircle, RefreshCw, AlertCircle } from "lucide-react";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
+import { extractConnectionState } from "@/lib/evolutionStatus";
 
 interface EvolutionStatusScannerProps {
   configs: EvolutionConfig[];
@@ -24,7 +25,7 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
         const res = await fetch(url, { headers: { apikey: cfg.api_key } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const ok = data?.state === "open";
+        const ok = extractConnectionState(data) === true;
         return [cfg.id, { status: ok }] as const;
       })
     );
@@ -131,7 +132,7 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
                             const res = await fetch(url, { headers: { apikey: cfg.api_key } });
                             if (!res.ok) throw new Error(`HTTP ${res.status}`);
                             const data = await res.json();
-                            const ok = data?.state === "open";
+                            const ok = extractConnectionState(data) === true;
                             setResults((prev) => ({ ...prev, [cfg.id]: { status: ok } }));
                           } catch (e: any) {
                             setResults((prev) => ({ ...prev, [cfg.id]: { status: false, error: e?.message } }));
