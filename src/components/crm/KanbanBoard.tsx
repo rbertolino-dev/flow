@@ -293,6 +293,17 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   allStages={stages}
                   onStageChange={onLeadUpdate}
                   instanceMap={instanceMap}
+                  onDeleteLead={async (leadId) => {
+                    await supabase
+                      .from('leads')
+                      .update({ deleted_at: new Date().toISOString() })
+                      .eq('id', leadId);
+                    toast({
+                      title: "Lead excluído",
+                      description: "O lead foi removido com sucesso",
+                    });
+                    onRefetch();
+                  }}
                 />
               );
             })}

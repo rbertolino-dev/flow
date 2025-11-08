@@ -1,4 +1,5 @@
 import { Lead } from "@/types/lead";
+import { buildCopyNumber } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -132,8 +133,8 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
 
   const handleWhatsAppClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const phone = lead.phone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${phone.startsWith('55') ? phone : '55' + phone}`;
+    const copyNumber = buildCopyNumber(lead.phone);
+    const whatsappUrl = `https://wa.me/${copyNumber}`;
     window.open(whatsappUrl, '_blank');
   };
 
