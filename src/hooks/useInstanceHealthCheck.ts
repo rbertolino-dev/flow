@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { EvolutionConfig } from './useEvolutionConfigs';
 import { extractConnectionState } from '@/lib/evolutionStatus';
@@ -7,14 +7,25 @@ interface UseInstanceHealthCheckOptions {
   instances: EvolutionConfig[];
   enabled?: boolean;
   intervalMs?: number;
+  stableIntervalMs?: number; // Intervalo quando instância está estável
+  checksUntilStable?: number; // Quantas checagens positivas até considerar estável
+}
+
+interface InstanceHealth {
+  consecutiveSuccesses: number;
+  isStable: boolean;
+  lastCheck: number;
 }
 
 export function useInstanceHealthCheck({
   instances,
   enabled = true,
   intervalMs = 30000, // 30 segundos por padrão
+  stableIntervalMs = 120000, // 2 minutos quando estável
+  checksUntilStable = 5, // 5 checagens positivas = estável
 }: UseInstanceHealthCheckOptions) {
   const intervalRef = useRef<NodeJS.Timeout>();
+  const [healthMap, setHealthMap] = useState<Record<string, InstanceHealth>>({});
 
   useEffect(() => {
     if (!enabled || instances.length === 0) {
@@ -25,12 +36,30 @@ export function useInstanceHealthCheck({
     }
 
     const checkInstanceHealth = async () => {
+      const now = Date.now();
+      const updatedHealthMap = { ...healthMap };
+
       console.log('🔍 Verificando saúde das instâncias...', {
         count: instances.length,
         timestamp: new Date().toISOString()
       });
 
       for (const instance of instances) {
+        const health = updatedHealthMap[instance.id] || {
+          consecutiveSuccesses: 0,
+          isStable: false,
+          lastCheck: 0,
+        };
+
+        // Se está estável, verificar se já passou tempo suficiente
+        if (health.isStable) {
+          const timeSinceLastCheck = now - health.lastCheck;
+          if (timeSinceLastCheck < stableIntervalMs) {
+            console.log(`⏭️ Instância ${instance.instance_name} estável, pulando checagem (próxima em ${Math.round((stableIntervalMs - timeSinceLastCheck) / 1000)}s)`);
+            continue;
+          }
+        }
+
         try {
           const url = `${instance.api_url}/instance/connectionState/${instance.instance_name}`;
           
@@ -45,11 +74,25 @@ export function useInstanceHealthCheck({
             const data = await response.json();
             const isConnected = extractConnectionState(data);
             
-            console.log(`📊 Status da instância ${instance.instance_name}:`, {
-              was_connected: instance.is_connected,
-              is_connected: isConnected,
-              changed: isConnected !== instance.is_connected
-            });
+            if (isConnected) {
+              // Incrementar sucessos consecutivos
+              health.consecutiveSuccesses++;
+              
+              // Marcar como estável se atingiu o limite
+              if (health.consecutiveSuccesses >= checksUntilStable && !health.isStable) {
+                health.isStable = true;
+                console.log(`✨ Instância ${instance.instance_name} agora é ESTÁVEL (${health.consecutiveSuccesses} checagens positivas). Intervalo aumentado para ${stableIntervalMs / 1000}s`);
+              }
+              
+              console.log(`✅ Instância ${instance.instance_name}: conectada (${health.consecutiveSuccesses}/${checksUntilStable} sucessos${health.isStable ? ', ESTÁVEL' : ''})`);
+            } else {
+              // Resetar contador se desconectou
+              health.consecutiveSuccesses = 0;
+              health.isStable = false;
+              console.log(`❌ Instância ${instance.instance_name}: desconectada. Resetando contador.`);
+            }
+            
+            health.lastCheck = now;
 
             // Atualizar no banco se o status mudou
             if (isConnected !== null && isConnected !== instance.is_connected) {
@@ -65,14 +108,16 @@ export function useInstanceHealthCheck({
 
               if (error) {
                 console.error(`❌ Erro ao atualizar status de ${instance.instance_name}:`, error);
-              } else {
-                console.log(`✅ Status de ${instance.instance_name} atualizado com sucesso`);
               }
             }
           } else {
             console.warn(`⚠️ Falha ao verificar ${instance.instance_name}: HTTP ${response.status}`);
             
-            // Se não conseguiu verificar e estava conectado, marcar como desconectado
+            // Resetar e marcar como desconectado
+            health.consecutiveSuccesses = 0;
+            health.isStable = false;
+            health.lastCheck = now;
+            
             if (instance.is_connected) {
               await supabase
                 .from('evolution_config')
@@ -86,7 +131,11 @@ export function useInstanceHealthCheck({
         } catch (error) {
           console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, error);
           
-          // Em caso de erro de rede, marcar como desconectado
+          // Resetar e marcar como desconectado em caso de erro
+          health.consecutiveSuccesses = 0;
+          health.isStable = false;
+          health.lastCheck = now;
+          
           if (instance.is_connected) {
             await supabase
               .from('evolution_config')
@@ -97,13 +146,17 @@ export function useInstanceHealthCheck({
               .eq('id', instance.id);
           }
         }
+
+        updatedHealthMap[instance.id] = health;
       }
+
+      setHealthMap(updatedHealthMap);
     };
 
     // Executar verificação imediata
     checkInstanceHealth();
 
-    // Configurar verificação periódica
+    // Configurar verificação periódica (sempre no intervalo curto, mas pula instâncias estáveis)
     intervalRef.current = setInterval(checkInstanceHealth, intervalMs);
 
     return () => {
@@ -111,7 +164,7 @@ export function useInstanceHealthCheck({
         clearInterval(intervalRef.current);
       }
     };
-  }, [instances, enabled, intervalMs]);
+  }, [instances, enabled, intervalMs, stableIntervalMs, checksUntilStable, healthMap]);
 
   return null;
 }
