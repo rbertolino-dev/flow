@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -65,9 +65,10 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
   const { addToQueue } = useCallQueue();
   const { deleteLead } = useLeads();
-  const { configs, loading: configsLoading } = useEvolutionConfigs();
+  const { configs, loading: configsLoading, refetch: refetchConfigs } = useEvolutionConfigs();
   const { templates, applyTemplate } = useMessageTemplates();
   const { toast } = useToast();
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const [selectedTagId, setSelectedTagId] = useState<string>("");
   const [newComment, setNewComment] = useState<string>("");
   const [whatsappMessage, setWhatsappMessage] = useState<string>("");
@@ -314,6 +315,25 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     }
   };
 
+  const handleRefreshStatus = async () => {
+    setIsRefreshingStatus(true);
+    try {
+      await refetchConfigs();
+      toast({
+        title: "Status atualizado",
+        description: "Status das instâncias foi atualizado",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshingStatus(false);
+    }
+  };
+
   const availableTags = tags.filter(
     tag => !lead.tags?.some(lt => lt.id === tag.id)
   );
@@ -519,10 +539,22 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
             {/* Enviar Mensagem WhatsApp */}
             <div className="space-y-3">
-              <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
-                Enviar Mensagem WhatsApp
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+                  Enviar Mensagem WhatsApp
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefreshStatus}
+                  disabled={isRefreshingStatus}
+                  className="gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Atualizar Status</span>
+                </Button>
+              </div>
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="instance-select">Instância Evolution</Label>
