@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+
 
 export interface ScheduledMessage {
   id: string;
@@ -57,12 +57,10 @@ export function useScheduledMessages(leadId?: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const orgId = await getUserOrganizationId();
       const { data, error } = await supabase
         .from('scheduled_messages')
         .insert({
           user_id: user.id,
-          organization_id: orgId,
           lead_id: params.leadId,
           instance_id: params.instanceId,
           phone: params.phone,
@@ -70,7 +68,7 @@ export function useScheduledMessages(leadId?: string) {
           scheduled_for: params.scheduledFor.toISOString(),
           media_url: params.mediaUrl || null,
           media_type: params.mediaType || null,
-        })
+        } as any)
         .select()
         .single();
 
