@@ -8,6 +8,7 @@ import { EvolutionLogsPanel } from "./EvolutionLogsPanel";
 import { WebhookLogsPanel } from "./WebhookLogsPanel";
 import { ImportContactsPanel } from "./ImportContactsPanel";
 import { SendTestMessagePanel } from "./SendTestMessagePanel";
+import { WebhookTestPanel } from "./WebhookTestPanel";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,11 +50,12 @@ export function EvolutionInstanceDetails({ config }: EvolutionInstanceDetailsPro
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="webhook" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="webhook">Webhook</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="import">Importar</TabsTrigger>
             <TabsTrigger value="test">Testar</TabsTrigger>
+            <TabsTrigger value="diagnostics">Diagnóstico</TabsTrigger>
           </TabsList>
 
           <TabsContent value="webhook" className="space-y-4">
@@ -95,6 +97,10 @@ export function EvolutionInstanceDetails({ config }: EvolutionInstanceDetailsPro
 
           <TabsContent value="test" className="space-y-4">
             <SendTestMessagePanel config={config} />
+          </TabsContent>
+
+          <TabsContent value="diagnostics" className="space-y-4">
+            <WebhookTestPanel config={config} />
           </TabsContent>
         </Tabs>
       </CardContent>

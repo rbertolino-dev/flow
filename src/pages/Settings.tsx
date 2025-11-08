@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
+import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -211,18 +212,21 @@ export default function Settings() {
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
-                    {configs.map((config) => (
-                      <EvolutionInstanceCard
-                        key={config.id}
-                        config={config}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                        onToggleWebhook={toggleWebhook}
-                        onTest={testConnection}
-                        onConfigureWebhook={configureWebhook}
-                      />
-                    ))}
+                  <div className="space-y-4">
+                    <EvolutionStatusScanner configs={configs} />
+                    <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
+                      {configs.map((config) => (
+                        <EvolutionInstanceCard
+                          key={config.id}
+                          config={config}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onToggleWebhook={toggleWebhook}
+                          onTest={testConnection}
+                          onConfigureWebhook={configureWebhook}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
