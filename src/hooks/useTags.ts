@@ -78,11 +78,8 @@ export function useTags() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
-      // Obter organization_id de forma segura usando a função RPC
-      const { data: orgId, error: orgErr } = await supabase
-        .rpc('get_user_organization', { _user_id: session.user.id });
-
-      if (orgErr) throw orgErr;
+      // Obter organization_id da organização ativa
+      const orgId = await getUserOrganizationId();
       
       if (!orgId) {
         toast({
