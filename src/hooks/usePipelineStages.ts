@@ -237,7 +237,7 @@ export function usePipelineStages() {
         description: "Etapa removida com sucesso. Os leads foram movidos para a primeira etapa.",
       });
 
-      await fetchStages();
+      // Não chamar fetchStages aqui - o realtime subscription vai atualizar automaticamente
       return true;
     } catch (error: any) {
       console.error('Erro completo ao deletar etapa:', error);
