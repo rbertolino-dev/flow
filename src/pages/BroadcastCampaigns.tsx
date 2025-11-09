@@ -251,18 +251,19 @@ export default function BroadcastCampaigns() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Obter organização ativa do usuário
-      const orgId = await getUserOrganizationId();
-      if (!orgId) {
+      // Obter organization_id usando a função RLS do banco
+      const { data: orgData, error: orgError } = await supabase
+        .rpc('get_user_organization', { _user_id: user.id });
+      
+      if (orgError || !orgData) {
         throw new Error("Usuário não pertence a nenhuma organização");
       }
-
 
       const { data: campaign, error: campaignError } = await supabase
         .from("broadcast_campaigns")
         .insert({
           user_id: user.id,
-          organization_id: orgId,
+          organization_id: orgData,
           name: newCampaign.name,
           instance_id: newCampaign.instanceId,
           message_template_id: newCampaign.templateId || null,
