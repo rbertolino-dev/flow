@@ -219,7 +219,7 @@ export function useCallQueue() {
         description: "A ligação foi marcada como concluída e salva no histórico.",
       });
 
-      await fetchCallQueue();
+      // O realtime já vai atualizar automaticamente, não precisa refetch manual
     } catch (error: any) {
       console.error('❌ Erro geral ao completar ligação:', error);
       toast({
