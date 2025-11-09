@@ -358,10 +358,11 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     }
 
     try {
+      const localMidday = returnDate ? new Date(`${returnDate}T12:00:00`) : null;
       const { error } = await (supabase as any)
         .from('leads')
         .update({ 
-          return_date: returnDate ? new Date(returnDate).toISOString() : null,
+          return_date: localMidday ? localMidday.toISOString() : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', lead.id);
