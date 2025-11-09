@@ -70,17 +70,18 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                 : undefined;
               
               return (
-                <LeadCard 
-                  key={lead.id} 
-                  lead={lead} 
-                  onClick={() => onLeadClick(lead)}
-                  stages={allStages}
-                  onStageChange={onStageChange}
-                  isSelected={selectedLeadIds?.has(lead.id) || false}
-                  onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}
-                  instanceName={instanceName}
-                  onDelete={onDeleteLead}
-                />
+                <div key={lead.id} className="mr-2 sm:mr-3">
+                  <LeadCard 
+                    lead={lead} 
+                    onClick={() => onLeadClick(lead)}
+                    stages={allStages}
+                    onStageChange={onStageChange}
+                    isSelected={selectedLeadIds?.has(lead.id) || false}
+                    onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}
+                    instanceName={instanceName}
+                    onDelete={onDeleteLead}
+                  />
+                </div>
               );
             })}
             {leads.length === 0 && (
