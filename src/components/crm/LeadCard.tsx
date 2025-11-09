@@ -239,33 +239,45 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
         </div>
 
         {/* Telefone em destaque */}
-        <div className="flex items-center gap-2">
-          <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
-          <span className="font-semibold text-base text-foreground flex-1">{formatBrazilianPhone(lead.phone)}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
+            <span className="font-semibold text-base text-foreground">{formatBrazilianPhone(lead.phone)}</span>
+          </div>
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+              onClick={handleWhatsAppClick}
+              title="Abrir WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
+              onClick={handlePhoneClick}
+              title="Ligar"
+            >
+              <Phone className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        {/* Botões de ação em destaque */}
-        <div className="grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="outline"
-            className="w-full text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-            onClick={handleWhatsAppClick}
-          >
-            <MessageCircle className="h-4 w-4 mr-2" />
-            WhatsApp
-          </Button>
-          <Button
-            variant="default"
-            className="w-full"
-            onClick={(e) => {
-              e.stopPropagation();
-              setScheduleDialogOpen(true);
-            }}
-          >
-            <CalendarIcon className="h-4 w-4 mr-2" />
-            Agendar
-          </Button>
-        </div>
+        {/* Botão de Agendar em destaque */}
+        <Button
+          variant="default"
+          className="w-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            setScheduleDialogOpen(true);
+          }}
+        >
+          <CalendarIcon className="h-4 w-4 mr-2" />
+          Agendar
+        </Button>
 
         {/* Informações compactas */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
