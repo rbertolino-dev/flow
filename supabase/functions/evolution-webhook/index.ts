@@ -117,7 +117,9 @@ serve(async (req) => {
 
       // Verificar configuração da Evolution usando segredo exclusivo por organização
       const url = new URL(req.url);
-      const providedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
+      const providedSecret = req.headers.get('x-webhook-secret') || 
+                            url.searchParams.get('secret') ||
+                            rawPayload.apikey; // Fallback para apikey do payload
 
       if (!providedSecret) {
         console.error('❌ Webhook sem segredo');
@@ -398,7 +400,9 @@ serve(async (req) => {
     if (event === 'connection.update') {
       console.log(`🔄 Atualizando status de conexão para instância ${instance}`);
       const url = new URL(req.url);
-      const providedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
+      const providedSecret = req.headers.get('x-webhook-secret') || 
+                            url.searchParams.get('secret') ||
+                            rawPayload.apikey;
       if (!providedSecret) {
         return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -425,7 +429,9 @@ serve(async (req) => {
     if (event === 'qrcode.updated') {
       console.log(`📱 Atualizando QR Code para instância ${instance}`);
       const url = new URL(req.url);
-      const providedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
+      const providedSecret = req.headers.get('x-webhook-secret') || 
+                            url.searchParams.get('secret') ||
+                            rawPayload.apikey;
       if (!providedSecret) {
         return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
