@@ -424,15 +424,10 @@ export default function BroadcastCampaigns() {
 
   const handleCancelCampaign = async (campaignId: string) => {
     try {
-      // Cancelar todos os itens pendentes/agendados
-      await supabase
-        .from("broadcast_queue")
-        .update({ status: "cancelled" })
-        .eq("campaign_id", campaignId)
-        .in("status", ["pending", "scheduled"]);
-
-      // Atualizar status da campanha
-      await supabase
+      setLoading(true);
+      
+      // PASSO 1: Atualizar status da campanha PRIMEIRO para bloquear novos envios
+      const { error: campaignError } = await supabase
         .from("broadcast_campaigns")
         .update({ 
           status: "cancelled",
@@ -440,9 +435,26 @@ export default function BroadcastCampaigns() {
         })
         .eq("id", campaignId);
 
+      if (campaignError) throw campaignError;
+
+      // PASSO 2: Cancelar TODOS os itens pendentes/agendados da fila
+      const { data: cancelledItems, error: queueError } = await supabase
+        .from("broadcast_queue")
+        .update({ 
+          status: "cancelled",
+          error_message: "Campanha cancelada pelo usuário"
+        })
+        .eq("campaign_id", campaignId)
+        .in("status", ["pending", "scheduled"])
+        .select("id");
+
+      if (queueError) throw queueError;
+
+      const cancelledCount = cancelledItems?.length || 0;
+
       toast({
         title: "Campanha cancelada",
-        description: "A campanha foi cancelada com sucesso",
+        description: `Campanha cancelada com sucesso. ${cancelledCount} mensagens foram canceladas e não serão enviadas.`,
       });
 
       fetchCampaigns();
@@ -452,6 +464,8 @@ export default function BroadcastCampaigns() {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 

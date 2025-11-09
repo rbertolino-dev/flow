@@ -27,6 +27,7 @@ serve(async (req) => {
         *,
         campaign:broadcast_campaigns(
           id,
+          status,
           custom_message,
           message_template:message_templates(content),
           instance:evolution_config(api_url, api_key, instance_name)
@@ -47,14 +48,61 @@ serve(async (req) => {
       );
     }
 
+    // SEGURANÇA EXTRA: Filtrar itens de campanhas canceladas
+    const validItems = queueItems.filter(item => {
+      if (!item.campaign) {
+        console.log(`⚠️ Item ${item.id} sem campanha associada - IGNORADO`);
+        return false;
+      }
+      if (item.campaign.status === 'cancelled') {
+        console.log(`🚫 Item ${item.id} de campanha CANCELADA - BLOQUEADO`);
+        // Marcar como cancelado imediatamente
+        supabase
+          .from("broadcast_queue")
+          .update({ 
+            status: "cancelled",
+            error_message: "Campanha foi cancelada"
+          })
+          .eq("id", item.id);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`✅ ${validItems.length} itens válidos para envio (${queueItems.length - validItems.length} bloqueados por segurança)`);
+
+    if (validItems.length === 0) {
+      return new Response(
+        JSON.stringify({ processed: 0, blocked: queueItems.length, message: "Todos os itens foram bloqueados (campanhas canceladas)" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     let processed = 0;
     let failed = 0;
+    let blocked = queueItems.length - validItems.length;
 
-    for (const item of queueItems) {
+    for (const item of validItems) {
       try {
         const campaign = item.campaign;
         if (!campaign || !campaign.instance) {
           throw new Error("Configuração da campanha inválida");
+        }
+
+        // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Dupla verificação do status da campanha
+        if (campaign.status === 'cancelled' || campaign.status === 'paused') {
+          console.log(`🛑 BLOQUEIO DE SEGURANÇA: Campanha ${campaign.id} está ${campaign.status} - mensagem NÃO será enviada`);
+          
+          await supabase
+            .from("broadcast_queue")
+            .update({
+              status: "cancelled",
+              error_message: `Bloqueado: campanha ${campaign.status}`,
+            })
+            .eq("id", item.id);
+          
+          blocked++;
+          continue; // Pular este item
         }
 
         const message = campaign.custom_message || campaign.message_template?.content || "";
@@ -167,10 +215,10 @@ serve(async (req) => {
       }
     }
 
-    console.log(`✨ Processamento concluído: ${processed} enviados, ${failed} falhas`);
+    console.log(`✨ Processamento concluído: ${processed} enviados, ${failed} falhas, ${blocked} bloqueados`);
 
     return new Response(
-      JSON.stringify({ processed, failed }),
+      JSON.stringify({ processed, failed, blocked }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

@@ -93,6 +93,7 @@ serve(async (req) => {
     // Buscar configuração da Evolution API da organização
     const { data: config, error: configError } = await supabaseClient
       .from('evolution_config')
+      .select('*')
       .eq('organization_id', organizationId)
       .maybeSingle();
 
