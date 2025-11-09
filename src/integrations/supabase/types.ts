@@ -926,6 +926,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "scheduled_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "scheduled_messages_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
