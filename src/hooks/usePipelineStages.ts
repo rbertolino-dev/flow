@@ -232,12 +232,16 @@ export function usePipelineStages() {
 
       if (error) throw error;
 
+      // Otimista: remover localmente para evitar efeito de "não sumiu"
+      setStages(prev => prev.filter(s => s.id !== id));
+
       toast({
         title: "Etapa removida",
         description: "Etapa removida com sucesso. Os leads foram movidos para a primeira etapa.",
       });
 
-      // Não chamar fetchStages aqui - o realtime subscription vai atualizar automaticamente
+      // Garantir atualização mesmo sem realtime
+      await fetchStages();
       return true;
     } catch (error: any) {
       console.error('Erro completo ao deletar etapa:', error);
