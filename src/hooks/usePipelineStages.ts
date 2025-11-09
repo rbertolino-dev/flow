@@ -225,12 +225,21 @@ export function usePipelineStages() {
       if (updateLeadsError) throw updateLeadsError;
 
       // Deletar a etapa
-      const { error } = await (supabase as any)
+      const { data: deletedRows, error } = await (supabase as any)
         .from('pipeline_stages')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+      if (!deletedRows || deletedRows.length === 0) {
+        toast({
+          title: "Exclusão não aplicada",
+          description: "Sem permissão para excluir esta etapa na organização ativa. Verifique sua organização ativa.",
+          variant: "destructive",
+        });
+        return false;
+      }
 
       // Otimista: remover localmente para evitar efeito de "não sumiu"
       setStages(prev => prev.filter(s => s.id !== id));
