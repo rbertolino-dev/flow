@@ -46,6 +46,7 @@ interface LeadDetailModalProps {
   lead: Lead;
   open: boolean;
   onClose: () => void;
+  onUpdated?: () => void;
 }
 
 const activityIcons = {
@@ -62,7 +63,7 @@ const activityColors = {
   status_change: "text-warning",
 };
 
-export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
+export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead } = useLeads();
@@ -358,11 +359,13 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     }
 
     try {
-      const localMidday = returnDate ? new Date(`${returnDate}T12:00:00`) : null;
+      // Construir a data no horário local (meio-dia) para evitar shift por fuso
+      const [y, m, d] = returnDate.split('-').map(Number);
+      const localMidday = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
       const { error } = await (supabase as any)
         .from('leads')
         .update({ 
-          return_date: localMidday ? localMidday.toISOString() : null,
+          return_date: localMidday.toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('id', lead.id);
@@ -371,11 +374,11 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
 
       toast({
         title: "Data de retorno salva",
-        description: `Retorno agendado para ${format(new Date(returnDate), "dd/MM/yyyy", { locale: ptBR })}`,
+        description: `Retorno agendado para ${format(localMidday, "dd/MM/yyyy", { locale: ptBR })}`,
       });
 
-      // Não fechar o modal, apenas mostrar sucesso
-      // Os dados serão atualizados automaticamente via refetch
+      // Solicitar atualização da lista/board
+      onUpdated?.();
     } catch (error: any) {
       console.error('Erro ao salvar data de retorno:', error);
       toast({

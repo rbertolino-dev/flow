@@ -459,13 +459,14 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         </div>
       )}
 
-      {selectedLead && (
-        <LeadDetailModal
-          lead={selectedLead}
-          open={!!selectedLead}
-          onClose={() => setSelectedLead(null)}
-        />
-      )}
+        {selectedLead && (
+          <LeadDetailModal
+            lead={selectedLead}
+            open={!!selectedLead}
+            onClose={() => setSelectedLead(null)}
+            onUpdated={onRefetch}
+          />
+        )}
     </>
   );
 }
