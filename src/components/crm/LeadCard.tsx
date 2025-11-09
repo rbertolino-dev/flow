@@ -263,6 +263,18 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
             >
               <Phone className="h-4 w-4" />
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                setScheduleDialogOpen(true);
+              }}
+              title="Agendar"
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
