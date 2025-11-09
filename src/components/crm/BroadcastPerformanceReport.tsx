@@ -1,6 +1,16 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, Pie, PieChart, XAxis, YAxis, Legend, Cell } from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CalendarIcon } from "lucide-react";
+import { format as formatDate } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 
 interface PerformanceReportProps {
   campaigns: any[];
@@ -8,14 +18,72 @@ interface PerformanceReportProps {
   dateFilter?: Date;
 }
 
-export function BroadcastPerformanceReport({ campaigns, instances, dateFilter }: PerformanceReportProps) {
-  // Filtrar campanhas com base na data
-  const filteredCampaigns = campaigns.filter(campaign => {
-    if (!dateFilter) return true;
-    const sentDate = campaign.started_at ? new Date(campaign.started_at) : null;
-    if (!sentDate) return false;
-    return sentDate.toDateString() === dateFilter.toDateString();
-  });
+export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: externalDateFilter }: PerformanceReportProps) {
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+
+  // Função para filtrar campanhas com base no período e datas
+  const getFilteredCampaigns = () => {
+    let filtered = campaigns;
+
+    // Aplicar filtro de período
+    if (periodFilter !== "all" && periodFilter !== "custom") {
+      const now = new Date();
+      let cutoffDate: Date;
+
+      switch (periodFilter) {
+        case "7days":
+          cutoffDate = subDays(now, 7);
+          break;
+        case "30days":
+          cutoffDate = subDays(now, 30);
+          break;
+        case "3months":
+          cutoffDate = subMonths(now, 3);
+          break;
+        case "6months":
+          cutoffDate = subMonths(now, 6);
+          break;
+        default:
+          cutoffDate = new Date(0);
+      }
+
+      filtered = filtered.filter(campaign => {
+        const sentDate = campaign.started_at ? new Date(campaign.started_at) : null;
+        return sentDate && sentDate >= cutoffDate;
+      });
+    }
+
+    // Aplicar filtro de data customizado
+    if (periodFilter === "custom") {
+      if (startDate) {
+        filtered = filtered.filter(campaign => {
+          const sentDate = campaign.started_at ? new Date(campaign.started_at) : null;
+          return sentDate && sentDate >= startOfDay(startDate);
+        });
+      }
+      if (endDate) {
+        filtered = filtered.filter(campaign => {
+          const sentDate = campaign.started_at ? new Date(campaign.started_at) : null;
+          return sentDate && sentDate <= endOfDay(endDate);
+        });
+      }
+    }
+
+    // Aplicar filtro de data externa (vindo do componente pai)
+    if (externalDateFilter) {
+      filtered = filtered.filter(campaign => {
+        const sentDate = campaign.started_at ? new Date(campaign.started_at) : null;
+        if (!sentDate) return false;
+        return sentDate.toDateString() === externalDateFilter.toDateString();
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredCampaigns = getFilteredCampaigns();
 
   // Taxa de sucesso geral
   const successRateData = filteredCampaigns.map(campaign => ({
@@ -72,13 +140,28 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter }:
     const instanceCampaigns = filteredCampaigns.filter(c => c.instance_id === instance.id);
     const totalSent = instanceCampaigns.reduce((sum, c) => sum + (c.sent_count || 0), 0);
     const totalFailed = instanceCampaigns.reduce((sum, c) => sum + (c.failed_count || 0), 0);
+    const totalCampaigns = instanceCampaigns.length;
     return {
       name: instance.instance_name,
       enviados: totalSent,
       falhas: totalFailed,
-      total: totalSent + totalFailed
+      total: totalSent + totalFailed,
+      campanhas: totalCampaigns
     };
   }).filter(item => item.total > 0);
+
+  // Calcular totais gerais
+  const totalStats = {
+    totalEnviados: filteredCampaigns.reduce((sum, c) => sum + (c.sent_count || 0), 0),
+    totalFalhas: filteredCampaigns.reduce((sum, c) => sum + (c.failed_count || 0), 0),
+    totalCampanhas: filteredCampaigns.length,
+    taxaSucesso: 0
+  };
+  
+  const totalGeral = totalStats.totalEnviados + totalStats.totalFalhas;
+  if (totalGeral > 0) {
+    totalStats.taxaSucesso = ((totalStats.totalEnviados / totalGeral) * 100);
+  }
 
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#8b5cf6', '#f59e0b'];
 
@@ -99,6 +182,120 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter }:
 
   return (
     <div className="space-y-6">
+      {/* Filtros */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros de Período</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os períodos</SelectItem>
+                  <SelectItem value="7days">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30days">Últimos 30 dias</SelectItem>
+                  <SelectItem value="3months">Últimos 3 meses</SelectItem>
+                  <SelectItem value="6months">Últimos 6 meses</SelectItem>
+                  <SelectItem value="custom">Período customizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {periodFilter === "custom" && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[200px] justify-start">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDate ? formatDate(startDate, "PPP", { locale: ptBR }) : "Data inicial"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[200px] justify-start">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDate ? formatDate(endDate, "PPP", { locale: ptBR }) : "Data final"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {(startDate || endDate) && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setStartDate(undefined);
+                      setEndDate(undefined);
+                    }}
+                  >
+                    Limpar datas
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Estatísticas Gerais */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total de Campanhas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalStats.totalCampanhas}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Enviados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{totalStats.totalEnviados}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Falhas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{totalStats.totalFalhas}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Sucesso</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-success">{totalStats.taxaSucesso.toFixed(1)}%</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Taxa de Sucesso por Campanha */}
       <Card>
         <CardHeader>
@@ -180,36 +377,46 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter }:
           {instanceData.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <ChartContainer config={chartConfig} className="h-[300px] w-full">
-                <PieChart>
-                  <Pie
-                    data={instanceData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="hsl(var(--primary))"
-                    dataKey="total"
-                  >
-                    {instanceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
+                <BarChart data={instanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                  <YAxis />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                </PieChart>
+                  <Legend />
+                  <Bar dataKey="enviados" fill="hsl(var(--primary))" name="Enviados" />
+                  <Bar dataKey="falhas" fill="hsl(var(--destructive))" name="Falhas" />
+                </BarChart>
               </ChartContainer>
               <div className="space-y-2">
+                <div className="font-semibold mb-3 text-lg">Resumo por Instância</div>
                 {instanceData.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-4 h-4 rounded" 
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      />
-                      <span className="font-medium">{item.name}</span>
+                  <div key={index} className="p-4 border rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-4 h-4 rounded" 
+                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        />
+                        <span className="font-medium">{item.name}</span>
+                      </div>
+                      <Badge variant="outline">{item.campanhas} campanhas</Badge>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {item.enviados} enviados / {item.falhas} falhas
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <div className="text-muted-foreground">Total</div>
+                        <div className="font-semibold">{item.total}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Enviados</div>
+                        <div className="font-semibold text-primary">{item.enviados}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Falhas</div>
+                        <div className="font-semibold text-destructive">{item.falhas}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Taxa de sucesso: {item.total > 0 ? ((item.enviados / item.total) * 100).toFixed(1) : 0}%
                     </div>
                   </div>
                 ))}
