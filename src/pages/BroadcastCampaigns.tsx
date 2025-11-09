@@ -60,6 +60,7 @@ export default function BroadcastCampaigns() {
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [sentDateFilter, setSentDateFilter] = useState<Date | undefined>(undefined);
   const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
+  const [instanceFilter, setInstanceFilter] = useState<string>("all");
   const { toast } = useToast();
 
   const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
@@ -457,7 +458,9 @@ export default function BroadcastCampaigns() {
       }
     }
     
-    return matchesSearch && matchesDate;
+    const matchesInstance = instanceFilter === "all" || campaign.instance_id === instanceFilter;
+    
+    return matchesSearch && matchesDate && matchesInstance;
   });
 
   if (loading && campaigns.length === 0) {
@@ -795,9 +798,11 @@ export default function BroadcastCampaigns() {
                       <XCircle className="h-3 w-3" />
                       Falhas: {campaign.failed_count}
                     </span>
-                    <span className="text-muted-foreground">
-                      Instância: {instances.find(i => i.id === campaign.instance_id)?.instance_name || 'N/A'}
-                    </span>
+                  </div>
+                  <div className="mt-2 mb-1">
+                    <Badge variant="outline" className="font-semibold text-base">
+                      {instances.find(i => i.id === campaign.instance_id)?.instance_name || 'N/A'}
+                    </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 space-y-1">
                     <div>Criada em: {formatDate(new Date(campaign.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>

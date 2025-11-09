@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -181,7 +182,8 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
   };
 
   return (
-    <div className="space-y-6">
+    <ScrollArea className="h-[calc(100vh-200px)]">
+      <div className="space-y-6 pr-4">
       {/* Filtros */}
       <Card>
         <CardHeader>
@@ -428,5 +430,6 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
         </CardContent>
       </Card>
     </div>
+    </ScrollArea>
   );
 }
