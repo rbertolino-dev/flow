@@ -6,12 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { ColumnWidth, getColumnWidthClass } from "@/hooks/useKanbanSettings";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface KanbanColumnProps {
   stage: PipelineStage;
   leads: Lead[];
   selectedLeadIds?: Set<string>;
   onToggleSelection?: (leadId: string) => void;
+  onToggleAllInStage?: (stageId: string, leadIds: string[]) => void;
   onLeadClick: (lead: Lead) => void;
   allStages: PipelineStage[];
   onStageChange: (leadId: string, newStageId: string) => void;
@@ -20,12 +22,23 @@ interface KanbanColumnProps {
   columnWidth: ColumnWidth;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead, columnWidth }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead, columnWidth }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
 
   const totalValue = leads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+  
+  // Verificar se todos os leads da etapa estão selecionados
+  const allSelected = leads.length > 0 && leads.every(lead => selectedLeadIds?.has(lead.id));
+  const someSelected = leads.some(lead => selectedLeadIds?.has(lead.id)) && !allSelected;
+
+  const handleToggleAll = () => {
+    if (onToggleAllInStage) {
+      const leadIds = leads.map(lead => lead.id);
+      onToggleAllInStage(stage.id, leadIds);
+    }
+  };
 
   return (
     <div
@@ -36,7 +49,20 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
     >
       <div className="p-3 sm:p-4 border-b border-border bg-card">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold text-card-foreground">{stage.name}</h2>
+          <div className="flex items-center gap-2">
+            {onToggleAllInStage && leads.length > 0 && (
+              <div className="flex items-center">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={handleToggleAll}
+                  className="h-5 w-5"
+                  title={allSelected ? "Desmarcar todos" : "Selecionar todos"}
+                  aria-label={allSelected ? "Desmarcar todos os leads desta etapa" : "Selecionar todos os leads desta etapa"}
+                />
+              </div>
+            )}
+            <h2 className="font-semibold text-card-foreground">{stage.name}</h2>
+          </div>
           <Badge
             variant="secondary"
             style={{

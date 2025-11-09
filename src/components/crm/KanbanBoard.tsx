@@ -160,6 +160,23 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     });
   };
 
+  const toggleAllInStage = (stageId: string, leadIds: string[]) => {
+    setSelectedLeadIds(prev => {
+      const newSet = new Set(prev);
+      const allSelected = leadIds.every(id => newSet.has(id));
+      
+      if (allSelected) {
+        // Desmarcar todos da etapa
+        leadIds.forEach(id => newSet.delete(id));
+      } else {
+        // Marcar todos da etapa
+        leadIds.forEach(id => newSet.add(id));
+      }
+      
+      return newSet;
+    });
+  };
+
   const clearSelection = () => {
     setSelectedLeadIds(new Set());
   };
@@ -349,6 +366,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   leads={columnLeads}
                   selectedLeadIds={selectedLeadIds}
                   onToggleSelection={toggleLeadSelection}
+                  onToggleAllInStage={toggleAllInStage}
                   onLeadClick={setSelectedLead}
                   allStages={stages}
                   onStageChange={onLeadUpdate}
