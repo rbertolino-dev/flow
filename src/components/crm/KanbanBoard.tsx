@@ -190,7 +190,15 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
     
     try {
-      const orgId = await ensureUserOrganization();
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        toast({
+          title: 'Erro',
+          description: 'Organização não encontrada',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       for (const lead of selectedLeads) {
         const { error } = await supabase.from('call_queue').insert({
@@ -199,6 +207,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
           scheduled_for: new Date().toISOString(),
           priority: 'normal',
           status: 'pending',
+          created_by: user.id,
         });
         if (error) throw error;
       }
