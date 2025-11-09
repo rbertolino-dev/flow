@@ -5,6 +5,7 @@ import { LeadCard } from "./LeadCard";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PipelineStage } from "@/hooks/usePipelineStages";
+import { ColumnWidth, getColumnWidthClass } from "@/hooks/useKanbanSettings";
 
 interface KanbanColumnProps {
   stage: PipelineStage;
@@ -16,9 +17,10 @@ interface KanbanColumnProps {
   onStageChange: (leadId: string, newStageId: string) => void;
   instanceMap?: Map<string, string>;
   onDeleteLead?: (leadId: string) => void;
+  columnWidth: ColumnWidth;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead, columnWidth }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -28,7 +30,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-full sm:w-80 bg-secondary/30 rounded-lg border transition-colors flex flex-col ${
+      className={`flex-shrink-0 ${getColumnWidthClass(columnWidth)} bg-secondary/30 rounded-lg border transition-colors flex flex-col ${
         isOver ? "border-primary bg-primary/5" : "border-border"
       }`}
     >
@@ -63,7 +65,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
           items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="p-4 pr-6 space-y-3 min-h-full">
+          <div className="p-4 pl-3 pr-4 space-y-3 min-h-full">
             {leads.map((lead) => {
               const instanceName = lead.sourceInstanceId && instanceMap 
                 ? instanceMap.get(lead.sourceInstanceId) 

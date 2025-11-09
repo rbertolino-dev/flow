@@ -4,9 +4,11 @@ import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
+import { KanbanSettings } from "./KanbanSettings";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useKanbanSettings } from "@/hooks/useKanbanSettings";
 import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
+  const { columnWidth, updateColumnWidth } = useKanbanSettings();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -237,7 +240,12 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
   return (
     <>
-      <div className="flex items-center justify-end p-2 sm:p-4 border-b border-border">
+      <div className="flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
+        <KanbanSettings
+          columnWidth={columnWidth}
+          onColumnWidthChange={updateColumnWidth}
+        />
+        
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2 text-xs sm:text-sm">
@@ -292,6 +300,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   allStages={stages}
                   onStageChange={onLeadUpdate}
                   instanceMap={instanceMap}
+                  columnWidth={columnWidth}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
