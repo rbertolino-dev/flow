@@ -280,23 +280,12 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
         return;
       }
 
-      // Adicionar à fila
-      const orgId = await getUserOrganizationId();
-      if (!orgId) {
-        toast({
-          title: 'Organização não encontrada',
-          description: 'Associe-se a uma organização para usar a fila de ligações.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      const { error } = await supabase.from('call_queue').insert({
-        lead_id: lead.id,
-        organization_id: orgId,
-        scheduled_for: new Date().toISOString(),
-        priority: 'normal',
-        status: 'pending',
-        created_by: user.id,
+      // Adicionar à fila usando função RPC segura
+      const { data: queueId, error } = await supabase.rpc('add_to_call_queue_secure', {
+        p_lead_id: lead.id,
+        p_scheduled_for: new Date().toISOString(),
+        p_priority: 'medium',
+        p_notes: null,
       });
 
       if (error) throw error;

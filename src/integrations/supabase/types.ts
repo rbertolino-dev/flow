@@ -1141,6 +1141,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_to_call_queue_secure: {
+        Args: {
+          p_lead_id: string
+          p_notes?: string
+          p_priority?: string
+          p_scheduled_for?: string
+        }
+        Returns: string
+      }
       can_manage_user: {
         Args: { _manager_id: string; _target_user_id: string }
         Returns: boolean

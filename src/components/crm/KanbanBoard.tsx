@@ -190,32 +190,52 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
     
     try {
-      const orgId = await getUserOrganizationId();
-      if (!orgId) {
-        toast({
-          title: 'Erro',
-          description: 'Organização não encontrada',
-          variant: 'destructive',
-        });
-        return;
-      }
+      let addedCount = 0;
+      let skippedCount = 0;
 
       for (const lead of selectedLeads) {
-        const { error } = await supabase.from('call_queue').insert({
-          lead_id: lead.id,
-          organization_id: orgId,
-          scheduled_for: new Date().toISOString(),
-          priority: 'normal',
-          status: 'pending',
-          created_by: user.id,
+        const { data: queueId, error } = await supabase.rpc('add_to_call_queue_secure', {
+          p_lead_id: lead.id,
+          p_scheduled_for: new Date().toISOString(),
+          p_priority: 'medium',
+          p_notes: null,
         });
-        if (error) throw error;
+
+        if (error) {
+          console.error('Erro ao adicionar lead à fila:', error);
+          skippedCount++;
+          continue;
+        }
+
+        // Verificar se foi criado agora ou já existia
+        const { data: checkExisting } = await supabase
+          .from('call_queue')
+          .select('created_at')
+          .eq('id', queueId)
+          .single();
+
+        const wasJustCreated = checkExisting && 
+          new Date(checkExisting.created_at).getTime() > Date.now() - 5000;
+
+        if (wasJustCreated) {
+          addedCount++;
+        } else {
+          skippedCount++;
+        }
       }
 
-      toast({
-        title: "Adicionado à fila",
-        description: `${selectedLeads.length} lead(s) adicionado(s) à fila de ligações`,
-      });
+      if (addedCount > 0) {
+        toast({
+          title: "Adicionado à fila",
+          description: `${addedCount} lead(s) adicionado(s) à fila de ligações${skippedCount > 0 ? ` (${skippedCount} já estava(m) na fila)` : ''}`,
+        });
+      } else if (skippedCount > 0) {
+        toast({
+          title: "Nenhum lead adicionado",
+          description: `${skippedCount} lead(s) já estava(m) na fila ou não pôde(ram) ser adicionado(s)`,
+          variant: 'destructive',
+        });
+      }
 
       clearSelection();
       onRefetch();

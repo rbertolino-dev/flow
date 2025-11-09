@@ -262,30 +262,55 @@ export function useCallQueue() {
   const addToQueue = async (item: Omit<CallQueueItem, 'id' | 'status'>) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return false;
-
-      // Obter organização atual de forma consistente
-      const orgId = await getUserOrganizationId();
-      if (!orgId) {
+      if (!session) {
         toast({
-          title: 'Organização não encontrada',
-          description: 'Seu usuário não está vinculado a nenhuma organização.',
+          title: 'Não autenticado',
+          description: 'Faça login para adicionar à fila.',
           variant: 'destructive',
         });
         return false;
       }
 
-      // Verificar se já existe ligação pendente ou reagendada para este lead na MESMA organização
-      const { data: existing } = await (supabase as any)
-        .from('call_queue')
-        .select('id')
-        .eq('lead_id', item.leadId)
-        .eq('organization_id', orgId)
-        .in('status', ['pending', 'rescheduled'])
-        .limit(1)
-        .maybeSingle();
+      // Usar função RPC segura que valida permissões e verifica duplicados
+      const { data: queueId, error } = await supabase.rpc('add_to_call_queue_secure', {
+        p_lead_id: item.leadId,
+        p_scheduled_for: (item.scheduledFor ?? new Date()).toISOString(),
+        p_priority: item.priority || 'medium',
+        p_notes: item.notes || null,
+      });
 
-      if (existing) {
+      if (error) {
+        // Mensagens mais claras para erros comuns
+        if (error.message.includes('não pertence à organização')) {
+          toast({
+            title: 'Sem permissão',
+            description: 'Você não tem permissão para adicionar este lead à fila.',
+            variant: 'destructive',
+          });
+        } else if (error.message.includes('não encontrado')) {
+          toast({
+            title: 'Lead não encontrado',
+            description: 'O lead pode ter sido deletado.',
+            variant: 'destructive',
+          });
+        } else {
+          throw error;
+        }
+        return false;
+      }
+
+      // Verificar se retornou ID (novo) ou ID existente (duplicado)
+      // A função retorna o mesmo ID se já existir na fila
+      const { data: checkExisting } = await supabase
+        .from('call_queue')
+        .select('created_at')
+        .eq('id', queueId)
+        .single();
+
+      const wasJustCreated = checkExisting && 
+        new Date(checkExisting.created_at).getTime() > Date.now() - 5000;
+
+      if (!wasJustCreated) {
         toast({
           title: 'Já está na fila',
           description: 'Este lead já possui uma ligação pendente ou reagendada.',
@@ -293,20 +318,6 @@ export function useCallQueue() {
         });
         return false;
       }
-
-      const { error } = await (supabase as any)
-        .from('call_queue')
-        .insert({
-          lead_id: item.leadId,
-          organization_id: orgId,
-          scheduled_for: (item.scheduledFor ?? new Date()).toISOString(),
-          priority: item.priority,
-          notes: item.notes,
-          status: 'pending',
-          created_by: session.user.id,
-        });
-
-      if (error) throw error;
 
       await fetchCallQueue();
       return true;
