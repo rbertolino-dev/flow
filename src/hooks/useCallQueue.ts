@@ -97,7 +97,38 @@ export function useCallQueue() {
         })
       );
 
+      // Build accumulated call counts per lead (completed in queue + history)
+      const leadIds = (queueData || []).map((q: any) => q.lead_id).filter(Boolean);
+      const countsByLead: Record<string, number> = {};
+      if (leadIds.length > 0) {
+        const [completedInQueueRes, completedInHistoryRes] = await Promise.all([
+          (supabase as any)
+            .from('call_queue')
+            .select('lead_id, count:id')
+            .eq('status', 'completed')
+            .in('lead_id', leadIds)
+            .group('lead_id'),
+          (supabase as any)
+            .from('call_queue_history')
+            .select('lead_id, count:id')
+            .eq('action', 'completed')
+            .in('lead_id', leadIds)
+            .group('lead_id'),
+        ]);
+
+        const addToMap = (rows: any[] | null | undefined) => {
+          (rows || []).forEach((r: any) => {
+            const lid = r.lead_id;
+            const c = Number(r.count ?? 0);
+            countsByLead[lid] = (countsByLead[lid] || 0) + c;
+          });
+        };
+        addToMap((completedInQueueRes as any)?.data);
+        addToMap((completedInHistoryRes as any)?.data);
+      }
+
       const formattedQueue = queueWithTags.map((item) => {
+        const computedCount = countsByLead[item.lead_id] ?? (item.leads?.call_count ?? item.call_count ?? 0);
         return {
           id: item.id,
           leadId: item.lead_id,
@@ -110,7 +141,7 @@ export function useCallQueue() {
           tags: item.tags || [],
           queueTags: item.queueTags || [],
           callNotes: item.call_notes || undefined,
-          callCount: (item.leads?.call_count ?? item.call_count ?? 0),
+          callCount: computedCount,
           completedBy: item.completed_by || undefined,
           completedAt: item.completed_at ? new Date(item.completed_at) : undefined,
         };
@@ -149,11 +180,15 @@ export function useCallQueue() {
         .from('call_queue')
         .select('*, leads(id, name, phone, call_count)')
         .eq('id', callId)
-        .single();
+        .maybeSingle();
 
       if (fetchError) {
         console.error('❌ Erro ao buscar item da fila:', fetchError);
         throw fetchError;
+      }
+
+      if (!queueItem) {
+        throw new Error('Item da fila não encontrado');
       }
       
       console.log('✅ Item da fila encontrado:', queueItem);
