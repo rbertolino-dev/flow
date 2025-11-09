@@ -14,24 +14,43 @@ export function useCallQueue() {
   useEffect(() => {
     fetchCallQueue();
 
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel('call-queue-channel')
+    // Real-time subscription para call_queue
+    const queueChannel = supabase
+      .channel('call-queue-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'call_queue'
+          table: 'call_queue',
         },
         () => {
+          console.log('Call queue changed, refetching...');
+          fetchCallQueue();
+        }
+      )
+      .subscribe();
+
+    // Real-time subscription para leads (para pegar mudanças nas tags)
+    const leadsChannel = supabase
+      .channel('leads-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leads',
+        },
+        () => {
+          console.log('Lead updated, refetching call queue...');
           fetchCallQueue();
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(queueChannel);
+      supabase.removeChannel(leadsChannel);
     };
   }, []);
 

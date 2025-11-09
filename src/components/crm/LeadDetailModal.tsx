@@ -64,7 +64,7 @@ const activityColors = {
 
 export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead } = useTags();
-  const { addToQueue } = useCallQueue();
+  const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
   const { templates, applyTemplate } = useMessageTemplates();
@@ -197,6 +197,9 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
     });
 
     if (success) {
+      // Forçar atualização imediata da fila
+      await refetchCallQueue();
+      
       toast({
         title: "Adicionado à fila",
         description: "O lead foi adicionado à fila de ligações.",
