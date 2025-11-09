@@ -10,7 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format as formatDate } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -48,6 +52,8 @@ export default function BroadcastCampaigns() {
   const [pastedList, setPastedList] = useState("");
   const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
@@ -67,6 +73,7 @@ export default function BroadcastCampaigns() {
     customMessage: "",
     minDelay: 30,
     maxDelay: 60,
+    scheduledStart: undefined as Date | undefined,
   });
 
   useEffect(() => {
@@ -234,6 +241,7 @@ export default function BroadcastCampaigns() {
         customMessage: "",
         minDelay: 30,
         maxDelay: 60,
+        scheduledStart: undefined,
       });
       setCsvFile(null);
       setPastedList("");
@@ -318,6 +326,83 @@ export default function BroadcastCampaigns() {
     }
   };
 
+  const handlePauseCampaign = async (campaignId: string) => {
+    try {
+      await supabase
+        .from("broadcast_campaigns")
+        .update({ status: "paused" })
+        .eq("id", campaignId);
+
+      toast({
+        title: "Campanha pausada",
+        description: "A campanha foi pausada com sucesso",
+      });
+
+      fetchCampaigns();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao pausar campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelCampaign = async (campaignId: string) => {
+    try {
+      // Cancelar todos os itens pendentes/agendados
+      await supabase
+        .from("broadcast_queue")
+        .update({ status: "cancelled" })
+        .eq("campaign_id", campaignId)
+        .in("status", ["pending", "scheduled"]);
+
+      // Atualizar status da campanha
+      await supabase
+        .from("broadcast_campaigns")
+        .update({ 
+          status: "cancelled",
+          completed_at: new Date().toISOString()
+        })
+        .eq("id", campaignId);
+
+      toast({
+        title: "Campanha cancelada",
+        description: "A campanha foi cancelada com sucesso",
+      });
+
+      fetchCampaigns();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao cancelar campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResumeCampaign = async (campaignId: string) => {
+    try {
+      await supabase
+        .from("broadcast_campaigns")
+        .update({ status: "running" })
+        .eq("id", campaignId);
+
+      toast({
+        title: "Campanha retomada",
+        description: "A campanha foi retomada com sucesso",
+      });
+
+      fetchCampaigns();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao retomar campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleViewLogs = async (campaignId: string) => {
     try {
       const { data, error } = await supabase
@@ -352,6 +437,12 @@ export default function BroadcastCampaigns() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const filteredCampaigns = campaigns.filter((campaign) => {
+    const matchesSearch = !searchQuery || campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDate = !dateFilter || new Date(campaign.created_at).toDateString() === dateFilter.toDateString();
+    return matchesSearch && matchesDate;
+  });
+
   if (loading && campaigns.length === 0) {
     return <div className="p-6">Carregando...</div>;
   }
@@ -370,7 +461,7 @@ export default function BroadcastCampaigns() {
                 Nova Campanha
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Criar Campanha de Disparo</DialogTitle>
                 <DialogDescription>
@@ -471,6 +562,55 @@ export default function BroadcastCampaigns() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="scheduledStart">Agendar Início da Campanha (opcional)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="scheduledStart"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newCampaign.scheduledStart ? (
+                          formatDate(newCampaign.scheduledStart, "PPP 'às' HH:mm", { locale: ptBR })
+                        ) : (
+                          <span>Selecione data e hora</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={newCampaign.scheduledStart}
+                        onSelect={(date) => setNewCampaign({ ...newCampaign, scheduledStart: date })}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                      {newCampaign.scheduledStart && (
+                        <div className="p-3 border-t">
+                          <Label htmlFor="time" className="text-xs">Hora</Label>
+                          <Input
+                            id="time"
+                            type="time"
+                            value={formatDate(newCampaign.scheduledStart, "HH:mm")}
+                            onChange={(e) => {
+                              const [hours, minutes] = e.target.value.split(":");
+                              const newDate = new Date(newCampaign.scheduledStart!);
+                              newDate.setHours(parseInt(hours), parseInt(minutes));
+                              setNewCampaign({ ...newCampaign, scheduledStart: newDate });
+                            }}
+                            className="mt-1"
+                          />
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                  <p className="text-xs text-muted-foreground">
+                    Se não definir, a campanha iniciará imediatamente ao clicar em "Iniciar"
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Modo de Importação *</Label>
                   <div className="flex gap-2">
                     <Button
@@ -536,8 +676,52 @@ export default function BroadcastCampaigns() {
           </Dialog>
         </CardHeader>
         <CardContent>
+          {/* Filtros */}
+          <div className="mb-6 flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nome da campanha..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[240px] justify-start">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateFilter ? formatDate(dateFilter, "PPP", { locale: ptBR }) : "Filtrar por data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateFilter}
+                  onSelect={setDateFilter}
+                  initialFocus
+                  locale={ptBR}
+                />
+                {dateFilter && (
+                  <div className="p-3 border-t">
+                    <Button
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => setDateFilter(undefined)}
+                    >
+                      Limpar filtro
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+
           <div className="space-y-4">
-            {campaigns.map((campaign) => (
+            {filteredCampaigns.map((campaign) => (
               <div
                 key={campaign.id}
                 className="flex items-center justify-between p-4 border rounded-lg"
@@ -547,10 +731,19 @@ export default function BroadcastCampaigns() {
                     <h3 className="font-medium">{campaign.name}</h3>
                     {getStatusBadge(campaign.status)}
                   </div>
-                  <div className="flex gap-4 text-sm text-muted-foreground">
-                    <span>Total: {campaign.total_contacts}</span>
-                    <span>Enviados: {campaign.sent_count}</span>
-                    <span>Falhas: {campaign.failed_count}</span>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-muted-foreground">Total: {campaign.total_contacts}</span>
+                    <span className="flex items-center gap-1 text-success">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Sucesso: {campaign.sent_count}
+                    </span>
+                    <span className="flex items-center gap-1 text-destructive">
+                      <XCircle className="h-3 w-3" />
+                      Falhas: {campaign.failed_count}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Criada em: {formatDate(new Date(campaign.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -563,6 +756,45 @@ export default function BroadcastCampaigns() {
                       Iniciar
                     </Button>
                   )}
+                  {campaign.status === "running" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePauseCampaign(campaign.id)}
+                      >
+                        <Pause className="h-4 w-4 mr-1" />
+                        Pausar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleCancelCampaign(campaign.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Cancelar
+                      </Button>
+                    </>
+                  )}
+                  {campaign.status === "paused" && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleResumeCampaign(campaign.id)}
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        Retomar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleCancelCampaign(campaign.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Cancelar
+                      </Button>
+                    </>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -574,9 +806,9 @@ export default function BroadcastCampaigns() {
                 </div>
               </div>
             ))}
-            {campaigns.length === 0 && (
+            {filteredCampaigns.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhuma campanha criada ainda
+                {searchQuery || dateFilter ? "Nenhuma campanha encontrada com os filtros aplicados" : "Nenhuma campanha criada ainda"}
               </div>
             )}
           </div>
