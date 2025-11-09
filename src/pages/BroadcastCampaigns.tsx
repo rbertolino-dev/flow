@@ -537,7 +537,8 @@ export default function BroadcastCampaigns() {
   return (
     <AuthGuard>
       <CRMLayout activeView="broadcast" onViewChange={handleViewChange}>
-        <div className="p-6">
+        <div className="h-full overflow-y-auto">
+          <div className="p-4 md:p-6 pb-20 md:pb-6">
           <Tabs defaultValue="campaigns" className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
@@ -549,16 +550,16 @@ export default function BroadcastCampaigns() {
 
             <TabsContent value="campaigns">
               <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Disparo em Massa</CardTitle>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-xl">Disparo em Massa</CardTitle>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 Nova Campanha
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
               <DialogHeader>
                 <DialogTitle>Criar Campanha de Disparo</DialogTitle>
                 <DialogDescription>
@@ -818,10 +819,10 @@ export default function BroadcastCampaigns() {
             </DialogContent>
           </Dialog>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-6">
           {/* Filtros */}
-          <div className="mb-6 flex gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+          <div className="mb-6 flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-full sm:min-w-[200px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -835,7 +836,7 @@ export default function BroadcastCampaigns() {
             </div>
             
             <Select value={dateFilterType} onValueChange={(value: "created" | "sent") => setDateFilterType(value)}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -846,7 +847,7 @@ export default function BroadcastCampaigns() {
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[240px] justify-start">
+                <Button variant="outline" className="w-full sm:w-[240px] justify-start">
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {dateFilterType === "created" && dateFilter 
                     ? formatDate(dateFilter, "PPP", { locale: ptBR })
@@ -894,9 +895,9 @@ export default function BroadcastCampaigns() {
             {filteredCampaigns.map((campaign) => (
               <div
                 key={campaign.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border rounded-lg"
               >
-                  <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="font-medium">{campaign.name}</h3>
                     {getStatusBadge(campaign.status)}
@@ -1086,6 +1087,7 @@ export default function BroadcastCampaigns() {
         </ScrollArea>
         </DialogContent>
       </Dialog>
+          </div>
         </div>
       </CRMLayout>
     </AuthGuard>
