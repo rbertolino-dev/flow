@@ -106,6 +106,7 @@ export type Database = {
           failed_count: number | null
           id: string
           instance_id: string
+          instance_name: string | null
           max_delay_seconds: number
           message_template_id: string | null
           min_delay_seconds: number
@@ -124,6 +125,7 @@ export type Database = {
           failed_count?: number | null
           id?: string
           instance_id: string
+          instance_name?: string | null
           max_delay_seconds?: number
           message_template_id?: string | null
           min_delay_seconds?: number
@@ -142,6 +144,7 @@ export type Database = {
           failed_count?: number | null
           id?: string
           instance_id?: string
+          instance_name?: string | null
           max_delay_seconds?: number
           message_template_id?: string | null
           min_delay_seconds?: number
@@ -617,6 +620,7 @@ export type Database = {
           return_date: string | null
           source: string | null
           source_instance_id: string | null
+          source_instance_name: string | null
           stage_id: string | null
           status: string
           updated_at: string | null
@@ -641,6 +645,7 @@ export type Database = {
           return_date?: string | null
           source?: string | null
           source_instance_id?: string | null
+          source_instance_name?: string | null
           stage_id?: string | null
           status?: string
           updated_at?: string | null
@@ -665,6 +670,7 @@ export type Database = {
           return_date?: string | null
           source?: string | null
           source_instance_id?: string | null
+          source_instance_name?: string | null
           stage_id?: string | null
           status?: string
           updated_at?: string | null
