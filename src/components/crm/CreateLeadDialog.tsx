@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface CreateLeadDialogProps {
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [addToQueue, setAddToQueue] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -71,6 +73,45 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         });
 
       if (error) throw error;
+
+      // Opcionalmente adicionar à fila de ligações
+      if (addToQueue && leadId) {
+        const { error: queueError } = await supabase.rpc('add_to_call_queue_secure', {
+          p_lead_id: leadId as string,
+          p_scheduled_for: new Date().toISOString(),
+          p_priority: 'medium',
+          p_notes: null,
+        });
+
+        if (queueError) {
+          // Mensagens mais claras
+          const msg = (queueError.message || '').toLowerCase();
+          if (msg.includes('não pertence à organização')) {
+            toast({
+              title: 'Sem permissão para fila',
+              description: 'Você não pertence à organização deste lead.',
+              variant: 'destructive',
+            });
+          } else if (msg.includes('lead não encontrado') || msg.includes('não encontrado')) {
+            toast({
+              title: 'Lead não encontrado',
+              description: 'O lead pode ter sido removido.',
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: 'Erro ao adicionar à fila',
+              description: queueError.message,
+              variant: 'destructive',
+            });
+          }
+        } else {
+          toast({
+            title: 'Adicionado à fila',
+            description: 'Contato adicionado (ou já existente) na fila de ligações.',
+          });
+        }
+      }
 
       toast({
         title: "Lead criado",
@@ -190,6 +231,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               placeholder="Informações adicionais..."
               rows={3}
             />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="addToQueue" checked={addToQueue} onCheckedChange={(v) => setAddToQueue(Boolean(v))} />
+            <Label htmlFor="addToQueue">Adicionar à fila de ligações</Label>
           </div>
 
           <DialogFooter>
