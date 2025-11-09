@@ -173,27 +173,18 @@ export default function BroadcastCampaigns() {
     return contacts;
   };
 
-  const handleCreateCampaign = async () => {
-    if (!newCampaign.name || !newCampaign.instanceId || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim())) {
+  // Nova função separada para validar
+  const handleValidateContacts = async () => {
+    if (!newCampaign.instanceId || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim())) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha nome, instância e forneça uma lista de contatos",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!newCampaign.customMessage && !newCampaign.templateId) {
-      toast({
-        title: "Mensagem obrigatória",
-        description: "Escolha um template ou escreva uma mensagem personalizada",
+        description: "Selecione a instância e forneça uma lista de contatos",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      setLoading(true);
       setValidatingContacts(true);
       setValidationResult(null);
 
@@ -223,8 +214,6 @@ export default function BroadcastCampaigns() {
         instance_name: instance.instance_name
       });
 
-      setValidatingContacts(false);
-
       // Mostrar resultado da validação
       const totalParsed = validation.validContacts.length + validation.invalidContacts.length;
       const validFormatted = validation.validContacts.length;
@@ -241,12 +230,79 @@ export default function BroadcastCampaigns() {
       });
 
       if (whatsappValid === 0) {
-        throw new Error("Nenhum contato válido com WhatsApp ativo encontrado");
+        toast({
+          title: "Nenhum contato válido",
+          description: "Nenhum contato com WhatsApp ativo foi encontrado",
+          variant: "destructive",
+        });
+        return;
       }
 
       toast({
         title: "Validação concluída!",
         description: `✅ ${whatsappValid} contatos válidos com WhatsApp | ❌ ${whatsappInvalid} removidos`,
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Erro ao validar contatos",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setValidatingContacts(false);
+    }
+  };
+
+  const handleCreateCampaign = async () => {
+    if (!newCampaign.name || !newCampaign.instanceId) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha nome e instância",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newCampaign.customMessage && !newCampaign.templateId) {
+      toast({
+        title: "Mensagem obrigatória",
+        description: "Escolha um template ou escreva uma mensagem personalizada",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!validationResult || validationResult.whatsappValid === 0) {
+      toast({
+        title: "Validação necessária",
+        description: "Por favor, valide os contatos antes de criar a campanha",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Ler contatos novamente para obter dados validados
+      let text: string;
+      if (importMode === "csv" && csvFile) {
+        text = await csvFile.text();
+      } else {
+        text = pastedList;
+      }
+
+      // Buscar configuração da instância Evolution
+      const instance = instances.find(i => i.id === newCampaign.instanceId);
+      if (!instance) {
+        throw new Error("Instância não encontrada");
+      }
+
+      const validation = await validateContactsComplete(text, newCampaign.instanceId, {
+        api_url: instance.api_url,
+        api_key: instance.api_key,
+        instance_name: instance.instance_name
       });
 
       // Usar apenas os contatos validados com WhatsApp
@@ -328,7 +384,6 @@ export default function BroadcastCampaigns() {
       });
     } finally {
       setLoading(false);
-      setValidatingContacts(false);
     }
   };
 
@@ -816,15 +871,35 @@ export default function BroadcastCampaigns() {
                   </div>
                 )}
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateCampaign} disabled={loading || validatingContacts}>
+                <Button 
+                  onClick={handleValidateContacts} 
+                  disabled={loading || validatingContacts || !newCampaign.instanceId}
+                  variant="secondary"
+                >
                   {validatingContacts ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Validando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Validar Contatos
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleCreateCampaign} 
+                  disabled={loading || validatingContacts || !validationResult || validationResult.whatsappValid === 0}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Criando...
                     </>
                   ) : (
                     "Criar Campanha"
