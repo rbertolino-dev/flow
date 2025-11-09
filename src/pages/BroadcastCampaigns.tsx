@@ -100,8 +100,16 @@ export default function BroadcastCampaigns() {
 
   const fetchCampaigns = async () => {
     try {
-      const orgId = await getUserOrganizationId();
-      if (!orgId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setCampaigns([]);
+        return;
+      }
+
+      const { data: orgData, error: orgError } = await supabase
+        .rpc('get_user_organization', { _user_id: user.id });
+      
+      if (orgError || !orgData) {
         setCampaigns([]);
         return;
       }
@@ -109,7 +117,7 @@ export default function BroadcastCampaigns() {
       const { data, error } = await supabase
         .from("broadcast_campaigns")
         .select("*")
-        .eq("organization_id", orgId)
+        .eq("organization_id", orgData)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
