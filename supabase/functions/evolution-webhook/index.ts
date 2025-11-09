@@ -123,6 +123,15 @@ serve(async (req) => {
                             url.searchParams.get('secret') ||
                             rawPayload.apikey || rawPayload.secret || rawPayload.token; // Fallbacks para apikey/secret/token no payload
 
+      console.log(`🔍 Debug autenticação:`, {
+        hasAuthHeader: !!authHeader,
+        hasWebhookHeader: !!req.headers.get('x-webhook-secret'),
+        hasSecretParam: !!url.searchParams.get('secret'),
+        hasApikey: !!rawPayload.apikey,
+        providedSecretLength: providedSecret?.length || 0,
+        instance
+      });
+
       if (!providedSecret) {
         console.error('❌ Webhook sem segredo');
         return new Response(
@@ -133,12 +142,33 @@ serve(async (req) => {
 
       const { data: configs, error: configError } = await supabase
         .from('evolution_config')
-        .select('user_id, instance_name, id, organization_id')
+        .select('user_id, instance_name, id, organization_id, webhook_secret')
         .eq('webhook_secret', providedSecret)
         .maybeSingle();
 
       if (configError || !configs) {
-        console.error('❌ Segredo inválido para webhook');
+        console.error('❌ Segredo inválido para webhook:', {
+          providedSecretPreview: providedSecret?.substring(0, 8) + '...',
+          instance,
+          error: configError?.message
+        });
+        
+        // Tentar buscar por instance_name para debug
+        const { data: debugConfig } = await supabase
+          .from('evolution_config')
+          .select('instance_name, webhook_secret')
+          .eq('instance_name', instance)
+          .maybeSingle();
+        
+        if (debugConfig) {
+          console.log('⚠️ Instância encontrada, mas segredo diferente:', {
+            expectedSecretPreview: debugConfig.webhook_secret?.substring(0, 8) + '...',
+            receivedSecretPreview: providedSecret?.substring(0, 8) + '...'
+          });
+        } else {
+          console.log('⚠️ Instância não encontrada no banco:', instance);
+        }
+
         await supabase.from('evolution_logs').insert({
           user_id: null,
           organization_id: null,
