@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone } from "@/lib/phoneUtils";
-import { Upload, AlertCircle } from "lucide-react";
+import { Upload, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -29,6 +29,8 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<ParsedContact[]>([]);
   const [selectedStageId, setSelectedStageId] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const { toast } = useToast();
   const { stages, loading: stagesLoading } = usePipelineStages();
 
@@ -236,6 +238,7 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
       setInputText("");
       setPreview([]);
       setSelectedStageId("");
+      setCurrentPage(1);
       onImportComplete();
     } catch (error: any) {
       toast({
@@ -248,51 +251,60 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
     }
   };
 
+  const totalPages = Math.ceil(preview.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPageData = preview.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Upload className="h-5 w-5" />
-          Importação em Massa
+    <Card className="w-full">
+      <CardHeader className="space-y-1 p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+          <Upload className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <span className="truncate">Importação em Massa</span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs sm:text-sm">
           Cole uma lista de contatos para adicionar rapidamente à fila de ligações
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-4 sm:p-6">
         <div>
-          <label className="text-sm font-medium mb-2 block">
+          <label className="text-xs sm:text-sm font-medium mb-2 block">
             Cole os contatos (um por linha)
           </label>
           <Textarea
             placeholder="Exemplos aceitos:&#10;Maria Silva, (11) 98765-4321&#10;21987654321, João Santos&#10;Ana Costa - 11999998888&#10;11988887777 | Pedro Oliveira&#10;Carlos Lima: (21) 99999-8888&#10;+5511987654321 Juliana"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            className="min-h-[200px] font-mono text-sm"
+            className="min-h-[150px] sm:min-h-[200px] font-mono text-xs sm:text-sm"
           />
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             <strong>Formatos aceitos:</strong> Nome, Tel | Tel, Nome | Nome - Tel | Nome; Tel | Nome: Tel | +55Tel Nome
-            <br />
+            <br className="hidden sm:block" />
             <strong>Ordem flexível:</strong> O sistema detecta automaticamente qual parte é o nome e qual é o telefone
           </p>
         </div>
 
         {showStageSelector && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">Etapa do Funil *</label>
+            <label className="text-xs sm:text-sm font-medium">Etapa do Funil *</label>
             <Select value={selectedStageId} onValueChange={setSelectedStageId}>
-              <SelectTrigger>
+              <SelectTrigger className="text-xs sm:text-sm">
                 <SelectValue placeholder="Selecione a etapa inicial" />
               </SelectTrigger>
               <SelectContent className="bg-popover z-50">
                 {stages.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
+                  <SelectItem key={stage.id} value={stage.id} className="text-xs sm:text-sm">
                     <div className="flex items-center gap-2">
                       <div 
-                        className="w-3 h-3 rounded-full" 
+                        className="w-3 h-3 rounded-full flex-shrink-0" 
                         style={{ backgroundColor: stage.color }}
                       />
-                      {stage.name}
+                      <span className="truncate">{stage.name}</span>
                     </div>
                   </SelectItem>
                 ))}
@@ -304,43 +316,99 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button 
             onClick={handlePreview} 
             variant="outline"
             disabled={!inputText.trim()}
+            className="w-full sm:w-auto text-xs sm:text-sm"
           >
             Visualizar
           </Button>
           <Button 
             onClick={handleImport}
             disabled={preview.length === 0 || importing || !preview.some(c => c.valid) || (showStageSelector && !selectedStageId)}
+            className="w-full sm:w-auto text-xs sm:text-sm"
           >
             {importing ? "Importando..." : `Importar ${preview.filter(c => c.valid).length} contatos`}
           </Button>
         </div>
 
         {preview.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">
-              Preview ({preview.filter(c => c.valid).length} válidos de {preview.length})
-            </h4>
-            <div className="max-h-[300px] overflow-y-auto space-y-2">
-              {preview.map((contact, idx) => (
-                <Alert key={idx} variant={contact.valid ? "default" : "destructive"}>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="flex items-center justify-between">
-                    <div>
-                      <strong>{contact.name || "(sem nome)"}</strong>
-                      {contact.phone && <span className="ml-2 text-muted-foreground">{contact.phone}</span>}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs sm:text-sm font-medium">
+                Preview ({preview.filter(c => c.valid).length} válidos de {preview.length})
+              </h4>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="h-7 w-7 p-0 sm:h-8 sm:w-8"
+                  >
+                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </Button>
+                  <span className="text-xs sm:text-sm text-muted-foreground min-w-[60px] sm:min-w-[80px] text-center">
+                    {currentPage} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="h-7 w-7 p-0 sm:h-8 sm:w-8"
+                  >
+                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            
+            <div className="max-h-[300px] sm:max-h-[400px] overflow-y-auto space-y-2">
+              {currentPageData.map((contact, idx) => (
+                <Alert key={startIndex + idx} variant={contact.valid ? "default" : "destructive"} className="py-2 sm:py-3">
+                  <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
+                  <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                    <div className="flex-1 min-w-0">
+                      <strong className="text-xs sm:text-sm block sm:inline truncate">
+                        {contact.name || "(sem nome)"}
+                      </strong>
+                      {contact.phone && (
+                        <span className="ml-0 sm:ml-2 text-xs text-muted-foreground block sm:inline truncate">
+                          {contact.phone}
+                        </span>
+                      )}
                     </div>
                     {!contact.valid && (
-                      <span className="text-xs text-destructive">{contact.error}</span>
+                      <Badge variant="destructive" className="text-[10px] sm:text-xs self-start sm:self-auto whitespace-nowrap">
+                        {contact.error}
+                      </Badge>
                     )}
                   </AlertDescription>
                 </Alert>
               ))}
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex justify-center pt-2">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(page)}
+                      className="h-7 w-7 p-0 text-xs sm:h-8 sm:w-8 sm:text-sm"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
