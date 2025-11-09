@@ -82,6 +82,15 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   );
   const [liveStatus, setLiveStatus] = useState<Record<string, boolean | null>>({});
 
+  // Sincronizar returnDate quando o lead mudar
+  useEffect(() => {
+    if (lead.returnDate) {
+      setReturnDate(format(new Date(lead.returnDate), "yyyy-MM-dd"));
+    } else {
+      setReturnDate("");
+    }
+  }, [lead.returnDate, lead.id]);
+
   // Helpers para status ao vivo
   const normalizeApiUrl = (url: string) => {
     try {
@@ -364,8 +373,8 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
         description: `Retorno agendado para ${format(new Date(returnDate), "dd/MM/yyyy", { locale: ptBR })}`,
       });
 
-      // Atualizar lead local
-      onClose();
+      // Não fechar o modal, apenas mostrar sucesso
+      // Os dados serão atualizados automaticamente via refetch
     } catch (error: any) {
       console.error('Erro ao salvar data de retorno:', error);
       toast({
