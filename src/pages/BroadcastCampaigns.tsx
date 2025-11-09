@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -19,6 +20,7 @@ import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,8 @@ interface Campaign {
   sent_count: number;
   failed_count: number;
   created_at: string;
+  started_at?: string;
+  instance_id: string;
 }
 
 export default function BroadcastCampaigns() {
@@ -54,6 +58,8 @@ export default function BroadcastCampaigns() {
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [sentDateFilter, setSentDateFilter] = useState<Date | undefined>(undefined);
+  const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
   const { toast } = useToast();
 
   const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
@@ -439,7 +445,18 @@ export default function BroadcastCampaigns() {
 
   const filteredCampaigns = campaigns.filter((campaign) => {
     const matchesSearch = !searchQuery || campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDate = !dateFilter || new Date(campaign.created_at).toDateString() === dateFilter.toDateString();
+    
+    let matchesDate = true;
+    if (dateFilterType === "created" && dateFilter) {
+      matchesDate = new Date(campaign.created_at).toDateString() === dateFilter.toDateString();
+    } else if (dateFilterType === "sent" && sentDateFilter) {
+      if (campaign.started_at) {
+        matchesDate = new Date(campaign.started_at).toDateString() === sentDateFilter.toDateString();
+      } else {
+        matchesDate = false;
+      }
+    }
+    
     return matchesSearch && matchesDate;
   });
 
@@ -451,7 +468,17 @@ export default function BroadcastCampaigns() {
     <AuthGuard>
       <CRMLayout activeView="broadcast" onViewChange={handleViewChange}>
         <div className="p-6">
-          <Card>
+          <Tabs defaultValue="campaigns" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
+              <TabsTrigger value="reports">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Relatórios
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="campaigns">
+              <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Disparo em Massa</CardTitle>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -690,27 +717,54 @@ export default function BroadcastCampaigns() {
                 />
               </div>
             </div>
+            
+            <Select value={dateFilterType} onValueChange={(value: "created" | "sent") => setDateFilterType(value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created">Data de Criação</SelectItem>
+                <SelectItem value="sent">Data de Envio</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-[240px] justify-start">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateFilter ? formatDate(dateFilter, "PPP", { locale: ptBR }) : "Filtrar por data"}
+                  {dateFilterType === "created" && dateFilter 
+                    ? formatDate(dateFilter, "PPP", { locale: ptBR })
+                    : dateFilterType === "sent" && sentDateFilter
+                    ? formatDate(sentDateFilter, "PPP", { locale: ptBR })
+                    : "Filtrar por data"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={dateFilter}
-                  onSelect={setDateFilter}
+                  selected={dateFilterType === "created" ? dateFilter : sentDateFilter}
+                  onSelect={(date) => {
+                    if (dateFilterType === "created") {
+                      setDateFilter(date);
+                    } else {
+                      setSentDateFilter(date);
+                    }
+                  }}
                   initialFocus
                   locale={ptBR}
                 />
-                {dateFilter && (
+                {((dateFilterType === "created" && dateFilter) || (dateFilterType === "sent" && sentDateFilter)) && (
                   <div className="p-3 border-t">
                     <Button
                       variant="ghost"
                       className="w-full"
-                      onClick={() => setDateFilter(undefined)}
+                      onClick={() => {
+                        if (dateFilterType === "created") {
+                          setDateFilter(undefined);
+                        } else {
+                          setSentDateFilter(undefined);
+                        }
+                      }}
                     >
                       Limpar filtro
                     </Button>
@@ -726,12 +780,12 @@ export default function BroadcastCampaigns() {
                 key={campaign.id}
                 className="flex items-center justify-between p-4 border rounded-lg"
               >
-                <div className="flex-1">
+                  <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="font-medium">{campaign.name}</h3>
                     {getStatusBadge(campaign.status)}
                   </div>
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex gap-4 text-sm flex-wrap">
                     <span className="text-muted-foreground">Total: {campaign.total_contacts}</span>
                     <span className="flex items-center gap-1 text-success">
                       <CheckCircle2 className="h-3 w-3" />
@@ -741,9 +795,15 @@ export default function BroadcastCampaigns() {
                       <XCircle className="h-3 w-3" />
                       Falhas: {campaign.failed_count}
                     </span>
+                    <span className="text-muted-foreground">
+                      Instância: {instances.find(i => i.id === campaign.instance_id)?.instance_name || 'N/A'}
+                    </span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Criada em: {formatDate(new Date(campaign.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                    <div>Criada em: {formatDate(new Date(campaign.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
+                    {campaign.started_at && (
+                      <div>Enviada em: {formatDate(new Date(campaign.started_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -814,6 +874,16 @@ export default function BroadcastCampaigns() {
           </div>
         </CardContent>
       </Card>
+            </TabsContent>
+
+            <TabsContent value="reports">
+              <BroadcastPerformanceReport 
+                campaigns={campaigns} 
+                instances={instances}
+                dateFilter={sentDateFilter}
+              />
+            </TabsContent>
+          </Tabs>
 
       <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh]">
