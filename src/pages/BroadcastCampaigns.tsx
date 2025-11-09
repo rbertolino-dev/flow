@@ -359,9 +359,8 @@ export default function BroadcastCampaigns() {
   return (
     <AuthGuard>
       <CRMLayout activeView="broadcast" onViewChange={handleViewChange}>
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto p-6 max-w-7xl">
-      <Card>
+        <div className="p-6">
+          <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Disparo em Massa</CardTitle>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -668,7 +667,6 @@ export default function BroadcastCampaigns() {
         </DialogContent>
       </Dialog>
         </div>
-      </div>
       </CRMLayout>
     </AuthGuard>
   );

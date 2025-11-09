@@ -60,12 +60,12 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
         )}
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
         <SortableContext
           items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="p-4 pl-3 pr-4 space-y-3 min-h-full">
+          <div className="p-4 pl-3 pr-4 space-y-3 min-h-full min-w-max">
             {leads.map((lead) => {
               const instanceName = lead.sourceInstanceId && instanceMap 
                 ? instanceMap.get(lead.sourceInstanceId) 
@@ -93,7 +93,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
             )}
           </div>
         </SortableContext>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
