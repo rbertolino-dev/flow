@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -86,7 +87,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   // Sincronizar returnDate quando o lead mudar
   useEffect(() => {
     if (lead.returnDate) {
-      setReturnDate(format(new Date(lead.returnDate), "yyyy-MM-dd"));
+      // Converter UTC para timezone de São Paulo para exibição
+      const TIMEZONE = 'America/Sao_Paulo';
+      const utcDate = new Date(lead.returnDate);
+      const saoPauloDate = toZonedTime(utcDate, TIMEZONE);
+      setReturnDate(format(saoPauloDate, "yyyy-MM-dd"));
     } else {
       setReturnDate("");
     }
@@ -359,13 +364,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     }
 
     try {
-      // Construir a data no horário local (meio-dia) para evitar shift por fuso
+      // Usar timezone fixo de São Paulo
+      const TIMEZONE = 'America/Sao_Paulo';
       const [y, m, d] = returnDate.split('-').map(Number);
-      const localMidday = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+      // Criar data no timezone de São Paulo às 12:00
+      const dateInSaoPaulo = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+      const zonedDate = fromZonedTime(dateInSaoPaulo, TIMEZONE);
+      
       const { error } = await (supabase as any)
         .from('leads')
         .update({ 
-          return_date: localMidday.toISOString(),
+          return_date: zonedDate.toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('id', lead.id);
@@ -374,7 +383,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
       toast({
         title: "Data de retorno salva",
-        description: `Retorno agendado para ${format(localMidday, "dd/MM/yyyy", { locale: ptBR })}`,
+        description: `Retorno agendado para ${format(dateInSaoPaulo, "dd/MM/yyyy", { locale: ptBR })}`,
       });
 
       // Solicitar atualização da lista/board
