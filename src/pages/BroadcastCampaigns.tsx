@@ -550,9 +550,10 @@ export default function BroadcastCampaigns() {
 
             <TabsContent value="campaigns">
               <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-xl">Disparo em Massa</CardTitle>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-xl">Disparo em Massa</CardTitle>
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
@@ -818,6 +819,7 @@ export default function BroadcastCampaigns() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
           {/* Filtros */}
@@ -834,6 +836,23 @@ export default function BroadcastCampaigns() {
                 />
               </div>
             </div>
+            
+            <Select
+              value={instanceFilter}
+              onValueChange={setInstanceFilter}
+            >
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Todas Instâncias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Instâncias</SelectItem>
+                {instances.map((instance) => (
+                  <SelectItem key={instance.id} value={instance.id}>
+                    {instance.instance_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             
             <Select value={dateFilterType} onValueChange={(value: "created" | "sent") => setDateFilterType(value)}>
               <SelectTrigger className="w-full sm:w-[180px]">
