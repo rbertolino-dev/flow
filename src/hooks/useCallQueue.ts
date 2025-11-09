@@ -339,8 +339,14 @@ export function useCallQueue() {
         return false;
       }
 
-      // Sucesso: função já evita duplicados e garante RLS
+      // Sucesso: atualizar a fila para refletir o call_count correto do lead
       await fetchCallQueue();
+      
+      toast({
+        title: 'Adicionado à fila',
+        description: 'Lead adicionado com sucesso. O contador de ligações foi atualizado.',
+      });
+      
       return true;
     } catch (error: any) {
       toast({
