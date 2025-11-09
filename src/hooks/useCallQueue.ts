@@ -281,13 +281,20 @@ export function useCallQueue() {
 
       if (error) {
         // Mensagens mais claras para erros comuns
-        if (error.message.includes('não pertence à organização')) {
+        const errorMsg = (error.message || '').toLowerCase();
+        
+        if (errorMsg.includes('já está na fila')) {
+          toast({
+            title: 'Lead já está na fila',
+            description: 'Este lead já possui uma ligação pendente ou reagendada.',
+          });
+        } else if (errorMsg.includes('não pertence à organização')) {
           toast({
             title: 'Sem permissão',
             description: 'Você não tem permissão para adicionar este lead à fila.',
             variant: 'destructive',
           });
-        } else if (error.message.includes('não encontrado')) {
+        } else if (errorMsg.includes('não encontrado')) {
           toast({
             title: 'Lead não encontrado',
             description: 'O lead pode ter sido deletado.',
