@@ -281,12 +281,22 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
       }
 
       // Adicionar à fila
-      const orgId = await ensureUserOrganization();
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        toast({
+          title: 'Organização não encontrada',
+          description: 'Associe-se a uma organização para usar a fila de ligações.',
+          variant: 'destructive',
+        });
+        return;
+      }
       const { error } = await supabase.from('call_queue').insert({
         lead_id: lead.id,
         organization_id: orgId,
         scheduled_for: new Date().toISOString(),
         priority: 'normal',
+        status: 'pending',
+        created_by: user.id,
       });
 
       if (error) throw error;

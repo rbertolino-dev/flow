@@ -264,11 +264,8 @@ export function useCallQueue() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
-      // Obter organização de forma consistente via função segura
-      const { data: orgId, error: orgErr } = await supabase
-        .rpc('get_user_organization', { _user_id: session.user.id });
-
-      if (orgErr) throw orgErr;
+      // Obter organização atual de forma consistente
+      const orgId = await getUserOrganizationId();
       if (!orgId) {
         toast({
           title: 'Organização não encontrada',
@@ -278,18 +275,20 @@ export function useCallQueue() {
         return false;
       }
 
-      // Verificar se já existe uma ligação pendente com o mesmo número
-      const { data: existingCall } = await (supabase as any)
+      // Verificar se já existe ligação pendente ou reagendada para este lead na MESMA organização
+      const { data: existing } = await (supabase as any)
         .from('call_queue')
-        .select('id, leads(phone)')
+        .select('id')
         .eq('lead_id', item.leadId)
-        .eq('status', 'pending')
+        .eq('organization_id', orgId)
+        .in('status', ['pending', 'rescheduled'])
+        .limit(1)
         .maybeSingle();
 
-      if (existingCall) {
+      if (existing) {
         toast({
-          title: 'Número duplicado',
-          description: 'Já existe uma ligação pendente para este número na fila.',
+          title: 'Já está na fila',
+          description: 'Este lead já possui uma ligação pendente ou reagendada.',
           variant: 'destructive',
         });
         return false;
@@ -304,6 +303,7 @@ export function useCallQueue() {
           priority: item.priority,
           notes: item.notes,
           status: 'pending',
+          created_by: session.user.id,
         });
 
       if (error) throw error;
