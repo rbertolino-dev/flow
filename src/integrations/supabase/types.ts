@@ -237,6 +237,7 @@ export type Database = {
           priority: string | null
           scheduled_for: string
           status: string | null
+          updated_at: string
           updated_by: string | null
         }
         Insert: {
@@ -254,6 +255,7 @@ export type Database = {
           priority?: string | null
           scheduled_for: string
           status?: string | null
+          updated_at?: string
           updated_by?: string | null
         }
         Update: {
@@ -271,6 +273,7 @@ export type Database = {
           priority?: string | null
           scheduled_for?: string
           status?: string | null
+          updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
