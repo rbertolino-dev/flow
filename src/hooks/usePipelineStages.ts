@@ -80,17 +80,13 @@ export function usePipelineStages() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return false;
 
-      // Obter organization_id do usuário
-      const { data: orgMember } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', session.user.id)
-        .single();
+      // Obter organization_id ativo
+      const orgId = await getUserOrganizationId();
 
-      if (!orgMember) {
+      if (!orgId) {
         toast({
           title: "Erro",
-          description: "Usuário não pertence a nenhuma organização",
+          description: "Nenhuma organização ativa encontrada. Selecione ou crie uma organização para continuar.",
           variant: "destructive",
         });
         return false;
@@ -102,7 +98,7 @@ export function usePipelineStages() {
       const { data: existingStage } = await (supabase as any)
         .from('pipeline_stages')
         .select('id')
-        .eq('organization_id', orgMember.organization_id)
+        .eq('organization_id', orgId)
         .eq('name', trimmedName)
         .maybeSingle();
 
@@ -121,7 +117,7 @@ export function usePipelineStages() {
         .from('pipeline_stages')
         .insert({
           user_id: session.user.id,
-          organization_id: orgMember.organization_id,
+          organization_id: orgId,
           name: trimmedName,
           color,
           position: maxPosition + 1,
