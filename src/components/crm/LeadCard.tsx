@@ -167,7 +167,8 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
       }`}
       onClick={handleCardClick}
     >
-      <div className="space-y-3">
+      <div className="space-y-2">
+        {/* Checkbox de seleção */}
         {onToggleSelection && (
           <div 
             className="flex items-center justify-end touch-none" 
@@ -186,84 +187,126 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
             />
           </div>
         )}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            {editingName ? (
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <Input
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  className="h-7 text-sm"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveName();
-                    if (e.key === 'Escape') {
-                      setTempName(lead.name);
-                      setEditingName(false);
-                    }
-                  }}
-                />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveName}>
-                  <Check className="h-4 w-4 text-success" />
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-7 w-7 p-0"
-                  onClick={() => {
+
+        {/* Nome em destaque */}
+        <div>
+          {editingName ? (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <Input
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                className="h-8 font-semibold"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveName();
+                  if (e.key === 'Escape') {
                     setTempName(lead.name);
                     setEditingName(false);
-                  }}
-                >
-                  <X className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 group">
-                <h3 className="font-semibold text-card-foreground line-clamp-1 flex-1">{lead.name}</h3>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingName(true);
-                  }}
-                >
-                  <Edit2 className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="flex flex-wrap gap-1 justify-end">
-              <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
-                {lead.source}
-              </Badge>
-              {instanceName && (
-                <Badge variant="outline" className="text-xs">
-                  <Smartphone className="h-3 w-3 mr-1" />
-                  {instanceName}
-                </Badge>
-              )}
+                  }
+                }}
+              />
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleSaveName}>
+                <Check className="h-4 w-4 text-success" />
+              </Button>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="h-8 w-8 p-0"
+                onClick={() => {
+                  setTempName(lead.name);
+                  setEditingName(false);
+                }}
+              >
+                <X className="h-4 w-4 text-destructive" />
+              </Button>
             </div>
-            {lead.returnDate && (
-              <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-md text-sm font-medium border border-primary/20">
-                <Clock className="h-4 w-4 inline-block mr-1.5" />
-                Retorno: {format(new Date(lead.returnDate), "dd/MM/yy", { locale: ptBR })}
-              </div>
-            )}
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <h3 className="font-bold text-lg text-foreground line-clamp-1 flex-1">{lead.name}</h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingName(true);
+                }}
+              >
+                <Edit2 className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Telefone em destaque */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
+            <span className="font-semibold text-base text-foreground">{formatBrazilianPhone(lead.phone)}</span>
+          </div>
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+              onClick={handleWhatsAppClick}
+              title="Abrir WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
+              onClick={handlePhoneClick}
+              title="Ligar"
+            >
+              <Phone className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
+        {/* Botão de Agendar em destaque */}
+        <Button
+          variant="default"
+          className="w-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            setScheduleDialogOpen(true);
+          }}
+        >
+          <CalendarIcon className="h-4 w-4 mr-2" />
+          Agendar
+        </Button>
+
+        {/* Informações compactas */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+          <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
+            {lead.source}
+          </Badge>
+          {instanceName && (
+            <Badge variant="outline" className="text-xs">
+              <Smartphone className="h-3 w-3 mr-1" />
+              {instanceName}
+            </Badge>
+          )}
+          {lead.returnDate && (
+            <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+              <Clock className="h-3 w-3 mr-1" />
+              {format(new Date(lead.returnDate), "dd/MM", { locale: ptBR })}
+            </Badge>
+          )}
+        </div>
+
+        {/* Etapa do pipeline - compacto */}
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <MoveRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <MoveRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
           <Select
             value={lead.stageId || ''}
             onValueChange={(value) => onStageChange(lead.id, value)}
           >
-            <SelectTrigger className="h-8 text-xs flex-1">
-              <SelectValue placeholder="Selecione a etapa" />
+            <SelectTrigger className="h-7 text-xs flex-1">
+              <SelectValue placeholder="Etapa" />
             </SelectTrigger>
             <SelectContent className="bg-popover z-50">
               {stages.map((stage) => (
@@ -281,156 +324,37 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
           </Select>
         </div>
 
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Phone className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate flex-1">{formatBrazilianPhone(lead.phone)}</span>
-            </div>
-            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                onClick={handleWhatsAppClick}
-                title="Abrir WhatsApp"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
-                onClick={handlePhoneClick}
-                title="Ligar"
-              >
-                <Phone className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          {lead.email && (
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">{lead.email}</span>
-            </div>
-          )}
-          {lead.company && (
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">{lead.company}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <CalendarIcon className="h-3 w-3" />
-              {format(lead.lastContact, "dd/MM", { locale: ptBR })}
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                setScheduleDialogOpen(true);
-              }}
-            >
-              <CalendarIcon className="h-3 w-3 mr-1" />
-              Agendar
-            </Button>
-          </div>
-          {editingValue ? (
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <DollarSign className="h-4 w-4 text-primary" />
-              <Input
-                type="number"
-                value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
-                className="h-7 w-24 text-sm"
-                placeholder="0.00"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveValue();
-                  if (e.key === 'Escape') {
-                    setTempValue(lead.value?.toString() || "");
-                    setEditingValue(false);
-                  }
-                }}
-              />
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSaveValue}>
-                <Check className="h-4 w-4 text-success" />
-              </Button>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="h-7 w-7 p-0"
-                onClick={() => {
-                  setTempValue(lead.value?.toString() || "");
-                  setEditingValue(false);
-                }}
-              >
-                <X className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ) : lead.value ? (
-            <div className="flex items-center gap-1 group">
-              <div className="flex items-center gap-1 text-sm font-medium text-primary">
-                <DollarSign className="h-4 w-4" />
+        {/* Info adicional compacta */}
+        {(lead.email || lead.company || lead.value) && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {lead.email && (
+              <div className="flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                <span className="truncate max-w-[150px]">{lead.email}</span>
+              </div>
+            )}
+            {lead.company && (
+              <div className="flex items-center gap-1">
+                <Building2 className="h-3 w-3" />
+                <span className="truncate max-w-[100px]">{lead.company}</span>
+              </div>
+            )}
+            {lead.value && (
+              <div className="flex items-center gap-1 text-primary font-medium">
+                <DollarSign className="h-3 w-3" />
                 {new Intl.NumberFormat("pt-BR", {
                   style: "currency",
                   currency: "BRL",
                   minimumFractionDigits: 0,
                 }).format(lead.value)}
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingValue(true);
-                }}
-              >
-                <Edit2 className="h-3 w-3" />
-              </Button>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs text-muted-foreground hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingValue(true);
-              }}
-            >
-              <DollarSign className="h-3 w-3 mr-1" />
-              Adicionar valor
-            </Button>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between text-xs">
-          <div className="text-muted-foreground">
-            Responsável: <span className="font-medium text-foreground">{lead.assignedTo}</span>
+            )}
           </div>
-          {onDelete && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={handleDeleteClick}
-              title="Excluir lead"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        )}
 
+        {/* Tags */}
         {lead.tags && lead.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-2 border-t border-border">
+          <div className="flex flex-wrap gap-1">
             {lead.tags.map((tag) => (
               <Badge
                 key={tag.id}
@@ -440,13 +364,33 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
                   borderColor: tag.color,
                   color: tag.color 
                 }}
-                className="text-xs px-2 py-0"
+                className="text-xs px-1.5 py-0"
               >
                 {tag.name}
               </Badge>
             ))}
           </div>
         )}
+
+        {/* Footer compacto */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-3 w-3" />
+            {format(lead.lastContact, "dd/MM/yy", { locale: ptBR })}
+          </div>
+          <div className="truncate max-w-[120px]">{lead.assignedTo}</div>
+          {onDelete && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={handleDeleteClick}
+              title="Excluir lead"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <ScheduleGoogleEventDialog
