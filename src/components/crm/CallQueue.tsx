@@ -214,9 +214,20 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                   const { data: { user } } = await supabase.auth.getUser();
                   if (!user) return;
 
+                  const orgId = await getUserOrganizationId();
+                  if (!orgId) {
+                    toast({
+                      title: "Sem organização ativa",
+                      description: "Selecione uma organização para continuar",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+
                   const { data: queueData, error: fetchError } = await (supabase as any)
                     .from('call_queue')
                     .select('id, lead_id, scheduled_for, completed_at, completed_by, completed_by_user_id, priority, status, notes, call_notes, call_count, leads(name, phone)')
+                    .eq('organization_id', orgId)
                     .order('scheduled_for', { ascending: true });
 
                   if (fetchError) throw fetchError;
@@ -230,7 +241,6 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                     return;
                   }
 
-                  const orgId = await getUserOrganizationId();
                   const records = allQueue.map((item: any) => ({
                     user_id: user.id,
                     organization_id: orgId,
@@ -386,23 +396,25 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                         const { data: { user } } = await supabase.auth.getUser();
                         if (!user) return;
 
+                        const orgId = await getUserOrganizationId();
+                        if (!orgId) {
+                          toast({
+                            title: "Sem organização ativa",
+                            description: "Selecione uma organização para continuar",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+
                         const { data: queueData, error: fetchError } = await (supabase as any)
                           .from('call_queue')
                           .select('id, lead_id, scheduled_for, completed_at, completed_by, completed_by_user_id, priority, status, notes, call_notes, call_count, leads(name, phone)')
+                          .eq('organization_id', orgId)
                           .order('scheduled_for', { ascending: true });
 
                         if (fetchError) throw fetchError;
 
                         const allQueue = queueData || [];
-                        if (allQueue.length === 0) {
-                          toast({
-                            title: "Fila vazia",
-                            description: "Não há ligações para limpar",
-                          });
-                          return;
-                        }
-
-                        const orgId = await getUserOrganizationId();
                         const records = allQueue.map((item: any) => ({
                           user_id: user.id,
                           organization_id: orgId,

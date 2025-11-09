@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Phone, Calendar, Trash2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,10 +47,13 @@ export function CallQueueHistory() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const orgId = await getUserOrganizationId();
+      if (!orgId) return;
+
       const { data, error } = await supabase
         .from('call_queue_history')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('organization_id', orgId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -74,10 +78,13 @@ export function CallQueueHistory() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const orgId = await getUserOrganizationId();
+      if (!orgId) return;
+
       const { error } = await supabase
         .from('call_queue_history')
         .delete()
-        .eq('user_id', user.id);
+        .eq('organization_id', orgId);
 
       if (error) throw error;
 

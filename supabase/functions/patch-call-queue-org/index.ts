@@ -45,19 +45,55 @@ serve(async (req) => {
       });
     }
 
-    // Obter a organização do usuário
-    const { data: orgId, error: orgErr } = await supabaseAdmin.rpc('get_user_organization', { _user_id: user.id });
-    if (orgErr || !orgId) {
-      return new Response(JSON.stringify({ error: 'Organização não encontrada' }), {
+    // Buscar organização do lead a partir do item da fila
+    const { data: queueRow, error: queueErr } = await supabaseAdmin
+      .from('call_queue')
+      .select('id, lead_id, organization_id')
+      .eq('id', callQueueId)
+      .single();
+
+    if (queueErr || !queueRow) {
+      return new Response(JSON.stringify({ error: 'Item da fila não encontrado' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404,
+      });
+    }
+
+    // Se já possui organização, nada a fazer
+    if (queueRow.organization_id) {
+      return new Response(JSON.stringify({ ok: true, id: queueRow.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Obter organização pelo lead vinculado
+    const { data: leadRow, error: leadErr } = await supabaseAdmin
+      .from('leads')
+      .select('organization_id')
+      .eq('id', queueRow.lead_id)
+      .single();
+
+    const leadOrgId = leadRow?.organization_id;
+    if (leadErr || !leadOrgId) {
+      return new Response(JSON.stringify({ error: 'Organização do lead não encontrada' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
     }
 
-    // Atualizar o item de fila com organization_id quando estiver nulo
+    // Verificar se o usuário pertence à organização do lead
+    const { data: belongsToOrg } = await supabaseAdmin.rpc('user_belongs_to_org', { _user_id: user.id, _org_id: leadOrgId });
+    if (!belongsToOrg) {
+      return new Response(JSON.stringify({ error: 'Usuário não pertence à organização do lead' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403,
+      });
+    }
+
+    // Atualizar o item de fila com organization_id do lead quando estiver nulo
     const { data, error } = await supabaseAdmin
       .from('call_queue')
-      .update({ organization_id: orgId })
+      .update({ organization_id: leadOrgId })
       .eq('id', callQueueId)
       .is('organization_id', null)
       .select('id')
