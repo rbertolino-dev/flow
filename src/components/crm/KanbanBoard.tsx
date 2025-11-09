@@ -189,12 +189,20 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
     
+    if (selectedLeads.length === 0) {
+      toast({
+        title: "Selecione ao menos um lead",
+        description: "Marque os cards e clique em Fila para adicionar.",
+      });
+      return;
+    }
+
     try {
       let addedCount = 0;
       let skippedCount = 0;
 
       for (const lead of selectedLeads) {
-        const { error } = await supabase.rpc('add_to_call_queue_secure', {
+        const { data, error } = await supabase.rpc('add_to_call_queue_secure', {
           p_lead_id: lead.id,
           p_scheduled_for: new Date().toISOString(),
           p_priority: 'medium',
@@ -204,6 +212,26 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         if (error) {
           console.error('Erro ao adicionar lead à fila:', error);
           skippedCount++;
+          const msg = (error.message || '').toLowerCase();
+          if (msg.includes('não pertence à organização')) {
+            toast({
+              title: `Sem permissão para ${lead.name}`,
+              description: 'Você não pertence à organização deste lead.',
+              variant: 'destructive',
+            });
+          } else if (msg.includes('lead não encontrado') || msg.includes('não encontrado')) {
+            toast({
+              title: `Lead não encontrado: ${lead.name}`,
+              description: 'O lead pode ter sido removido.',
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: `Falha ao adicionar ${lead.name}`,
+              description: error.message,
+              variant: 'destructive',
+            });
+          }
         } else {
           addedCount++;
         }
@@ -212,12 +240,12 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       if (addedCount > 0) {
         toast({
           title: "Adicionado à fila",
-          description: `${addedCount} lead(s) adicionado(s) à fila de ligações${skippedCount > 0 ? ` (${skippedCount} já estava(m) na fila)` : ''}`,
+          description: `${addedCount} lead(s) adicionado(s) à fila de ligações${skippedCount > 0 ? ` (${skippedCount} com erro)` : ''}`,
         });
-      } else if (skippedCount > 0) {
+      } else {
         toast({
           title: "Nenhum lead adicionado",
-          description: `${skippedCount} lead(s) já estava(m) na fila ou não pôde(ram) ser adicionado(s)`,
+          description: skippedCount > 0 ? `${skippedCount} lead(s) não puderam ser adicionados.` : 'Nada para adicionar.',
           variant: 'destructive',
         });
       }
