@@ -185,7 +185,14 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
   const handleAddToCallQueue = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Sessão expirada",
+        description: "Faça login para adicionar à Fila de Ligações.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
     
