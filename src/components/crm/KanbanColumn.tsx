@@ -63,7 +63,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
           items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="p-3 space-y-3 min-h-full">
+          <div className="p-4 space-y-3 min-h-full">
             {leads.map((lead) => {
               const instanceName = lead.sourceInstanceId && instanceMap 
                 ? instanceMap.get(lead.sourceInstanceId) 
