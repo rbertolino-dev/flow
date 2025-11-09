@@ -105,7 +105,7 @@ export type Database = {
           custom_message: string | null
           failed_count: number | null
           id: string
-          instance_id: string
+          instance_id: string | null
           instance_name: string | null
           max_delay_seconds: number
           message_template_id: string | null
@@ -124,7 +124,7 @@ export type Database = {
           custom_message?: string | null
           failed_count?: number | null
           id?: string
-          instance_id: string
+          instance_id?: string | null
           instance_name?: string | null
           max_delay_seconds?: number
           message_template_id?: string | null
@@ -143,7 +143,7 @@ export type Database = {
           custom_message?: string | null
           failed_count?: number | null
           id?: string
-          instance_id?: string
+          instance_id?: string | null
           instance_name?: string | null
           max_delay_seconds?: number
           message_template_id?: string | null
