@@ -238,18 +238,26 @@ export function useEvolutionConfigs() {
 
   const deleteConfig = async (id: string) => {
     try {
+      // Atualização otimista: remover da lista imediatamente
+      setConfigs(prevConfigs => prevConfigs.filter(c => c.id !== id));
+
       const { error } = await (supabase as any)
         .from('evolution_config')
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        // Se houver erro, reverter a remoção otimista
+        await fetchConfigs();
+        throw error;
+      }
 
       toast({
         title: "✅ Instância removida",
-        description: "A instância foi removida com sucesso.",
+        description: "A instância foi removida com sucesso desta organização.",
       });
 
+      // Revalidar para garantir sincronização
       await fetchConfigs();
       return true;
     } catch (error: any) {
