@@ -96,7 +96,7 @@ function SortableStageItem({ stage, onEdit, onDelete, isFirstStage }: SortableSt
 }
 
 export function PipelineStageManager() {
-  const { stages, createStage, updateStage, deleteStage, reorderStages } = usePipelineStages();
+  const { stages, createStage, updateStage, deleteStage, reorderStages, cleanDuplicateStages } = usePipelineStages();
   const [open, setOpen] = useState(false);
   const [editingStage, setEditingStage] = useState<string | null>(null);
   const [deletingStage, setDeletingStage] = useState<string | null>(null);
@@ -162,10 +162,15 @@ export function PipelineStageManager() {
             <DialogDescription>
               Arraste para reordenar, edite ou exclua etapas do pipeline.
             </DialogDescription>
-          </DialogHeader>
+        </DialogHeader>
 
-          <div className="space-y-4">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-muted-foreground">Arraste para reordenar</div>
+          <Button variant="outline" size="sm" onClick={cleanDuplicateStages}>Limpar duplicatas</Button>
+        </div>
+
+        <div className="space-y-4">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {stages.map((stage) => (
