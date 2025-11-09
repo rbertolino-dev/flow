@@ -97,19 +97,12 @@ export function useCallQueue() {
         })
       );
 
-      // Contar ligações completadas por lead (de forma simples)
+      // Contar ligações completadas por lead apenas do histórico (fonte única de verdade)
       const leadIds = [...new Set((queueData || []).map((q: any) => q.lead_id).filter(Boolean))];
       const callCountsByLead: Record<string, number> = {};
       
       if (leadIds.length > 0) {
-        // Contar completadas na fila atual
-        const { data: completedInQueue } = await (supabase as any)
-          .from('call_queue')
-          .select('lead_id')
-          .eq('status', 'completed')
-          .in('lead_id', leadIds);
-
-        // Contar no histórico
+        // Contar APENAS no histórico para evitar duplicação
         const { data: completedInHistory } = await (supabase as any)
           .from('call_queue_history')
           .select('lead_id')
@@ -117,10 +110,6 @@ export function useCallQueue() {
           .in('lead_id', leadIds);
 
         // Somar contagens por lead
-        (completedInQueue || []).forEach((row: any) => {
-          callCountsByLead[row.lead_id] = (callCountsByLead[row.lead_id] || 0) + 1;
-        });
-        
         (completedInHistory || []).forEach((row: any) => {
           callCountsByLead[row.lead_id] = (callCountsByLead[row.lead_id] || 0) + 1;
         });
