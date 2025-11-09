@@ -21,6 +21,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
+import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,14 @@ export default function BroadcastCampaigns() {
   const [sentDateFilter, setSentDateFilter] = useState<Date | undefined>(undefined);
   const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
+  const [validatingContacts, setValidatingContacts] = useState(false);
+  const [validationResult, setValidationResult] = useState<{
+    total: number;
+    valid: number;
+    invalid: number;
+    whatsappValid: number;
+    whatsappInvalid: number;
+  } | null>(null);
   const { toast } = useToast();
 
   const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
@@ -177,6 +186,8 @@ export default function BroadcastCampaigns() {
 
     try {
       setLoading(true);
+      setValidatingContacts(true);
+      setValidationResult(null);
 
       // Ler contatos
       let text: string;
@@ -185,11 +196,56 @@ export default function BroadcastCampaigns() {
       } else {
         text = pastedList;
       }
-      const contacts = parseCSV(text);
 
-      if (contacts.length === 0) {
-        throw new Error("Nenhum contato válido encontrado no arquivo CSV");
+      // Buscar configuração da instância Evolution
+      const instance = instances.find(i => i.id === newCampaign.instanceId);
+      if (!instance) {
+        throw new Error("Instância não encontrada");
       }
+
+      // Validar contatos com normalização e verificação WhatsApp
+      toast({
+        title: "Validando contatos...",
+        description: "Normalizando números e verificando WhatsApp via Evolution API",
+      });
+
+      const validation = await validateContactsComplete(text, newCampaign.instanceId, {
+        api_url: instance.api_url,
+        api_key: instance.api_key,
+        instance_name: instance.instance_name
+      });
+
+      setValidatingContacts(false);
+
+      // Mostrar resultado da validação
+      const totalParsed = validation.validContacts.length + validation.invalidContacts.length;
+      const validFormatted = validation.validContacts.length;
+      const invalidFormatted = validation.invalidContacts.length;
+      const whatsappValid = validation.whatsappValidated.length;
+      const whatsappInvalid = validation.whatsappRejected.length;
+
+      setValidationResult({
+        total: totalParsed,
+        valid: validFormatted,
+        invalid: invalidFormatted,
+        whatsappValid,
+        whatsappInvalid
+      });
+
+      if (whatsappValid === 0) {
+        throw new Error("Nenhum contato válido com WhatsApp ativo encontrado");
+      }
+
+      toast({
+        title: "Validação concluída!",
+        description: `✅ ${whatsappValid} contatos válidos com WhatsApp | ❌ ${whatsappInvalid} removidos`,
+      });
+
+      // Usar apenas os contatos validados com WhatsApp
+      const contacts = validation.whatsappValidated.map(c => ({
+        phone: c.phone,
+        name: c.name
+      }));
 
       // Criar campanha
       const { data: { user } } = await supabase.auth.getUser();
@@ -253,6 +309,7 @@ export default function BroadcastCampaigns() {
       setCsvFile(null);
       setPastedList("");
       setImportMode("csv");
+      setValidationResult(null);
       fetchCampaigns();
     } catch (error: any) {
       toast({
@@ -262,6 +319,7 @@ export default function BroadcastCampaigns() {
       });
     } finally {
       setLoading(false);
+      setValidatingContacts(false);
     }
   };
 
@@ -688,8 +746,47 @@ export default function BroadcastCampaigns() {
                       rows={8}
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">
+                     <p className="text-xs text-muted-foreground">
                       Formato aceito: telefone,nome (opcional). Um contato por linha.
+                    </p>
+                  </div>
+                )}
+
+                {/* Resultado da Validação */}
+                {validatingContacts && (
+                  <div className="p-4 border rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="font-medium">Validando contatos e verificando WhatsApp via Evolution API...</span>
+                    </div>
+                  </div>
+                )}
+
+                {validationResult && !validatingContacts && (
+                  <div className="p-4 border rounded-lg space-y-2">
+                    <h4 className="font-semibold text-sm mb-3">Resultado da Validação:</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Total analisados:</span>
+                        <Badge variant="outline">{validationResult.total}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Formato válido:</span>
+                        <Badge variant="outline">{validationResult.valid}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                        <span className="font-medium text-success">Com WhatsApp:</span>
+                        <Badge className="bg-success text-success-foreground">{validationResult.whatsappValid}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-destructive" />
+                        <span className="font-medium text-destructive">Removidos:</span>
+                        <Badge variant="destructive">{validationResult.whatsappInvalid}</Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                      ℹ️ Apenas números válidos com WhatsApp ativo serão incluídos na campanha
                     </p>
                   </div>
                 )}
@@ -698,8 +795,15 @@ export default function BroadcastCampaigns() {
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateCampaign} disabled={loading}>
-                  Criar Campanha
+                <Button onClick={handleCreateCampaign} disabled={loading || validatingContacts}>
+                  {validatingContacts ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Validando...
+                    </>
+                  ) : (
+                    "Criar Campanha"
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
