@@ -84,19 +84,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         });
 
         if (queueError) {
-          // Mensagens mais claras
           const msg = (queueError.message || '').toLowerCase();
-          if (msg.includes('não pertence à organização')) {
+          if (msg.includes('já está na fila')) {
             toast({
-              title: 'Sem permissão para fila',
-              description: 'Você não pertence à organização deste lead.',
-              variant: 'destructive',
-            });
-          } else if (msg.includes('lead não encontrado') || msg.includes('não encontrado')) {
-            toast({
-              title: 'Lead não encontrado',
-              description: 'O lead pode ter sido removido.',
-              variant: 'destructive',
+              title: 'Lead já está na fila',
+              description: 'Este lead já possui uma ligação pendente ou reagendada.',
             });
           } else {
             toast({
@@ -108,7 +100,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         } else {
           toast({
             title: 'Adicionado à fila',
-            description: 'Contato adicionado (ou já existente) na fila de ligações.',
+            description: 'Lead adicionado à fila de ligações.',
           });
         }
       }

@@ -218,8 +218,12 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
         if (error) {
           console.error('Erro ao adicionar lead à fila:', error);
-          skippedCount++;
           const msg = (error.message || '').toLowerCase();
+          if (msg.includes('já está na fila')) {
+            // Lead já está na fila, não contar como erro
+            continue;
+          }
+          skippedCount++;
           if (msg.includes('não pertence à organização')) {
             toast({
               title: `Sem permissão para ${lead.name}`,

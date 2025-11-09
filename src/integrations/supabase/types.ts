@@ -1144,9 +1144,9 @@ export type Database = {
       add_to_call_queue_secure: {
         Args: {
           p_lead_id: string
-          p_notes?: string
-          p_priority?: string
-          p_scheduled_for?: string
+          p_notes: string
+          p_priority: string
+          p_scheduled_for: string
         }
         Returns: string
       }
