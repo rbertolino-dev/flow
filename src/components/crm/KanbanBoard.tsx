@@ -278,7 +278,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             <ChevronRight className="h-5 w-5" />
           </Button>
 
-          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 h-full overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-20 sm:pb-24 kanban-scroll pl-4 pr-4">
+          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 h-full overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-20 sm:pb-24 kanban-scroll pl-6 pr-6">
             {stages.map((stage) => {
               const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
               return (
