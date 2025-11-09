@@ -97,38 +97,41 @@ export function useCallQueue() {
         })
       );
 
-      // Build accumulated call counts per lead (completed in queue + history)
-      const leadIds = (queueData || []).map((q: any) => q.lead_id).filter(Boolean);
-      const countsByLead: Record<string, number> = {};
+      // Contar ligações completadas por lead (de forma simples)
+      const leadIds = [...new Set((queueData || []).map((q: any) => q.lead_id).filter(Boolean))];
+      const callCountsByLead: Record<string, number> = {};
+      
       if (leadIds.length > 0) {
-        const [completedInQueueRes, completedInHistoryRes] = await Promise.all([
-          (supabase as any)
-            .from('call_queue')
-            .select('lead_id, count:id')
-            .eq('status', 'completed')
-            .in('lead_id', leadIds)
-            .group('lead_id'),
-          (supabase as any)
-            .from('call_queue_history')
-            .select('lead_id, count:id')
-            .eq('action', 'completed')
-            .in('lead_id', leadIds)
-            .group('lead_id'),
-        ]);
+        // Contar completadas na fila atual
+        const { data: completedInQueue } = await (supabase as any)
+          .from('call_queue')
+          .select('lead_id')
+          .eq('status', 'completed')
+          .in('lead_id', leadIds);
 
-        const addToMap = (rows: any[] | null | undefined) => {
-          (rows || []).forEach((r: any) => {
-            const lid = r.lead_id;
-            const c = Number(r.count ?? 0);
-            countsByLead[lid] = (countsByLead[lid] || 0) + c;
-          });
-        };
-        addToMap((completedInQueueRes as any)?.data);
-        addToMap((completedInHistoryRes as any)?.data);
+        // Contar no histórico
+        const { data: completedInHistory } = await (supabase as any)
+          .from('call_queue_history')
+          .select('lead_id')
+          .eq('action', 'completed')
+          .in('lead_id', leadIds);
+
+        // Somar contagens por lead
+        (completedInQueue || []).forEach((row: any) => {
+          callCountsByLead[row.lead_id] = (callCountsByLead[row.lead_id] || 0) + 1;
+        });
+        
+        (completedInHistory || []).forEach((row: any) => {
+          callCountsByLead[row.lead_id] = (callCountsByLead[row.lead_id] || 0) + 1;
+        });
       }
 
       const formattedQueue = queueWithTags.map((item) => {
-        const computedCount = countsByLead[item.lead_id] ?? (item.leads?.call_count ?? item.call_count ?? 0);
+        // Usar a contagem acumulada se disponível, senão usar call_count do lead
+        const accumulatedCount = callCountsByLead[item.lead_id] ?? 0;
+        const leadCallCount = item.leads?.call_count ?? 0;
+        const finalCount = Math.max(accumulatedCount, leadCallCount);
+        
         return {
           id: item.id,
           leadId: item.lead_id,
@@ -141,12 +144,11 @@ export function useCallQueue() {
           tags: item.tags || [],
           queueTags: item.queueTags || [],
           callNotes: item.call_notes || undefined,
-          callCount: computedCount,
+          callCount: finalCount,
           completedBy: item.completed_by || undefined,
           completedAt: item.completed_at ? new Date(item.completed_at) : undefined,
         };
       }) as CallQueueItem[];
-
       setCallQueue(formattedQueue);
     } catch (error: any) {
       toast({
