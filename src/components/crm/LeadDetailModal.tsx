@@ -339,22 +339,38 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
   };
 
   const handleUpdateReturnDate = async () => {
+    if (!returnDate) {
+      toast({
+        title: "Data não informada",
+        description: "Selecione uma data de retorno",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('leads')
-        .update({ return_date: returnDate || null })
+        .update({ 
+          return_date: returnDate ? new Date(returnDate).toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', lead.id);
 
       if (error) throw error;
 
       toast({
-        title: "Data atualizada",
-        description: "Data de retorno atualizada com sucesso",
+        title: "Data de retorno salva",
+        description: `Retorno agendado para ${format(new Date(returnDate), "dd/MM/yyyy", { locale: ptBR })}`,
       });
+
+      // Atualizar lead local
+      onClose();
     } catch (error: any) {
+      console.error('Erro ao salvar data de retorno:', error);
       toast({
-        title: "Erro ao atualizar",
-        description: error.message,
+        title: "Erro ao salvar",
+        description: error.message || "Não foi possível salvar a data de retorno",
         variant: "destructive",
       });
     }
@@ -454,18 +470,28 @@ export function LeadDetailModal({ lead, open, onClose }: LeadDetailModalProps) {
                     Último contato: {format(lead.lastContact, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex items-center gap-2 flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <Label htmlFor="return-date" className="text-sm">Data de Retorno:</Label>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
                     <Input
                       id="return-date"
                       type="date"
                       value={returnDate}
                       onChange={(e) => setReturnDate(e.target.value)}
-                      onBlur={handleUpdateReturnDate}
-                      className="h-8 w-40"
+                      className="h-8 w-full sm:w-40"
                     />
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={handleUpdateReturnDate}
+                      disabled={!returnDate}
+                      className="flex-shrink-0"
+                    >
+                      Salvar
+                    </Button>
                   </div>
                 </div>
               </div>
