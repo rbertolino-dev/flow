@@ -194,7 +194,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       let skippedCount = 0;
 
       for (const lead of selectedLeads) {
-        const { data: queueId, error } = await supabase.rpc('add_to_call_queue_secure', {
+        const { error } = await supabase.rpc('add_to_call_queue_secure', {
           p_lead_id: lead.id,
           p_scheduled_for: new Date().toISOString(),
           p_priority: 'medium',
@@ -204,23 +204,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         if (error) {
           console.error('Erro ao adicionar lead à fila:', error);
           skippedCount++;
-          continue;
-        }
-
-        // Verificar se foi criado agora ou já existia
-        const { data: checkExisting } = await supabase
-          .from('call_queue')
-          .select('created_at')
-          .eq('id', queueId)
-          .single();
-
-        const wasJustCreated = checkExisting && 
-          new Date(checkExisting.created_at).getTime() > Date.now() - 5000;
-
-        if (wasJustCreated) {
-          addedCount++;
         } else {
-          skippedCount++;
+          addedCount++;
         }
       }
 

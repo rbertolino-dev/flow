@@ -299,26 +299,7 @@ export function useCallQueue() {
         return false;
       }
 
-      // Verificar se retornou ID (novo) ou ID existente (duplicado)
-      // A função retorna o mesmo ID se já existir na fila
-      const { data: checkExisting } = await supabase
-        .from('call_queue')
-        .select('created_at')
-        .eq('id', queueId)
-        .single();
-
-      const wasJustCreated = checkExisting && 
-        new Date(checkExisting.created_at).getTime() > Date.now() - 5000;
-
-      if (!wasJustCreated) {
-        toast({
-          title: 'Já está na fila',
-          description: 'Este lead já possui uma ligação pendente ou reagendada.',
-          variant: 'destructive',
-        });
-        return false;
-      }
-
+      // Sucesso: função já evita duplicados e garante RLS
       await fetchCallQueue();
       return true;
     } catch (error: any) {
