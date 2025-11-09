@@ -65,14 +65,19 @@ serve(async (req) => {
     console.log('Importing contacts for user:', userId);
     console.log('Date range:', { startDate, endDate });
 
-    // Obter organization_id do usuário
-    const { data: orgMember } = await supabaseClient
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // Obter organization_id do usuário usando RPC
+    const { data: orgId, error: orgError } = await supabaseClient
+      .rpc('get_user_organization', { _user_id: userId });
 
-    const organizationId = orgMember?.organization_id || null;
+    if (orgError || !orgId) {
+      console.error('Organization error:', orgError);
+      return new Response(JSON.stringify({ error: 'Usuário não pertence a nenhuma organização' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const organizationId = orgId;
 
     // Salvar log de início da importação
     await supabaseClient.from('evolution_logs').insert({
@@ -85,12 +90,11 @@ serve(async (req) => {
       payload: { startDate, endDate },
     });
 
-    // Buscar configuração da Evolution API
+    // Buscar configuração da Evolution API da organização
     const { data: config, error: configError } = await supabaseClient
       .from('evolution_config')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+      .eq('organization_id', organizationId)
+      .maybeSingle();
 
     const cleanApiUrl = (url: string) =>
       (url || '')
@@ -259,19 +263,20 @@ serve(async (req) => {
     let importedInt = 0;
     let importedLID = 0;
 
-    // Inserir leads brasileiros
+    // Inserir leads brasileiros com organization_id
     if (brazilianLeads.length > 0) {
       const { error: leadsError, count } = await supabaseAdmin
         .from('leads')
         .upsert(
           brazilianLeads.map(lead => ({
             user_id: userId,
+            organization_id: organizationId,
             ...lead,
             status: 'new',
-            source: 'whatsapp',
+            source: 'whatsapp_import',
             assigned_to: 'Sistema',
           })),
-          { onConflict: 'user_id,phone', ignoreDuplicates: true, count: 'exact' }
+          { onConflict: 'phone,organization_id', ignoreDuplicates: true, count: 'exact' }
         );
 
       if (leadsError) {
@@ -282,17 +287,18 @@ serve(async (req) => {
       }
     }
 
-    // Inserir contatos internacionais
+    // Inserir contatos internacionais com organization_id
     if (internationalContacts.length > 0) {
       const { error: intError, count } = await supabaseAdmin
         .from('international_contacts')
         .upsert(
           internationalContacts.map(contact => ({
             user_id: userId,
+            organization_id: organizationId,
             ...contact,
-            source: 'whatsapp',
+            source: 'whatsapp_import',
           })),
-          { onConflict: 'user_id,phone', ignoreDuplicates: true, count: 'exact' }
+          { onConflict: 'phone,organization_id', ignoreDuplicates: true, count: 'exact' }
         );
 
       if (intError) {
@@ -303,16 +309,17 @@ serve(async (req) => {
       }
     }
 
-    // Inserir contatos LID
+    // Inserir contatos LID com organization_id
     if (lidContacts.length > 0) {
       const { error: lidError, count } = await supabaseAdmin
         .from('whatsapp_lid_contacts')
         .upsert(
           lidContacts.map(contact => ({
             user_id: userId,
+            organization_id: organizationId,
             ...contact,
           })),
-          { onConflict: 'lid', ignoreDuplicates: true, count: 'exact' }
+          { onConflict: 'lid,organization_id', ignoreDuplicates: true, count: 'exact' }
         );
 
       if (lidError) {

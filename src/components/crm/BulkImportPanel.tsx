@@ -39,54 +39,80 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
     const contacts: ParsedContact[] = [];
 
     for (const line of lines) {
-      // Suporta formatos: "Nome, Telefone" ou "Nome - Telefone" ou "Nome | Telefone" ou "Nome;Telefone"
-      const separators = [',', '-', '|', ';'];
-      let parts: string[] = [];
+      let name = '';
+      let rawPhone = '';
+
+      // Tentar detectar padrões mais flexíveis
+      // Padrão 1: Separadores comuns (vírgula, ponto-e-vírgula, hífen, pipe, tab)
+      const separatorMatch = line.match(/^(.+?)\s*[,;\-|:\t]\s*(.+)$/);
       
-      for (const sep of separators) {
-        if (line.includes(sep)) {
-          parts = line.split(sep).map(p => p.trim());
-          break;
-        }
-      }
-
-      if (parts.length < 2) {
-        // Tentar extrair telefone do texto
-        const phoneMatch = line.match(/(\d[\d\s\-\(\)]{8,})/);
-        if (phoneMatch) {
-          const phone = phoneMatch[1];
-          const name = line.replace(phone, '').trim();
-          parts = [name, phone];
-        }
-      }
-
-      if (parts.length >= 2) {
-        const name = parts[0].trim();
-        const phone = normalizePhone(parts[1].trim());
+      if (separatorMatch) {
+        // Verificar qual parte é o telefone
+        const part1 = separatorMatch[1].trim();
+        const part2 = separatorMatch[2].trim();
         
-        let valid = true;
-        let error: string | undefined;
-
-        if (!name) {
-          valid = false;
-          error = "Nome vazio";
-        } else if (!phone || phone.length < 10) {
-          valid = false;
-          error = "Telefone inválido";
-        } else if (!phone.startsWith('55')) {
-          valid = false;
-          error = "Apenas telefones brasileiros (+55)";
+        const part1HasPhone = /\d/.test(part1);
+        const part2HasPhone = /\d/.test(part2);
+        
+        // Se ambos tiverem números, escolher o que tem mais dígitos
+        if (part1HasPhone && part2HasPhone) {
+          const part1Digits = (part1.match(/\d/g) || []).length;
+          const part2Digits = (part2.match(/\d/g) || []).length;
+          
+          if (part1Digits > part2Digits) {
+            rawPhone = part1;
+            name = part2;
+          } else {
+            name = part1;
+            rawPhone = part2;
+          }
+        } else if (part1HasPhone) {
+          // Telefone, Nome (ordem invertida)
+          rawPhone = part1;
+          name = part2;
+        } else if (part2HasPhone) {
+          // Nome, Telefone (ordem normal)
+          name = part1;
+          rawPhone = part2;
         }
-
-        contacts.push({ name, phone, valid, error });
       } else {
-        contacts.push({
-          name: line,
-          phone: "",
-          valid: false,
-          error: "Formato inválido"
-        });
+        // Padrão 2: Apenas espaços - pegar números como telefone
+        const phoneMatch = line.match(/(\+?\d[\d\s\(\)\-\.]{8,})/);
+        if (phoneMatch) {
+          rawPhone = phoneMatch[1];
+          name = line.replace(rawPhone, '').trim();
+        } else {
+          // Linha sem número detectável
+          contacts.push({
+            name: line.trim(),
+            phone: "",
+            valid: false,
+            error: "Telefone não encontrado"
+          });
+          continue;
+        }
       }
+
+      // Normalizar telefone
+      const phone = normalizePhone(rawPhone);
+      
+      // Validação
+      let valid = true;
+      let error: string | undefined;
+
+      if (!name) {
+        name = phone; // Usar telefone como nome se não tiver nome
+      }
+      
+      if (!phone || phone.length < 10) {
+        valid = false;
+        error = "Telefone inválido ou muito curto";
+      } else if (!phone.startsWith('55') && phone.length < 10) {
+        valid = false;
+        error = "Telefone deve ter DDI +55 ou pelo menos 10 dígitos";
+      }
+
+      contacts.push({ name: name.trim(), phone, valid, error });
     }
 
     return contacts;
@@ -239,13 +265,15 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
             Cole os contatos (um por linha)
           </label>
           <Textarea
-            placeholder="Exemplo:&#10;Maria Silva, (11) 98765-4321&#10;João Santos, 21987654321&#10;Ana Costa - 11999998888"
+            placeholder="Exemplos aceitos:&#10;Maria Silva, (11) 98765-4321&#10;21987654321, João Santos&#10;Ana Costa - 11999998888&#10;11988887777 | Pedro Oliveira&#10;Carlos Lima: (21) 99999-8888&#10;+5511987654321 Juliana"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             className="min-h-[200px] font-mono text-sm"
           />
           <p className="text-xs text-muted-foreground mt-2">
-            Formatos aceitos: Nome, Telefone | Nome - Telefone | Nome; Telefone
+            <strong>Formatos aceitos:</strong> Nome, Tel | Tel, Nome | Nome - Tel | Nome; Tel | Nome: Tel | +55Tel Nome
+            <br />
+            <strong>Ordem flexível:</strong> O sistema detecta automaticamente qual parte é o nome e qual é o telefone
           </p>
         </div>
 
