@@ -111,8 +111,10 @@ export function useCallQueue() {
 
   const completeCall = async (callId: string, callNotes?: string) => {
     try {
+      console.log('🔄 Iniciando conclusão da ligação:', callId);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.error('❌ Usuário não autenticado');
         toast({
           title: "Erro",
           description: "Usuário não autenticado",
@@ -121,6 +123,8 @@ export function useCallQueue() {
         return;
       }
 
+      console.log('👤 Usuário autenticado:', user.email);
+
       // Get the call queue item with lead data
       const { data: queueItem, error: fetchError } = await (supabase as any)
         .from('call_queue')
@@ -128,7 +132,12 @@ export function useCallQueue() {
         .eq('id', callId)
         .single();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('❌ Erro ao buscar item da fila:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('✅ Item da fila encontrado:', queueItem);
 
       const newCallCount = (queueItem.leads?.call_count || 0) + 1;
       const now = new Date().toISOString();
@@ -199,8 +208,12 @@ export function useCallQueue() {
         })
         .eq('id', callId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao atualizar call_queue:', error);
+        throw error;
+      }
 
+      console.log('✅ Ligação concluída com sucesso!');
       toast({
         title: "Ligação concluída",
         description: "A ligação foi marcada como concluída e salva no histórico.",
@@ -208,6 +221,7 @@ export function useCallQueue() {
 
       await fetchCallQueue();
     } catch (error: any) {
+      console.error('❌ Erro geral ao completar ligação:', error);
       toast({
         title: "Erro ao completar ligação",
         description: error.message,
