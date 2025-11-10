@@ -187,6 +187,7 @@ export type Database = {
           error_message: string | null
           id: string
           name: string | null
+          personalized_message: string | null
           phone: string
           scheduled_for: string | null
           sent_at: string | null
@@ -198,6 +199,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           name?: string | null
+          personalized_message?: string | null
           phone: string
           scheduled_for?: string | null
           sent_at?: string | null
@@ -209,6 +211,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           name?: string | null
+          personalized_message?: string | null
           phone?: string
           scheduled_for?: string | null
           sent_at?: string | null

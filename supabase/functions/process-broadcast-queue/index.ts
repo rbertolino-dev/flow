@@ -105,13 +105,19 @@ serve(async (req) => {
           continue; // Pular este item
         }
 
-        const message = campaign.custom_message || campaign.message_template?.content || "";
-        if (!message) {
-          throw new Error("Mensagem não configurada");
+        // Usar mensagem personalizada se disponível, senão usar mensagem da campanha/template
+        let personalizedMessage = item.personalized_message;
+        
+        if (!personalizedMessage) {
+          const message = campaign.custom_message || campaign.message_template?.content || "";
+          if (!message) {
+            throw new Error("Mensagem não configurada");
+          }
+          personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
+        } else {
+          // Aplicar personalização de variáveis mesmo em mensagens pré-personalizadas
+          personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
         }
-
-        // Preparar mensagem personalizada
-        const personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
 
         // Limpar api_url e construir endpoint correto
         let baseUrl = campaign.instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
