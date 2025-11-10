@@ -1,5 +1,24 @@
+/**
+ * Códigos de países da América Latina suportados
+ */
+const LATIN_AMERICA_CODES = ["54", "55", "56", "57", "58", "51", "52", "53", "591", "593", "595", "598", "506", "507"];
+
 export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
+}
+
+export function isValidLatinAmericaPhone(phone: string): boolean {
+  const digits = normalizePhone(phone);
+  
+  // Verificar se tem código de país da América Latina
+  for (const code of LATIN_AMERICA_CODES) {
+    if (digits.startsWith(code)) {
+      return digits.length >= 10 && digits.length <= 13;
+    }
+  }
+  
+  // Se não tem código, assumir Brasil e validar
+  return digits.length >= 10 && digits.length <= 11;
 }
 
 export function isValidBrazilianPhone(phone: string): boolean {
