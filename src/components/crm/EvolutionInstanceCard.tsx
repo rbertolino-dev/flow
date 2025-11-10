@@ -39,57 +39,107 @@ export function EvolutionInstanceCard({
   const syncApiKey = async () => {
     setSyncing(true);
     try {
-      // Buscar a instância da Evolution API - endpoint fetchInstances retorna array ou objeto
-      const response = await fetch(`${config.api_url}/instance/fetchInstances?instanceName=${config.instance_name}`, {
-        headers: {
-          'apikey': config.api_key || ''
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Falha ao buscar instância da Evolution API');
-      }
-
-      const data = await response.json();
-      console.log('📦 Resposta da Evolution API:', data);
-
-      // A API pode retornar array ou objeto único
-      let instanceData: any = null;
+      console.log('🔄 Iniciando sincronização da API Key para:', config.instance_name);
       
-      if (Array.isArray(data)) {
-        instanceData = data.find((i: any) => 
-          i.instance?.instanceName === config.instance_name || 
-          i.instanceName === config.instance_name
-        );
-      } else if (data.instance || data.instanceName) {
-        instanceData = data;
+      // Tentar múltiplos endpoints para buscar a instância
+      const endpoints = [
+        `${config.api_url}/instance/fetchInstances?instanceName=${config.instance_name}`,
+        `${config.api_url}/instance/fetchInstances/${config.instance_name}`,
+        `${config.api_url}/instance/fetchInstances`,
+      ];
+
+      let instanceData: any = null;
+      let responseData: any = null;
+
+      // Tentar cada endpoint até conseguir dados
+      for (const endpoint of endpoints) {
+        try {
+          console.log('📡 Tentando endpoint:', endpoint);
+          const response = await fetch(endpoint, {
+            headers: {
+              'apikey': config.api_key || ''
+            }
+          });
+
+          if (!response.ok) {
+            console.log(`⚠️ Endpoint ${endpoint} retornou status ${response.status}`);
+            continue;
+          }
+
+          responseData = await response.json();
+          console.log('📦 Resposta recebida do endpoint:', endpoint, responseData);
+
+          // Tentar extrair a instância de diferentes formatos
+          if (Array.isArray(responseData)) {
+            instanceData = responseData.find((i: any) => 
+              i.instance?.instanceName === config.instance_name || 
+              i.instanceName === config.instance_name ||
+              i.name === config.instance_name
+            );
+          } else if (responseData.instance?.instanceName === config.instance_name) {
+            instanceData = responseData;
+          } else if (responseData.instanceName === config.instance_name) {
+            instanceData = responseData;
+          } else if (responseData.name === config.instance_name) {
+            instanceData = responseData;
+          }
+
+          if (instanceData) {
+            console.log('✅ Instância encontrada:', instanceData);
+            break;
+          }
+        } catch (endpointError) {
+          console.error(`❌ Erro no endpoint ${endpoint}:`, endpointError);
+          continue;
+        }
       }
 
       if (!instanceData) {
-        throw new Error('Instância não encontrada na resposta da API');
+        console.error('❌ Instância não encontrada em nenhum endpoint. Última resposta:', responseData);
+        throw new Error('Instância não encontrada na Evolution API. Verifique se o nome da instância está correto.');
       }
 
-      // Buscar apikey em diferentes possíveis localizações
+      // Tentar extrair apikey de múltiplas localizações possíveis
       const newApiKey = 
         instanceData.instance?.apikey || 
-        instanceData.apikey || 
         instanceData.instance?.token ||
-        instanceData.token;
+        instanceData.instance?.api_key ||
+        instanceData.apikey || 
+        instanceData.token ||
+        instanceData.api_key ||
+        instanceData.hash?.apikey;
 
       if (!newApiKey) {
-        console.error('❌ Estrutura da resposta:', instanceData);
-        throw new Error('API Key não encontrada na instância. Verifique se a API Key atual está correta.');
+        console.error('❌ API Key não encontrada. Estrutura da instância:', instanceData);
+        throw new Error('API Key não encontrada na instância. A estrutura de resposta da API pode ter mudado.');
       }
 
-      console.log('✅ Nova API Key encontrada:', newApiKey.substring(0, 10) + '...');
+      console.log('🔑 Nova API Key encontrada:', newApiKey.substring(0, 15) + '...');
+
+      // Verificar se a API Key é diferente
+      if (newApiKey === config.api_key) {
+        toast({
+          title: "API Key já está atualizada ✓",
+          description: "A API Key no banco já corresponde à da Evolution API",
+        });
+        return;
+      }
 
       // Atualizar no banco de dados
       const { error } = await supabase
         .from('evolution_config')
-        .update({ api_key: newApiKey })
+        .update({ 
+          api_key: newApiKey,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', config.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao atualizar no banco:', error);
+        throw error;
+      }
+
+      console.log('✅ API Key atualizada no banco com sucesso');
 
       toast({
         title: "API Key sincronizada ✓",
@@ -99,7 +149,7 @@ export function EvolutionInstanceCard({
       // Refresh para atualizar a tela
       onRefresh?.();
     } catch (error: any) {
-      console.error('❌ Erro ao sincronizar:', error);
+      console.error('❌ Erro completo ao sincronizar:', error);
       toast({
         title: "Erro ao sincronizar",
         description: error.message || "Não foi possível sincronizar a API Key",
