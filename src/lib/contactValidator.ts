@@ -18,101 +18,43 @@ export interface ValidationResult {
 }
 
 /**
- * Códigos de países da América Latina suportados
- */
-const LATIN_AMERICA_CODES: { [key: string]: { name: string; minLength: number; maxLength: number } } = {
-  "54": { name: "Argentina", minLength: 12, maxLength: 13 }, // +54 9 11 XXXX-XXXX
-  "55": { name: "Brasil", minLength: 12, maxLength: 13 }, // +55 DD 9XXXX-XXXX
-  "56": { name: "Chile", minLength: 11, maxLength: 12 }, // +56 9 XXXX XXXX
-  "57": { name: "Colômbia", minLength: 12, maxLength: 13 }, // +57 3XX XXX XXXX
-  "58": { name: "Venezuela", minLength: 12, maxLength: 13 }, // +58 4XX XXX XXXX
-  "51": { name: "Peru", minLength: 11, maxLength: 12 }, // +51 9XX XXX XXX
-  "52": { name: "México", minLength: 12, maxLength: 13 }, // +52 1 XX XXXX XXXX
-  "53": { name: "Cuba", minLength: 10, maxLength: 11 }, // +53 5XXX XXXX
-  "591": { name: "Bolívia", minLength: 11, maxLength: 12 }, // +591 7XXX XXXX
-  "593": { name: "Equador", minLength: 12, maxLength: 13 }, // +593 9X XXX XXXX
-  "595": { name: "Paraguai", minLength: 12, maxLength: 13 }, // +595 9XX XXX XXX
-  "598": { name: "Uruguai", minLength: 11, maxLength: 12 }, // +598 9X XXX XXX
-  "506": { name: "Costa Rica", minLength: 11, maxLength: 12 }, // +506 XXXX XXXX
-  "507": { name: "Panamá", minLength: 11, maxLength: 12 }, // +507 XXXX XXXX
-};
-
-/**
- * Normaliza um número de telefone da América Latina para o formato internacional
+ * Normaliza um número de telefone brasileiro para o formato +55DD9XXXXXXXX
  */
 export function normalizePhoneNumber(phone: string): { normalized: string; valid: boolean; error?: string } {
   // Remove todos os caracteres não numéricos
   let digits = phone.replace(/\D/g, "");
 
-  // Se já começa com +, remove para processar
-  if (phone.startsWith("+")) {
-    digits = phone.substring(1).replace(/\D/g, "");
+  // Regras de normalização
+  if (digits.startsWith("55") && digits.length === 13) {
+    // Já está no formato correto: 55DD9XXXXXXXX
+    digits = "+" + digits;
+  } else if (digits.startsWith("55") && digits.length === 11) {
+    // Caso especial: DDD 55 (Rio Grande do Sul)
+    digits = "+55" + digits;
+  } else if (digits.length === 11) {
+    // Apenas DDD + número: DD9XXXXXXXX
+    digits = "+55" + digits;
+  } else if (digits.length === 10) {
+    // Número fixo: DD8XXXXXXXX ou DD9XXXXXXX (sem o 9 inicial)
+    digits = "+55" + digits;
+  } else if (digits.length < 10 || digits.length > 13) {
+    // Fora do padrão aceitável
+    return {
+      normalized: phone,
+      valid: false,
+      error: "Número deve ter entre 10 e 13 dígitos"
+    };
+  } else {
+    // Outros formatos não suportados
+    return {
+      normalized: phone,
+      valid: false,
+      error: "Formato de número não reconhecido"
+    };
   }
 
-  // Detectar código do país
-  let countryCode = "";
-  let countryInfo = null;
-
-  // Tentar códigos de 3 dígitos primeiro (Bolivia, Equador, Paraguai, Uruguai)
-  for (const code of ["591", "593", "595", "598", "506", "507"]) {
-    if (digits.startsWith(code)) {
-      countryCode = code;
-      countryInfo = LATIN_AMERICA_CODES[code];
-      break;
-    }
-  }
-
-  // Se não encontrou, tentar códigos de 2 dígitos
-  if (!countryCode) {
-    for (const code of ["54", "55", "56", "57", "58", "51", "52", "53"]) {
-      if (digits.startsWith(code)) {
-        countryCode = code;
-        countryInfo = LATIN_AMERICA_CODES[code];
-        break;
-      }
-    }
-  }
-
-  // Se não tem código de país, assumir Brasil
-  if (!countryCode) {
-    if (digits.length >= 10 && digits.length <= 11) {
-      countryCode = "55";
-      countryInfo = LATIN_AMERICA_CODES["55"];
-      digits = countryCode + digits;
-    } else {
-      return {
-        normalized: phone,
-        valid: false,
-        error: "Formato de número não reconhecido"
-      };
-    }
-  }
-
-  // Adicionar + se não tiver
-  const normalized = digits.startsWith("+") ? digits : "+" + digits;
-
-  // Validar comprimento
-  if (countryInfo) {
-    const phoneLength = normalized.length;
-    if (phoneLength < countryInfo.minLength || phoneLength > countryInfo.maxLength) {
-      return {
-        normalized,
-        valid: false,
-        error: `Número ${countryInfo.name} deve ter entre ${countryInfo.minLength} e ${countryInfo.maxLength} dígitos`
-      };
-    }
-  }
-
-  // Validação específica do Brasil
-  if (countryCode === "55") {
-    return validateBrazilianPhone(normalized);
-  }
-
-  // Para outros países, apenas validar se tem o código correto
-  return {
-    normalized,
-    valid: true
-  };
+  // Validação final
+  return validateBrazilianPhone(digits);
 }
 
 /**
