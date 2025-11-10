@@ -140,29 +140,46 @@ serve(async (req) => {
         );
       }
 
-      const { data: configs, error: configError } = await supabase
+      // Tentar autenticar por webhook_secret, senão por api_key (alguns provedores enviam apikey)
+      const { data: cfgBySecret, error: errBySecret } = await supabase
         .from('evolution_config')
-        .select('user_id, instance_name, id, organization_id, webhook_secret')
+        .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
         .eq('webhook_secret', providedSecret)
         .maybeSingle();
 
-      if (configError || !configs) {
+      let configs = cfgBySecret;
+      let authMethod: 'webhook_secret' | 'api_key' | null = null;
+      let lastError = errBySecret;
+
+      if (configs) {
+        authMethod = 'webhook_secret';
+      } else {
+        const { data: cfgByApiKey, error: errByApiKey } = await supabase
+          .from('evolution_config')
+          .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+          .eq('api_key', providedSecret)
+          .maybeSingle();
+        configs = cfgByApiKey;
+        lastError = errByApiKey;
+        if (configs) authMethod = 'api_key';
+      }
+
+      if (!configs) {
         console.error('❌ Segredo inválido para webhook:', {
           providedSecretPreview: providedSecret?.substring(0, 8) + '...',
           instance,
-          error: configError?.message
         });
         
         // Tentar buscar por instance_name para debug
         const { data: debugConfig } = await supabase
           .from('evolution_config')
-          .select('instance_name, webhook_secret')
+          .select('instance_name, webhook_secret, api_key')
           .eq('instance_name', instance)
           .maybeSingle();
         
         if (debugConfig) {
           console.log('⚠️ Instância encontrada, mas segredo diferente:', {
-            expectedSecretPreview: debugConfig.webhook_secret?.substring(0, 8) + '...',
+            expectedSecretPreview: (debugConfig.webhook_secret || debugConfig.api_key)?.substring(0, 8) + '...',
             receivedSecretPreview: providedSecret?.substring(0, 8) + '...'
           });
         } else {
@@ -176,13 +193,15 @@ serve(async (req) => {
           event,
           level: 'error',
           message: 'Webhook com segredo inválido',
-          payload: { error: configError?.message, instance },
+          payload: { instance, authDebug: { providedSecretPreview: providedSecret?.substring(0,8)+'...' } },
         });
         return new Response(
           JSON.stringify({ success: false, message: 'Invalid webhook secret' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      console.log(`✅ Config encontrada via ${authMethod}: org=${configs.organization_id}, user=${configs.user_id}`);
 
       // Opcional: garantir que o nome da instância corresponda
       if (configs.instance_name && configs.instance_name !== instance) {
