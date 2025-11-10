@@ -174,7 +174,7 @@ serve(async (req) => {
         );
       }
 
-      // Tentar autenticar por webhook_secret, senão por api_key (alguns provedores enviam apikey)
+      // Tentar autenticar por webhook_secret, api_key OU instance_name + apikey
       const { data: cfgBySecret, error: errBySecret } = await supabase
         .from('evolution_config')
         .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
@@ -182,7 +182,7 @@ serve(async (req) => {
         .maybeSingle();
 
       let configs = cfgBySecret;
-      let authMethod: 'webhook_secret' | 'api_key' | null = null;
+      let authMethod: 'webhook_secret' | 'api_key' | 'instance_match' | null = null;
       let lastError = errBySecret;
 
       if (configs) {
@@ -195,7 +195,23 @@ serve(async (req) => {
           .maybeSingle();
         configs = cfgByApiKey;
         lastError = errByApiKey;
-        if (configs) authMethod = 'api_key';
+        if (configs) {
+          authMethod = 'api_key';
+        } else {
+          // Se não encontrou por secret/api_key, tentar por instance_name (alguns deployments)
+          const { data: cfgByInstance, error: errByInstance } = await supabase
+            .from('evolution_config')
+            .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+            .eq('instance_name', instance)
+            .maybeSingle();
+          
+          if (cfgByInstance) {
+            configs = cfgByInstance;
+            lastError = errByInstance;
+            authMethod = 'instance_match';
+            console.log(`✅ Config encontrada por instance_name: ${instance}`);
+          }
+        }
       }
 
       if (!configs) {
