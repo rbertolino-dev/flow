@@ -117,14 +117,17 @@ serve(async (req) => {
 
       // Verificar configuração da Evolution usando segredo exclusivo por organização
       const url = new URL(req.url);
-      const authHeader = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
-      const providedSecret = authHeader ||
+      const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
+      const isJWT = !!bearer && bearer.split('.').length === 3;
+      const authCandidate = isJWT ? undefined : bearer;
+      const providedSecret = authCandidate ||
                             req.headers.get('x-webhook-secret') || 
                             url.searchParams.get('secret') ||
                             rawPayload.apikey || rawPayload.secret || rawPayload.token; // Fallbacks para apikey/secret/token no payload
 
       console.log(`🔍 Debug autenticação:`, {
-        hasAuthHeader: !!authHeader,
+        hasAuthHeader: !!bearer,
+        isJWT,
         hasWebhookHeader: !!req.headers.get('x-webhook-secret'),
         hasSecretParam: !!url.searchParams.get('secret'),
         hasApikey: !!rawPayload.apikey,
@@ -451,8 +454,10 @@ serve(async (req) => {
     if (event === 'connection.update') {
       console.log(`🔄 Atualizando status de conexão para instância ${instance}`);
       const url = new URL(req.url);
-      const authHeader = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
-      const providedSecret = authHeader ||
+      const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
+      const isJWT = !!bearer && bearer.split('.').length === 3;
+      const authCandidate = isJWT ? undefined : bearer;
+      const providedSecret = authCandidate ||
                             req.headers.get('x-webhook-secret') || 
                             url.searchParams.get('secret') ||
                             rawPayload.apikey || rawPayload.secret || rawPayload.token;
@@ -482,8 +487,10 @@ serve(async (req) => {
     if (event === 'qrcode.updated') {
       console.log(`📱 Atualizando QR Code para instância ${instance}`);
       const url = new URL(req.url);
-      const authHeader = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
-      const providedSecret = authHeader ||
+      const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
+      const isJWT = !!bearer && bearer.split('.').length === 3;
+      const authCandidate = isJWT ? undefined : bearer;
+      const providedSecret = authCandidate ||
                             req.headers.get('x-webhook-secret') || 
                             url.searchParams.get('secret') ||
                             rawPayload.apikey || rawPayload.secret || rawPayload.token;
