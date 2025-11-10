@@ -13,11 +13,6 @@ export function WhatsAppNav() {
       path: "/whatsapp",
     },
     {
-      label: "Disparos",
-      icon: Send,
-      path: "/broadcast-campaigns",
-    },
-    {
       label: "Configurações",
       icon: Settings,
       path: "/settings",
