@@ -11,17 +11,7 @@ const corsHeaders = {
 const evolutionWebhookSchema = z.object({
   event: z.string(),
   instance: z.string().min(1).max(100),
-  data: z.union([
-    z.object({
-      key: z.object({
-        remoteJid: z.string(),
-        fromMe: z.boolean().optional(),
-      }),
-      message: z.any().optional(),
-      pushName: z.string().optional(),
-    }),
-    z.array(z.any()),
-  ]).optional(),
+  data: z.any().optional(),
   state: z.string().optional(),
   qrcode: z.string().optional(),
 });
