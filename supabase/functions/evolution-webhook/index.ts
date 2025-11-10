@@ -120,10 +120,16 @@ serve(async (req) => {
       const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
       const isJWT = !!bearer && bearer.split('.').length === 3;
       const authCandidate = isJWT ? undefined : bearer;
+      
+      // Verificar todos os possíveis locais do segredo
       const providedSecret = authCandidate ||
                             req.headers.get('x-webhook-secret') || 
                             url.searchParams.get('secret') ||
-                            rawPayload.apikey || rawPayload.secret || rawPayload.token; // Fallbacks para apikey/secret/token no payload
+                            rawPayload.apikey || 
+                            rawPayload.secret || 
+                            rawPayload.token ||
+                            rawPayload.api_key ||
+                            rawPayload['x-webhook-secret'];
 
       console.log(`🔍 Debug autenticação:`, {
         hasAuthHeader: !!bearer,
@@ -131,14 +137,30 @@ serve(async (req) => {
         hasWebhookHeader: !!req.headers.get('x-webhook-secret'),
         hasSecretParam: !!url.searchParams.get('secret'),
         hasApikey: !!rawPayload.apikey,
+        hasSecret: !!rawPayload.secret,
+        hasToken: !!rawPayload.token,
+        hasApiKey: !!rawPayload.api_key,
         providedSecretLength: providedSecret?.length || 0,
-        instance
+        instance,
+        payloadKeys: Object.keys(rawPayload).filter(k => !['data', 'message'].includes(k))
       });
 
       if (!providedSecret) {
-        console.error('❌ Webhook sem segredo');
+        console.error('❌ Webhook sem segredo. Configure o webhook na Evolution API com um dos métodos:', {
+          methods: [
+            'Header x-webhook-secret: <seu-webhook-secret>',
+            'Query parameter ?secret=<seu-webhook-secret>',
+            'Payload { "apikey": "<seu-webhook-secret>" }',
+            'Payload { "secret": "<seu-webhook-secret>" }',
+          ],
+          receivedPayloadKeys: Object.keys(rawPayload)
+        });
         return new Response(
-          JSON.stringify({ success: false, error: 'Missing webhook secret' }),
+          JSON.stringify({ 
+            success: false, 
+            error: 'Missing webhook secret',
+            hint: 'Configure o webhook na Evolution API para enviar o secret via header x-webhook-secret, query param ?secret=, ou no payload como apikey/secret/token'
+          }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
