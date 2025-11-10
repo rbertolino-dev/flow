@@ -408,12 +408,22 @@ serve(async (req) => {
         if (existingLead.deleted_at) {
           console.log(`🔄 Lead foi excluído, recriando (ID: ${existingLead.id})`);
           
+          // Buscar primeiro estágio do funil para garantir que o lead tenha uma etapa
+          const { data: firstStage } = await supabase
+            .from('pipeline_stages')
+            .select('id')
+            .eq('organization_id', configs.organization_id)
+            .order('position', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          
           await supabase
             .from('leads')
             .update({
               deleted_at: null,
               name: contactName,
               last_contact: new Date().toISOString(),
+              stage_id: firstStage?.id, // Garantir que tenha uma etapa
             })
             .eq('id', existingLead.id);
 
@@ -426,7 +436,7 @@ serve(async (req) => {
             direction,
           });
 
-          console.log(`✅ Lead restaurado com ID: ${existingLead.id}`);
+          console.log(`✅ Lead restaurado com ID: ${existingLead.id} na etapa ${firstStage?.id}`);
         } else {
           // Lead existe e não foi excluído, apenas adicionar atividade
           console.log(`♻️ Lead já existe (ID: ${existingLead.id}), adicionando atividade`);
