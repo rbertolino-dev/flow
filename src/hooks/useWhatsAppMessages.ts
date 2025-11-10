@@ -29,7 +29,6 @@ export function useWhatsAppMessages(phone: string | null) {
       const { data, error } = await supabase
         .from('whatsapp_messages')
         .select('*')
-        .eq('user_id', user.id)
         .eq('phone', phone)
         .order('timestamp', { ascending: true });
 
@@ -52,7 +51,6 @@ export function useWhatsAppMessages(phone: string | null) {
         await supabase
           .from('whatsapp_messages')
           .update({ read_status: true })
-          .eq('user_id', user.id)
           .eq('phone', phone)
           .eq('direction', 'incoming')
           .eq('read_status', false);

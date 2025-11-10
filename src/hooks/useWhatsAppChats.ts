@@ -30,11 +30,10 @@ export function useWhatsAppChats() {
         return;
       }
 
-      // Buscar última mensagem de cada conversa
+      // Buscar últimas mensagens (RLS já restringe à organização do usuário)
       const { data, error } = await supabase
         .from('whatsapp_messages')
         .select('*')
-        .eq('user_id', user.id)
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
