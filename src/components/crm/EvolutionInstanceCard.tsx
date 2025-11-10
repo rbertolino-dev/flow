@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp, RefreshCw, Key } from "lucide-react";
 import { useState } from "react";
 import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
 import { extractConnectionState } from "@/lib/evolutionStatus";
+import { supabase } from "@/integrations/supabase/client";
 
 interface EvolutionInstanceCardProps {
   config: EvolutionConfig;
@@ -17,6 +18,7 @@ interface EvolutionInstanceCardProps {
   onToggleWebhook: (id: string, enabled: boolean) => void;
   onTest: (config: EvolutionConfig) => void;
   onConfigureWebhook: (config: EvolutionConfig) => void;
+  onRefresh?: () => void;
 }
 
 export function EvolutionInstanceCard({
@@ -26,11 +28,62 @@ export function EvolutionInstanceCard({
   onToggleWebhook,
   onTest,
   onConfigureWebhook,
+  onRefresh,
 }: EvolutionInstanceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [realStatus, setRealStatus] = useState<boolean | null>(null);
   const { toast } = useToast();
+
+  const syncApiKey = async () => {
+    setSyncing(true);
+    try {
+      // Buscar a instância da Evolution API
+      const response = await fetch(`${config.api_url}/instance/fetchInstances`, {
+        headers: {
+          'apikey': config.api_key
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao buscar instância');
+      }
+
+      const instances = await response.json();
+      const instance = instances.find((i: any) => i.instance?.instanceName === config.instance_name);
+
+      if (!instance || !instance.instance?.apikey) {
+        throw new Error('API Key não encontrada na instância');
+      }
+
+      const newApiKey = instance.instance.apikey;
+
+      // Atualizar no banco de dados
+      const { error } = await supabase
+        .from('evolution_config')
+        .update({ api_key: newApiKey })
+        .eq('id', config.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "API Key sincronizada ✓",
+        description: "A API Key foi atualizada com sucesso",
+      });
+
+      // Refresh para atualizar a tela
+      onRefresh?.();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sincronizar",
+        description: error.message || "Não foi possível sincronizar a API Key",
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const checkRealStatus = async () => {
     setTesting(true);
@@ -162,16 +215,38 @@ export function EvolutionInstanceCard({
           </Button>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full text-xs sm:text-sm"
-          onClick={() => onConfigureWebhook(config)}
-        >
-          <Webhook className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-          <span className="hidden sm:inline">Configurar Webhook</span>
-          <span className="sm:hidden">Webhook</span>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs sm:text-sm"
+            onClick={() => onConfigureWebhook(config)}
+          >
+            <Webhook className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+            <span className="hidden sm:inline">Configurar Webhook</span>
+            <span className="sm:hidden">Webhook</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs sm:text-sm"
+            onClick={syncApiKey}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <>
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <Key className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                <span className="hidden sm:inline">Sincronizar API Key</span>
+                <span className="sm:hidden">Sync Key</span>
+              </>
+            )}
+          </Button>
+        </div>
 
         <Button
           variant="ghost"

@@ -32,7 +32,8 @@ export default function Settings() {
     deleteConfig, 
     toggleWebhook,
     configureWebhook,
-    testConnection 
+    testConnection,
+    refetch
   } = useEvolutionConfigs();
   
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages } = usePipelineStages();
@@ -231,6 +232,7 @@ export default function Settings() {
                           onToggleWebhook={toggleWebhook}
                           onTest={testConnection}
                           onConfigureWebhook={configureWebhook}
+                          onRefresh={refetch}
                         />
                       ))}
                     </div>
