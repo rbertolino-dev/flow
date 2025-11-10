@@ -2,6 +2,18 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
+// Service role client para operações que não dependem de auth.uid()
+const supabaseServiceRole = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, x-api-key, x-webhook-secret, content-type',
@@ -360,7 +372,7 @@ serve(async (req) => {
       try {
         // Registrar log de mensagem
         console.log('📝 Salvando log de mensagem...');
-        await supabase.from('evolution_logs').insert({
+        await supabaseServiceRole.from('evolution_logs').insert({
           user_id: configs.user_id,
           organization_id: configs.organization_id,
           instance,
@@ -373,7 +385,7 @@ serve(async (req) => {
 
         // Salvar mensagem no histórico do WhatsApp
         console.log('💾 Salvando mensagem no histórico...');
-        await supabase.from('whatsapp_messages').insert({
+        await supabaseServiceRole.from('whatsapp_messages').insert({
           user_id: configs.user_id,
           organization_id: configs.organization_id,
           phone: phoneNumber,
