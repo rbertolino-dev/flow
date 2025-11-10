@@ -519,6 +519,7 @@ serve(async (req) => {
               phone: phoneNumber,
               source: 'whatsapp',
               source_instance_id: configs.id,
+              source_instance_name: configs.instance_name,
               status: 'novo',
               stage_id: firstStage?.id,
               last_contact: new Date().toISOString(),
