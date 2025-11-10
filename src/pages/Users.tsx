@@ -105,6 +105,38 @@ export default function Users() {
 
   const fetchUsers = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Obter a organização ativa do usuário
+      const { data: orgId } = await supabase.rpc('get_user_organization', { _user_id: user.id });
+      if (!orgId) {
+        toast({
+          title: "Erro",
+          description: "Usuário não pertence a nenhuma organização",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Buscar apenas usuários da mesma organização
+      const { data: orgMembers, error: membersError } = await supabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', orgId);
+
+      if (membersError) throw membersError;
+
+      const userIds = orgMembers?.map(m => m.user_id) || [];
+
+      if (userIds.length === 0) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      // Buscar perfis apenas dos membros da organização
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -112,7 +144,8 @@ export default function Users() {
           email,
           full_name,
           user_roles (role)
-        `);
+        `)
+        .in('id', userIds);
 
       if (error) throw error;
 
