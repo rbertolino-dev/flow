@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface BulkImportPanelProps {
@@ -30,6 +31,8 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
   const [preview, setPreview] = useState<ParsedContact[]>([]);
   const [selectedStageId, setSelectedStageId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [checkDuplicates, setCheckDuplicates] = useState(true);
+  const [duplicatesRemoved, setDuplicatesRemoved] = useState(0);
   const itemsPerPage = 10;
   const { toast } = useToast();
   const { stages, loading: stagesLoading } = usePipelineStages();
@@ -134,7 +137,7 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
   };
 
   const handleImport = async () => {
-    const validContacts = preview.filter(c => c.valid);
+    let validContacts = preview.filter(c => c.valid);
     
     if (validContacts.length === 0) {
       toast({
@@ -155,6 +158,7 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
     }
 
     setImporting(true);
+    setDuplicatesRemoved(0);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -162,6 +166,43 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
 
       const orgId = await getUserOrganizationId();
       if (!orgId) throw new Error("Usuário não pertence a uma organização");
+
+      // Verificar duplicados se a opção estiver ativada
+      if (checkDuplicates) {
+        const phones = validContacts.map(c => c.phone);
+        
+        const { data: existingLeads } = await (supabase as any)
+          .from('leads')
+          .select('phone')
+          .eq('organization_id', orgId)
+          .is('deleted_at', null)
+          .in('phone', phones);
+
+        if (existingLeads && existingLeads.length > 0) {
+          const existingPhones = new Set(existingLeads.map((l: any) => l.phone));
+          const beforeCount = validContacts.length;
+          validContacts = validContacts.filter(c => !existingPhones.has(c.phone));
+          const removed = beforeCount - validContacts.length;
+          
+          if (removed > 0) {
+            setDuplicatesRemoved(removed);
+            toast({
+              title: "Duplicados removidos",
+              description: `${removed} contato(s) já cadastrado(s) no funil foram removidos da importação`,
+            });
+          }
+
+          if (validContacts.length === 0) {
+            toast({
+              title: "Nenhum contato novo",
+              description: "Todos os contatos já estão cadastrados no funil",
+              variant: "destructive",
+            });
+            setImporting(false);
+            return;
+          }
+        }
+      }
 
       let successCount = 0;
       let errorCount = 0;
@@ -230,15 +271,18 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
         }
       }
 
+      const duplicatesMsg = duplicatesRemoved > 0 ? ` ${duplicatesRemoved} duplicado(s) removido(s).` : '';
+      
       toast({
         title: "Importação concluída",
-        description: `${successCount} contatos adicionados à fila. ${errorCount > 0 ? `${errorCount} erros.` : ''}`,
+        description: `${successCount} contatos adicionados à fila.${duplicatesMsg} ${errorCount > 0 ? `${errorCount} erros.` : ''}`,
       });
 
       setInputText("");
       setPreview([]);
       setSelectedStageId("");
       setCurrentPage(1);
+      setDuplicatesRemoved(0);
       onImportComplete();
     } catch (error: any) {
       toast({
@@ -287,6 +331,20 @@ export function BulkImportPanel({ onImportComplete, showStageSelector = false }:
             <br className="hidden sm:block" />
             <strong>Ordem flexível:</strong> O sistema detecta automaticamente qual parte é o nome e qual é o telefone
           </p>
+        </div>
+
+        <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/50">
+          <Checkbox
+            id="check-duplicates"
+            checked={checkDuplicates}
+            onCheckedChange={(checked) => setCheckDuplicates(checked as boolean)}
+          />
+          <label
+            htmlFor="check-duplicates"
+            className="text-xs sm:text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Verificar e remover contatos já cadastrados no funil
+          </label>
         </div>
 
         {showStageSelector && (
