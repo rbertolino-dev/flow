@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 export interface WhatsAppChat {
   phone: string;
@@ -15,6 +16,7 @@ export function useWhatsAppChats() {
   const [chats, setChats] = useState<WhatsAppChat[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   const fetchChats = async () => {
     try {
@@ -29,11 +31,13 @@ export function useWhatsAppChats() {
         });
         return;
       }
+      if (!activeOrgId) return;
 
-      // Buscar últimas mensagens (RLS já restringe à organização do usuário)
+      // Buscar últimas mensagens da organização
       const { data, error } = await supabase
         .from('whatsapp_messages')
         .select('*')
+        .eq('organization_id', activeOrgId)
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
@@ -98,7 +102,7 @@ export function useWhatsAppChats() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeOrgId]);
 
   return {
     chats,

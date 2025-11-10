@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 export interface WhatsAppMessage {
   id: string;
@@ -16,9 +17,10 @@ export function useWhatsAppMessages(phone: string | null) {
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   const fetchMessages = async () => {
-    if (!phone) return;
+    if (!phone || !activeOrgId) return;
 
     try {
       setLoading(true);
@@ -30,6 +32,7 @@ export function useWhatsAppMessages(phone: string | null) {
         .from('whatsapp_messages')
         .select('*')
         .eq('phone', phone)
+        .eq('organization_id', activeOrgId)
         .order('timestamp', { ascending: true });
 
       if (error) throw error;
@@ -52,6 +55,7 @@ export function useWhatsAppMessages(phone: string | null) {
           .from('whatsapp_messages')
           .update({ read_status: true })
           .eq('phone', phone)
+          .eq('organization_id', activeOrgId)
           .eq('direction', 'incoming')
           .eq('read_status', false);
       }
@@ -70,7 +74,7 @@ export function useWhatsAppMessages(phone: string | null) {
   useEffect(() => {
     fetchMessages();
 
-    if (!phone) return;
+    if (!phone || !activeOrgId) return;
 
     // Realtime para novas mensagens
     const channel = supabase
@@ -92,7 +96,7 @@ export function useWhatsAppMessages(phone: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [phone]);
+  }, [phone, activeOrgId]);
 
   return {
     messages,
