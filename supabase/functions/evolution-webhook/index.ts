@@ -264,10 +264,17 @@ serve(async (req) => {
 
       console.log(`✅ Config encontrada: org=${configs.organization_id}, user=${configs.user_id}`);
 
-      // Verificar se é @lid (WhatsApp Business/Canal)
-      if (remoteJid.includes('@lid')) {
+      // Verificar se temos o número real via remoteJid (telefone normal)
+      // Mesmo que tenha LID alternativo, preferir o número real
+      const hasRealPhone = remoteJid.includes('@s.whatsapp.net');
+      const hasLID = remoteJid.includes('@lid');
+      
+      // Se tiver número real, processar como telefone normal (não como LID)
+      // Isso permite processar números com LID alternativo como leads normais
+      if (!hasRealPhone && hasLID) {
+        // Só processar como LID se NÃO tiver número real
         const lid = remoteJid.split('@')[0];
-        console.log(`💼 Mensagem de LID: ${lid}`);
+        console.log(`💼 Mensagem de LID puro (sem telefone real): ${lid}`);
 
         // Registrar log
         await supabase.from('evolution_logs').insert({
@@ -326,7 +333,10 @@ serve(async (req) => {
       }
 
       // Processar telefone normal (@s.whatsapp.net)
+      // NOTA: Mesmo que exista um LID alternativo, priorizamos o número real
       const phoneNumber = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+      
+      console.log(`📞 Processando número real: ${phoneNumber} (LID alternativo ignorado)`);
       
       // Verificar se é brasileiro
       const isBrazilian = phoneNumber.startsWith('55') && phoneNumber.length >= 12 && phoneNumber.length <= 13;
