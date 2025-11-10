@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Archive } from "lucide-react";
 import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
+import { ArchivedLeadsPanel } from "@/components/crm/ArchivedLeadsPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -174,7 +175,7 @@ export default function Settings() {
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
         <Tabs defaultValue="evolution" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1">
             <TabsTrigger value="evolution" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Evolution API</span>
               <span className="sm:hidden">Evolution</span>
@@ -190,6 +191,11 @@ export default function Settings() {
             <TabsTrigger value="google-calendar" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Google Calendar</span>
               <span className="sm:hidden">Google</span>
+            </TabsTrigger>
+            <TabsTrigger value="archived" className="text-xs sm:text-sm">
+              <Archive className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Arquivados</span>
+              <span className="sm:hidden">Arquivo</span>
             </TabsTrigger>
           </TabsList>
 
@@ -522,6 +528,10 @@ export default function Settings() {
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="archived" className="space-y-6">
+                <ArchivedLeadsPanel />
               </TabsContent>
         </Tabs>
       </div>
