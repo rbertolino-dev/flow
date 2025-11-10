@@ -410,11 +410,12 @@ serve(async (req) => {
 
       // Verificar se já existe lead com este telefone NESTA organização
       console.log('🔍 Verificando se lead existe...');
-      const { data: existingLead } = await supabase
+      const { data: existingLead } = await supabaseServiceRole
         .from('leads')
-        .select('id, deleted_at')
+        .select('id, deleted_at, source_instance_id, source_instance_name')
         .eq('phone', phoneNumber)
         .eq('organization_id', configs.organization_id)
+        .eq('source_instance_id', configs.id)
         .maybeSingle();
 
       if (existingLead) {
@@ -423,7 +424,7 @@ serve(async (req) => {
           console.log(`🔄 Lead foi excluído, recriando (ID: ${existingLead.id})`);
           
           // Buscar primeiro estágio do funil para garantir que o lead tenha uma etapa
-          const { data: firstStage } = await supabase
+          const { data: firstStage } = await supabaseServiceRole
             .from('pipeline_stages')
             .select('id')
             .eq('organization_id', configs.organization_id)
@@ -448,13 +449,14 @@ serve(async (req) => {
             updateData.unread_message_count = 1;
           }
           
-          await supabase
+          await supabaseServiceRole
             .from('leads')
             .update(updateData)
             .eq('id', existingLead.id);
 
           // Adicionar atividade de retorno
-          await supabase.from('activities').insert({
+          await supabaseServiceRole.from('activities').insert({
+            organization_id: configs.organization_id,
             lead_id: existingLead.id,
             type: 'whatsapp',
             content: isFromMe ? messageContent : `[Retorno] ${messageContent}`,
@@ -467,7 +469,8 @@ serve(async (req) => {
           // Lead existe e não foi excluído, apenas adicionar atividade
           console.log(`♻️ Lead já existe (ID: ${existingLead.id}), adicionando atividade`);
           
-          await supabase.from('activities').insert({
+          await supabaseServiceRole.from('activities').insert({
+            organization_id: configs.organization_id,
             lead_id: existingLead.id,
             type: 'whatsapp',
             content: messageContent,
@@ -487,10 +490,10 @@ serve(async (req) => {
             updateData.has_unread_messages = true;
             updateData.last_message_at = new Date().toISOString();
             // Incrementar contador de não lidas
-            await supabase.rpc('increment_unread_count', { lead_id_param: existingLead.id });
+            await supabaseServiceRole.rpc('increment_unread_count', { lead_id_param: existingLead.id });
           }
 
-          await supabase
+          await supabaseServiceRole
             .from('leads')
             .update(updateData)
             .eq('id', existingLead.id);
@@ -504,7 +507,7 @@ serve(async (req) => {
           console.log('🆕 Criando novo lead...');
           
           // Buscar primeiro estágio do funil da organização
-          const { data: firstStage } = await supabase
+          const { data: firstStage } = await supabaseServiceRole
             .from('pipeline_stages')
             .select('id')
             .eq('organization_id', configs.organization_id)
@@ -514,7 +517,7 @@ serve(async (req) => {
 
           console.log(`📊 Primeiro estágio do funil: ${firstStage?.id || 'não encontrado'}`);
           
-          const { data: newLead, error: leadError } = await supabase
+          const { data: newLead, error: leadError } = await supabaseServiceRole
             .from('leads')
             .insert({
               user_id: configs.user_id,
@@ -542,7 +545,8 @@ serve(async (req) => {
           console.log(`✅ Lead criado com ID: ${newLead.id} no estágio ${firstStage?.id || 'padrão'}`);
 
           // Adicionar primeira atividade
-          await supabase.from('activities').insert({
+          await supabaseServiceRole.from('activities').insert({
+            organization_id: configs.organization_id,
             lead_id: newLead.id,
             type: 'whatsapp',
             content: messageContent,
