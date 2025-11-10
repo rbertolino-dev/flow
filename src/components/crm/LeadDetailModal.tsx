@@ -422,6 +422,31 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     }
   };
 
+  // Marcar mensagens como lidas quando o modal abre
+  useEffect(() => {
+    if (open && lead?.has_unread_messages) {
+      const markAsRead = async () => {
+        try {
+          await supabase
+            .from("leads")
+            .update({
+              has_unread_messages: false,
+              unread_message_count: 0,
+            })
+            .eq("id", lead.id);
+          
+          // Atualizar localmente
+          if (onUpdated) {
+            onUpdated();
+          }
+        } catch (error) {
+          console.error("Erro ao marcar como lido:", error);
+        }
+      };
+      markAsRead();
+    }
+  }, [open, lead?.id, lead?.has_unread_messages, onUpdated]);
+
   const availableTags = tags.filter(
     tag => !lead.tags?.some(lt => lt.id === tag.id)
   );

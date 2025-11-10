@@ -1260,6 +1260,10 @@ export type Database = {
             }
             Returns: boolean
           }
+      increment_unread_count: {
+        Args: { lead_id_param: string }
+        Returns: undefined
+      }
       is_pubdigital_user: { Args: { _user_id: string }; Returns: boolean }
       transfer_user_data_to_admin: {
         Args: { _org_id: string; _user_id: string }

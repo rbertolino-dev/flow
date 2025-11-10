@@ -223,6 +223,12 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
           ) : (
             <div className="flex items-center gap-2 group">
               <h3 className="font-bold text-lg text-foreground line-clamp-1 flex-1">{lead.name}</h3>
+              {lead.has_unread_messages && (
+                <Badge variant="destructive" className="text-xs px-1.5 py-0.5 animate-pulse shrink-0">
+                  <MessageCircle className="h-3 w-3 mr-1" />
+                  {lead.unread_message_count || 'Nova'}
+                </Badge>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
