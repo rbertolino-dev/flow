@@ -611,8 +611,10 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           email: string | null
+          has_unread_messages: boolean | null
           id: string
           last_contact: string | null
+          last_message_at: string | null
           name: string
           notes: string | null
           organization_id: string
@@ -623,6 +625,7 @@ export type Database = {
           source_instance_name: string | null
           stage_id: string | null
           status: string
+          unread_message_count: number | null
           updated_at: string | null
           updated_by: string | null
           user_id: string
@@ -636,8 +639,10 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           email?: string | null
+          has_unread_messages?: boolean | null
           id?: string
           last_contact?: string | null
+          last_message_at?: string | null
           name: string
           notes?: string | null
           organization_id: string
@@ -648,6 +653,7 @@ export type Database = {
           source_instance_name?: string | null
           stage_id?: string | null
           status?: string
+          unread_message_count?: number | null
           updated_at?: string | null
           updated_by?: string | null
           user_id: string
@@ -661,8 +667,10 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           email?: string | null
+          has_unread_messages?: boolean | null
           id?: string
           last_contact?: string | null
+          last_message_at?: string | null
           name?: string
           notes?: string | null
           organization_id?: string
@@ -673,6 +681,7 @@ export type Database = {
           source_instance_name?: string | null
           stage_id?: string | null
           status?: string
+          unread_message_count?: number | null
           updated_at?: string | null
           updated_by?: string | null
           user_id?: string

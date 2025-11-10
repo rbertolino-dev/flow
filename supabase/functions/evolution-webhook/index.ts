@@ -417,14 +417,24 @@ serve(async (req) => {
             .limit(1)
             .maybeSingle();
           
+          // Preparar dados de atualização
+          const updateData: any = {
+            deleted_at: null,
+            name: contactName,
+            last_contact: new Date().toISOString(),
+            stage_id: firstStage?.id,
+          };
+          
+          // Se for mensagem recebida, marcar como não lida
+          if (!isFromMe) {
+            updateData.has_unread_messages = true;
+            updateData.last_message_at = new Date().toISOString();
+            updateData.unread_message_count = 1;
+          }
+          
           await supabase
             .from('leads')
-            .update({
-              deleted_at: null,
-              name: contactName,
-              last_contact: new Date().toISOString(),
-              stage_id: firstStage?.id, // Garantir que tenha uma etapa
-            })
+            .update(updateData)
             .eq('id', existingLead.id);
 
           // Adicionar atividade de retorno
@@ -436,7 +446,7 @@ serve(async (req) => {
             direction,
           });
 
-          console.log(`✅ Lead restaurado com ID: ${existingLead.id} na etapa ${firstStage?.id}`);
+          console.log(`✅ Lead restaurado com ID: ${existingLead.id} na etapa ${firstStage?.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
         } else {
           // Lead existe e não foi excluído, apenas adicionar atividade
           console.log(`♻️ Lead já existe (ID: ${existingLead.id}), adicionando atividade`);
@@ -449,12 +459,25 @@ serve(async (req) => {
             direction,
           });
 
+          // Atualizar lead com informações de mensagem
+          const updateData: any = { 
+            last_contact: new Date().toISOString() 
+          };
+          
+          // Se for mensagem recebida (não enviada), marcar como não lida
+          if (!isFromMe) {
+            updateData.has_unread_messages = true;
+            updateData.last_message_at = new Date().toISOString();
+            // Incrementar contador de não lidas
+            await supabase.rpc('increment_unread_count', { lead_id_param: existingLead.id });
+          }
+
           await supabase
             .from('leads')
-            .update({ last_contact: new Date().toISOString() })
+            .update(updateData)
             .eq('id', existingLead.id);
           
-          console.log(`✅ Atividade registrada para lead ${existingLead.id}`);
+          console.log(`✅ Atividade registrada para lead ${existingLead.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
         }
 
       } else {
@@ -485,6 +508,9 @@ serve(async (req) => {
               status: 'novo',
               stage_id: firstStage?.id,
               last_contact: new Date().toISOString(),
+              has_unread_messages: true,
+              last_message_at: new Date().toISOString(),
+              unread_message_count: 1,
             })
             .select()
             .single();
