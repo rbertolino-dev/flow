@@ -85,19 +85,23 @@ export function useWhatsAppChats() {
 
     // Realtime para atualizar quando novas mensagens chegarem
     const channel = supabase
-      .channel('whatsapp_messages_changes')
+      .channel(`whatsapp_messages_changes_${activeOrgId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'whatsapp_messages',
+          filter: `organization_id=eq.${activeOrgId}`,
         },
-        () => {
+        (payload) => {
+          console.log('📨 Nova mensagem recebida na org via realtime:', payload);
           fetchChats();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Status do canal realtime chats:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

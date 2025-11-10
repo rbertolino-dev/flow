@@ -76,22 +76,25 @@ export function useWhatsAppMessages(phone: string | null) {
 
     if (!phone || !activeOrgId) return;
 
-    // Realtime para novas mensagens
+    // Realtime para novas mensagens - filtra por phone E organization
     const channel = supabase
-      .channel(`whatsapp_messages_${phone}`)
+      .channel(`whatsapp_messages_${phone}_${activeOrgId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'whatsapp_messages',
-          filter: `phone=eq.${phone}`,
+          filter: `phone=eq.${phone},organization_id=eq.${activeOrgId}`,
         },
-        () => {
+        (payload) => {
+          console.log('📨 Nova mensagem recebida via realtime:', payload);
           fetchMessages();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Status do canal realtime:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
