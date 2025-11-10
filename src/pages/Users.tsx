@@ -10,6 +10,7 @@ import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog"
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { DeleteUserDialog } from "@/components/superadmin/DeleteUserDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,7 +47,7 @@ export default function Users() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newUserData, setNewUserData] = useState({
@@ -154,41 +155,8 @@ export default function Users() {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!isAdmin) {
-      toast({
-        title: "Acesso negado",
-        description: "Apenas administradores podem excluir usuários",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Deletar o profile (cascade irá deletar roles e auth.user)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Usuário excluído",
-        description: "O usuário foi removido com sucesso",
-      });
-
-      fetchUsers();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao excluir usuário",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setUserToDelete(null);
-    }
-  };
+  // Removido: exclusão direta do perfil para evitar erros de FK.
+  // A exclusão agora é feita pelo DeleteUserDialog via RPC delete_user_from_organization.
 
   const handleCreateUser = async () => {
     if (!newUserData.email || !newUserData.password) {
@@ -545,7 +513,7 @@ export default function Users() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setUserToDelete(user.id)}
+                      onClick={() => setUserToDelete(user)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -557,26 +525,22 @@ export default function Users() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.
-              Todos os dados associados ao usuário serão removidos.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => userToDelete && handleDeleteUser(userToDelete)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {userToDelete && activeOrgId && (
+        <DeleteUserDialog
+          open={!!userToDelete}
+          onOpenChange={(open) => {
+            if (!open) setUserToDelete(null);
+          }}
+          onSuccess={() => {
+            setUserToDelete(null);
+            fetchUsers();
+          }}
+          userId={userToDelete.id}
+          userName={userToDelete.full_name || userToDelete.email}
+          organizationId={activeOrgId}
+        />
+      )}
+
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>

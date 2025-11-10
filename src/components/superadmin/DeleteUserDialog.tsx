@@ -40,7 +40,7 @@ export function DeleteUserDialog({
 
       toast({
         title: "Usuário excluído",
-        description: "O usuário foi removido e seus dados foram transferidos para o administrador.",
+        description: "O usuário foi removido da organização e seus dados foram transferidos para um administrador dessa mesma organização.",
       });
 
       onOpenChange(false);
