@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Lead, LeadStatus } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -143,6 +143,40 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     return true;
   });
+
+  // Normaliza leads: se a etapa estiver ausente ou inválida, usa a primeira etapa
+  const stageIdSet = useMemo(() => new Set(stages.map(s => s.id)), [stages]);
+  const firstStageId = stages[0]?.id;
+
+  const normalizedLeads = useMemo(() => {
+    return filteredLeads.map(l => {
+      if (!l.stageId || !stageIdSet.has(l.stageId)) {
+        return { ...l, stageId: firstStageId };
+      }
+      return l;
+    });
+  }, [filteredLeads, stageIdSet, firstStageId]);
+
+  // Correção automática no banco para manter integridade
+  useEffect(() => {
+    if (!firstStageId) return;
+    const invalids = filteredLeads.filter(l => !l.stageId || !stageIdSet.has(l.stageId));
+    if (invalids.length === 0) return;
+
+    (async () => {
+      for (const lead of invalids) {
+        try {
+          await supabase.from('leads').update({ stage_id: firstStageId }).eq('id', lead.id);
+          if (lead.phone === '5521973404788') {
+            console.log('✅ Etapa corrigida para lead Bia -> primeira etapa');
+          }
+        } catch (e) {
+          console.error('Falha ao corrigir etapa do lead', lead.id, e);
+        }
+      }
+      onRefetch();
+    })();
+  }, [filteredLeads, stageIdSet, firstStageId]);
 
   const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
 
@@ -366,7 +400,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
           <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 h-full overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-20 sm:pb-24 kanban-scroll pl-6 pr-6">
             {stages.map((stage) => {
-              const columnLeads = filteredLeads.filter((lead) => lead.stageId === stage.id);
+              const columnLeads = normalizedLeads.filter((lead) => lead.stageId === stage.id);
               return (
                 <KanbanColumn
                   key={stage.id}
