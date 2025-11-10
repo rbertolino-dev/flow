@@ -357,38 +357,47 @@ serve(async (req) => {
 
       console.log(`👤 Mensagem ${direction} ${isFromMe ? 'para' : 'de'} ${contactName} (${phoneNumber}): ${messageContent}`);
 
-      // Registrar log de mensagem
-      await supabase.from('evolution_logs').insert({
-        user_id: configs.user_id,
-        organization_id: configs.organization_id,
-        instance,
-        event,
-        level: 'info',
-        message: `Mensagem ${direction} ${isFromMe ? 'para' : 'de'} ${contactName} (${phoneNumber})`,
-        payload: { phoneNumber, messageContent, contactName, direction },
-      });
+      try {
+        // Registrar log de mensagem
+        console.log('📝 Salvando log de mensagem...');
+        await supabase.from('evolution_logs').insert({
+          user_id: configs.user_id,
+          organization_id: configs.organization_id,
+          instance,
+          event,
+          level: 'info',
+          message: `Mensagem ${direction} ${isFromMe ? 'para' : 'de'} ${contactName} (${phoneNumber})`,
+          payload: { phoneNumber, messageContent, contactName, direction },
+        });
+        console.log('✅ Log de mensagem salvo');
 
-      // Salvar mensagem no histórico do WhatsApp
-      await supabase.from('whatsapp_messages').insert({
-        user_id: configs.user_id,
-        organization_id: configs.organization_id,
-        phone: phoneNumber,
-        contact_name: contactName,
-        message_text: messageContent,
-        message_type: data.message?.audioMessage ? 'audio' : 
-                      data.message?.imageMessage ? 'image' :
-                      data.message?.videoMessage ? 'video' :
-                      data.message?.documentMessage ? 'document' : 'text',
-        media_url: data.message?.audioMessage?.url || 
-                   data.message?.imageMessage?.url ||
-                   data.message?.videoMessage?.url ||
-                   data.message?.documentMessage?.url,
-        direction,
-        timestamp: new Date().toISOString(),
-        read_status: isFromMe, // Mensagens enviadas já são lidas
-      });
+        // Salvar mensagem no histórico do WhatsApp
+        console.log('💾 Salvando mensagem no histórico...');
+        await supabase.from('whatsapp_messages').insert({
+          user_id: configs.user_id,
+          organization_id: configs.organization_id,
+          phone: phoneNumber,
+          contact_name: contactName,
+          message_text: messageContent,
+          message_type: data.message?.audioMessage ? 'audio' : 
+                        data.message?.imageMessage ? 'image' :
+                        data.message?.videoMessage ? 'video' :
+                        data.message?.documentMessage ? 'document' : 'text',
+          media_url: data.message?.audioMessage?.url || 
+                     data.message?.imageMessage?.url ||
+                     data.message?.videoMessage?.url ||
+                     data.message?.documentMessage?.url,
+          direction,
+          timestamp: new Date().toISOString(),
+          read_status: isFromMe, // Mensagens enviadas já são lidas
+        });
+        console.log('✅ Mensagem salva no histórico');
+      } catch (msgError) {
+        console.error('❌ Erro ao salvar mensagem/log:', msgError);
+      }
 
       // Verificar se já existe lead com este telefone NESTA organização
+      console.log('🔍 Verificando se lead existe...');
       const { data: existingLead } = await supabase
         .from('leads')
         .select('id, deleted_at')
