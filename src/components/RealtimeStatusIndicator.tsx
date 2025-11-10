@@ -15,18 +15,20 @@ export function RealtimeStatusIndicator({ compact }: Props) {
   const lastToastAt = useRef<number>(0);
 
   useEffect(() => {
-    if (!connected || lastError) {
+    // Apenas mostra toast para erros reais (CHANNEL_ERROR, TIMED_OUT)
+    // Não mostra para CLOSED que é normal ao trocar de aba
+    if (lastError) {
       const now = Date.now();
-      if (now - lastToastAt.current > 10000) {
+      if (now - lastToastAt.current > 30000) {
         toast({
           title: "Problema na conexão em tempo real",
-          description: lastError || "Conexão com o Realtime perdida. Tentando reconectar...",
+          description: lastError,
           variant: "destructive",
         });
         lastToastAt.current = now;
       }
     }
-  }, [connected, lastError, toast]);
+  }, [lastError, toast]);
 
   const Icon = !connected ? (lastError ? AlertTriangle : WifiOff) : Wifi;
   const color = !connected ? (lastError ? "text-destructive" : "text-warning") : "text-success";
