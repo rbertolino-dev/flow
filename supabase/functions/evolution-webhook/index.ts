@@ -99,6 +99,7 @@ serve(async (req) => {
       console.log(`📨 Processando mensagem ${direction}...`);
       
       const remoteJid = data.key.remoteJid;
+      const remoteJidAlt = data.key.remoteJidAlt; // Número real quando vem como LID
       const messageContent = data.message?.conversation || 
                             data.message?.extendedTextMessage?.text || 
                             '[Mensagem de mídia]';
@@ -254,14 +255,15 @@ serve(async (req) => {
 
       console.log(`✅ Config encontrada: org=${configs.organization_id}, user=${configs.user_id}`);
 
-      // Verificar se temos o número real via remoteJid (telefone normal)
-      // Mesmo que tenha LID alternativo, preferir o número real
+      // Verificar se temos o número real via remoteJid (telefone normal) ou remoteJidAlt
+      // Mesmo que venha como LID, se tiver número real alternativo, processar como lead
       const hasRealPhone = remoteJid.includes('@s.whatsapp.net');
+      const hasRealPhoneAlt = remoteJidAlt && remoteJidAlt.includes('@s.whatsapp.net');
       const hasLID = remoteJid.includes('@lid');
       
-      // Se tiver número real, processar como telefone normal (não como LID)
+      // Se tiver número real (principal ou alternativo), processar como telefone normal (não como LID)
       // Isso permite processar números com LID alternativo como leads normais
-      if (!hasRealPhone && hasLID) {
+      if (!hasRealPhone && !hasRealPhoneAlt && hasLID) {
         // Só processar como LID se NÃO tiver número real
         const lid = remoteJid.split('@')[0];
         console.log(`💼 Mensagem de LID puro (sem telefone real): ${lid}`);
@@ -323,10 +325,11 @@ serve(async (req) => {
       }
 
       // Processar telefone normal (@s.whatsapp.net)
-      // NOTA: Mesmo que exista um LID alternativo, priorizamos o número real
-      const phoneNumber = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+      // NOTA: Se vier como LID mas tiver número real alternativo, usar o alternativo
+      const phoneSource = hasRealPhone ? remoteJid : remoteJidAlt;
+      const phoneNumber = phoneSource.replace('@s.whatsapp.net', '').replace(/\D/g, '');
       
-      console.log(`📞 Processando número real: ${phoneNumber} (LID alternativo ignorado)`);
+      console.log(`📞 Processando número real: ${phoneNumber} ${hasRealPhoneAlt ? '(via remoteJidAlt)' : '(via remoteJid)'}`);
       
       // Verificar se é brasileiro
       const isBrazilian = phoneNumber.startsWith('55') && phoneNumber.length >= 12 && phoneNumber.length <= 13;
