@@ -57,39 +57,6 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     })
   );
 
-  if (stagesLoading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const handleDragStart = (event: any) => {
-    setActiveId(event.active.id);
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { over } = event;
-    if (!over) return;
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    const leadId = active.id as string;
-    const overId = over.id as string;
-    
-    // Check if we're dropping over a stage column
-    const targetStage = stages.find(s => s.id === overId);
-    if (targetStage) {
-      onLeadUpdate(leadId, targetStage.id);
-    }
-  };
-
   const filteredLeads = leads.filter(lead => {
     // Filtro de busca
     if (searchQuery) {
@@ -177,6 +144,42 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       onRefetch();
     })();
   }, [filteredLeads, stageIdSet, firstStageId]);
+
+  if (stagesLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const handleDragStart = (event: any) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) return;
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const leadId = active.id as string;
+    const overId = over.id as string;
+    
+    // Check if we're dropping over a stage column
+    const targetStage = stages.find(s => s.id === overId);
+    if (targetStage) {
+      onLeadUpdate(leadId, targetStage.id);
+    }
+  };
+
+  // Normalização e correção movidas para antes do carregamento.
+
 
   const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
 
