@@ -73,14 +73,6 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     // Filtro de instância
     if (filterInstance && filterInstance !== "all") {
-      // Debug: log quando filtrar por instância
-      if (lead.phone === '5521973404788') {
-        console.log('🔍 Filtro de instância ativa para Bia:', {
-          leadInstanceId: lead.sourceInstanceId,
-          filterInstance,
-          matches: lead.sourceInstanceId === filterInstance
-        });
-      }
       if (lead.sourceInstanceId !== filterInstance) return false;
     }
 
@@ -111,10 +103,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     return true;
   });
 
-  // Normaliza leads: se a etapa estiver ausente ou inválida, usa a primeira etapa
+  // Map de etapas válidas (apenas da organização atual)
   const stageIdSet = useMemo(() => new Set(stages.map(s => s.id)), [stages]);
-  const firstStageId = stages[0]?.id;
+  
+  // Primeira etapa ordenada por posição (não alfabética)
+  const firstStageId = useMemo(() => {
+    const sorted = [...stages].sort((a, b) => a.position - b.position);
+    return sorted[0]?.id;
+  }, [stages]);
 
+  // Normaliza leads: se a etapa estiver ausente ou inválida, usa a primeira etapa DA ORG
   const normalizedLeads = useMemo(() => {
     return filteredLeads.map(l => {
       if (!l.stageId || !stageIdSet.has(l.stageId)) {
@@ -124,26 +122,33 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     });
   }, [filteredLeads, stageIdSet, firstStageId]);
 
-  // Correção automática no banco para manter integridade
+  // Correção automática no banco APENAS para leads com etapa inválida
   useEffect(() => {
-    if (!firstStageId) return;
+    if (!firstStageId || stages.length === 0) return;
+    
     const invalids = filteredLeads.filter(l => !l.stageId || !stageIdSet.has(l.stageId));
     if (invalids.length === 0) return;
 
     (async () => {
       for (const lead of invalids) {
         try {
-          await supabase.from('leads').update({ stage_id: firstStageId }).eq('id', lead.id);
-          if (lead.phone === '5521973404788') {
-            console.log('✅ Etapa corrigida para lead Bia -> primeira etapa');
-          }
+          // Validação extra: garantir que estamos usando etapa da mesma org
+          const targetStage = stages.find(s => s.id === firstStageId);
+          if (!targetStage) continue;
+          
+          await supabase
+            .from('leads')
+            .update({ stage_id: firstStageId })
+            .eq('id', lead.id);
+            
+          console.log(`✅ Etapa corrigida para ${lead.name} -> ${targetStage.name}`);
         } catch (e) {
           console.error('Falha ao corrigir etapa do lead', lead.id, e);
         }
       }
       onRefetch();
     })();
-  }, [filteredLeads, stageIdSet, firstStageId]);
+  }, [filteredLeads, stageIdSet, firstStageId, stages, onRefetch]);
 
   if (stagesLoading) {
     return (
