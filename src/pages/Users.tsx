@@ -9,6 +9,7 @@ import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2, S
 import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +42,7 @@ interface UserProfile {
 
 export default function Users() {
   const navigate = useNavigate();
+  const { activeOrgId } = useActiveOrganization();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,6 @@ export default function Users() {
     fullName: "",
     isAdmin: false,
   });
-  const [currentOrgId, setCurrentOrgId] = useState<string>("");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
@@ -69,9 +70,13 @@ export default function Users() {
   const isAdmin = currentUserRoles.includes('admin');
 
   useEffect(() => {
-    fetchUsers();
+    if (activeOrgId) {
+      fetchUsers();
+    }
+  }, [activeOrgId]);
+
+  useEffect(() => {
     fetchCurrentUserRoles();
-    fetchCurrentOrgId();
   }, []);
 
   const fetchCurrentUserRoles = async () => {
@@ -91,40 +96,21 @@ export default function Users() {
     }
   };
 
-  const fetchCurrentOrgId = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: orgId, error } = await supabase.rpc('get_user_organization', { _user_id: user.id });
-      if (error) throw error;
-      setCurrentOrgId(orgId || "");
-    } catch (error) {
-      console.error('Erro ao buscar organização atual:', error);
-    }
-  };
 
   const fetchUsers = async () => {
+    if (!activeOrgId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setLoading(true);
 
-      // Obter a organização ativa do usuário
-      const { data: orgId } = await supabase.rpc('get_user_organization', { _user_id: user.id });
-      if (!orgId) {
-        toast({
-          title: "Erro",
-          description: "Usuário não pertence a nenhuma organização",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Buscar apenas usuários da mesma organização
+      // Buscar apenas usuários da organização ativa
       const { data: orgMembers, error: membersError } = await supabase
         .from('organization_members')
         .select('user_id')
-        .eq('organization_id', orgId);
+        .eq('organization_id', activeOrgId);
 
       if (membersError) throw membersError;
 
@@ -136,7 +122,7 @@ export default function Users() {
         return;
       }
 
-      // Buscar perfis apenas dos membros da organização
+      // Buscar perfis apenas dos membros da organização ativa
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -219,21 +205,21 @@ export default function Users() {
       return;
     }
 
-    if (!currentOrgId) {
+    if (!activeOrgId) {
       toast({ title: "Organização não definida", description: "Não foi possível identificar sua organização para vincular o novo usuário.", variant: "destructive" });
       return;
     }
 
     setCreating(true);
     try {
-      // Chamar edge function para criar usuário na organização atual do admin
+      // Chamar edge function para criar usuário na organização ativa
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: newUserData.email,
           password: newUserData.password,
           fullName: newUserData.fullName,
           isAdmin: newUserData.isAdmin,
-          organizationId: currentOrgId,
+          organizationId: activeOrgId,
         },
       });
 
@@ -476,7 +462,7 @@ export default function Users() {
                     >
                       Cancelar
                     </Button>
-                    <Button onClick={handleCreateUser} disabled={creating || !currentOrgId || newUserData.password.length < 6}>
+                    <Button onClick={handleCreateUser} disabled={creating || !activeOrgId || newUserData.password.length < 6}>
                       {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                       Criar Usuário
                     </Button>
