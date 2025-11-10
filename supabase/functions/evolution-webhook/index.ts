@@ -120,11 +120,17 @@ serve(async (req) => {
       const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
       const isJWT = !!bearer && bearer.split('.').length === 3;
       const authCandidate = isJWT ? undefined : bearer;
+
+      // Headers e query params alternativos
+      const headerApiKey = req.headers.get('x-api-key') || req.headers.get('apikey') || undefined;
+      const headerWebhookSecret = req.headers.get('x-webhook-secret') || undefined;
+      const qpSecret = url.searchParams.get('secret') || url.searchParams.get('apikey') || url.searchParams.get('token') || url.searchParams.get('key') || undefined;
       
       // Verificar todos os possíveis locais do segredo
       const providedSecret = authCandidate ||
-                            req.headers.get('x-webhook-secret') || 
-                            url.searchParams.get('secret') ||
+                            headerWebhookSecret ||
+                            headerApiKey ||
+                            qpSecret ||
                             rawPayload.apikey || 
                             rawPayload.secret || 
                             rawPayload.token ||
@@ -134,8 +140,9 @@ serve(async (req) => {
       console.log(`🔍 Debug autenticação:`, {
         hasAuthHeader: !!bearer,
         isJWT,
-        hasWebhookHeader: !!req.headers.get('x-webhook-secret'),
-        hasSecretParam: !!url.searchParams.get('secret'),
+        hasWebhookHeader: !!headerWebhookSecret,
+        hasApiKeyHeader: !!headerApiKey,
+        hasSecretParam: !!qpSecret,
         hasApikey: !!rawPayload.apikey,
         hasSecret: !!rawPayload.secret,
         hasToken: !!rawPayload.token,
@@ -149,6 +156,8 @@ serve(async (req) => {
         console.error('❌ Webhook sem segredo. Configure o webhook na Evolution API com um dos métodos:', {
           methods: [
             'Header x-webhook-secret: <seu-webhook-secret>',
+            'Header x-api-key: <seu-webhook-secret>',
+            'Header apikey: <seu-webhook-secret>',
             'Query parameter ?secret=<seu-webhook-secret>',
             'Payload { "apikey": "<seu-webhook-secret>" }',
             'Payload { "secret": "<seu-webhook-secret>" }',
@@ -159,7 +168,7 @@ serve(async (req) => {
           JSON.stringify({ 
             success: false, 
             error: 'Missing webhook secret',
-            hint: 'Configure o webhook na Evolution API para enviar o secret via header x-webhook-secret, query param ?secret=, ou no payload como apikey/secret/token'
+            hint: 'Envie o secret via x-webhook-secret/x-api-key/apikey, query ?secret=, ou payload apikey/secret/token'
           }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -479,10 +488,10 @@ serve(async (req) => {
       const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
       const isJWT = !!bearer && bearer.split('.').length === 3;
       const authCandidate = isJWT ? undefined : bearer;
-      const providedSecret = authCandidate ||
-                            req.headers.get('x-webhook-secret') || 
-                            url.searchParams.get('secret') ||
-                            rawPayload.apikey || rawPayload.secret || rawPayload.token;
+      const headerApiKey = req.headers.get('x-api-key') || req.headers.get('apikey') || undefined;
+      const headerWebhookSecret = req.headers.get('x-webhook-secret') || undefined;
+      const qpSecret = url.searchParams.get('secret') || url.searchParams.get('apikey') || url.searchParams.get('token') || url.searchParams.get('key') || undefined;
+      const providedSecret = authCandidate || headerWebhookSecret || headerApiKey || qpSecret || rawPayload.apikey || rawPayload.secret || rawPayload.token;
       if (!providedSecret) {
         return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -512,10 +521,10 @@ serve(async (req) => {
       const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() || undefined;
       const isJWT = !!bearer && bearer.split('.').length === 3;
       const authCandidate = isJWT ? undefined : bearer;
-      const providedSecret = authCandidate ||
-                            req.headers.get('x-webhook-secret') || 
-                            url.searchParams.get('secret') ||
-                            rawPayload.apikey || rawPayload.secret || rawPayload.token;
+      const headerApiKey = req.headers.get('x-api-key') || req.headers.get('apikey') || undefined;
+      const headerWebhookSecret = req.headers.get('x-webhook-secret') || undefined;
+      const qpSecret = url.searchParams.get('secret') || url.searchParams.get('apikey') || url.searchParams.get('token') || url.searchParams.get('key') || undefined;
+      const providedSecret = authCandidate || headerWebhookSecret || headerApiKey || qpSecret || rawPayload.apikey || rawPayload.secret || rawPayload.token;
       if (!providedSecret) {
         return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }

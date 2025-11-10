@@ -143,6 +143,9 @@ export function WebhookTestPanel({ config }: { config: any }) {
           
           const { data: testResponse, error } = await supabase.functions.invoke('evolution-webhook', {
             body: testPayload,
+            headers: {
+              'x-webhook-secret': config.webhook_secret || config.api_key || ''
+            }
           });
 
           if (error) {
