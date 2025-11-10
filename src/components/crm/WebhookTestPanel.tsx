@@ -127,6 +127,7 @@ export function WebhookTestPanel({ config }: { config: any }) {
           const testPayload = {
             event: 'messages.upsert',
             instance: config.instance_name,
+            apikey: config.webhook_secret || config.api_key || '',
             data: {
               key: {
                 remoteJid: '5511999999999@s.whatsapp.net',
