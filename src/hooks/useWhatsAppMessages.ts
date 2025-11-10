@@ -94,6 +94,13 @@ export function useWhatsAppMessages(phone: string | null) {
       )
       .subscribe((status) => {
         console.log('📡 Status do canal realtime:', status);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          toast({
+            title: 'Falha no Realtime',
+            description: 'Problema ao receber atualizações desta conversa. Tentando reconectar...',
+            variant: 'destructive',
+          });
+        }
       });
 
     return () => {

@@ -101,6 +101,13 @@ export function useWhatsAppChats() {
       )
       .subscribe((status) => {
         console.log('📡 Status do canal realtime chats:', status);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          toast({
+            title: 'Falha no Realtime (Chats)',
+            description: 'Problema ao receber atualizações da lista de conversas. Tentando reconectar...',
+            variant: 'destructive',
+          });
+        }
       });
 
     return () => {

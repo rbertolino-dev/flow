@@ -9,6 +9,7 @@ import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import agilizeLogo from "@/assets/agilize-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -206,6 +207,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto" />
           
           <div className="flex items-center gap-2">
+            <RealtimeStatusIndicator compact />
             {syncInfo && (
               <SyncIndicator 
                 lastSync={syncInfo.lastSync}
@@ -284,16 +286,16 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden flex flex-col pt-14 md:pt-0">
-        {/* Desktop Header with sync indicator */}
-        {syncInfo && (
-          <div className="hidden md:flex border-b border-border px-4 lg:px-6 py-3 bg-background items-center justify-end">
+        <div className="hidden md:flex border-b border-border px-4 lg:px-6 py-3 bg-background items-center justify-end gap-2">
+          <RealtimeStatusIndicator />
+          {syncInfo && (
             <SyncIndicator 
               lastSync={syncInfo.lastSync}
               nextSync={syncInfo.nextSync}
               isSyncing={syncInfo.isSyncing}
             />
-          </div>
-        )}
+          )}
+        </div>
         
         <div className="flex-1 overflow-hidden">
           {children}
