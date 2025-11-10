@@ -19,7 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
 import {
@@ -46,6 +46,7 @@ interface Campaign {
 
 export default function BroadcastCampaigns() {
   const navigate = useNavigate();
+  const { activeOrgId } = useActiveOrganization();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -93,31 +94,25 @@ export default function BroadcastCampaigns() {
   });
 
   useEffect(() => {
-    fetchCampaigns();
-    fetchInstances();
-    fetchTemplates();
-  }, []);
+    if (activeOrgId) {
+      fetchCampaigns();
+      fetchInstances();
+      fetchTemplates();
+    }
+  }, [activeOrgId]);
 
   const fetchCampaigns = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      if (!activeOrgId) {
         setCampaigns([]);
-        return;
-      }
-
-      const { data: orgData, error: orgError } = await supabase
-        .rpc('get_user_organization', { _user_id: user.id });
-      
-      if (orgError || !orgData) {
-        setCampaigns([]);
+        setLoading(false);
         return;
       }
 
       const { data, error } = await supabase
         .from("broadcast_campaigns")
         .select("*")
-        .eq("organization_id", orgData)
+        .eq("organization_id", activeOrgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -134,22 +129,20 @@ export default function BroadcastCampaigns() {
   };
 
   const fetchInstances = async () => {
-    const orgId = await getUserOrganizationId();
-    if (!orgId) {
+    if (!activeOrgId) {
       setInstances([]);
       return;
     }
-    const { data } = await supabase.from("evolution_config").select("*").eq("organization_id", orgId);
+    const { data } = await supabase.from("evolution_config").select("*").eq("organization_id", activeOrgId);
     setInstances(data || []);
   };
 
   const fetchTemplates = async () => {
-    const orgId = await getUserOrganizationId();
-    if (!orgId) {
+    if (!activeOrgId) {
       setTemplates([]);
       return;
     }
-    const { data } = await supabase.from("message_templates").select("*").eq("organization_id", orgId);
+    const { data } = await supabase.from("message_templates").select("*").eq("organization_id", activeOrgId);
     setTemplates(data || []);
   };
 
@@ -315,19 +308,15 @@ export default function BroadcastCampaigns() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Obter organization_id usando a função RLS do banco
-      const { data: orgData, error: orgError } = await supabase
-        .rpc('get_user_organization', { _user_id: user.id });
-      
-      if (orgError || !orgData) {
-        throw new Error("Usuário não pertence a nenhuma organização");
+      if (!activeOrgId) {
+        throw new Error("Organização não identificada");
       }
 
       const { data: campaign, error: campaignError } = await supabase
         .from("broadcast_campaigns")
         .insert({
           user_id: user.id,
-          organization_id: orgData,
+          organization_id: activeOrgId,
           name: newCampaign.name,
           instance_id: newCampaign.instanceId,
           message_template_id: newCampaign.templateId || null,
