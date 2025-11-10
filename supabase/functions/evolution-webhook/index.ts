@@ -437,6 +437,8 @@ serve(async (req) => {
             name: contactName,
             last_contact: new Date().toISOString(),
             stage_id: firstStage?.id,
+            source_instance_id: configs.id,
+            source_instance_name: configs.instance_name,
           };
           
           // Se for mensagem recebida, marcar como não lida
@@ -475,7 +477,9 @@ serve(async (req) => {
 
           // Atualizar lead com informações de mensagem
           const updateData: any = { 
-            last_contact: new Date().toISOString() 
+            last_contact: new Date().toISOString(),
+            source_instance_id: configs.id,
+            source_instance_name: configs.instance_name,
           };
           
           // Se for mensagem recebida (não enviada), marcar como não lida
