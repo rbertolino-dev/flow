@@ -97,7 +97,8 @@ export function WebhookTestPanel({ config }: { config: any }) {
           if (webhookResponse.ok) {
             const webhookData = await webhookResponse.json();
             const webhookUrl = ((import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin) + '/functions/v1/evolution-webhook';
-            const isConfigured = webhookData?.url === webhookUrl;
+            const expectedUrl = `${webhookUrl}?secret=${encodeURIComponent(config.webhook_secret || config.api_key || '')}`;
+            const isConfigured = webhookData?.url === expectedUrl;
 
             updateStep(3, {
               status: isConfigured ? 'success' : 'error',

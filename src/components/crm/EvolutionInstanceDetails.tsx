@@ -21,7 +21,8 @@ export function EvolutionInstanceDetails({ config }: EvolutionInstanceDetailsPro
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   
-  const webhookUrl = ((import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin) + '/functions/v1/evolution-webhook';
+  const functionsBase = ((import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin);
+  const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook?secret=${encodeURIComponent(config.webhook_secret || config.api_key || '')}`;
 
   const copyWebhookUrl = async () => {
     try {

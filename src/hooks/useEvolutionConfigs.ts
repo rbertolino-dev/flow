@@ -14,6 +14,8 @@ export interface EvolutionConfig {
   is_connected: boolean;
   qr_code: string | null;
   webhook_enabled: boolean;
+  webhook_secret: string | null;
+  organization_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -277,7 +279,8 @@ export function useEvolutionConfigs() {
   const configureWebhook = async (config: EvolutionConfig) => {
     try {
       const functionsBase = (import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin;
-      const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook`;
+      const secret = config.webhook_secret || config.api_key || '';
+      const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook?secret=${encodeURIComponent(secret)}`;
 
       const response = await fetch(`${normalizeApiUrl(config.api_url)}/webhook/set/${config.instance_name}`, {
         method: 'POST',

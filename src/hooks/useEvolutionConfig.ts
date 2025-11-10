@@ -12,6 +12,8 @@ export interface EvolutionConfig {
   phone_number: string | null;
   is_connected: boolean;
   qr_code: string | null;
+  webhook_secret: string | null;
+  webhook_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -181,13 +183,14 @@ export function useEvolutionConfig() {
     }
   };
 
-  const configureWebhook = async (override?: { api_url: string; api_key?: string | null; instance_name: string; }) => {
+  const configureWebhook = async (override?: { api_url: string; api_key?: string | null; instance_name: string; webhook_secret?: string | null; }) => {
     const cfg = override || config;
     if (!cfg) return false;
 
     try {
       const functionsBase = (import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin;
-      const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook`;
+      const secret = cfg.webhook_secret || cfg.api_key || '';
+      const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook?secret=${encodeURIComponent(secret)}`;
 
       const response = await fetch(`${normalizeApiUrl(cfg.api_url)}/webhook/set/${cfg.instance_name}`, {
         method: 'POST',
