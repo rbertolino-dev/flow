@@ -106,6 +106,14 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     // Filtro de instância
     if (filterInstance && filterInstance !== "all") {
+      // Debug: log quando filtrar por instância
+      if (lead.phone === '5521973404788') {
+        console.log('🔍 Filtro de instância ativa para Bia:', {
+          leadInstanceId: lead.sourceInstanceId,
+          filterInstance,
+          matches: lead.sourceInstanceId === filterInstance
+        });
+      }
       if (lead.sourceInstanceId !== filterInstance) return false;
     }
 
