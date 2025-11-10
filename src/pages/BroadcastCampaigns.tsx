@@ -88,6 +88,7 @@ export default function BroadcastCampaigns() {
     instanceId: "",
     templateId: "",
     customMessage: "",
+    messageVariations: [] as string[],
     minDelay: 30,
     maxDelay: 60,
     scheduledStart: undefined as Date | undefined,
@@ -257,10 +258,10 @@ export default function BroadcastCampaigns() {
       return;
     }
 
-    if (!newCampaign.customMessage && !newCampaign.templateId) {
+    if (!newCampaign.customMessage && !newCampaign.templateId && newCampaign.messageVariations.length === 0) {
       toast({
         title: "Mensagem obrigatória",
-        description: "Escolha um template ou escreva uma mensagem personalizada",
+        description: "Escolha um template, escreva uma mensagem ou adicione variações de mensagem",
         variant: "destructive",
       });
       return;
@@ -331,13 +332,25 @@ export default function BroadcastCampaigns() {
 
       if (campaignError) throw campaignError;
 
-      // Inserir contatos na fila
-      const queueItems = contacts.map((contact) => ({
-        campaign_id: campaign.id,
-        phone: contact.phone,
-        name: contact.name,
-        status: "pending",
-      }));
+      // Determinar mensagens a serem usadas (variações ou mensagem única)
+      const messagesToUse = newCampaign.messageVariations.length > 0 
+        ? newCampaign.messageVariations 
+        : [newCampaign.customMessage];
+
+      // Inserir contatos na fila com rotação de mensagens
+      const queueItems = contacts.map((contact, index) => {
+        // Rotacionar entre as variações de mensagem
+        const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+        const personalizedMessage = messagesToUse[messageIndex];
+
+        return {
+          campaign_id: campaign.id,
+          phone: contact.phone,
+          name: contact.name,
+          personalized_message: personalizedMessage,
+          status: "pending",
+        };
+      });
 
       const { error: queueError } = await supabase
         .from("broadcast_queue")
@@ -356,6 +369,7 @@ export default function BroadcastCampaigns() {
         instanceId: "",
         templateId: "",
         customMessage: "",
+        messageVariations: [],
         minDelay: 30,
         maxDelay: 60,
         scheduledStart: undefined,
@@ -679,16 +693,119 @@ export default function BroadcastCampaigns() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="customMessage">Ou escreva uma mensagem personalizada *</Label>
-                  <Textarea
-                    id="customMessage"
-                    placeholder="Use {nome} para personalizar. Ex: Olá {nome}, temos uma oferta especial!"
-                    value={newCampaign.customMessage}
-                    onChange={(e) =>
-                      setNewCampaign({ ...newCampaign, customMessage: e.target.value, templateId: "" })
-                    }
-                    rows={4}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="customMessage">Mensagem Personalizada *</Label>
+                    {newCampaign.messageVariations.length === 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (newCampaign.customMessage.trim()) {
+                            setNewCampaign({
+                              ...newCampaign,
+                              messageVariations: [newCampaign.customMessage],
+                              customMessage: "",
+                              templateId: "",
+                            });
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar Variações
+                      </Button>
+                    )}
+                  </div>
+
+                  {newCampaign.messageVariations.length === 0 ? (
+                    <Textarea
+                      id="customMessage"
+                      placeholder="Use {nome} para personalizar. Ex: Olá {nome}, temos uma oferta especial!"
+                      value={newCampaign.customMessage}
+                      onChange={(e) =>
+                        setNewCampaign({ ...newCampaign, customMessage: e.target.value, templateId: "" })
+                      }
+                      rows={4}
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {newCampaign.messageVariations.length} variação(ões) de mensagem. O sistema alternará entre elas automaticamente.
+                      </div>
+                      {newCampaign.messageVariations.map((msg, index) => (
+                        <div key={index} className="flex gap-2">
+                          <div className="flex-1 p-3 border rounded-md bg-muted/50">
+                            <div className="text-xs font-medium text-muted-foreground mb-1">
+                              Variação {index + 1}
+                            </div>
+                            <div className="text-sm whitespace-pre-wrap">{msg}</div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const newVariations = newCampaign.messageVariations.filter((_, i) => i !== index);
+                              setNewCampaign({ ...newCampaign, messageVariations: newVariations });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Adicionar nova variação de mensagem..."
+                          value={newCampaign.customMessage}
+                          onChange={(e) =>
+                            setNewCampaign({ ...newCampaign, customMessage: e.target.value })
+                          }
+                          rows={3}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (newCampaign.customMessage.trim()) {
+                                setNewCampaign({
+                                  ...newCampaign,
+                                  messageVariations: [...newCampaign.messageVariations, newCampaign.customMessage],
+                                  customMessage: "",
+                                });
+                              }
+                            }}
+                            disabled={!newCampaign.customMessage.trim()}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Adicionar Variação
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setNewCampaign({
+                                ...newCampaign,
+                                messageVariations: [],
+                                customMessage: newCampaign.messageVariations[0] || "",
+                              });
+                            }}
+                          >
+                            Voltar para mensagem única
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-muted-foreground">
+                    {newCampaign.messageVariations.length > 0 
+                      ? "As mensagens serão alternadas automaticamente entre os contatos" 
+                      : "Use {nome} para personalizar. Clique em 'Adicionar Variações' para criar múltiplas versões"}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
