@@ -100,125 +100,13 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
   };
 
   const handleSend = async () => {
-    if ((!message.trim() && !selectedImage) || sending) return;
-
-    const activeConfig = configs.find(c => c.is_connected);
-    if (!activeConfig) {
-      toast({
-        title: "Sem conexão",
-        description: "Nenhuma instância Evolution conectada",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setSending(true);
-
-      // Enviar via Evolution API
-      let baseUrl = activeConfig.api_url.replace(/\/+$/, '');
-      if (baseUrl.endsWith('/manager')) {
-        baseUrl = baseUrl.slice(0, -8);
-      }
-
-      let response;
-      let mediaUrl = null;
-
-      if (selectedImage) {
-        // Converter imagem para base64
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (reader.result && typeof reader.result === 'string') {
-              const base64 = reader.result.split(',')[1];
-              resolve(base64);
-            } else {
-              reject(new Error('Erro ao converter imagem'));
-            }
-          };
-          reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
-          reader.readAsDataURL(selectedImage);
-        });
-        
-        const base64Image = await base64Promise;
-        
-        // Enviar imagem via Evolution
-        response = await fetch(
-          `${baseUrl}/message/sendMedia/${activeConfig.instance_name}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': activeConfig.api_key,
-            },
-            body: JSON.stringify({
-              number: phone,
-              mediatype: 'image',
-              media: base64Image,
-              caption: message || '',
-            }),
-          }
-        );
-        
-        mediaUrl = URL.createObjectURL(selectedImage);
-      } else {
-        // Enviar texto
-        response = await fetch(
-          `${baseUrl}/message/sendText/${activeConfig.instance_name}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': activeConfig.api_key,
-            },
-            body: JSON.stringify({
-              number: phone,
-              text: message,
-            }),
-          }
-        );
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro ao enviar mensagem');
-      }
-
-      // Salvar no banco
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const orgId = await getUserOrganizationId();
-
-      await supabase.from('whatsapp_messages').insert({
-        user_id: user.id,
-        organization_id: orgId,
-        phone,
-        contact_name: contactName,
-        message_text: message || '[Imagem]',
-        message_type: selectedImage ? 'image' : 'text',
-        media_url: mediaUrl,
-        direction: 'outgoing',
-        timestamp: new Date().toISOString(),
-        read_status: true,
-      });
-
-      setMessage("");
-      setSelectedImage(null);
-      setImagePreview(null);
-      toast({
-        title: "Mensagem enviada",
-        description: "Sua mensagem foi enviada com sucesso",
-      });
-    } catch (error: any) {
-      console.error('Error sending message:', error);
-      toast({
-        title: "Erro ao enviar",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setSending(false);
-    }
+    // TEMPORARIAMENTE DESABILITADO PARA ECONOMIZAR CLOUD
+    toast({
+      title: "Envio desabilitado",
+      description: "Envio de mensagens WhatsApp temporariamente desabilitado para economia de recursos",
+      variant: "destructive",
+    });
+    return;
   };
 
   const handleConvertToLead = async () => {
@@ -395,41 +283,15 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
         
         <div className="flex gap-2 items-end">
           <div className="flex gap-1">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-muted-foreground">
-                  <FileText className="h-5 w-5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="start">
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">Templates</h4>
-                  {templates.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhum template criado</p>
-                  ) : (
-                    <div className="space-y-1 max-h-60 overflow-y-auto">
-                      {templates.map((template) => (
-                        <Button
-                          key={template.id}
-                          variant="ghost"
-                          className="w-full justify-start text-left h-auto py-2"
-                          onClick={() => {
-                            setMessage(template.content);
-                          }}
-                        >
-                          <div>
-                            <div className="font-medium text-sm">{template.name}</div>
-                            <div className="text-xs text-muted-foreground line-clamp-2">
-                              {template.content}
-                            </div>
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-muted-foreground cursor-not-allowed"
+              disabled
+              title="Envio temporariamente desabilitado"
+            >
+              <FileText className="h-5 w-5" />
+            </Button>
 
             <input
               ref={fileInputRef}
@@ -437,12 +299,15 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
               accept="image/*"
               className="hidden"
               onChange={handleImageSelect}
+              disabled
             />
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-muted-foreground"
-              onClick={() => fileInputRef.current?.click()}
+              className="text-muted-foreground cursor-not-allowed"
+              onClick={() => {}}
+              disabled
+              title="Envio temporariamente desabilitado"
             >
               <ImageIcon className="h-5 w-5" />
             </Button>
@@ -451,21 +316,17 @@ export function ChatWindow({ phone, contactName, onBack }: ChatWindowProps) {
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Mensagem"
+            placeholder="Envio temporariamente desabilitado"
             className="resize-none bg-background/50 border-border/50 min-h-[44px] max-h-[120px]"
             rows={1}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
+            disabled
           />
           <Button
             onClick={handleSend}
-            disabled={(!message.trim() && !selectedImage) || sending}
+            disabled={true}
             size="icon"
-            className="bg-[#25d366] hover:bg-[#20bd5a] text-white h-11 w-11"
+            className="bg-muted hover:bg-muted text-muted-foreground h-11 w-11 cursor-not-allowed"
+            title="Envio temporariamente desabilitado"
           >
             <Send className="h-5 w-5" />
           </Button>
