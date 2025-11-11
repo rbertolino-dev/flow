@@ -9,10 +9,11 @@ import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, P
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
-import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
@@ -361,10 +363,23 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   return (
     <>
       <div className="flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
-        <KanbanSettings
-          columnWidth={columnWidth}
-          onColumnWidthChange={updateColumnWidth}
-        />
+        <div className="flex items-center gap-2">
+          <KanbanSettings
+            columnWidth={columnWidth}
+            onColumnWidthChange={updateColumnWidth}
+          />
+          
+          <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => setSortOrder(value)}>
+            <SelectTrigger className="w-[180px] sm:w-[200px]">
+              <ArrowDownUp className="h-4 w-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Mais recentes</SelectItem>
+              <SelectItem value="oldest">Mais antigos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         
         <Popover>
           <PopoverTrigger asChild>
@@ -408,7 +423,13 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
           <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 h-full overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-20 sm:pb-24 kanban-scroll pl-6 pr-6">
             {stages.map((stage) => {
-              const columnLeads = normalizedLeads.filter((lead) => lead.stageId === stage.id);
+              const columnLeads = normalizedLeads
+                .filter((lead) => lead.stageId === stage.id)
+                .sort((a, b) => {
+                  const dateA = new Date(a.createdAt).getTime();
+                  const dateB = new Date(b.createdAt).getTime();
+                  return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+                });
               return (
                 <KanbanColumn
                   key={stage.id}

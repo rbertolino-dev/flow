@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Lead } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
-import { MessageSquare, Phone, Calendar, ChevronDown, ChevronRight } from "lucide-react";
+import { MessageSquare, Phone, Calendar, ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
@@ -34,6 +35,7 @@ export function LeadsListView({
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   const toggleStageCollapse = (stageId: string) => {
     setCollapsedStages(prev => {
@@ -56,10 +58,16 @@ export function LeadsListView({
     window.location.href = `tel:${phone}`;
   };
 
-  // Agrupar leads por etapa
+  // Agrupar leads por etapa e ordenar por data de criação
   const leadsByStage = stages.map(stage => ({
     stage,
-    leads: leads.filter(lead => lead.stageId === stage.id),
+    leads: leads
+      .filter(lead => lead.stageId === stage.id)
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+      }),
   })).filter(group => {
     // Filtrar por etapas selecionadas se houver filtro
     if (filteredStages && filteredStages.length > 0) {
@@ -71,6 +79,18 @@ export function LeadsListView({
   return (
     <>
       <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
+        <div className="mb-4 flex justify-end">
+          <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => setSortOrder(value)}>
+            <SelectTrigger className="w-[180px] sm:w-[200px]">
+              <ArrowDownUp className="h-4 w-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Mais recentes</SelectItem>
+              <SelectItem value="oldest">Mais antigos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-6">
           {leadsByStage.map(({ stage, leads: stageLeads }) => {
             const isCollapsed = collapsedStages.has(stage.id);
