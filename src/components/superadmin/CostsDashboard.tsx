@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, DollarSign, Activity, Database, Users } from "lucide-react";
+import { Loader2, DollarSign, Activity, Database, Users, CheckCircle2, Clock } from "lucide-react";
 import { OrganizationCostBreakdown } from "./OrganizationCostBreakdown";
 import { FunctionalityCostBreakdown } from "./FunctionalityCostBreakdown";
 import { CloudCostConfiguration } from "./CloudCostConfiguration";
@@ -34,6 +34,8 @@ export function CostsDashboard() {
   const { toast } = useToast();
   const [syncing, setSyncing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [metricsCount, setMetricsCount] = useState(0);
 
   useEffect(() => {
     checkPermissions();
@@ -68,11 +70,36 @@ export function CostsDashboard() {
 
       if (adminStatus || pubdigStatus) {
         await fetchMetrics();
+        await checkLastSync();
       }
     } catch (error) {
       console.error('Error checking permissions:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkLastSync = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('daily_usage_metrics')
+        .select('created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && !error) {
+        setLastSyncTime(new Date(data.created_at));
+      }
+
+      // Count total metrics
+      const { count } = await supabase
+        .from('daily_usage_metrics')
+        .select('*', { count: 'exact', head: true });
+      
+      setMetricsCount(count || 0);
+    } catch (error) {
+      console.error('Error checking last sync:', error);
     }
   };
 
@@ -140,9 +167,13 @@ export function CostsDashboard() {
         description: "Os dados de uso foram atualizados com sucesso.",
       });
       
+      // Update last sync time
+      setLastSyncTime(new Date());
+      
       // Force refresh of all child components
       setRefreshKey(prev => prev + 1);
       await fetchMetrics();
+      await checkLastSync();
     } catch (error) {
       console.error('Error syncing metrics:', error);
       toast({
@@ -196,6 +227,35 @@ export function CostsDashboard() {
             <Activity className="mr-2 h-4 w-4" />
             Atualizar
           </Button>
+        </div>
+      </div>
+
+      {/* Sync Status Indicator */}
+      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg border">
+        <div className="flex items-center gap-2">
+          {metricsCount > 0 ? (
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          ) : (
+            <Clock className="h-5 w-5 text-amber-500" />
+          )}
+          <div>
+            <p className="text-sm font-medium">
+              {metricsCount > 0 ? 'Métricas Disponíveis' : 'Aguardando Primeira Sincronização'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {lastSyncTime ? (
+                <>
+                  Última sincronização: {lastSyncTime.toLocaleDateString('pt-BR')} às {lastSyncTime.toLocaleTimeString('pt-BR')}
+                </>
+              ) : (
+                'Nenhuma sincronização realizada ainda'
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="ml-auto text-right">
+          <p className="text-sm font-medium">{metricsCount} registros</p>
+          <p className="text-xs text-muted-foreground">Total de métricas coletadas</p>
         </div>
       </div>
 
