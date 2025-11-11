@@ -33,6 +33,7 @@ export function CostsDashboard() {
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
   const { toast } = useToast();
   const [syncing, setSyncing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     checkPermissions();
@@ -139,7 +140,8 @@ export function CostsDashboard() {
         description: "Os dados de uso foram atualizados com sucesso.",
       });
       
-      // Refresh metrics after sync
+      // Force refresh of all child components
+      setRefreshKey(prev => prev + 1);
       await fetchMetrics();
     } catch (error) {
       console.error('Error syncing metrics:', error);
@@ -198,10 +200,10 @@ export function CostsDashboard() {
       </div>
 
       {/* Daily Cost Chart */}
-      <DailyCostChart />
+      <DailyCostChart key={`daily-${refreshKey}`} />
 
       {/* Cost Alerts */}
-      <CostAlertsPanel />
+      <CostAlertsPanel key={`alerts-${refreshKey}`} />
 
       {/* Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -260,15 +262,15 @@ export function CostsDashboard() {
         </TabsList>
 
         <TabsContent value="organizations" className="space-y-4">
-          <OrganizationCostBreakdown />
+          <OrganizationCostBreakdown key={`org-${refreshKey}`} />
         </TabsContent>
 
         <TabsContent value="functionalities" className="space-y-4">
-          <FunctionalityCostBreakdown metrics={metrics} />
+          <FunctionalityCostBreakdown metrics={metrics} key={`func-${refreshKey}`} />
         </TabsContent>
 
         <TabsContent value="comparison" className="space-y-4">
-          <OrganizationCostComparison />
+          <OrganizationCostComparison key={`comp-${refreshKey}`} />
         </TabsContent>
 
         <TabsContent value="configuration" className="space-y-4">
