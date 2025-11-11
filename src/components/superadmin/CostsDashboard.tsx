@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, DollarSign, Activity, Database, Users } from "lucide-react";
 import { OrganizationCostBreakdown } from "./OrganizationCostBreakdown";
 import { FunctionalityCostBreakdown } from "./FunctionalityCostBreakdown";
+import { CloudCostConfiguration } from "./CloudCostConfiguration";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -212,6 +213,7 @@ export function CostsDashboard() {
         <TabsList>
           <TabsTrigger value="organizations">Por Organização</TabsTrigger>
           <TabsTrigger value="functionalities">Por Funcionalidade</TabsTrigger>
+          <TabsTrigger value="configuration">Configurar Custos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organizations" className="space-y-4">
@@ -220,6 +222,10 @@ export function CostsDashboard() {
 
         <TabsContent value="functionalities" className="space-y-4">
           <FunctionalityCostBreakdown metrics={metrics} />
+        </TabsContent>
+
+        <TabsContent value="configuration" className="space-y-4">
+          <CloudCostConfiguration />
         </TabsContent>
       </Tabs>
     </div>
