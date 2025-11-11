@@ -32,6 +32,7 @@ export function CostsDashboard() {
   const [isPubdigital, setIsPubdigital] = useState(false);
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
   const { toast } = useToast();
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     checkPermissions();
@@ -126,6 +127,32 @@ export function CostsDashboard() {
     }
   };
 
+  const syncDailyMetrics = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-daily-metrics');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Métricas sincronizadas",
+        description: "Os dados de uso foram atualizados com sucesso.",
+      });
+      
+      // Refresh metrics after sync
+      await fetchMetrics();
+    } catch (error) {
+      console.error('Error syncing metrics:', error);
+      toast({
+        title: "Erro ao sincronizar",
+        description: "Não foi possível atualizar as métricas.",
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -158,10 +185,16 @@ export function CostsDashboard() {
             Monitore os gastos e uso do Lovable Cloud por organização e funcionalidade
           </p>
         </div>
-        <Button onClick={fetchMetrics} variant="outline">
-          <Activity className="mr-2 h-4 w-4" />
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={syncDailyMetrics} variant="outline" disabled={syncing}>
+            <Activity className="mr-2 h-4 w-4" />
+            {syncing ? "Sincronizando..." : "Sincronizar Métricas"}
+          </Button>
+          <Button onClick={fetchMetrics} variant="outline">
+            <Activity className="mr-2 h-4 w-4" />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {/* Daily Cost Chart */}
