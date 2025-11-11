@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
+import { useNavigate } from "react-router-dom";
 
 interface OrganizationWithMembers {
   id: string;
@@ -37,6 +38,7 @@ export function SuperAdminDashboard() {
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithMembers | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     checkPermissions();
@@ -193,6 +195,14 @@ export function SuperAdminDashboard() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
+              <Button 
+                onClick={() => navigate('/superadmin/costs')} 
+                variant="secondary" 
+                className="w-full sm:w-auto"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Painel de Custos
+              </Button>
               <Button onClick={() => setCreateUserOpen(true)} variant="outline" className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Usuário

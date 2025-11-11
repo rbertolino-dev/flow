@@ -13,6 +13,7 @@ import AuthLogs from "./pages/AuthLogs";
 import Diagnostics from "./pages/Diagnostics";
 import Organization from "./pages/Organization";
 import SuperAdmin from "./pages/SuperAdmin";
+import SuperAdminCosts from "./pages/SuperAdminCosts";
 import RLSDiagnostics from "./pages/RLSDiagnostics";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="/organization" element={<Organization />} />
           <Route path="/superadmin" element={<SuperAdmin />} />
+          <Route path="/superadmin/costs" element={<SuperAdminCosts />} />
           <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
