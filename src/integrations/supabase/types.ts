@@ -471,6 +471,50 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_usage_metrics: {
+        Row: {
+          cost_per_unit: number
+          created_at: string
+          date: string
+          id: string
+          metric_type: string
+          metric_value: number
+          organization_id: string | null
+          total_cost: number
+          updated_at: string
+        }
+        Insert: {
+          cost_per_unit?: number
+          created_at?: string
+          date: string
+          id?: string
+          metric_type: string
+          metric_value?: number
+          organization_id?: string | null
+          total_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          cost_per_unit?: number
+          created_at?: string
+          date?: string
+          id?: string
+          metric_type?: string
+          metric_value?: number
+          organization_id?: string | null
+          total_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_usage_metrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evolution_config: {
         Row: {
           api_key: string | null

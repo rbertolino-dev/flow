@@ -12,13 +12,12 @@ import { ptBR } from "date-fns/locale";
 interface DailyCost {
   date: string;
   totalCost: number;
-  operations: {
-    incomingMessages: number;
-    broadcastMessages: number;
-    scheduledMessages: number;
-    databaseReads: number;
-    databaseWrites: number;
-  };
+  incomingMessages: number;
+  broadcastMessages: number;
+  scheduledMessages: number;
+  databaseReads: number;
+  databaseWrites: number;
+  leadsStored: number;
 }
 
 interface CostConfig {
@@ -32,8 +31,10 @@ interface CostConfig {
 export function DailyCostChart() {
   const [loading, setLoading] = useState(true);
   const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
-  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [dateRange, setDateRange] = useState({
+    start: startOfMonth(new Date()),
+    end: endOfMonth(new Date())
+  });
   const [costConfig, setCostConfig] = useState<CostConfig | null>(null);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function DailyCostChart() {
     if (costConfig) {
       fetchDailyCosts();
     }
-  }, [startDate, endDate, costConfig]);
+  }, [dateRange.start, dateRange.end, costConfig]);
 
   const fetchCostConfig = async () => {
     const { data } = await supabase
@@ -65,73 +66,75 @@ export function DailyCostChart() {
 
   const fetchDailyCosts = async () => {
     if (!costConfig) return;
-    
-    setLoading(true);
+
     try {
-      const days = eachDayOfInterval({ start: startDate, end: endDate });
-      
-      const dailyData = await Promise.all(
-        days.map(async (day) => {
-          const dayStart = format(day, 'yyyy-MM-dd');
-          const dayEnd = format(new Date(day.getTime() + 86400000), 'yyyy-MM-dd');
+      setLoading(true);
 
-          const [
-            { count: incomingCount },
-            { count: broadcastCount },
-            { count: scheduledCount }
-          ] = await Promise.all([
-            supabase
-              .from('whatsapp_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('direction', 'incoming')
-              .gte('created_at', dayStart)
-              .lt('created_at', dayEnd),
-            supabase
-              .from('broadcast_queue')
-              .select('*', { count: 'exact', head: true })
-              .eq('status', 'sent')
-              .gte('created_at', dayStart)
-              .lt('created_at', dayEnd),
-            supabase
-              .from('scheduled_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('status', 'sent')
-              .gte('sent_at', dayStart)
-              .lt('sent_at', dayEnd)
-          ]);
+      // Buscar métricas agregadas por data da tabela daily_usage_metrics
+      const { data: metricsData, error } = await supabase
+        .from('daily_usage_metrics')
+        .select('*')
+        .gte('date', format(dateRange.start, 'yyyy-MM-dd'))
+        .lte('date', format(dateRange.end, 'yyyy-MM-dd'))
+        .order('date', { ascending: true });
 
-          const incoming = incomingCount || 0;
-          const broadcast = broadcastCount || 0;
-          const scheduled = scheduledCount || 0;
-          
-          // Estimativa simples de reads/writes
-          const dbReads = (incoming + broadcast + scheduled) * 2;
-          const dbWrites = incoming + broadcast + scheduled;
+      if (error) {
+        console.error('Erro ao buscar métricas:', error);
+        setLoading(false);
+        return;
+      }
 
-          const totalCost = 
-            (incoming * costConfig.cost_per_incoming_message) +
-            (broadcast * costConfig.cost_per_broadcast_message) +
-            (scheduled * costConfig.cost_per_scheduled_message) +
-            (dbReads * costConfig.cost_per_database_read) +
-            (dbWrites * costConfig.cost_per_database_write);
+      // Agregar por data
+      const costsByDate = new Map<string, DailyCost>();
 
-          return {
-            date: format(day, 'dd/MM'),
-            totalCost: Number(totalCost.toFixed(2)),
-            operations: {
-              incomingMessages: incoming,
-              broadcastMessages: broadcast,
-              scheduledMessages: scheduled,
-              databaseReads: dbReads,
-              databaseWrites: dbWrites
-            }
-          };
-        })
-      );
+      metricsData?.forEach(metric => {
+        const dateKey = metric.date;
+        
+        if (!costsByDate.has(dateKey)) {
+          costsByDate.set(dateKey, {
+            date: format(new Date(dateKey), 'dd/MM'),
+            totalCost: 0,
+            incomingMessages: 0,
+            broadcastMessages: 0,
+            scheduledMessages: 0,
+            databaseReads: 0,
+            databaseWrites: 0,
+            leadsStored: 0
+          });
+        }
 
-      setDailyCosts(dailyData);
-    } catch (error) {
-      console.error('Error fetching daily costs:', error);
+        const dayCost = costsByDate.get(dateKey)!;
+        dayCost.totalCost += Number(metric.total_cost);
+
+        // Mapear tipos de métrica para campos
+        switch (metric.metric_type) {
+          case 'incoming_messages':
+            dayCost.incomingMessages += Number(metric.metric_value);
+            break;
+          case 'broadcast_messages':
+            dayCost.broadcastMessages += Number(metric.metric_value);
+            break;
+          case 'scheduled_messages':
+            dayCost.scheduledMessages += Number(metric.metric_value);
+            break;
+          case 'database_reads':
+            dayCost.databaseReads += Number(metric.metric_value);
+            break;
+          case 'database_writes':
+            dayCost.databaseWrites += Number(metric.metric_value);
+            break;
+          case 'leads_stored':
+            dayCost.leadsStored += Number(metric.metric_value);
+            break;
+        }
+      });
+
+      const aggregatedCosts = Array.from(costsByDate.values())
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      setDailyCosts(aggregatedCosts);
+    } catch (err) {
+      console.error('Erro ao processar métricas:', err);
     } finally {
       setLoading(false);
     }
@@ -164,14 +167,14 @@ export function DailyCostChart() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Calendar className="mr-2 h-4 w-4" />
-                  {format(startDate, 'dd/MM/yyyy', { locale: ptBR })}
+                  {format(dateRange.start, 'dd/MM/yyyy', { locale: ptBR })}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <CalendarComponent
                   mode="single"
-                  selected={startDate}
-                  onSelect={(date) => date && setStartDate(date)}
+                  selected={dateRange.start}
+                  onSelect={(date) => date && setDateRange(prev => ({ ...prev, start: date }))}
                   locale={ptBR}
                 />
               </PopoverContent>
@@ -181,14 +184,14 @@ export function DailyCostChart() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Calendar className="mr-2 h-4 w-4" />
-                  {format(endDate, 'dd/MM/yyyy', { locale: ptBR })}
+                  {format(dateRange.end, 'dd/MM/yyyy', { locale: ptBR })}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <CalendarComponent
                   mode="single"
-                  selected={endDate}
-                  onSelect={(date) => date && setEndDate(date)}
+                  selected={dateRange.end}
+                  onSelect={(date) => date && setDateRange(prev => ({ ...prev, end: date }))}
                   locale={ptBR}
                 />
               </PopoverContent>
@@ -197,8 +200,10 @@ export function DailyCostChart() {
               variant="outline" 
               size="sm"
               onClick={() => {
-                setStartDate(startOfMonth(new Date()));
-                setEndDate(endOfMonth(new Date()));
+                setDateRange({
+                  start: startOfMonth(new Date()),
+                  end: endOfMonth(new Date())
+                });
               }}
             >
               Mês Atual
