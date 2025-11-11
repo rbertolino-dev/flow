@@ -796,8 +796,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
             <Separator />
 
-            {/* Chat History - WhatsApp Messages */}
-            {whatsappMessages.length > 0 && (
+            {/* Chat History - WhatsApp Messages - DESATIVADO TEMPORARIAMENTE */}
+            {/* {whatsappMessages.length > 0 && (
               <>
                 <div className="space-y-3">
                   <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
@@ -810,7 +810,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 </div>
                 <Separator />
               </>
-            )}
+            )} */}
 
             {/* Activity Timeline - Other Activities */}
             <div className="space-y-3">
