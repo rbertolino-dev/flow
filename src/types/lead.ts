@@ -32,6 +32,7 @@ export interface Lead {
   createdAt: Date;
   returnDate?: Date;
   sourceInstanceId?: string;
+  sourceInstanceName?: string;
   notes?: string;
   activities: Activity[];
   tags?: Tag[];

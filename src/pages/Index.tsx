@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
+import { LeadsListView } from "@/components/crm/LeadsListView";
 import { CallQueue } from "@/components/crm/CallQueue";
 import { LidContactsList } from "@/components/crm/LidContactsList";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -13,13 +14,15 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
-import { Loader2, Search, Plus, Filter, X } from "lucide-react";
+import { useViewPreference } from "@/hooks/useViewPreference";
+import { Loader2, Search, Plus, Filter, X, LayoutGrid, List } from "lucide-react";
 import Settings from "./Settings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -31,10 +34,13 @@ const Index = () => {
   const [filterCreatedDateEnd, setFilterCreatedDateEnd] = useState<string>("");
   const [filterReturnDateStart, setFilterReturnDateStart] = useState<string>("");
   const [filterReturnDateEnd, setFilterReturnDateEnd] = useState<string>("");
+  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
+  const { viewMode, toggleView } = useViewPreference();
   const { configs } = useEvolutionConfigs();
   
   // Health check periódico das instâncias (verifica a cada 30s)
@@ -57,6 +63,42 @@ const Index = () => {
 
   const handleCallReschedule = (callId: string, newDate: Date) => {
     rescheduleCall(callId, newDate);
+  };
+
+  const handleLeadSelect = (leadId: string) => {
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = (stageId: string, select: boolean) => {
+    const stageLeads = leads.filter(l => l.stageId === stageId);
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      stageLeads.forEach(lead => {
+        if (select) {
+          next.add(lead.id);
+        } else {
+          next.delete(lead.id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const toggleStageFilter = (stageId: string) => {
+    setSelectedStages(prev => {
+      if (prev.includes(stageId)) {
+        return prev.filter(id => id !== stageId);
+      }
+      return [...prev, stageId];
+    });
   };
 
   if (leadsLoading || queueLoading) {
@@ -105,22 +147,37 @@ const Index = () => {
               </div>
             </div>
             <div className="flex flex-col gap-3">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nome, telefone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-full"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome, telefone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-full"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleView}
+                  title={viewMode === 'kanban' ? 'Ver em lista' : 'Ver em Kanban'}
+                >
+                  {viewMode === 'kanban' ? (
+                    <List className="h-4 w-4" />
+                  ) : (
+                    <LayoutGrid className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
 
               {/* Filtros */}
+              <div className="flex gap-2 flex-wrap">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                  <Button variant="outline" size="sm">
                     <Filter className="h-4 w-4 mr-2" />
-                    Filtros
+                    Filtros Avançados
                     {(filterInstance !== "all" || filterCreatedDateStart || filterReturnDateStart) && (
                       <Badge variant="secondary" className="ml-2">
                         {[filterInstance !== "all", filterCreatedDateStart, filterReturnDateStart].filter(Boolean).length}
@@ -202,20 +259,84 @@ const Index = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+
+              {/* Filtro de Etapas */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Etapas
+                    {selectedStages.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {selectedStages.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64" align="start">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold">Filtrar por Etapas</h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedStages([])}
+                        disabled={selectedStages.length === 0}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {stages.map((stage) => (
+                        <div key={stage.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`stage-${stage.id}`}
+                            checked={selectedStages.includes(stage.id)}
+                            onCheckedChange={() => toggleStageFilter(stage.id)}
+                          />
+                          <label
+                            htmlFor={`stage-${stage.id}`}
+                            className="flex-1 flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: stage.color }}
+                            />
+                            {stage.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              </div>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            <KanbanBoard 
-              leads={leads} 
-              onLeadUpdate={handleLeadUpdate} 
-              searchQuery={searchQuery} 
-              onRefetch={refetchLeads}
-              filterInstance={filterInstance}
-              filterCreatedDateStart={filterCreatedDateStart}
-              filterCreatedDateEnd={filterCreatedDateEnd}
-              filterReturnDateStart={filterReturnDateStart}
-              filterReturnDateEnd={filterReturnDateEnd}
-            />
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {viewMode === 'kanban' ? (
+              <KanbanBoard 
+                leads={leads} 
+                onLeadUpdate={handleLeadUpdate} 
+                searchQuery={searchQuery} 
+                onRefetch={refetchLeads}
+                filterInstance={filterInstance}
+                filterCreatedDateStart={filterCreatedDateStart}
+                filterCreatedDateEnd={filterCreatedDateEnd}
+                filterReturnDateStart={filterReturnDateStart}
+                filterReturnDateEnd={filterReturnDateEnd}
+              />
+            ) : (
+              <LeadsListView
+                leads={leads}
+                stages={stages}
+                onRefetch={refetchLeads}
+                selectedLeads={selectedLeads}
+                onLeadSelect={handleLeadSelect}
+                onSelectAll={handleSelectAll}
+                filteredStages={selectedStages.length > 0 ? selectedStages : undefined}
+              />
+            )}
           </div>
         </div>
       )}
