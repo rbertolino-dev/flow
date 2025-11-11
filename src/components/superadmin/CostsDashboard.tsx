@@ -7,6 +7,8 @@ import { OrganizationCostBreakdown } from "./OrganizationCostBreakdown";
 import { FunctionalityCostBreakdown } from "./FunctionalityCostBreakdown";
 import { CloudCostConfiguration } from "./CloudCostConfiguration";
 import { DailyCostChart } from "./DailyCostChart";
+import { OrganizationCostComparison } from "./OrganizationCostComparison";
+import { CostAlertsPanel } from "./CostAlertsPanel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -165,6 +167,9 @@ export function CostsDashboard() {
       {/* Daily Cost Chart */}
       <DailyCostChart />
 
+      {/* Cost Alerts */}
+      <CostAlertsPanel />
+
       {/* Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -217,6 +222,7 @@ export function CostsDashboard() {
         <TabsList>
           <TabsTrigger value="organizations">Por Organização</TabsTrigger>
           <TabsTrigger value="functionalities">Por Funcionalidade</TabsTrigger>
+          <TabsTrigger value="comparison">Comparação Mensal</TabsTrigger>
           <TabsTrigger value="configuration">Configurar Custos</TabsTrigger>
         </TabsList>
 
@@ -226,6 +232,10 @@ export function CostsDashboard() {
 
         <TabsContent value="functionalities" className="space-y-4">
           <FunctionalityCostBreakdown metrics={metrics} />
+        </TabsContent>
+
+        <TabsContent value="comparison" className="space-y-4">
+          <OrganizationCostComparison />
         </TabsContent>
 
         <TabsContent value="configuration" className="space-y-4">
