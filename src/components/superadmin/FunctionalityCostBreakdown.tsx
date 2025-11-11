@@ -12,6 +12,10 @@ interface UsageMetrics {
   totalBroadcasts: number;
   totalScheduledMessages: number;
   totalEdgeFunctionCalls: number;
+  // Detalhamento de mensagens
+  incomingMessages: number;
+  broadcastMessages: number;
+  scheduledMessagesSent: number;
 }
 
 interface FunctionalityCostBreakdownProps {
@@ -152,6 +156,110 @@ export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdo
         })}
       </div>
 
+      {/* Detalhamento de Mensagens WhatsApp */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Detalhamento de Mensagens WhatsApp
+          </CardTitle>
+          <CardDescription>
+            Breakdown detalhado do uso de mensagens por tipo
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-success" />
+                  Mensagens Recebidas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{metrics.incomingMessages.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Via webhook (conversas com clientes)
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    Peso: 3x
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {(metrics.incomingMessages * 3).toLocaleString()} pontos
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Send className="h-4 w-4 text-chart-2" />
+                  Disparos em Massa
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{metrics.broadcastMessages.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mensagens enviadas por campanhas
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    Peso: 10x
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {(metrics.broadcastMessages * 10).toLocaleString()} pontos
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-chart-3" />
+                  Mensagens Agendadas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{metrics.scheduledMessagesSent.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Agendamentos enviados
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    Peso: 3x
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {(metrics.scheduledMessagesSent * 3).toLocaleString()} pontos
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Total de Mensagens</span>
+              <span className="font-bold">
+                {(metrics.incomingMessages + metrics.broadcastMessages + metrics.scheduledMessagesSent).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-2">
+              <span className="text-muted-foreground">Custo Total Estimado</span>
+              <span className="font-bold text-primary">
+                {(
+                  (metrics.incomingMessages * 3) + 
+                  (metrics.broadcastMessages * 10) + 
+                  (metrics.scheduledMessagesSent * 3)
+                ).toLocaleString()} pontos
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Análise de Impacto</CardTitle>
@@ -189,6 +297,7 @@ export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdo
               <li>Considere limites de uso por organização se necessário</li>
               <li>Otimize webhooks e edge functions para reduzir chamadas duplicadas</li>
               <li>Implemente cache para consultas frequentes ao banco de dados</li>
+              <li>Revise campanhas de disparo em massa para evitar envios desnecessários</li>
             </ul>
           </div>
         </CardContent>

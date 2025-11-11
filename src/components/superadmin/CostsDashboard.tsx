@@ -16,6 +16,10 @@ interface UsageMetrics {
   totalBroadcasts: number;
   totalScheduledMessages: number;
   totalEdgeFunctionCalls: number;
+  // Detalhamento de mensagens
+  incomingMessages: number;
+  broadcastMessages: number;
+  scheduledMessagesSent: number;
 }
 
 export function CostsDashboard() {
@@ -75,14 +79,24 @@ export function CostsDashboard() {
         { count: leadCount },
         { count: messageCount },
         { count: broadcastCount },
-        { count: scheduledCount }
+        { count: scheduledCount },
+        // Detalhamento de mensagens
+        { count: incomingCount },
+        { count: broadcastSentCount },
+        { count: scheduledSentCount }
       ] = await Promise.all([
         supabase.from('organizations').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('leads').select('*', { count: 'exact', head: true }).is('deleted_at', null),
         supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }),
         supabase.from('broadcast_campaigns').select('*', { count: 'exact', head: true }),
-        supabase.from('scheduled_messages').select('*', { count: 'exact', head: true })
+        supabase.from('scheduled_messages').select('*', { count: 'exact', head: true }),
+        // Mensagens recebidas via webhook
+        supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }).eq('direction', 'incoming'),
+        // Mensagens enviadas por disparos em massa
+        supabase.from('broadcast_queue').select('*', { count: 'exact', head: true }).eq('status', 'sent'),
+        // Mensagens agendadas que foram enviadas
+        supabase.from('scheduled_messages').select('*', { count: 'exact', head: true }).eq('status', 'sent')
       ]);
 
       setMetrics({
@@ -92,7 +106,11 @@ export function CostsDashboard() {
         totalMessages: messageCount || 0,
         totalBroadcasts: broadcastCount || 0,
         totalScheduledMessages: scheduledCount || 0,
-        totalEdgeFunctionCalls: 0 // Will be calculated from logs
+        totalEdgeFunctionCalls: 0, // Will be calculated from logs
+        // Detalhamento
+        incomingMessages: incomingCount || 0,
+        broadcastMessages: broadcastSentCount || 0,
+        scheduledMessagesSent: scheduledSentCount || 0
       });
     } catch (error) {
       console.error('Error fetching metrics:', error);
