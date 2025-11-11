@@ -6,6 +6,7 @@ import { Loader2, DollarSign, Activity, Database, Users } from "lucide-react";
 import { OrganizationCostBreakdown } from "./OrganizationCostBreakdown";
 import { FunctionalityCostBreakdown } from "./FunctionalityCostBreakdown";
 import { CloudCostConfiguration } from "./CloudCostConfiguration";
+import { DailyCostChart } from "./DailyCostChart";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -160,6 +161,9 @@ export function CostsDashboard() {
           Atualizar
         </Button>
       </div>
+
+      {/* Daily Cost Chart */}
+      <DailyCostChart />
 
       {/* Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
