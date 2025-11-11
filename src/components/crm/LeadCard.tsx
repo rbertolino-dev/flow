@@ -27,6 +27,7 @@ interface LeadCardProps {
   onToggleSelection?: () => void;
   instanceName?: string;
   onDelete?: (leadId: string) => void;
+  onRefetch?: () => void;
 }
 
 const sourceColors: Record<string, string> = {
@@ -37,7 +38,7 @@ const sourceColors: Record<string, string> = {
   Facebook: "bg-accent text-accent-foreground",
 };
 
-export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName, onDelete }: LeadCardProps) {
+export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName, onDelete, onRefetch }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
@@ -88,6 +89,11 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
         description: "O nome do lead foi alterado",
       });
       setEditingName(false);
+      
+      // Refetch para atualizar o lead com o novo nome
+      if (onRefetch) {
+        onRefetch();
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar",
@@ -115,6 +121,11 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
         description: "O valor do lead foi alterado",
       });
       setEditingValue(false);
+      
+      // Refetch para atualizar o lead com o novo valor
+      if (onRefetch) {
+        onRefetch();
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar",

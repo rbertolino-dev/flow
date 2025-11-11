@@ -422,6 +422,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   onStageChange={onLeadUpdate}
                   instanceMap={instanceMap}
                   columnWidth={columnWidth}
+                  onRefetch={onRefetch}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
