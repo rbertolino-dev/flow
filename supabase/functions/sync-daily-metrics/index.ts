@@ -94,40 +94,24 @@ Deno.serve(async (req) => {
         });
       }
 
-      // 3.2. Mensagens de broadcast enviadas
+      // 3.2. Mensagens de broadcast enviadas (agora com organization_id direto)
       const { count: broadcastCount } = await supabase
         .from('broadcast_queue')
         .select('*', { count: 'exact', head: true })
+        .eq('organization_id', org.id)
         .eq('status', 'sent')
         .gte('sent_at', startOfDay.toISOString())
         .lte('sent_at', endOfDay.toISOString());
 
-      if (broadcastCount) {
-        const { data: campaigns } = await supabase
-          .from('broadcast_campaigns')
-          .select('organization_id')
-          .in('id', 
-            (await supabase
-              .from('broadcast_queue')
-              .select('campaign_id')
-              .eq('status', 'sent')
-              .gte('sent_at', startOfDay.toISOString())
-              .lte('sent_at', endOfDay.toISOString())
-            ).data?.map(q => q.campaign_id) || []
-          );
-
-        const orgBroadcasts = campaigns?.filter(c => c.organization_id === org.id).length || 0;
-
-        if (orgBroadcasts > 0) {
-          metrics.push({
-            date: targetDate,
-            organization_id: org.id,
-            metric_type: 'broadcast_messages',
-            metric_value: orgBroadcasts,
-            cost_per_unit: config.cost_per_broadcast_message,
-            total_cost: orgBroadcasts * config.cost_per_broadcast_message
-          });
-        }
+      if (broadcastCount && broadcastCount > 0) {
+        metrics.push({
+          date: targetDate,
+          organization_id: org.id,
+          metric_type: 'broadcast_messages',
+          metric_value: broadcastCount,
+          cost_per_unit: config.cost_per_broadcast_message,
+          total_cost: broadcastCount * config.cost_per_broadcast_message
+        });
       }
 
       // 3.3. Mensagens agendadas enviadas
