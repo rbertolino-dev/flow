@@ -713,12 +713,12 @@ export default function BroadcastCampaigns() {
                     <Label>Usar Template de Campanha</Label>
                     <Select onValueChange={(value) => {
                       const template = campaignTemplates.find(t => t.id === value);
-                      if (template) handleTemplateSelect(template);
+                      if (template) handleTemplateSelectFromManager(template);
                     }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um template de campanha..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-50 bg-background">
                         {campaignTemplates.map((template) => (
                           <SelectItem key={template.id} value={template.id}>
                             {template.name}
@@ -783,7 +783,7 @@ export default function BroadcastCampaigns() {
                   </Select>
                 </div>
 
-                {!selectedCampaignTemplate && (
+                {!(selectedCampaignTemplate || newCampaign.fromTemplate) && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="customMessage">Mensagem Personalizada *</Label>
