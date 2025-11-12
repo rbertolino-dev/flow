@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
+import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
 import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
 import { useNavigate } from "react-router-dom";
 
@@ -36,6 +37,8 @@ export function SuperAdminDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState<{ id: string; name: string } | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithMembers | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -292,15 +295,29 @@ export function SuperAdminDashboard() {
                         <Users className="h-3 w-3 mr-1" />
                         {org.organization_members.length} {org.organization_members.length === 1 ? 'membro' : 'membros'}
                       </Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedOrg(org)}
-                        className="w-full sm:w-auto"
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Ver Detalhes
-                      </Button>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedOrg(org)}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver Detalhes
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setOrgToDelete({ id: org.id, name: org.name });
+                            setDeleteOrgOpen(true);
+                          }}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
@@ -342,6 +359,16 @@ export function SuperAdminDashboard() {
         onOpenChange={setCreateUserOpen}
         onSuccess={fetchAllOrganizations}
       />
+
+      {orgToDelete && (
+        <DeleteOrganizationDialog
+          open={deleteOrgOpen}
+          onOpenChange={setDeleteOrgOpen}
+          onSuccess={fetchAllOrganizations}
+          organizationId={orgToDelete.id}
+          organizationName={orgToDelete.name}
+        />
+      )}
     </div>
   );
 }
