@@ -85,6 +85,7 @@ export default function BroadcastCampaigns() {
     whatsappValid: number;
     whatsappInvalid: number;
   } | null>(null);
+  const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
@@ -1365,6 +1366,16 @@ export default function BroadcastCampaigns() {
                     </>
                   )}
                 </Button>
+                {validationResult && validationResult.whatsappValid > 0 && (
+                  <Button 
+                    onClick={() => setSimulationDialogOpen(true)} 
+                    disabled={loading || validatingContacts}
+                    variant="outline"
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Simular Envio
+                  </Button>
+                )}
                 <Button 
                   onClick={handleCreateCampaign} 
                   disabled={loading || validatingContacts || !validationResult || validationResult.whatsappValid === 0}
@@ -1673,6 +1684,185 @@ export default function BroadcastCampaigns() {
         </ScrollArea>
         </DialogContent>
       </Dialog>
+
+        {/* Dialog de Simulação de Envio */}
+        <Dialog open={simulationDialogOpen} onOpenChange={setSimulationDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Simulação de Envio</DialogTitle>
+              <DialogDescription>
+                Previsão de mensagens que serão enviadas nesta campanha
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {validationResult && (
+                <>
+                  {/* Resumo Geral */}
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-lg">Resumo Geral</h3>
+                      <Badge className="text-lg px-3 py-1">
+                        {newCampaign.sendingMethod === "separate" 
+                          ? validationResult.whatsappValid * (newCampaign.instanceIds.length || 1)
+                          : validationResult.whatsappValid} mensagens
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Contatos válidos:</span>
+                        <p className="font-semibold text-lg">{validationResult.whatsappValid}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Instâncias:</span>
+                        <p className="font-semibold text-lg">
+                          {newCampaign.sendingMethod === "single" ? 1 : newCampaign.instanceIds.length}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Método de envio:</span>
+                        <p className="font-semibold">
+                          {newCampaign.sendingMethod === "single" 
+                            ? "Instância única" 
+                            : newCampaign.sendingMethod === "rotate"
+                            ? "Rotação entre instâncias"
+                            : "Separado por instância"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Variações de mensagem:</span>
+                        <p className="font-semibold">
+                          {newCampaign.messageVariations.length > 0 
+                            ? `${newCampaign.messageVariations.length} variações`
+                            : "Mensagem única"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Distribuição por Instância */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold">Distribuição por Instância</h3>
+                    <div className="space-y-2">
+                      {newCampaign.sendingMethod === "single" ? (
+                        <div className="p-3 border rounded-lg bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="font-mono">
+                                {instances.find(i => i.id === newCampaign.instanceId)?.instance_name || "Instância"}
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">única instância</span>
+                            </div>
+                            <Badge>{validationResult.whatsappValid} mensagens</Badge>
+                          </div>
+                        </div>
+                      ) : newCampaign.sendingMethod === "rotate" ? (
+                        newCampaign.instanceIds.map((instanceId, index) => {
+                          const messagesPerInstance = Math.floor(validationResult.whatsappValid / newCampaign.instanceIds.length);
+                          const remainder = validationResult.whatsappValid % newCampaign.instanceIds.length;
+                          const messages = messagesPerInstance + (index < remainder ? 1 : 0);
+                          
+                          return (
+                            <div key={instanceId} className="p-3 border rounded-lg bg-muted/30">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="font-mono">
+                                    {instances.find(i => i.id === instanceId)?.instance_name || `Instância ${index + 1}`}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">rotação automática</span>
+                                </div>
+                                <Badge>~{messages} mensagens</Badge>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        // Modo "separate"
+                        newCampaign.instanceIds.map((instanceId, index) => (
+                          <div key={instanceId} className="p-3 border rounded-lg bg-amber-500/5 border-amber-500/20">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="font-mono">
+                                  {instances.find(i => i.id === instanceId)?.instance_name || `Instância ${index + 1}`}
+                                </Badge>
+                                <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                                  lista completa
+                                </span>
+                              </div>
+                              <Badge className="bg-amber-500 text-white">
+                                {validationResult.whatsappValid} mensagens
+                              </Badge>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Aviso para modo "separate" */}
+                  {newCampaign.sendingMethod === "separate" && (
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl">⚠️</div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-amber-700 dark:text-amber-400 mb-2">
+                            Atenção: Envio Multiplicado
+                          </h4>
+                          <p className="text-sm text-amber-700 dark:text-amber-300">
+                            No modo "Disparar separadamente", cada instância enviará a mensagem para TODOS os {validationResult.whatsappValid} contatos.
+                            Total de mensagens que serão enviadas: <strong>{validationResult.whatsappValid} × {newCampaign.instanceIds.length} = {validationResult.whatsappValid * newCampaign.instanceIds.length}</strong>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detalhes de Timing */}
+                  <div className="p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-semibold mb-3 text-sm">Estimativa de Tempo</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Delay entre mensagens:</span>
+                        <span className="font-medium">{newCampaign.minDelay}s - {newCampaign.maxDelay}s</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tempo estimado total:</span>
+                        <span className="font-medium">
+                          {(() => {
+                            const totalMessages = newCampaign.sendingMethod === "separate" 
+                              ? validationResult.whatsappValid * newCampaign.instanceIds.length
+                              : validationResult.whatsappValid;
+                            const avgDelay = (newCampaign.minDelay + newCampaign.maxDelay) / 2;
+                            const totalSeconds = totalMessages * avgDelay;
+                            const hours = Math.floor(totalSeconds / 3600);
+                            const minutes = Math.floor((totalSeconds % 3600) / 60);
+                            
+                            if (hours > 0) {
+                              return `~${hours}h ${minutes}min`;
+                            } else if (minutes > 0) {
+                              return `~${minutes} minutos`;
+                            } else {
+                              return `~${Math.ceil(totalSeconds)} segundos`;
+                            }
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSimulationDialogOpen(false)}>
+                Fechar
+              </Button>
+              <Button onClick={() => {
+                setSimulationDialogOpen(false);
+              }}>
+                Continuar para Criação
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
           </div>
         </div>
       </CRMLayout>
