@@ -38,30 +38,51 @@ serve(async (req) => {
       body: JSON.stringify({
         instanceName: instanceName,
         qrcode: true,
-        webhook: `${supabaseUrl}/functions/v1/evolution-webhook`,
       }),
     });
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
+      console.error('❌ Erro ao criar instância Evolution:', errorText);
       throw new Error(`Erro ao criar instância: ${errorText}`);
     }
 
     const instanceData = await createResponse.json();
+    console.log('✅ Instância criada:', instanceData);
 
-    // 2. Buscar QR Code
+    // 2. Buscar QR Code (aguardar alguns segundos para geração)
     let qrCode = null;
-    try {
-      const qrResponse = await fetch(`${normalizedUrl}/instance/qrcode/${instanceName}`, {
-        headers: { 'apikey': apiKey },
-      });
-      
-      if (qrResponse.ok) {
-        const qrData = await qrResponse.json();
-        qrCode = qrData.qrcode || qrData.base64 || null;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (!qrCode && attempts < maxAttempts) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2s
+        
+        const qrResponse = await fetch(`${normalizedUrl}/instance/qrcode/${instanceName}`, {
+          headers: { 'apikey': apiKey },
+        });
+        
+        if (qrResponse.ok) {
+          const qrData = await qrResponse.json();
+          qrCode = qrData.qrcode || qrData.base64 || qrData.code || null;
+          
+          if (qrCode) {
+            console.log('✅ QR Code obtido com sucesso');
+            break;
+          }
+        }
+        
+        attempts++;
+        console.log(`⏳ Tentativa ${attempts}/${maxAttempts} de obter QR Code...`);
+      } catch (e) {
+        console.error(`❌ Erro na tentativa ${attempts}:`, e);
+        attempts++;
       }
-    } catch (e) {
-      console.error('Erro ao buscar QR code:', e);
+    }
+    
+    if (!qrCode) {
+      console.warn('⚠️ QR Code não foi gerado após várias tentativas');
     }
 
     // 3. Gerar webhook secret
