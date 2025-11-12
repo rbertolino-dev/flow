@@ -45,6 +45,18 @@ interface Campaign {
   instance_id: string;
 }
 
+interface Template {
+  id: string;
+  name: string;
+  description?: string;
+  instance_id?: string;
+  message_template_id?: string;
+  custom_message?: string;
+  message_variations?: string[];
+  min_delay_seconds: number;
+  max_delay_seconds: number;
+}
+
 export default function BroadcastCampaigns() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
@@ -96,8 +108,10 @@ export default function BroadcastCampaigns() {
     scheduledStart: undefined as Date | undefined,
     fromTemplate: false,
   });
+  const [selectedCampaignTemplate, setSelectedCampaignTemplate] = useState("");
 
-  const handleTemplateSelect = (template: any) => {
+  const handleTemplateSelectFromManager = (template: Template) => {
+    setSelectedCampaignTemplate(template.id);
     setNewCampaign({
       name: template.name,
       instanceId: template.instance_id || "",
@@ -114,6 +128,12 @@ export default function BroadcastCampaigns() {
       title: "Template carregado!",
       description: `Template "${template.name}" carregado com ${template.message_variations?.length || 0} variação(ões)`,
     });
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = campaignTemplates.find(t => t.id === templateId);
+    if (!template) return;
+    handleTemplateSelectFromManager(template);
   };
 
   useEffect(() => {
@@ -663,7 +683,7 @@ export default function BroadcastCampaigns() {
                 organizationId={activeOrgId!}
                 instances={instances}
                 messageTemplates={messageTemplates}
-                onTemplateSelect={handleTemplateSelect}
+                onTemplateSelect={handleTemplateSelectFromManager}
               />
             </TabsContent>
 
@@ -744,6 +764,24 @@ export default function BroadcastCampaigns() {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="campaignTemplate">Template de Campanha (opcional)</Label>
+                  <Select
+                    value={selectedCampaignTemplate}
+                    onValueChange={handleTemplateSelect}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um template de campanha" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campaignTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
