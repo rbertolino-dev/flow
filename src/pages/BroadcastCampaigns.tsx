@@ -1309,7 +1309,12 @@ export default function BroadcastCampaigns() {
                 </Button>
                 <Button 
                   onClick={handleValidateContacts} 
-                  disabled={loading || validatingContacts || !newCampaign.instanceId}
+                  disabled={
+                    loading || 
+                    validatingContacts || 
+                    (newCampaign.sendingMethod === "single" && !newCampaign.instanceId) ||
+                    (newCampaign.sendingMethod !== "single" && newCampaign.instanceIds.length === 0)
+                  }
                   variant="secondary"
                 >
                   {validatingContacts ? (
