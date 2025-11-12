@@ -345,6 +345,7 @@ export default function BroadcastCampaigns() {
 
         return {
           campaign_id: campaign.id,
+          organization_id: activeOrgId, // Adicionado organization_id
           phone: contact.phone,
           name: contact.name,
           personalized_message: personalizedMessage,

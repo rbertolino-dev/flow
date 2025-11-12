@@ -105,45 +105,42 @@ export function CostsDashboard() {
 
   const fetchMetrics = async () => {
     try {
-      // Fetch all metrics in parallel
-      const [
-        { count: orgCount },
-        { count: userCount },
-        { count: leadCount },
-        { count: messageCount },
-        { count: broadcastCount },
-        { count: scheduledCount },
-        // Detalhamento de mensagens
-        { count: incomingCount },
-        { count: broadcastSentCount },
-        { count: scheduledSentCount }
-      ] = await Promise.all([
-        supabase.from('organizations').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('leads').select('*', { count: 'exact', head: true }).is('deleted_at', null),
-        supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }),
-        supabase.from('broadcast_campaigns').select('*', { count: 'exact', head: true }),
-        supabase.from('scheduled_messages').select('*', { count: 'exact', head: true }),
-        // Mensagens recebidas via webhook
-        supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }).eq('direction', 'incoming'),
-        // Mensagens enviadas por disparos em massa
-        supabase.from('broadcast_queue').select('*', { count: 'exact', head: true }).eq('status', 'sent'),
-        // Mensagens agendadas que foram enviadas
-        supabase.from('scheduled_messages').select('*', { count: 'exact', head: true }).eq('status', 'sent')
-      ]);
+      // Buscar APENAS de daily_usage_metrics para garantir consistência
+      const { data: metricsData, error } = await supabase
+        .from('daily_usage_metrics')
+        .select('metric_type, metric_value, organization_id');
+
+      if (error) throw error;
+
+      // Agregar métricas por tipo
+      const aggregated = (metricsData || []).reduce((acc, metric) => {
+        const type = metric.metric_type;
+        acc[type] = (acc[type] || 0) + (metric.metric_value || 0);
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Contar organizações únicas
+      const uniqueOrgs = new Set(
+        (metricsData || [])
+          .filter(m => m.organization_id)
+          .map(m => m.organization_id)
+      );
 
       setMetrics({
-        totalOrganizations: orgCount || 0,
-        totalUsers: userCount || 0,
-        totalLeads: leadCount || 0,
-        totalMessages: messageCount || 0,
-        totalBroadcasts: broadcastCount || 0,
-        totalScheduledMessages: scheduledCount || 0,
-        totalEdgeFunctionCalls: 0, // Will be calculated from logs
+        totalOrganizations: uniqueOrgs.size,
+        totalUsers: aggregated.auth_users || 0,
+        totalLeads: aggregated.leads_stored || 0,
+        totalMessages: 
+          (aggregated.incoming_messages || 0) + 
+          (aggregated.broadcast_messages || 0) + 
+          (aggregated.scheduled_messages || 0),
+        totalBroadcasts: aggregated.broadcast_messages || 0,
+        totalScheduledMessages: aggregated.scheduled_messages || 0,
+        totalEdgeFunctionCalls: aggregated.edge_function_calls || 0,
         // Detalhamento
-        incomingMessages: incomingCount || 0,
-        broadcastMessages: broadcastSentCount || 0,
-        scheduledMessagesSent: scheduledSentCount || 0
+        incomingMessages: aggregated.incoming_messages || 0,
+        broadcastMessages: aggregated.broadcast_messages || 0,
+        scheduledMessagesSent: aggregated.scheduled_messages || 0
       });
     } catch (error) {
       console.error('Error fetching metrics:', error);
