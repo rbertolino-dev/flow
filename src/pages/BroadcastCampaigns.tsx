@@ -21,6 +21,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
+import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
 import {
   Dialog,
@@ -92,7 +93,27 @@ export default function BroadcastCampaigns() {
     minDelay: 30,
     maxDelay: 60,
     scheduledStart: undefined as Date | undefined,
+    fromTemplate: false,
   });
+
+  const handleTemplateSelect = (template: any) => {
+    setNewCampaign({
+      name: template.name,
+      instanceId: template.instance_id || "",
+      templateId: template.message_template_id || "",
+      customMessage: template.custom_message || "",
+      messageVariations: [],
+      minDelay: template.min_delay_seconds,
+      maxDelay: template.max_delay_seconds,
+      scheduledStart: undefined,
+      fromTemplate: true,
+    });
+    setCreateDialogOpen(true);
+    toast({
+      title: "Template carregado!",
+      description: "Você pode ajustar as configurações antes de criar a campanha",
+    });
+  };
 
   useEffect(() => {
     if (activeOrgId) {
@@ -374,6 +395,7 @@ export default function BroadcastCampaigns() {
         minDelay: 30,
         maxDelay: 60,
         scheduledStart: undefined,
+        fromTemplate: false,
       });
       setCsvFile(null);
       setPastedList("");
@@ -615,11 +637,24 @@ export default function BroadcastCampaigns() {
           <Tabs defaultValue="campaigns" className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
+              <TabsTrigger value="templates">
+                <FileText className="h-4 w-4 mr-2" />
+                Templates
+              </TabsTrigger>
               <TabsTrigger value="reports">
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Relatórios
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="templates">
+              <BroadcastCampaignTemplateManager
+                organizationId={activeOrgId!}
+                instances={instances}
+                messageTemplates={templates}
+                onTemplateSelect={handleTemplateSelect}
+              />
+            </TabsContent>
 
             <TabsContent value="campaigns">
               <Card>

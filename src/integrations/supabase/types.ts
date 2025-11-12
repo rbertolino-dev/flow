@@ -98,6 +98,54 @@ export type Database = {
         }
         Relationships: []
       }
+      broadcast_campaign_templates: {
+        Row: {
+          created_at: string
+          custom_message: string | null
+          description: string | null
+          id: string
+          instance_id: string | null
+          instance_name: string | null
+          max_delay_seconds: number
+          message_template_id: string | null
+          min_delay_seconds: number
+          name: string
+          organization_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_message?: string | null
+          description?: string | null
+          id?: string
+          instance_id?: string | null
+          instance_name?: string | null
+          max_delay_seconds?: number
+          message_template_id?: string | null
+          min_delay_seconds?: number
+          name: string
+          organization_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_message?: string | null
+          description?: string | null
+          id?: string
+          instance_id?: string | null
+          instance_name?: string | null
+          max_delay_seconds?: number
+          message_template_id?: string | null
+          min_delay_seconds?: number
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       broadcast_campaigns: {
         Row: {
           completed_at: string | null
