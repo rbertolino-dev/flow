@@ -640,7 +640,10 @@ export default function BroadcastCampaigns() {
     try {
       const { data, error } = await supabase
         .from("broadcast_queue")
-        .select("*")
+        .select(`
+          *,
+          instance:evolution_config(instance_name)
+        `)
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false });
 
@@ -1580,13 +1583,18 @@ export default function BroadcastCampaigns() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {log.status === 'sent' && <CheckCircle2 className="h-4 w-4 text-success" />}
                           {log.status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
                           {log.status === 'scheduled' && <Clock className="h-4 w-4 text-warning" />}
                           {log.status === 'pending' && <Loader2 className="h-4 w-4 text-muted-foreground" />}
                           <span className="font-medium">{log.phone}</span>
                           {log.name && <span className="text-muted-foreground">({log.name})</span>}
+                          {log.instance && (
+                            <Badge variant="outline" className="text-xs">
+                              {log.instance.instance_name}
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {log.status === 'scheduled' && log.scheduled_for && (
