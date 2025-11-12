@@ -515,7 +515,9 @@ export default function BroadcastCampaigns() {
         .from("broadcast_queue")
         .select("*")
         .eq("campaign_id", campaignId)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .order("instance_id", { ascending: true })
+        .order("created_at", { ascending: true });
 
       if (fetchError) throw fetchError;
 
