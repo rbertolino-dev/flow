@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -141,6 +141,95 @@ export default function BroadcastCampaigns() {
     const template = campaignTemplates.find(t => t.id === templateId);
     if (!template) return;
     handleTemplateSelectFromManager(template);
+  };
+
+  const handleCopyCampaign = async (campaign: Campaign) => {
+    try {
+      // Buscar dados completos da campanha
+      const { data: campaignData, error: campaignError } = await supabase
+        .from("broadcast_campaigns")
+        .select("*")
+        .eq("id", campaign.id)
+        .single();
+
+      if (campaignError) throw campaignError;
+
+      // Buscar contatos da fila
+      const { data: queueData, error: queueError } = await supabase
+        .from("broadcast_queue")
+        .select("phone, name, personalized_message, instance_id")
+        .eq("campaign_id", campaign.id)
+        .limit(1000);
+
+      if (queueError) throw queueError;
+
+      // Extrair contatos únicos
+      const uniqueContacts = new Map();
+      queueData?.forEach(item => {
+        if (!uniqueContacts.has(item.phone)) {
+          uniqueContacts.set(item.phone, item.name || '');
+        }
+      });
+
+      // Formatar contatos para o campo de texto
+      const contactsList = Array.from(uniqueContacts.entries())
+        .map(([phone, name]) => name ? `${phone},${name}` : phone)
+        .join('\n');
+
+      // Determinar método de envio
+      let sendingMethod: "single" | "rotate" | "separate" = "single";
+      let instanceIds: string[] = [];
+      
+      if (queueData && queueData.length > 0) {
+        const usedInstances = [...new Set(queueData.map(item => item.instance_id))];
+        const totalMessages = queueData.length;
+        const uniqueContactCount = uniqueContacts.size;
+
+        if (usedInstances.length > 1) {
+          if (totalMessages === uniqueContactCount * usedInstances.length) {
+            sendingMethod = "separate";
+          } else {
+            sendingMethod = "rotate";
+          }
+          instanceIds = usedInstances;
+        } else {
+          sendingMethod = "single";
+        }
+      }
+
+      // Preencher formulário com dados da campanha
+      setNewCampaign({
+        name: `${campaignData.name} (Cópia)`,
+        instanceId: sendingMethod === "single" ? campaign.instance_id : "",
+        instanceIds: instanceIds,
+        sendingMethod: sendingMethod,
+        templateId: campaignData.message_template_id || "",
+        customMessage: campaignData.custom_message || "",
+        messageVariations: [],
+        minDelay: campaignData.min_delay_seconds || 30,
+        maxDelay: campaignData.max_delay_seconds || 60,
+        scheduledStart: undefined,
+        fromTemplate: false,
+        useLatamValidator: false,
+      });
+
+      setPastedList(contactsList);
+      setImportMode("paste");
+      setValidationResult(null);
+      setSelectedCampaignTemplate(null);
+      setCreateDialogOpen(true);
+
+      toast({
+        title: "Campanha copiada!",
+        description: "Revise os dados e clique em 'Validar Contatos' para continuar",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao copiar campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   useEffect(() => {
@@ -1574,6 +1663,16 @@ export default function BroadcastCampaigns() {
                     <FileText className="h-4 w-4 mr-1" />
                     Logs
                   </Button>
+                  {(campaign.status === "completed" || campaign.status === "cancelled") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopyCampaign(campaign)}
+                    >
+                      <Copy className="h-4 w-4 mr-1" />
+                      Copiar
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
