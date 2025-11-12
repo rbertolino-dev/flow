@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3 } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -108,10 +108,10 @@ export default function BroadcastCampaigns() {
     scheduledStart: undefined as Date | undefined,
     fromTemplate: false,
   });
-  const [selectedCampaignTemplate, setSelectedCampaignTemplate] = useState("");
+  const [selectedCampaignTemplate, setSelectedCampaignTemplate] = useState<Template | null>(null);
 
   const handleTemplateSelectFromManager = (template: Template) => {
-    setSelectedCampaignTemplate(template.id);
+    setSelectedCampaignTemplate(template);
     setNewCampaign({
       name: template.name,
       instanceId: template.instance_id || "",
@@ -707,8 +707,39 @@ export default function BroadcastCampaigns() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Indicador de Template Selecionado */}
+                {(selectedCampaignTemplate || newCampaign.fromTemplate) && (
+                  <div className="space-y-2 p-4 bg-accent/20 border border-accent rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Template Selecionado</Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {selectedCampaignTemplate?.name || 'Template de campanha'}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCampaignTemplate(null);
+                          setNewCampaign(prev => ({
+                            ...prev,
+                            fromTemplate: false,
+                            customMessage: '',
+                            messageVariations: []
+                          }));
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Limpar Template
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Seletor de Template de Campanha */}
-                {campaignTemplates.length > 0 && !newCampaign.fromTemplate && (
+                {campaignTemplates.length > 0 && !newCampaign.fromTemplate && !selectedCampaignTemplate && (
                   <div className="space-y-2 p-4 bg-accent/20 border border-accent rounded-lg">
                     <Label>Usar Template de Campanha</Label>
                     <Select onValueChange={(value) => {
@@ -767,7 +798,7 @@ export default function BroadcastCampaigns() {
                 <div className="space-y-2">
                   <Label htmlFor="campaignTemplate">Template de Campanha (opcional)</Label>
                   <Select
-                    value={selectedCampaignTemplate}
+                    value={selectedCampaignTemplate?.id || ""}
                     onValueChange={handleTemplateSelect}
                   >
                     <SelectTrigger>
