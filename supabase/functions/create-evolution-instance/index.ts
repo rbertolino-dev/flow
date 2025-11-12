@@ -51,12 +51,21 @@ serve(async (req) => {
     const instanceData = await createResponse.json();
     console.log('✅ Instância criada:', instanceData);
 
-    // 2. Buscar QR Code (aguardar alguns segundos para geração)
+    // 2. Extrair QR Code da resposta de criação
     let qrCode = null;
-    let attempts = 0;
-    const maxAttempts = 10;
+    if (instanceData.qrcode) {
+      // A Evolution API retorna o QR code diretamente na resposta de criação
+      qrCode = instanceData.qrcode.base64 || instanceData.qrcode.code || instanceData.qrcode;
+      if (qrCode && !qrCode.startsWith('data:image')) {
+        // Se não for base64 completo, adicionar o prefixo
+        qrCode = `data:image/png;base64,${qrCode}`;
+      }
+      console.log('✅ QR Code obtido da resposta de criação');
+    }
     
-    while (!qrCode && attempts < maxAttempts) {
+    // Se não veio na resposta, tentar buscar pelo endpoint dedicado
+    if (!qrCode) {
+      console.log('⏳ QR Code não veio na criação, tentando buscar...');
       try {
         await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2s
         
@@ -66,24 +75,15 @@ serve(async (req) => {
         
         if (qrResponse.ok) {
           const qrData = await qrResponse.json();
-          qrCode = qrData.qrcode || qrData.base64 || qrData.code || null;
-          
-          if (qrCode) {
-            console.log('✅ QR Code obtido com sucesso');
-            break;
+          qrCode = qrData.base64 || qrData.qrcode || qrData.code || null;
+          if (qrCode && !qrCode.startsWith('data:image')) {
+            qrCode = `data:image/png;base64,${qrCode}`;
           }
+          console.log('✅ QR Code obtido do endpoint dedicado');
         }
-        
-        attempts++;
-        console.log(`⏳ Tentativa ${attempts}/${maxAttempts} de obter QR Code...`);
       } catch (e) {
-        console.error(`❌ Erro na tentativa ${attempts}:`, e);
-        attempts++;
+        console.error('❌ Erro ao buscar QR Code:', e);
       }
-    }
-    
-    if (!qrCode) {
-      console.warn('⚠️ QR Code não foi gerado após várias tentativas');
     }
 
     // 3. Gerar webhook secret
