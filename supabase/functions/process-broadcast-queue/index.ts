@@ -157,11 +157,17 @@ serve(async (req) => {
 
         if (updateError) throw updateError;
 
-        // Atualizar contador da campanha
+        // Atualizar contador da campanha - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
+        const { data: sentCount } = await supabase
+          .from("broadcast_queue")
+          .select("id", { count: 'exact', head: true })
+          .eq("campaign_id", campaign.id)
+          .eq("status", "sent");
+
         const { error: campaignUpdateError } = await supabase
           .from("broadcast_campaigns")
           .update({
-            sent_count: (campaign.sent_count || 0) + 1,
+            sent_count: sentCount || 0,
           })
           .eq("id", campaign.id);
 
@@ -181,13 +187,19 @@ serve(async (req) => {
           })
           .eq("id", item.id);
 
-        // Atualizar contador de falhas
+        // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
         if (campaign) {
+          const { data: failedCount } = await supabase
+            .from("broadcast_queue")
+            .select("id", { count: 'exact', head: true })
+            .eq("campaign_id", campaign.id)
+            .eq("status", "failed");
+
           await supabase
             .from("broadcast_campaigns")
             .update({
-              failed_count: (campaign.failed_count || 0) + 1,
+              failed_count: failedCount || 0,
             })
             .eq("id", campaign.id);
         }
@@ -209,15 +221,30 @@ serve(async (req) => {
         .limit(1);
 
       if (!remainingItems || remainingItems.length === 0) {
+        // SINCRONIZAÇÃO FINAL: Garantir contadores corretos ao completar
+        const { data: finalSentCount } = await supabase
+          .from("broadcast_queue")
+          .select("id", { count: 'exact', head: true })
+          .eq("campaign_id", campaign.id)
+          .eq("status", "sent");
+
+        const { data: finalFailedCount } = await supabase
+          .from("broadcast_queue")
+          .select("id", { count: 'exact', head: true })
+          .eq("campaign_id", campaign.id)
+          .eq("status", "failed");
+
         await supabase
           .from("broadcast_campaigns")
           .update({
             status: "completed",
             completed_at: new Date().toISOString(),
+            sent_count: finalSentCount || 0,
+            failed_count: finalFailedCount || 0,
           })
           .eq("id", campaign.id);
 
-        console.log(`🎉 Campanha ${campaign.id} concluída`);
+        console.log(`🎉 Campanha ${campaign.id} concluída - ${finalSentCount} enviados, ${finalFailedCount} falhas`);
       }
     }
 
