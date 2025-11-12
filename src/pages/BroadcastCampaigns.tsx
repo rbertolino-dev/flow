@@ -100,6 +100,8 @@ export default function BroadcastCampaigns() {
   const [newCampaign, setNewCampaign] = useState({
     name: "",
     instanceId: "",
+    instanceIds: [] as string[], // Para múltiplas instâncias
+    sendingMethod: "single" as "single" | "rotate" | "separate",
     templateId: "",
     customMessage: "",
     messageVariations: [] as string[],
@@ -116,6 +118,8 @@ export default function BroadcastCampaigns() {
     setNewCampaign({
       name: template.name,
       instanceId: template.instance_id || "",
+      instanceIds: [],
+      sendingMethod: "single",
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
@@ -221,12 +225,12 @@ export default function BroadcastCampaigns() {
     return contacts;
   };
 
-  // Nova função separada para validar
   const handleValidateContacts = async () => {
-    if (!newCampaign.instanceId || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim())) {
+    const hasInstance = newCampaign.sendingMethod === "single" ? newCampaign.instanceId : newCampaign.instanceIds.length > 0;
+    if (!hasInstance || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim())) {
       toast({
         title: "Campos obrigatórios",
-        description: "Selecione a instância e forneça uma lista de contatos",
+        description: "Selecione a(s) instância(s) e forneça uma lista de contatos",
         variant: "destructive",
       });
       return;
@@ -244,8 +248,12 @@ export default function BroadcastCampaigns() {
         text = pastedList;
       }
 
-      // Buscar configuração da instância Evolution
-      const instance = instances.find(i => i.id === newCampaign.instanceId);
+      // Buscar configuração da instância Evolution (usar primeira instância para validação)
+      const instanceIdForValidation = newCampaign.sendingMethod === "single" 
+        ? newCampaign.instanceId 
+        : newCampaign.instanceIds[0];
+      
+      const instance = instances.find(i => i.id === instanceIdForValidation);
       if (!instance) {
         throw new Error("Instância não encontrada");
       }
@@ -256,7 +264,7 @@ export default function BroadcastCampaigns() {
         description: "Normalizando números e verificando WhatsApp via Evolution API",
       });
 
-      const validation = await validateContactsComplete(text, newCampaign.instanceId, {
+      const validation = await validateContactsComplete(text, instanceIdForValidation, {
         api_url: instance.api_url,
         api_key: instance.api_key,
         instance_name: instance.instance_name
@@ -303,10 +311,12 @@ export default function BroadcastCampaigns() {
   };
 
   const handleCreateCampaign = async () => {
-    if (!newCampaign.name || !newCampaign.instanceId) {
+    const hasInstance = newCampaign.sendingMethod === "single" ? newCampaign.instanceId : newCampaign.instanceIds.length > 0;
+    
+    if (!newCampaign.name || !hasInstance) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha nome e instância",
+        description: "Preencha nome e selecione a(s) instância(s)",
         variant: "destructive",
       });
       return;
@@ -422,6 +432,8 @@ export default function BroadcastCampaigns() {
       setNewCampaign({
         name: "",
         instanceId: "",
+        instanceIds: [],
+        sendingMethod: "single",
         templateId: "",
         customMessage: "",
         messageVariations: [],
@@ -777,26 +789,160 @@ export default function BroadcastCampaigns() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="instance">Instância WhatsApp *</Label>
-                  <Select
-                    value={newCampaign.instanceId}
-                    onValueChange={(value) =>
-                      setNewCampaign({ ...newCampaign, instanceId: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a instância" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {instances.map((instance) => (
-                        <SelectItem key={instance.id} value={instance.id}>
-                          {instance.instance_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* Método de Envio */}
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/5">
+                  <Label className="text-base font-semibold">Método de Envio</Label>
+                  <div className="grid gap-3">
+                    {/* Opção 1: Usar uma única instância */}
+                    <button
+                      type="button"
+                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "single", instanceIds: [] })}
+                      className={`relative p-4 border-2 rounded-lg text-left transition-all hover:border-primary/50 ${
+                        newCampaign.sendingMethod === "single" 
+                          ? "border-primary bg-primary/5 shadow-sm" 
+                          : "border-border bg-background"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl">✔️</div>
+                        <div className="flex-1">
+                          <div className="font-medium mb-1">Usar uma única instância</div>
+                          <div className="text-sm text-muted-foreground">
+                            O sistema envia a mensagem usando apenas uma instância selecionada
+                          </div>
+                        </div>
+                        {newCampaign.sendingMethod === "single" && (
+                          <div className="absolute top-3 right-3">
+                            <CheckCircle2 className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Opção 2: Rotacionar entre instâncias */}
+                    <button
+                      type="button"
+                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "rotate", instanceId: "" })}
+                      className={`relative p-4 border-2 rounded-lg text-left transition-all hover:border-primary/50 ${
+                        newCampaign.sendingMethod === "rotate" 
+                          ? "border-primary bg-primary/5 shadow-sm" 
+                          : "border-border bg-background"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl">🔁</div>
+                        <div className="flex-1">
+                          <div className="font-medium mb-1">Rotacionar entre instâncias</div>
+                          <div className="text-sm text-muted-foreground mb-2">
+                            Divide automaticamente a lista entre as instâncias ativas
+                          </div>
+                          {newCampaign.sendingMethod === "rotate" && validationResult && newCampaign.instanceIds.length > 0 && (
+                            <div className="text-xs text-primary font-medium mt-2">
+                              ~{Math.ceil(validationResult.whatsappValid / newCampaign.instanceIds.length)} contatos por instância
+                            </div>
+                          )}
+                        </div>
+                        {newCampaign.sendingMethod === "rotate" && (
+                          <div className="absolute top-3 right-3">
+                            <CheckCircle2 className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Opção 3: Disparar separadamente */}
+                    <button
+                      type="button"
+                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "separate", instanceId: "" })}
+                      className={`relative p-4 border-2 rounded-lg text-left transition-all hover:border-primary/50 ${
+                        newCampaign.sendingMethod === "separate" 
+                          ? "border-primary bg-primary/5 shadow-sm" 
+                          : "border-border bg-background"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl">📤</div>
+                        <div className="flex-1">
+                          <div className="font-medium mb-1">Disparar separadamente com cada instância</div>
+                          <div className="text-sm text-muted-foreground">
+                            Envia a mesma mensagem para todos os contatos usando cada instância selecionada
+                          </div>
+                          {newCampaign.sendingMethod === "separate" && (
+                            <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-700 dark:text-amber-400">
+                              ⚠️ Sua mensagem será enviada para todos os contatos por cada instância selecionada
+                            </div>
+                          )}
+                        </div>
+                        {newCampaign.sendingMethod === "separate" && (
+                          <div className="absolute top-3 right-3">
+                            <CheckCircle2 className="h-5 w-5 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
                 </div>
+
+                {/* Seleção de Instância(s) baseada no método */}
+                {newCampaign.sendingMethod === "single" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="instance">Instância WhatsApp *</Label>
+                    <Select
+                      value={newCampaign.instanceId}
+                      onValueChange={(value) =>
+                        setNewCampaign({ ...newCampaign, instanceId: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a instância" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {instances.map((instance) => (
+                          <SelectItem key={instance.id} value={instance.id}>
+                            {instance.instance_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Selecione as Instâncias *</Label>
+                    <div className="grid gap-2 p-3 border rounded-lg bg-muted/5 max-h-48 overflow-y-auto">
+                      {instances.map((instance) => (
+                        <label
+                          key={instance.id}
+                          className="flex items-center gap-3 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={newCampaign.instanceIds.includes(instance.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewCampaign({
+                                  ...newCampaign,
+                                  instanceIds: [...newCampaign.instanceIds, instance.id]
+                                });
+                              } else {
+                                setNewCampaign({
+                                  ...newCampaign,
+                                  instanceIds: newCampaign.instanceIds.filter(id => id !== instance.id)
+                                });
+                              }
+                            }}
+                            className="h-4 w-4"
+                          />
+                          <span className="text-sm">{instance.instance_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {newCampaign.instanceIds.length === 0 
+                        ? "Selecione pelo menos uma instância" 
+                        : `${newCampaign.instanceIds.length} instância(s) selecionada(s)`}
+                    </p>
+                  </div>
+                )}
 
                 {/* Seletor de Template de Campanha - Sempre visível se houver templates */}
                 {campaignTemplates.length > 0 && !(selectedCampaignTemplate || newCampaign.fromTemplate) && (
