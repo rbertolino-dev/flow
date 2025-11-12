@@ -56,12 +56,8 @@ export function BroadcastCampaignTemplateManager({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    instanceId: "",
-    templateId: "",
     customMessage: "",
     messageVariations: [] as string[],
-    minDelay: 30,
-    maxDelay: 60,
   });
 
   useEffect(() => {
@@ -116,20 +112,18 @@ export function BroadcastCampaignTemplateManager({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const selectedInstance = instances.find(i => i.id === formData.instanceId);
-
       const templateData = {
         organization_id: organizationId,
         user_id: user.id,
         name: formData.name,
         description: formData.description || null,
-        instance_id: formData.instanceId || null,
-        instance_name: selectedInstance?.instance_name || null,
-        message_template_id: formData.templateId || null,
+        instance_id: null,
+        instance_name: null,
+        message_template_id: null,
         custom_message: formData.customMessage || null,
         message_variations: formData.messageVariations.length > 0 ? formData.messageVariations : null,
-        min_delay_seconds: formData.minDelay,
-        max_delay_seconds: formData.maxDelay,
+        min_delay_seconds: 30,
+        max_delay_seconds: 60,
       };
 
       if (editingTemplate) {
@@ -176,12 +170,8 @@ export function BroadcastCampaignTemplateManager({
     setFormData({
       name: template.name,
       description: template.description || "",
-      instanceId: template.instance_id || "",
-      templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
-      minDelay: template.min_delay_seconds,
-      maxDelay: template.max_delay_seconds,
     });
     setDialogOpen(true);
   };
@@ -219,12 +209,8 @@ export function BroadcastCampaignTemplateManager({
     setFormData({
       name: "",
       description: "",
-      instanceId: "",
-      templateId: "",
       customMessage: "",
       messageVariations: [],
-      minDelay: 30,
-      maxDelay: 60,
     });
     setEditingTemplate(null);
   };
@@ -253,7 +239,7 @@ export function BroadcastCampaignTemplateManager({
                 {editingTemplate ? "Editar Template" : "Novo Template"}
               </DialogTitle>
               <DialogDescription>
-                Crie templates pré-configurados para facilitar a criação de campanhas
+                Configure apenas a mensagem e variações - as demais opções serão definidas ao criar a campanha
               </DialogDescription>
             </DialogHeader>
 
@@ -280,46 +266,8 @@ export function BroadcastCampaignTemplateManager({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="instance">Instância WhatsApp</Label>
-                <Select
-                  value={formData.instanceId}
-                  onValueChange={(value) => setFormData({ ...formData, instanceId: value })}
-                >
-                  <SelectTrigger id="instance">
-                    <SelectValue placeholder="Selecione uma instância" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {instances.map((instance) => (
-                      <SelectItem key={instance.id} value={instance.id}>
-                        {instance.instance_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="messageTemplate">Template de Mensagem</Label>
-                <Select
-                  value={formData.templateId}
-                  onValueChange={(value) => setFormData({ ...formData, templateId: value })}
-                >
-                  <SelectTrigger id="messageTemplate">
-                    <SelectValue placeholder="Selecione um template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {messageTemplates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="customMessage">Mensagem Personalizada</Label>
+                  <Label htmlFor="customMessage">Mensagem Personalizada *</Label>
                   {formData.messageVariations.length === 0 && (
                     <Button
                       type="button"
@@ -331,7 +279,6 @@ export function BroadcastCampaignTemplateManager({
                             ...formData,
                             messageVariations: [formData.customMessage],
                             customMessage: "",
-                            templateId: "",
                           });
                         }
                       }}
@@ -429,33 +376,6 @@ export function BroadcastCampaignTemplateManager({
                 <p className="text-xs text-muted-foreground">
                   Variáveis disponíveis: {"{nome}"}, {"{empresa}"}
                 </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="minDelay">Intervalo Mínimo (segundos)</Label>
-                  <Input
-                    id="minDelay"
-                    type="number"
-                    min="1"
-                    value={formData.minDelay}
-                    onChange={(e) =>
-                      setFormData({ ...formData, minDelay: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxDelay">Intervalo Máximo (segundos)</Label>
-                  <Input
-                    id="maxDelay"
-                    type="number"
-                    min="1"
-                    value={formData.maxDelay}
-                    onChange={(e) =>
-                      setFormData({ ...formData, maxDelay: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
               </div>
             </div>
 
