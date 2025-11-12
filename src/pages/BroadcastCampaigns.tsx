@@ -798,24 +798,31 @@ export default function BroadcastCampaigns() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="campaignTemplate">Template de Campanha (opcional)</Label>
-                  <Select
-                    value={selectedCampaignTemplate?.id || ""}
-                    onValueChange={handleTemplateSelect}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um template de campanha" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {campaignTemplates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Seletor de Template de Campanha - Sempre visível se houver templates */}
+                {campaignTemplates.length > 0 && !(selectedCampaignTemplate || newCampaign.fromTemplate) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="campaignTemplate">Template de Campanha (opcional)</Label>
+                    <Select
+                      value=""
+                      onValueChange={handleTemplateSelect}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Selecione um template de campanha" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        {campaignTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                            {template.description && ` - ${template.description}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Templates salvos com mensagens pré-configuradas
+                    </p>
+                  </div>
+                )}
 
                 {!(selectedCampaignTemplate || newCampaign.fromTemplate) && (
                   <div className="space-y-2">
