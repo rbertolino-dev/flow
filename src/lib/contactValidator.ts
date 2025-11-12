@@ -58,6 +58,36 @@ export function normalizePhoneNumber(phone: string): { normalized: string; valid
 }
 
 /**
+ * Normaliza um número de telefone LATAM para o formato internacional
+ * Aceita códigos de países da América Latina: +54, +57, +52, +51, +56, +58, +593, +595, etc.
+ */
+export function normalizeLatamPhoneNumber(phone: string): { normalized: string; valid: boolean; error?: string } {
+  // Remove todos os caracteres não numéricos
+  let digits = phone.replace(/\D/g, "");
+
+  // Se já começa com + e tem código de país, aceitar
+  if (phone.startsWith("+") && digits.length >= 10) {
+    return validateLatamPhone("+" + digits);
+  }
+
+  // Se começa com código de país sem +
+  const countryCode = digits.substring(0, 2);
+  const latamCodes = ["54", "57", "52", "51", "56", "58", "59"]; // Argentina, Colômbia, México, Peru, Chile, Venezuela, Paraguai/Uruguai/Equador
+  
+  if (latamCodes.some(code => countryCode.startsWith(code))) {
+    digits = "+" + digits;
+    return validateLatamPhone(digits);
+  }
+
+  // Formato não reconhecido
+  return {
+    normalized: phone,
+    valid: false,
+    error: "Número LATAM deve incluir código do país (ex: +54, +57, +52, etc.)"
+  };
+}
+
+/**
  * Valida se um número normalizado está no formato correto
  */
 function validateBrazilianPhone(phone: string): { normalized: string; valid: boolean; error?: string } {
@@ -112,9 +142,69 @@ function validateBrazilianPhone(phone: string): { normalized: string; valid: boo
 }
 
 /**
+ * Valida se um número LATAM normalizado está no formato correto
+ */
+function validateLatamPhone(phone: string): { normalized: string; valid: boolean; error?: string } {
+  // Deve começar com +
+  if (!phone.startsWith("+")) {
+    return {
+      normalized: phone,
+      valid: false,
+      error: "Número deve começar com código do país (+XX)"
+    };
+  }
+
+  // Códigos de países LATAM válidos
+  const validCountryCodes = [
+    "54",  // Argentina
+    "57",  // Colômbia
+    "52",  // México
+    "51",  // Peru
+    "56",  // Chile
+    "58",  // Venezuela
+    "593", // Equador
+    "595", // Paraguai
+    "598", // Uruguai
+    "591", // Bolívia
+    "507", // Panamá
+    "506", // Costa Rica
+    "502", // Guatemala
+    "503", // El Salvador
+    "504", // Honduras
+    "505"  // Nicarágua
+  ];
+
+  // Extrair código do país (2 ou 3 dígitos)
+  const digits = phone.substring(1);
+  const hasValidCode = validCountryCodes.some(code => digits.startsWith(code));
+
+  if (!hasValidCode) {
+    return {
+      normalized: phone,
+      valid: false,
+      error: "Código de país LATAM não reconhecido"
+    };
+  }
+
+  // Validar comprimento mínimo (geralmente 10+ dígitos com código)
+  if (phone.length < 11) {
+    return {
+      normalized: phone,
+      valid: false,
+      error: "Número muito curto para LATAM"
+    };
+  }
+
+  return {
+    normalized: phone,
+    valid: true
+  };
+}
+
+/**
  * Parseia uma lista de contatos (CSV ou texto colado)
  */
-export function parseContactList(text: string): ParsedContact[] {
+export function parseContactList(text: string, useLatamValidator: boolean = false): ParsedContact[] {
   const lines = text.split("\n").filter((line) => line.trim());
   const contacts: ParsedContact[] = [];
 
@@ -127,8 +217,10 @@ export function parseContactList(text: string): ParsedContact[] {
     const rawPhone = parts[0]?.trim() || "";
     const name = parts[1]?.trim();
 
-    // Normalizar e validar
-    const result = normalizePhoneNumber(rawPhone);
+    // Normalizar e validar baseado no tipo selecionado
+    const result = useLatamValidator 
+      ? normalizeLatamPhoneNumber(rawPhone)
+      : normalizePhoneNumber(rawPhone);
 
     contacts.push({
       phone: result.normalized,
@@ -219,10 +311,11 @@ export async function validateWhatsAppNumbers(
 export async function validateContactsComplete(
   text: string,
   instanceId: string,
-  evolutionConfig: { api_url: string; api_key: string; instance_name: string }
+  evolutionConfig: { api_url: string; api_key: string; instance_name: string },
+  useLatamValidator: boolean = false
 ): Promise<ValidationResult> {
   // 1. Parsear e normalizar
-  const parsed = parseContactList(text);
+  const parsed = parseContactList(text, useLatamValidator);
 
   // 2. Separar válidos e inválidos
   const validContacts = parsed.filter(c => c.valid);

@@ -107,6 +107,7 @@ export default function BroadcastCampaigns() {
     maxDelay: 60,
     scheduledStart: undefined as Date | undefined,
     fromTemplate: false,
+    useLatamValidator: false, // Nova opção para validador LATAM
   });
   const [selectedCampaignTemplate, setSelectedCampaignTemplate] = useState<Template | null>(null);
 
@@ -122,6 +123,7 @@ export default function BroadcastCampaigns() {
       maxDelay: template.max_delay_seconds,
       scheduledStart: undefined,
       fromTemplate: true,
+      useLatamValidator: false,
     });
     setCreateDialogOpen(true);
     toast({
@@ -258,7 +260,7 @@ export default function BroadcastCampaigns() {
         api_url: instance.api_url,
         api_key: instance.api_key,
         instance_name: instance.instance_name
-      });
+      }, newCampaign.useLatamValidator);
 
       // Mostrar resultado da validação
       const totalParsed = validation.validContacts.length + validation.invalidContacts.length;
@@ -349,7 +351,7 @@ export default function BroadcastCampaigns() {
         api_url: instance.api_url,
         api_key: instance.api_key,
         instance_name: instance.instance_name
-      });
+      }, newCampaign.useLatamValidator);
 
       // Usar apenas os contatos validados com WhatsApp
       const contacts = validation.whatsappValidated.map(c => ({
@@ -427,6 +429,7 @@ export default function BroadcastCampaigns() {
         maxDelay: 60,
         scheduledStart: undefined,
         fromTemplate: false,
+        useLatamValidator: false,
       });
       setCsvFile(null);
       setPastedList("");
@@ -1005,6 +1008,34 @@ export default function BroadcastCampaigns() {
                   </Popover>
                   <p className="text-xs text-muted-foreground">
                     Se não definir, a campanha iniciará imediatamente ao clicar em "Iniciar"
+                  </p>
+                </div>
+
+                {/* Seletor de Validador de Números */}
+                <div className="space-y-2 p-4 border rounded-lg bg-muted/10">
+                  <Label>Validador de Números</Label>
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant={!newCampaign.useLatamValidator ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setNewCampaign({ ...newCampaign, useLatamValidator: false })}
+                    >
+                      🇧🇷 Brasil (Padrão)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={newCampaign.useLatamValidator ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setNewCampaign({ ...newCampaign, useLatamValidator: true })}
+                    >
+                      🌎 LATAM
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {newCampaign.useLatamValidator 
+                      ? "Validador LATAM: Aceita números internacionais com código de país (+54, +57, +52, etc.)" 
+                      : "Validador Brasil: Aceita apenas números brasileiros (DDD + 9XXXXXXXX)"}
                   </p>
                 </div>
 
