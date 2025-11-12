@@ -103,7 +103,7 @@ export default function BroadcastCampaigns() {
       instanceId: template.instance_id || "",
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
-      messageVariations: [],
+      messageVariations: template.message_variations || [],
       minDelay: template.min_delay_seconds,
       maxDelay: template.max_delay_seconds,
       scheduledStart: undefined,
@@ -112,7 +112,7 @@ export default function BroadcastCampaigns() {
     setCreateDialogOpen(true);
     toast({
       title: "Template carregado!",
-      description: "Você pode ajustar as configurações antes de criar a campanha",
+      description: `Template "${template.name}" carregado com ${template.message_variations?.length || 0} variação(ões)`,
     });
   };
 

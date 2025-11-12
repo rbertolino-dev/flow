@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit2, Trash2, FileText } from "lucide-react";
+import { Plus, Edit2, Trash2, FileText, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,7 @@ interface Template {
   instance_name?: string;
   message_template_id?: string;
   custom_message?: string;
+  message_variations?: string[];
   min_delay_seconds: number;
   max_delay_seconds: number;
   created_at: string;
@@ -58,6 +59,7 @@ export function BroadcastCampaignTemplateManager({
     instanceId: "",
     templateId: "",
     customMessage: "",
+    messageVariations: [] as string[],
     minDelay: 30,
     maxDelay: 60,
   });
@@ -78,7 +80,16 @@ export function BroadcastCampaignTemplateManager({
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setTemplates(data || []);
+      
+      // Parse message_variations from JSON
+      const parsedData = (data || []).map(template => ({
+        ...template,
+        message_variations: Array.isArray(template.message_variations) 
+          ? template.message_variations 
+          : []
+      }));
+      
+      setTemplates(parsedData as Template[]);
     } catch (error: any) {
       toast({
         title: "Erro ao carregar templates",
@@ -116,6 +127,7 @@ export function BroadcastCampaignTemplateManager({
         instance_name: selectedInstance?.instance_name || null,
         message_template_id: formData.templateId || null,
         custom_message: formData.customMessage || null,
+        message_variations: formData.messageVariations.length > 0 ? formData.messageVariations : null,
         min_delay_seconds: formData.minDelay,
         max_delay_seconds: formData.maxDelay,
       };
@@ -167,6 +179,7 @@ export function BroadcastCampaignTemplateManager({
       instanceId: template.instance_id || "",
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
+      messageVariations: template.message_variations || [],
       minDelay: template.min_delay_seconds,
       maxDelay: template.max_delay_seconds,
     });
@@ -209,6 +222,7 @@ export function BroadcastCampaignTemplateManager({
       instanceId: "",
       templateId: "",
       customMessage: "",
+      messageVariations: [],
       minDelay: 30,
       maxDelay: 60,
     });
@@ -304,14 +318,114 @@ export function BroadcastCampaignTemplateManager({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="customMessage">Mensagem Personalizada</Label>
-                <Textarea
-                  id="customMessage"
-                  placeholder="Digite sua mensagem personalizada..."
-                  value={formData.customMessage}
-                  onChange={(e) => setFormData({ ...formData, customMessage: e.target.value })}
-                  rows={4}
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="customMessage">Mensagem Personalizada</Label>
+                  {formData.messageVariations.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (formData.customMessage.trim()) {
+                          setFormData({
+                            ...formData,
+                            messageVariations: [formData.customMessage],
+                            customMessage: "",
+                            templateId: "",
+                          });
+                        }
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Variações
+                    </Button>
+                  )}
+                </div>
+
+                {formData.messageVariations.length === 0 ? (
+                  <Textarea
+                    id="customMessage"
+                    placeholder="Digite sua mensagem personalizada..."
+                    value={formData.customMessage}
+                    onChange={(e) => setFormData({ ...formData, customMessage: e.target.value })}
+                    rows={4}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {formData.messageVariations.length} variação(ões) adicionada(s)
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData({ ...formData, messageVariations: [] });
+                        }}
+                      >
+                        Voltar para mensagem única
+                      </Button>
+                    </div>
+                    
+                    <ScrollArea className="h-[200px] border rounded-lg p-3">
+                      <div className="space-y-2">
+                        {formData.messageVariations.map((variation, index) => (
+                          <div
+                            key={index}
+                            className="flex items-start gap-2 p-3 border rounded bg-accent/20"
+                          >
+                            <div className="flex-1">
+                              <div className="text-xs font-medium text-muted-foreground mb-1">
+                                Variação {index + 1}
+                              </div>
+                              <Textarea
+                                value={variation}
+                                onChange={(e) => {
+                                  const newVariations = [...formData.messageVariations];
+                                  newVariations[index] = e.target.value;
+                                  setFormData({ ...formData, messageVariations: newVariations });
+                                }}
+                                rows={3}
+                                className="text-sm"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newVariations = formData.messageVariations.filter(
+                                  (_, i) => i !== index
+                                );
+                                setFormData({ ...formData, messageVariations: newVariations });
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          messageVariations: [...formData.messageVariations, ""],
+                        });
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Nova Variação
+                    </Button>
+                  </div>
+                )}
+                
                 <p className="text-xs text-muted-foreground">
                   Variáveis disponíveis: {"{nome}"}, {"{empresa}"}
                 </p>
@@ -384,6 +498,11 @@ export function BroadcastCampaignTemplateManager({
                         {template.instance_name && (
                           <Badge variant="outline" className="text-xs">
                             📱 {template.instance_name}
+                          </Badge>
+                        )}
+                        {template.message_variations && template.message_variations.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            💬 {template.message_variations.length} variações
                           </Badge>
                         )}
                         <Badge variant="outline" className="text-xs">

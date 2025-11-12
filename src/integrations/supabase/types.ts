@@ -108,6 +108,7 @@ export type Database = {
           instance_name: string | null
           max_delay_seconds: number
           message_template_id: string | null
+          message_variations: Json | null
           min_delay_seconds: number
           name: string
           organization_id: string
@@ -123,6 +124,7 @@ export type Database = {
           instance_name?: string | null
           max_delay_seconds?: number
           message_template_id?: string | null
+          message_variations?: Json | null
           min_delay_seconds?: number
           name: string
           organization_id: string
@@ -138,6 +140,7 @@ export type Database = {
           instance_name?: string | null
           max_delay_seconds?: number
           message_template_id?: string | null
+          message_variations?: Json | null
           min_delay_seconds?: number
           name?: string
           organization_id?: string
