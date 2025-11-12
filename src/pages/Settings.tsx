@@ -8,6 +8,7 @@ import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
 import { ArchivedLeadsPanel } from "@/components/crm/ArchivedLeadsPanel";
+import { WhatsAppNumberValidator } from "@/components/crm/WhatsAppNumberValidator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -200,6 +201,8 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
+            <WhatsAppNumberValidator configs={configs} />
+
             <Card>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
@@ -559,6 +562,7 @@ export default function Settings() {
           }
           return success;
         }}
+        onRefetch={refetch}
       />
         </div>
       </CRMLayout>
