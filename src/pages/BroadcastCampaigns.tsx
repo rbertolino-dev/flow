@@ -351,13 +351,17 @@ export default function BroadcastCampaigns() {
         text = pastedList;
       }
 
-      // Buscar configuração da instância Evolution
-      const instance = instances.find(i => i.id === newCampaign.instanceId);
+      // Buscar configuração da instância Evolution (usar primeira para validação)
+      const instanceIdForValidation = newCampaign.sendingMethod === "single" 
+        ? newCampaign.instanceId 
+        : newCampaign.instanceIds[0];
+      
+      const instance = instances.find(i => i.id === instanceIdForValidation);
       if (!instance) {
         throw new Error("Instância não encontrada");
       }
 
-      const validation = await validateContactsComplete(text, newCampaign.instanceId, {
+      const validation = await validateContactsComplete(text, instanceIdForValidation, {
         api_url: instance.api_url,
         api_key: instance.api_key,
         instance_name: instance.instance_name
@@ -383,7 +387,7 @@ export default function BroadcastCampaigns() {
           user_id: user.id,
           organization_id: activeOrgId,
           name: newCampaign.name,
-          instance_id: newCampaign.instanceId,
+          instance_id: newCampaign.sendingMethod === "single" ? newCampaign.instanceId : null,
           message_template_id: newCampaign.templateId || null,
           custom_message: newCampaign.customMessage || null,
           min_delay_seconds: newCampaign.minDelay,
@@ -401,15 +405,25 @@ export default function BroadcastCampaigns() {
         ? newCampaign.messageVariations 
         : [newCampaign.customMessage];
 
-      // Inserir contatos na fila com rotação de mensagens
+      // Preparar lista de instâncias para rotação
+      const instancesForRotation = newCampaign.sendingMethod === "single" 
+        ? [newCampaign.instanceId]
+        : newCampaign.instanceIds;
+
+      // Inserir contatos na fila com rotação de mensagens E instâncias
       const queueItems = contacts.map((contact, index) => {
         // Rotacionar entre as variações de mensagem
         const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
         const personalizedMessage = messagesToUse[messageIndex];
 
+        // Rotacionar entre as instâncias (quando método é "rotate")
+        const instanceIndex = index % instancesForRotation.length;
+        const assignedInstanceId = instancesForRotation[instanceIndex];
+
         return {
           campaign_id: campaign.id,
-          organization_id: activeOrgId, // Adicionado organization_id
+          organization_id: activeOrgId,
+          instance_id: assignedInstanceId,
           phone: contact.phone,
           name: contact.name,
           personalized_message: personalizedMessage,
@@ -423,9 +437,13 @@ export default function BroadcastCampaigns() {
 
       if (queueError) throw queueError;
 
+      const instanceLabel = newCampaign.sendingMethod === "single" 
+        ? "1 instância"
+        : `${instancesForRotation.length} instâncias`;
+
       toast({
         title: "Campanha criada!",
-        description: `${contacts.length} contatos adicionados à fila`,
+        description: `${contacts.length} contatos distribuídos entre ${instanceLabel}`,
       });
 
       setCreateDialogOpen(false);

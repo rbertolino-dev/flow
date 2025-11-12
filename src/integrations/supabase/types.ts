@@ -237,6 +237,7 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          instance_id: string | null
           name: string | null
           organization_id: string
           personalized_message: string | null
@@ -250,6 +251,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          instance_id?: string | null
           name?: string | null
           organization_id: string
           personalized_message?: string | null
@@ -263,6 +265,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          instance_id?: string | null
           name?: string | null
           organization_id?: string
           personalized_message?: string | null
@@ -277,6 +280,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "broadcast_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_queue_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
             referencedColumns: ["id"]
           },
           {

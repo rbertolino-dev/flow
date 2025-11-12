@@ -29,9 +29,9 @@ serve(async (req) => {
           id,
           status,
           custom_message,
-          message_template:message_templates(content),
-          instance:evolution_config(api_url, api_key, instance_name)
-        )
+          message_template:message_templates(content)
+        ),
+        instance:evolution_config(api_url, api_key, instance_name)
       `)
       .eq("status", "scheduled")
       .lte("scheduled_for", now)
@@ -85,8 +85,14 @@ serve(async (req) => {
     for (const item of validItems) {
       try {
         const campaign = item.campaign;
-        if (!campaign || !campaign.instance) {
+        const instance = item.instance;
+        
+        if (!campaign) {
           throw new Error("Configuração da campanha inválida");
+        }
+        
+        if (!instance) {
+          throw new Error("Instância não configurada para este contato");
         }
 
         // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Dupla verificação do status da campanha
@@ -119,21 +125,21 @@ serve(async (req) => {
           personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
         }
 
-        // Limpar api_url e construir endpoint correto
-        let baseUrl = campaign.instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
+        // Limpar api_url e construir endpoint correto usando a instância do item
+        let baseUrl = instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
         if (baseUrl.endsWith('/manager')) {
           baseUrl = baseUrl.slice(0, -8); // Remove '/manager' se existir
         }
         
-        const evolutionUrl = `${baseUrl}/message/sendText/${campaign.instance.instance_name}`;
-        console.log(`📤 Enviando para ${item.phone} via ${evolutionUrl}`);
+        const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
+        console.log(`📤 Enviando para ${item.phone} via ${instance.instance_name} (${evolutionUrl})`);
 
-        // Enviar mensagem via Evolution API
+        // Enviar mensagem via Evolution API usando credenciais da instância específica
         const evolutionResponse = await fetch(evolutionUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: campaign.instance.api_key,
+            apikey: instance.api_key,
           },
           body: JSON.stringify({
             number: item.phone,
