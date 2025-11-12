@@ -744,26 +744,6 @@ export default function BroadcastCampaigns() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="messageTemplate">Template de Mensagem (opcional)</Label>
-                  <Select
-                    value={newCampaign.templateId}
-                    onValueChange={(value) =>
-                      setNewCampaign({ ...newCampaign, templateId: value, customMessage: "" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um template de mensagem" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {messageTemplates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
