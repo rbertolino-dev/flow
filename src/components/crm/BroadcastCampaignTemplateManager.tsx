@@ -60,6 +60,9 @@ export function BroadcastCampaignTemplateManager({
     messageVariations: [] as string[],
   });
 
+  const [bulkVariationsDialogOpen, setBulkVariationsDialogOpen] = useState(false);
+  const [bulkVariationsText, setBulkVariationsText] = useState("");
+
   useEffect(() => {
     if (organizationId) {
       fetchTemplates();
@@ -355,21 +358,33 @@ export function BroadcastCampaignTemplateManager({
                       </div>
                     </ScrollArea>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setFormData({
-                          ...formData,
-                          messageVariations: [...formData.messageVariations, ""],
-                        });
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Nova Variação
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            messageVariations: [...formData.messageVariations, ""],
+                          });
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar Uma Variação
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setBulkVariationsDialogOpen(true)}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Adicionar em Massa
+                      </Button>
+                    </div>
                   </div>
                 )}
                 
@@ -385,6 +400,83 @@ export function BroadcastCampaignTemplateManager({
               </Button>
               <Button onClick={handleSaveTemplate} disabled={loading}>
                 {loading ? "Salvando..." : editingTemplate ? "Atualizar" : "Criar Template"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog para adicionar variações em massa */}
+        <Dialog open={bulkVariationsDialogOpen} onOpenChange={setBulkVariationsDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Adicionar Variações em Massa</DialogTitle>
+              <DialogDescription>
+                Cole suas variações de mensagem abaixo, uma por linha. Cada linha será convertida em uma variação separada.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="bulkVariations">Variações (uma por linha)</Label>
+                <Textarea
+                  id="bulkVariations"
+                  placeholder="Olá! Como vai? Tenho uma oferta especial...&#10;Oi! Tudo bem? Preparei algo especial...&#10;E aí! Beleza? Trouxe uma novidade..."
+                  value={bulkVariationsText}
+                  onChange={(e) => setBulkVariationsText(e.target.value)}
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Cole suas variações aqui. Cada linha será uma variação diferente da mensagem.
+                </p>
+              </div>
+
+              <div className="bg-accent/20 border rounded-lg p-3 space-y-2">
+                <p className="text-sm font-medium">Prévia:</p>
+                <p className="text-xs text-muted-foreground">
+                  {bulkVariationsText.trim() 
+                    ? `${bulkVariationsText.split('\n').filter(line => line.trim()).length} variação(ões) será(ão) adicionada(s)`
+                    : 'Nenhuma variação para adicionar'}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setBulkVariationsDialogOpen(false);
+                setBulkVariationsText("");
+              }}>
+                Cancelar
+              </Button>
+              <Button onClick={() => {
+                const lines = bulkVariationsText
+                  .split('\n')
+                  .map(line => line.trim())
+                  .filter(line => line.length > 0);
+                
+                if (lines.length === 0) {
+                  toast({
+                    title: "Nenhuma variação encontrada",
+                    description: "Por favor, insira pelo menos uma variação",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                setFormData({
+                  ...formData,
+                  messageVariations: [...formData.messageVariations, ...lines],
+                });
+
+                toast({
+                  title: "Variações adicionadas!",
+                  description: `${lines.length} variação(ões) foi(ram) adicionada(s) com sucesso`,
+                });
+
+                setBulkVariationsDialogOpen(false);
+                setBulkVariationsText("");
+              }}>
+                Adicionar {bulkVariationsText.trim() ? bulkVariationsText.split('\n').filter(line => line.trim()).length : 0} Variações
               </Button>
             </DialogFooter>
           </DialogContent>
