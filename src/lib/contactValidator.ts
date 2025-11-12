@@ -256,8 +256,11 @@ export async function validateWhatsAppNumbers(
     const apiUrl = evolutionConfig.api_url.replace(/\/+$/, "");
     const endpoint = `${apiUrl}/chat/whatsappNumbers/${evolutionConfig.instance_name}`;
 
-    // Preparar lista de números
-    const numbers = validContacts.map(c => c.phone);
+    // Preparar lista de números - Evolution API espera números sem o '+' mas com código do país
+    const numbers = validContacts.map(c => {
+      // Se o número começa com +, remover
+      return c.phone.startsWith('+') ? c.phone.substring(1) : c.phone;
+    });
 
     // Fazer requisição para Evolution API
     const response = await fetch(endpoint, {
@@ -276,11 +279,16 @@ export async function validateWhatsAppNumbers(
     const result = await response.json();
 
     // Processar resposta
-    // Formato esperado: [{ number: "+5521999999999", exists: true, jid: "..." }, ...]
+    // Formato esperado: [{ number: "5521999999999", exists: true, jid: "..." }, ...]
     const responseArray = Array.isArray(result) ? result : [];
 
     for (const contact of validContacts) {
-      const apiResult = responseArray.find(r => r.number === contact.phone);
+      // Comparar sem o '+' pois a API retorna sem ele
+      const phoneWithoutPlus = contact.phone.startsWith('+') ? contact.phone.substring(1) : contact.phone;
+      const apiResult = responseArray.find(r => {
+        const apiNumber = r.number?.startsWith('+') ? r.number.substring(1) : r.number;
+        return apiNumber === phoneWithoutPlus;
+      });
       
       if (apiResult && apiResult.exists === true) {
         validated.push(contact);
