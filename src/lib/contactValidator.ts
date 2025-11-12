@@ -256,31 +256,40 @@ export async function validateWhatsAppNumbers(
     const apiUrl = evolutionConfig.api_url.replace(/\/+$/, "");
     const endpoint = `${apiUrl}/chat/whatsappNumbers/${evolutionConfig.instance_name}`;
 
-    // Preparar lista de números - Evolution API espera números sem o '+' mas com código do país
-    const numbers = validContacts.map(c => {
-      // Se o número começa com +, remover
-      return c.phone.startsWith('+') ? c.phone.substring(1) : c.phone;
-    });
+    // Preparar lista de números (sem '+') e remover duplicados
+    const numbers = Array.from(new Set(validContacts.map(c => (c.phone.startsWith('+') ? c.phone.substring(1) : c.phone))));
 
-    // Fazer requisição para Evolution API
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": evolutionConfig.api_key
-      },
-      body: JSON.stringify({ numbers })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Evolution API retornou erro: ${response.status}`);
+    // A Evolution API costuma limitar o tamanho do lote. Enviar em batches para evitar 400.
+    const chunkSize = 50;
+    const chunks: string[][] = [];
+    for (let i = 0; i < numbers.length; i += chunkSize) {
+      chunks.push(numbers.slice(i, i + chunkSize));
     }
 
-    const result = await response.json();
+    const aggregated: any[] = [];
+    for (const chunk of chunks) {
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "apikey": evolutionConfig.api_key
+        },
+        body: JSON.stringify({ numbers: chunk })
+      });
 
-    // Processar resposta
+      if (!resp.ok) {
+        const preview = await resp.text().catch(() => "");
+        throw new Error(`Evolution API retornou erro: ${resp.status}${preview ? ` - ${preview.slice(0,120)}` : ''}`);
+      }
+
+      const data = await resp.json().catch(() => []);
+      if (Array.isArray(data)) aggregated.push(...data);
+    }
+
+    // Processar resposta agregada
     // Formato esperado: [{ number: "5521999999999", exists: true, jid: "..." }, ...]
-    const responseArray = Array.isArray(result) ? result : [];
+    const responseArray = aggregated;
 
     for (const contact of validContacts) {
       // Comparar sem o '+' pois a API retorna sem ele
