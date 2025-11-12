@@ -54,7 +54,8 @@ export default function BroadcastCampaigns() {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<any[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
+  const [campaignTemplates, setCampaignTemplates] = useState<any[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [pastedList, setPastedList] = useState("");
   const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
@@ -119,7 +120,8 @@ export default function BroadcastCampaigns() {
     if (activeOrgId) {
       fetchCampaigns();
       fetchInstances();
-      fetchTemplates();
+      fetchMessageTemplates();
+      fetchCampaignTemplates();
     }
   }, [activeOrgId]);
 
@@ -159,13 +161,22 @@ export default function BroadcastCampaigns() {
     setInstances(data || []);
   };
 
-  const fetchTemplates = async () => {
+  const fetchMessageTemplates = async () => {
     if (!activeOrgId) {
-      setTemplates([]);
+      setMessageTemplates([]);
       return;
     }
     const { data } = await supabase.from("message_templates").select("*").eq("organization_id", activeOrgId);
-    setTemplates(data || []);
+    setMessageTemplates(data || []);
+  };
+
+  const fetchCampaignTemplates = async () => {
+    if (!activeOrgId) {
+      setCampaignTemplates([]);
+      return;
+    }
+    const { data } = await supabase.from("broadcast_campaign_templates").select("*").eq("organization_id", activeOrgId);
+    setCampaignTemplates(data || []);
   };
 
   const parseCSV = (text: string): Array<{ phone: string; name?: string }> => {
@@ -651,7 +662,7 @@ export default function BroadcastCampaigns() {
               <BroadcastCampaignTemplateManager
                 organizationId={activeOrgId!}
                 instances={instances}
-                messageTemplates={templates}
+                messageTemplates={messageTemplates}
                 onTemplateSelect={handleTemplateSelect}
               />
             </TabsContent>
@@ -676,6 +687,32 @@ export default function BroadcastCampaigns() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Seletor de Template de Campanha */}
+                {campaignTemplates.length > 0 && !newCampaign.fromTemplate && (
+                  <div className="space-y-2 p-4 bg-accent/20 border border-accent rounded-lg">
+                    <Label>Usar Template de Campanha</Label>
+                    <Select onValueChange={(value) => {
+                      const template = campaignTemplates.find(t => t.id === value);
+                      if (template) handleTemplateSelect(template);
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um template de campanha..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {campaignTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                            {template.description && ` - ${template.description}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Ou preencha os campos abaixo para criar uma campanha do zero
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome da Campanha *</Label>
                   <Input
@@ -708,7 +745,7 @@ export default function BroadcastCampaigns() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="template">Template de Mensagem (opcional)</Label>
+                  <Label htmlFor="messageTemplate">Template de Mensagem (opcional)</Label>
                   <Select
                     value={newCampaign.templateId}
                     onValueChange={(value) =>
@@ -716,10 +753,10 @@ export default function BroadcastCampaigns() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um template" />
+                      <SelectValue placeholder="Selecione um template de mensagem" />
                     </SelectTrigger>
                     <SelectContent>
-                      {templates.map((template) => (
+                      {messageTemplates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}
                         </SelectItem>
