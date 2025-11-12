@@ -405,31 +405,54 @@ export default function BroadcastCampaigns() {
         ? newCampaign.messageVariations 
         : [newCampaign.customMessage];
 
-      // Preparar lista de instâncias para rotação
-      const instancesForRotation = newCampaign.sendingMethod === "single" 
-        ? [newCampaign.instanceId]
-        : newCampaign.instanceIds;
+      // Preparar itens da fila
+      let queueItems: any[] = [];
 
-      // Inserir contatos na fila com rotação de mensagens E instâncias
-      const queueItems = contacts.map((contact, index) => {
-        // Rotacionar entre as variações de mensagem
-        const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-        const personalizedMessage = messagesToUse[messageIndex];
+      if (newCampaign.sendingMethod === "separate") {
+        // Modo "disparar separadamente": CADA instância envia para TODOS os contatos
+        newCampaign.instanceIds.forEach(instanceId => {
+          contacts.forEach((contact, index) => {
+            // Rotacionar entre as variações de mensagem
+            const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+            const personalizedMessage = messagesToUse[messageIndex];
 
-        // Rotacionar entre as instâncias (quando método é "rotate")
-        const instanceIndex = index % instancesForRotation.length;
-        const assignedInstanceId = instancesForRotation[instanceIndex];
+            queueItems.push({
+              campaign_id: campaign.id,
+              organization_id: activeOrgId,
+              instance_id: instanceId,
+              phone: contact.phone,
+              name: contact.name,
+              personalized_message: personalizedMessage,
+              status: "pending",
+            });
+          });
+        });
+      } else {
+        // Modo "single" ou "rotate": distribuir contatos entre instâncias
+        const instancesForRotation = newCampaign.sendingMethod === "single" 
+          ? [newCampaign.instanceId]
+          : newCampaign.instanceIds;
 
-        return {
-          campaign_id: campaign.id,
-          organization_id: activeOrgId,
-          instance_id: assignedInstanceId,
-          phone: contact.phone,
-          name: contact.name,
-          personalized_message: personalizedMessage,
-          status: "pending",
-        };
-      });
+        queueItems = contacts.map((contact, index) => {
+          // Rotacionar entre as variações de mensagem
+          const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+          const personalizedMessage = messagesToUse[messageIndex];
+
+          // Rotacionar entre as instâncias (quando método é "rotate")
+          const instanceIndex = index % instancesForRotation.length;
+          const assignedInstanceId = instancesForRotation[instanceIndex];
+
+          return {
+            campaign_id: campaign.id,
+            organization_id: activeOrgId,
+            instance_id: assignedInstanceId,
+            phone: contact.phone,
+            name: contact.name,
+            personalized_message: personalizedMessage,
+            status: "pending",
+          };
+        });
+      }
 
       const { error: queueError } = await supabase
         .from("broadcast_queue")
@@ -437,13 +460,21 @@ export default function BroadcastCampaigns() {
 
       if (queueError) throw queueError;
 
-      const instanceLabel = newCampaign.sendingMethod === "single" 
+      const instanceCount = newCampaign.sendingMethod === "single" 
+        ? 1
+        : newCampaign.instanceIds.length;
+
+      const instanceLabel = instanceCount === 1 
         ? "1 instância"
-        : `${instancesForRotation.length} instâncias`;
+        : `${instanceCount} instâncias`;
+
+      const totalMessages = newCampaign.sendingMethod === "separate"
+        ? contacts.length * instanceCount
+        : contacts.length;
 
       toast({
         title: "Campanha criada!",
-        description: `${contacts.length} contatos distribuídos entre ${instanceLabel}`,
+        description: `${totalMessages} mensagens agendadas usando ${instanceLabel}`,
       });
 
       setCreateDialogOpen(false);
