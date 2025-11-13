@@ -24,7 +24,25 @@ serve(async (req) => {
       );
     }
 
-    const { phone, instanceId, message, pdfFile, metadata } = await req.json();
+    // Parse JSON com tratamento de erros
+    let requestBody;
+    try {
+      const rawBody = await req.text();
+      console.log('📥 Body recebido (raw):', rawBody);
+      requestBody = JSON.parse(rawBody);
+    } catch (parseError: unknown) {
+      console.error('❌ Erro ao fazer parse do JSON:', parseError);
+      const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error';
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid JSON format',
+          details: errorMessage
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { phone, instanceId, message, pdfFile, metadata } = requestBody;
 
     console.log('📥 Requisição recebida do Bubble.io:', {
       phone,
