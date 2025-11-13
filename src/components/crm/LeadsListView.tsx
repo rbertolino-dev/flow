@@ -140,6 +140,7 @@ export function LeadsListView({
                           <TableHead className="hidden lg:table-cell">Origem</TableHead>
                           <TableHead className="hidden lg:table-cell">Valor</TableHead>
                           <TableHead className="hidden xl:table-cell">Último Contato</TableHead>
+                          <TableHead className="hidden 2xl:table-cell">Observações</TableHead>
                           <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -208,6 +209,13 @@ export function LeadsListView({
                                     locale: ptBR,
                                   })
                                 : '-'}
+                            </TableCell>
+                            <TableCell className="hidden 2xl:table-cell text-sm text-muted-foreground max-w-xs">
+                              {lead.notes ? (
+                                <p className="line-clamp-2">{lead.notes}</p>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
