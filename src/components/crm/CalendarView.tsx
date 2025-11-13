@@ -64,113 +64,209 @@ export const CalendarView = ({ leads, onLeadUpdate }: CalendarViewProps) => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Calendário */}
-      <Card className="lg:col-span-1">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Calendário de Retornos</span>
-            <Badge variant="secondary">{leadsWithReturnDate.length} agendados</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-center">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(date) => date && setSelectedDate(date)}
-            locale={ptBR}
-            modifiers={{
-              hasLeads: datesWithLeads,
-            }}
-            modifiersClassNames={{
-              hasLeads: "bg-primary/20 font-bold text-primary",
-            }}
-            className="rounded-md border pointer-events-auto"
-          />
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendário */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Calendário de Retornos</span>
+              <Badge variant="secondary">{leadsWithReturnDate.length} agendados</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              locale={ptBR}
+              modifiers={{
+                hasLeads: datesWithLeads,
+              }}
+              modifiersClassNames={{
+                hasLeads: "bg-primary/20 font-bold text-primary",
+              }}
+              className="rounded-md border pointer-events-auto"
+            />
+          </CardContent>
+        </Card>
 
-      {/* Lista de leads da data selecionada */}
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>
-            Retornos para {format(selectedDate, "d 'de' MMMM", { locale: ptBR })}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {selectedDateLeads.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum lead agendado para esta data
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {selectedDateLeads.map(lead => (
-                <Card
-                  key={lead.id}
-                  className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => handleLeadClick(lead)}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold text-lg">{lead.name}</h3>
-                        {lead.company && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                            <Building2 className="h-3.5 w-3.5" />
-                            {lead.company}
+        {/* Lista de leads da data selecionada */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>
+              Retornos para {format(selectedDate, "d 'de' MMMM", { locale: ptBR })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {selectedDateLeads.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum lead agendado para esta data
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {selectedDateLeads.map(lead => (
+                  <Card
+                    key={lead.id}
+                    className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => handleLeadClick(lead)}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg">{lead.name}</h3>
+                          {lead.company && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                              <Building2 className="h-3.5 w-3.5" />
+                              {lead.company}
+                            </div>
+                          )}
+                        </div>
+                        {lead.value && (
+                          <Badge variant="outline" className="font-semibold">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(lead.value)}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-3.5 w-3.5" />
+                          {lead.phone}
+                        </div>
+                        {lead.email && (
+                          <div className="flex items-center gap-1">
+                            <Mail className="h-3.5 w-3.5" />
+                            {lead.email}
                           </div>
                         )}
                       </div>
-                      {lead.value && (
-                        <Badge variant="outline" className="font-semibold">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                          }).format(lead.value)}
-                        </Badge>
-                      )}
-                    </div>
 
-                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Phone className="h-3.5 w-3.5" />
-                        {lead.phone}
-                      </div>
-                      {lead.email && (
-                        <div className="flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5" />
-                          {lead.email}
+                      {lead.notes && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                          {lead.notes}
+                        </p>
+                      )}
+
+                      {lead.tags && lead.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {lead.tags.map(tag => (
+                            <Badge
+                              key={tag.id}
+                              variant="secondary"
+                              style={{
+                                backgroundColor: `${tag.color}20`,
+                                color: tag.color,
+                                borderColor: tag.color,
+                              }}
+                              className="border"
+                            >
+                              {tag.name}
+                            </Badge>
+                          ))}
                         </div>
                       )}
                     </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-                    {lead.notes && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                        {lead.notes}
-                      </p>
-                    )}
-
-                    {lead.tags && lead.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {lead.tags.map(tag => (
-                          <Badge
-                            key={tag.id}
-                            variant="secondary"
-                            style={{
-                              backgroundColor: `${tag.color}20`,
-                              color: tag.color,
-                              borderColor: tag.color,
-                            }}
-                            className="border"
-                          >
-                            {tag.name}
+      {/* Lista completa do mês */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Todos os Retornos do Mês - {format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}</span>
+            <Badge variant="secondary">{leadsWithReturnDate.length} leads</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {leadsWithReturnDate.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum lead agendado para este mês
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {leadsWithReturnDate
+                .sort((a, b) => new Date(a.returnDate!).getTime() - new Date(b.returnDate!).getTime())
+                .map(lead => (
+                  <Card
+                    key={lead.id}
+                    className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => handleLeadClick(lead)}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="font-mono">
+                              {format(new Date(lead.returnDate!), "dd/MM", { locale: ptBR })}
+                            </Badge>
+                            <h3 className="font-semibold">{lead.name}</h3>
+                          </div>
+                          {lead.company && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Building2 className="h-3.5 w-3.5" />
+                              {lead.company}
+                            </div>
+                          )}
+                        </div>
+                        {lead.value && (
+                          <Badge variant="outline" className="font-semibold">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(lead.value)}
                           </Badge>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </div>
-                </Card>
-              ))}
+
+                      <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-3.5 w-3.5" />
+                          {lead.phone}
+                        </div>
+                        {lead.email && (
+                          <div className="flex items-center gap-1">
+                            <Mail className="h-3.5 w-3.5" />
+                            {lead.email}
+                          </div>
+                        )}
+                      </div>
+
+                      {lead.notes && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                          {lead.notes}
+                        </p>
+                      )}
+
+                      {lead.tags && lead.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {lead.tags.map(tag => (
+                            <Badge
+                              key={tag.id}
+                              variant="secondary"
+                              style={{
+                                backgroundColor: `${tag.color}20`,
+                                color: tag.color,
+                                borderColor: tag.color,
+                              }}
+                              className="border"
+                            >
+                              {tag.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
             </div>
           )}
         </CardContent>
