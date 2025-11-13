@@ -12,6 +12,7 @@ import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useTags } from "@/hooks/useTags";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
@@ -38,10 +39,12 @@ const Index = () => {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [filterInCallQueue, setFilterInCallQueue] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
+  const { tags } = useTags();
   const { viewMode, toggleView } = useViewPreference();
   const { configs } = useEvolutionConfigs();
   
@@ -100,6 +103,15 @@ const Index = () => {
         return prev.filter(id => id !== stageId);
       }
       return [...prev, stageId];
+    });
+  };
+
+  const toggleTagFilter = (tagId: string) => {
+    setSelectedTags(prev => {
+      if (prev.includes(tagId)) {
+        return prev.filter(id => id !== tagId);
+      }
+      return [...prev, tagId];
     });
   };
 
@@ -196,9 +208,9 @@ const Index = () => {
                   <Button variant="outline" size="sm">
                     <Filter className="h-4 w-4 mr-2" />
                     Filtros Avançados
-                    {(filterInstance !== "all" || filterCreatedDateStart || filterReturnDateStart) && (
+                    {(filterInstance !== "all" || filterCreatedDateStart || filterReturnDateStart || selectedTags.length > 0) && (
                       <Badge variant="secondary" className="ml-2">
-                        {[filterInstance !== "all", filterCreatedDateStart, filterReturnDateStart].filter(Boolean).length}
+                        {[filterInstance !== "all", filterCreatedDateStart, filterReturnDateStart, selectedTags.length > 0].filter(Boolean).length}
                       </Badge>
                     )}
                   </Button>
@@ -216,6 +228,7 @@ const Index = () => {
                           setFilterCreatedDateEnd("");
                           setFilterReturnDateStart("");
                           setFilterReturnDateEnd("");
+                          setSelectedTags([]);
                         }}
                       >
                         Limpar
@@ -272,6 +285,47 @@ const Index = () => {
                           onChange={(e) => setFilterReturnDateEnd(e.target.value)}
                           placeholder="Até"
                         />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Etiquetas</label>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {tags && tags.length > 0 ? (
+                          tags.map((tag) => (
+                            <div key={tag.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`tag-${tag.id}`}
+                                checked={selectedTags.includes(tag.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedTags([...selectedTags, tag.id]);
+                                  } else {
+                                    setSelectedTags(selectedTags.filter(id => id !== tag.id));
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`tag-${tag.id}`}
+                                className="flex-1 flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                <Badge
+                                  variant="secondary"
+                                  style={{
+                                    backgroundColor: `${tag.color}20`,
+                                    color: tag.color,
+                                    borderColor: tag.color,
+                                  }}
+                                  className="border"
+                                >
+                                  {tag.name}
+                                </Badge>
+                              </label>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Nenhuma etiqueta disponível</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -344,6 +398,7 @@ const Index = () => {
                 filterReturnDateStart={filterReturnDateStart}
                 filterReturnDateEnd={filterReturnDateEnd}
                 filterInCallQueue={filterInCallQueue}
+                filterTags={selectedTags}
               />
             ) : viewMode === 'list' ? (
               <LeadsListView
