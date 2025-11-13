@@ -39,7 +39,8 @@ export const CalendarView = ({ leads, onLeadUpdate }: CalendarViewProps) => {
     
     leadsWithReturnDate.forEach(lead => {
       if (lead.returnDate) {
-        const dateKey = format(new Date(lead.returnDate), 'yyyy-MM-dd');
+        const returnDate = new Date(lead.returnDate);
+        const dateKey = format(returnDate, 'yyyy-MM-dd');
         const existing = grouped.get(dateKey) || [];
         grouped.set(dateKey, [...existing, lead]);
       }
@@ -54,10 +55,10 @@ export const CalendarView = ({ leads, onLeadUpdate }: CalendarViewProps) => {
     return leadsByDate.get(dateKey) || [];
   }, [selectedDate, leadsByDate]);
 
-  // Datas que têm leads agendados
+  // Datas que têm leads agendados - usando isSameDay para comparação
   const datesWithLeads = useMemo(() => {
-    return Array.from(leadsByDate.keys()).map(dateStr => new Date(dateStr));
-  }, [leadsByDate]);
+    return leadsWithReturnDate.map(lead => new Date(lead.returnDate!));
+  }, [leadsWithReturnDate]);
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead);
