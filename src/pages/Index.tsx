@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
 import { LeadsListView } from "@/components/crm/LeadsListView";
+import { CalendarView } from "@/components/crm/CalendarView";
 import { CallQueue } from "@/components/crm/CallQueue";
 import { LidContactsList } from "@/components/crm/LidContactsList";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -15,7 +16,7 @@ import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall } from "lucide-react";
+import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays } from "lucide-react";
 import Settings from "./Settings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -162,10 +163,18 @@ const Index = () => {
                   variant="outline"
                   size="icon"
                   onClick={toggleView}
-                  title={viewMode === 'kanban' ? 'Ver em lista' : 'Ver em Kanban'}
+                  title={
+                    viewMode === 'kanban' 
+                      ? 'Ver em lista' 
+                      : viewMode === 'list' 
+                      ? 'Ver calendário' 
+                      : 'Ver em Kanban'
+                  }
                 >
                   {viewMode === 'kanban' ? (
                     <List className="h-4 w-4" />
+                  ) : viewMode === 'list' ? (
+                    <CalendarDays className="h-4 w-4" />
                   ) : (
                     <LayoutGrid className="h-4 w-4" />
                   )}
@@ -336,7 +345,7 @@ const Index = () => {
                 filterReturnDateEnd={filterReturnDateEnd}
                 filterInCallQueue={filterInCallQueue}
               />
-            ) : (
+            ) : viewMode === 'list' ? (
               <LeadsListView
                 leads={leads}
                 stages={stages}
@@ -345,6 +354,11 @@ const Index = () => {
                 onLeadSelect={handleLeadSelect}
                 onSelectAll={handleSelectAll}
                 filteredStages={selectedStages.length > 0 ? selectedStages : undefined}
+              />
+            ) : (
+              <CalendarView
+                leads={leads}
+                onLeadUpdate={handleLeadUpdate}
               />
             )}
           </div>
