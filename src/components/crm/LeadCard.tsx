@@ -273,8 +273,8 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
-                        <PhoneCall className="h-3 w-3" />
+                      <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600 hover:bg-blue-700">
+                        <PhoneCall className="h-3.5 w-3.5" />
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
