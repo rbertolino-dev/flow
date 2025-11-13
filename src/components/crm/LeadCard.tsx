@@ -18,6 +18,8 @@ import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 
 interface LeadCardProps {
   lead: Lead;
@@ -51,17 +53,31 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
   const [tempValue, setTempValue] = useState(lead.value?.toString() || "");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [isInCallQueue, setIsInCallQueue] = useState(false);
+  const [callQueueActivities, setCallQueueActivities] = useState<any[]>([]);
 
   useEffect(() => {
     const checkCallQueue = async () => {
       const { data } = await supabase
         .from('call_queue')
-        .select('id')
+        .select('id, notes, call_notes')
         .eq('lead_id', lead.id)
         .eq('status', 'pending')
         .maybeSingle();
       
       setIsInCallQueue(!!data);
+      
+      if (data) {
+        // Buscar atividades do lead (notas/observações)
+        const { data: activities } = await supabase
+          .from('activities')
+          .select('*')
+          .eq('lead_id', lead.id)
+          .eq('type', 'note')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        setCallQueueActivities(activities || []);
+      }
     };
 
     checkCallQueue();
@@ -270,18 +286,51 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
             <div className="flex items-center gap-2 group">
               <h3 className="font-bold text-lg text-foreground line-clamp-1 flex-1">{lead.name}</h3>
               {isInCallQueue && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600 hover:bg-blue-700">
-                        <PhoneCall className="h-3.5 w-3.5" />
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Na fila de ligação</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Popover>
+                  <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600 hover:bg-blue-700 cursor-pointer flex items-center gap-1">
+                      <PhoneCall className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-3 w-3" />
+                    </Badge>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="start" onClick={(e) => e.stopPropagation()}>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b">
+                        <PhoneCall className="h-4 w-4 text-blue-600" />
+                        <h4 className="font-semibold text-sm">Na fila de ligação</h4>
+                      </div>
+                      
+                      {callQueueActivities.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Observações recentes:</p>
+                          {callQueueActivities.map((activity) => (
+                            <div key={activity.id} className="bg-muted/50 rounded-md p-2 space-y-1">
+                              <p className="text-xs text-foreground">{activity.content}</p>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{activity.user_name || 'Usuário'}</span>
+                                <span>{format(new Date(activity.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Nenhuma observação registrada ainda.</p>
+                      )}
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClick();
+                        }}
+                      >
+                        Ver detalhes completos
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )}
               {lead.has_unread_messages && (
                 <Badge variant="destructive" className="text-xs px-1.5 py-0.5 animate-pulse shrink-0">
