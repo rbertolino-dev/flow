@@ -69,22 +69,45 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Buscar configuração da instância Evolution (aceita UUID ou nome da instância)
-    const { data: evolutionConfig, error: configError } = await supabase
+    console.log('📋 Buscando instância:', instanceId);
+
+    // Buscar configuração da instância Evolution (tenta UUID primeiro, depois nome)
+    let evolutionConfig;
+    let configError;
+    
+    // Tentar buscar por UUID
+    const { data: configById, error: errorById } = await supabase
       .from('evolution_config')
       .select('api_url, api_key, organization_id, instance_name')
-      .or(`id.eq.${instanceId},instance_name.eq.${instanceId}`)
-      .single();
+      .eq('id', instanceId)
+      .maybeSingle();
+
+    if (configById) {
+      evolutionConfig = configById;
+      console.log('✅ Instância encontrada por UUID:', evolutionConfig.instance_name);
+    } else {
+      // Tentar buscar por nome da instância
+      const { data: configByName, error: errorByName } = await supabase
+        .from('evolution_config')
+        .select('api_url, api_key, organization_id, instance_name')
+        .eq('instance_name', instanceId)
+        .maybeSingle();
+      
+      evolutionConfig = configByName;
+      configError = errorByName;
+      
+      if (configByName) {
+        console.log('✅ Instância encontrada por nome:', configByName.instance_name);
+      }
+    }
 
     if (configError || !evolutionConfig) {
-      console.error('❌ Instância não encontrada:', configError);
+      console.error('❌ Instância não encontrada. instanceId recebido:', instanceId);
       return new Response(
         JSON.stringify({ error: 'Evolution instance not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    console.log('✅ Instância encontrada:', evolutionConfig.instance_name);
 
     // Normalizar telefone
     const normalizedPhone = phone.replace(/\D/g, '');
