@@ -15,7 +15,7 @@ import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { Loader2, Search, Plus, Filter, X, LayoutGrid, List } from "lucide-react";
+import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall } from "lucide-react";
 import Settings from "./Settings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ const Index = () => {
   const [filterReturnDateEnd, setFilterReturnDateEnd] = useState<string>("");
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [filterInCallQueue, setFilterInCallQueue] = useState(false);
   
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, refetch: refetchCallQueue } = useCallQueue();
@@ -172,7 +173,15 @@ const Index = () => {
               </div>
 
               {/* Filtros */}
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
+              <Button
+                variant={filterInCallQueue ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterInCallQueue(!filterInCallQueue)}
+              >
+                <PhoneCall className="h-4 w-4 mr-2" />
+                Na Fila de Ligação
+              </Button>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -325,6 +334,7 @@ const Index = () => {
                 filterCreatedDateEnd={filterCreatedDateEnd}
                 filterReturnDateStart={filterReturnDateStart}
                 filterReturnDateEnd={filterReturnDateEnd}
+                filterInCallQueue={filterInCallQueue}
               />
             ) : (
               <LeadsListView

@@ -29,13 +29,15 @@ interface KanbanBoardProps {
   filterCreatedDateEnd?: string;
   filterReturnDateStart?: string;
   filterReturnDateEnd?: string;
+  filterInCallQueue?: boolean;
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "" }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [leadsInCallQueue, setLeadsInCallQueue] = useState<Set<string>>(new Set());
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
@@ -58,6 +60,40 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       },
     })
   );
+
+  // Buscar leads que estão na fila de ligação
+  useEffect(() => {
+    const fetchCallQueueLeads = async () => {
+      const { data } = await supabase
+        .from('call_queue')
+        .select('lead_id')
+        .eq('status', 'pending');
+      
+      if (data) {
+        setLeadsInCallQueue(new Set(data.map(item => item.lead_id)));
+      }
+    };
+
+    fetchCallQueueLeads();
+
+    // Realtime para atualizar quando a fila mudar
+    const channel = supabase
+      .channel('call-queue-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_queue'
+        },
+        () => fetchCallQueueLeads()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const filteredLeads = leads.filter(lead => {
     // Filtro de busca
@@ -100,6 +136,11 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       const endDate = new Date(filterReturnDateEnd);
       endDate.setHours(23, 59, 59, 999);
       if (new Date(lead.returnDate) > endDate) return false;
+    }
+
+    // Filtro de fila de ligação
+    if (filterInCallQueue) {
+      if (!leadsInCallQueue.has(lead.id)) return false;
     }
 
     return true;
