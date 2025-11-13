@@ -36,7 +36,7 @@ X-API-Key: [SUA_CHAVE]
   "message": "Segue seu orçamento",      // OPCIONAL: Mensagem de texto antes do PDF
   "pdfFile": {                           // OBRIGATÓRIO
     "filename": "orcamento-123.pdf",     // OBRIGATÓRIO: Nome do arquivo
-    "data": "base64_encoded_pdf_here"    // OBRIGATÓRIO: PDF em base64
+    "data": "..."                        // OBRIGATÓRIO: PDF em base64, URL ou data URI
   },
   "metadata": {                          // OPCIONAL: Dados extras para tracking
     "budgetId": "123",
@@ -112,15 +112,37 @@ curl -X POST \
   }'
 ```
 
-### Como Converter PDF para Base64 no Bubble.io
+### Formatos de PDF Aceitos
 
-No Bubble.io, use a expressão:
+A API aceita 3 formatos para o campo `pdfFile.data`:
 
+1. **Base64 puro** (recomendado):
+   ```
+   "data": "JVBERi0xLjQKJeLjz9MK..."
+   ```
+
+2. **URL pública**:
+   ```
+   "data": "https://exemplo.com/orcamento.pdf"
+   ```
+
+3. **Data URI**:
+   ```
+   "data": "data:application/pdf;base64,JVBERi0xLjQKJeLjz9MK..."
+   ```
+
+### Como Obter o PDF no Bubble.io
+
+**Opção 1 - Base64** (uso expressão do Bubble):
 ```
 [File Upload's value]:formatted as base64
 ```
 
-Ou através de um plugin de conversão de arquivos.
+**Opção 2 - URL** (mais simples, se o arquivo estiver hospedado):
+```
+[File Upload's value]
+```
+(Use diretamente a URL do arquivo se ele estiver em armazenamento público)
 
 ---
 

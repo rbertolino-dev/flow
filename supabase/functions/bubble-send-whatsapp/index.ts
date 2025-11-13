@@ -74,9 +74,25 @@ serve(async (req) => {
       ? normalizedPhone 
       : `${normalizedPhone}@s.whatsapp.net`;
 
-    // Decodificar PDF base64
-    const pdfBuffer = Uint8Array.from(atob(pdfFile.data), c => c.charCodeAt(0));
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBuffer));
+    // Processar PDF - aceita base64 ou URL
+    let pdfBase64: string;
+    
+    if (pdfFile.data.startsWith('http://') || pdfFile.data.startsWith('https://')) {
+      // Se for URL, fazer download do PDF
+      console.log('📥 Baixando PDF de URL:', pdfFile.data);
+      const pdfResponse = await fetch(pdfFile.data);
+      if (!pdfResponse.ok) {
+        throw new Error(`Failed to download PDF from URL: ${pdfResponse.statusText}`);
+      }
+      const pdfBlob = await pdfResponse.arrayBuffer();
+      pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBlob)));
+    } else if (pdfFile.data.includes(',')) {
+      // Se for data URI (data:application/pdf;base64,...)
+      pdfBase64 = pdfFile.data.split(',')[1];
+    } else {
+      // Assumir que já é base64 puro
+      pdfBase64 = pdfFile.data;
+    }
 
     // Enviar via Evolution API
     const evolutionApiUrl = evolutionConfig.api_url.replace(/\/$/, '');
