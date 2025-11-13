@@ -32,7 +32,7 @@ X-API-Key: [SUA_CHAVE]
 ```json
 {
   "phone": "5511999999999",              // OBRIGATÓRIO: Número com DDI (apenas dígitos)
-  "instanceId": "uuid-da-instancia",     // OBRIGATÓRIO: UUID da instância Evolution
+  "instanceId": "uuid-ou-nome",          // OBRIGATÓRIO: UUID ou nome da instância Evolution
   "message": "Segue seu orçamento",      // OPCIONAL: Mensagem de texto antes do PDF
   "pdfFile": {                           // OBRIGATÓRIO
     "filename": "orcamento-123.pdf",     // OBRIGATÓRIO: Nome do arquivo

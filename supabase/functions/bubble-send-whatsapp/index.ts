@@ -51,11 +51,11 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Buscar configuração da instância Evolution
+    // Buscar configuração da instância Evolution (aceita UUID ou nome da instância)
     const { data: evolutionConfig, error: configError } = await supabase
       .from('evolution_config')
       .select('api_url, api_key, organization_id, instance_name')
-      .eq('id', instanceId)
+      .or(`id.eq.${instanceId},instance_name.eq.${instanceId}`)
       .single();
 
     if (configError || !evolutionConfig) {
