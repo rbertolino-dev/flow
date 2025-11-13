@@ -8,6 +8,7 @@ import { ptBR } from "date-fns/locale";
 import { Phone, Mail, Building2 } from "lucide-react";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CalendarViewProps {
   leads: Lead[];
@@ -64,8 +65,9 @@ export const CalendarView = ({ leads, onLeadUpdate }: CalendarViewProps) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <ScrollArea className="h-[calc(100vh-12rem)]">
+      <div className="space-y-6 p-1">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendário */}
         <Card className="lg:col-span-1">
           <CardHeader>
@@ -283,6 +285,7 @@ export const CalendarView = ({ leads, onLeadUpdate }: CalendarViewProps) => {
           }}
         />
       )}
-    </div>
+      </div>
+    </ScrollArea>
   );
 };
