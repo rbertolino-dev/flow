@@ -30,9 +30,10 @@ interface KanbanBoardProps {
   filterReturnDateStart?: string;
   filterReturnDateEnd?: string;
   filterInCallQueue?: boolean;
+  filterTags?: string[];
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [] }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
@@ -141,6 +142,13 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     // Filtro de fila de ligação
     if (filterInCallQueue) {
       if (!leadsInCallQueue.has(lead.id)) return false;
+    }
+
+    // Filtro de etiquetas
+    if (filterTags.length > 0) {
+      const leadTagIds = lead.tags?.map(tag => tag.id) || [];
+      const hasAnyTag = filterTags.some(tagId => leadTagIds.includes(tagId));
+      if (!hasAnyTag) return false;
     }
 
     return true;
