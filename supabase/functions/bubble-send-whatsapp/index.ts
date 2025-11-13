@@ -143,17 +143,21 @@ serve(async (req) => {
 
     const evolutionPayload = {
       number: whatsappNumber,
+      mediatype: 'document',
+      mimetype: 'application/pdf',
+      media: pdfBase64,
+      fileName: pdfFile.filename,
+      caption: message || '',
       options: {
         delay: 1200,
-        presence: 'composing',
-      },
-      mediaMessage: {
-        mediatype: 'document',
-        media: pdfBase64,
-        fileName: pdfFile.filename,
-        caption: message || ''
+        presence: 'composing'
       }
     };
+
+    console.log('📦 Payload Evolution (sem base64):', {
+      ...evolutionPayload,
+      media: `${pdfBase64.substring(0, 50)}...`
+    });
 
     const evolutionResponse = await fetch(sendMediaUrl, {
       method: 'POST',
