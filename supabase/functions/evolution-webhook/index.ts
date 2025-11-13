@@ -73,6 +73,39 @@ serve(async (req) => {
 
     const rawPayload = JSON.parse(text);
     console.log('📥 Webhook recebido:', JSON.stringify(rawPayload, null, 2));
+
+    // Atualizar tracking de mensagens do Bubble.io se for confirmação de leitura
+    if (rawPayload.event === 'messages.update' && rawPayload.data?.key?.id) {
+      try {
+        const messageId = rawPayload.data.key.id;
+        const status = rawPayload.data.status;
+
+        if (status === 'READ' || status === 'DELIVERY_ACK' || status === 'SERVER_ACK') {
+          const updateData: any = {};
+          
+          if (status === 'DELIVERY_ACK') {
+            updateData.status = 'delivered';
+            updateData.delivered_at = new Date().toISOString();
+          } else if (status === 'READ') {
+            updateData.status = 'read';
+            updateData.read_at = new Date().toISOString();
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            const { error: trackingError } = await supabaseServiceRole
+              .from('bubble_message_tracking')
+              .update(updateData)
+              .eq('message_id', messageId);
+
+            if (!trackingError) {
+              console.log(`✅ Status atualizado para messageId ${messageId}: ${status}`);
+            }
+          }
+        }
+      } catch (trackingErr) {
+        console.error('⚠️ Erro ao atualizar tracking (não crítico):', trackingErr);
+      }
+    }
     
     const validationResult = evolutionWebhookSchema.safeParse(rawPayload);
     

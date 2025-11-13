@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.log-auth-attempt]
 verify_jwt = false
+
+[functions.bubble-send-whatsapp]
+verify_jwt = false
+
+[functions.bubble-list-instances]
+verify_jwt = false
+
+[functions.bubble-check-status]
+verify_jwt = false

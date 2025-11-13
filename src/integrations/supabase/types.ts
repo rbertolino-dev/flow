@@ -298,6 +298,56 @@ export type Database = {
           },
         ]
       }
+      bubble_message_tracking: {
+        Row: {
+          created_at: string | null
+          delivered_at: string | null
+          id: string
+          message_id: string
+          metadata: Json | null
+          organization_id: string | null
+          phone: string
+          read_at: string | null
+          sent_at: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          delivered_at?: string | null
+          id?: string
+          message_id: string
+          metadata?: Json | null
+          organization_id?: string | null
+          phone: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          delivered_at?: string | null
+          id?: string
+          message_id?: string
+          metadata?: Json | null
+          organization_id?: string | null
+          phone?: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bubble_message_tracking_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_queue: {
         Row: {
           call_count: number | null
