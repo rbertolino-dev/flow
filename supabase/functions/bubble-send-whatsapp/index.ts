@@ -115,24 +115,20 @@ serve(async (req) => {
       ? normalizedPhone 
       : `${normalizedPhone}@s.whatsapp.net`;
 
-    // Processar PDF - aceita base64 ou URL
-    let pdfBase64: string;
-    
-    if (pdfFile.data.startsWith('http://') || pdfFile.data.startsWith('https://')) {
-      // Se for URL, fazer download do PDF
-      console.log('📥 Baixando PDF de URL:', pdfFile.data);
-      const pdfResponse = await fetch(pdfFile.data);
-      if (!pdfResponse.ok) {
-        throw new Error(`Failed to download PDF from URL: ${pdfResponse.statusText}`);
-      }
-      const pdfBlob = await pdfResponse.arrayBuffer();
-      pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBlob)));
-    } else if (pdfFile.data.includes(',')) {
-      // Se for data URI (data:application/pdf;base64,...)
-      pdfBase64 = pdfFile.data.split(',')[1];
+    // Processar PDF - aceitar URL, data URI ou base64 puro
+    let mediaToSend: string;
+
+    if (typeof pdfFile.data === 'string' && (pdfFile.data.startsWith('http://') || pdfFile.data.startsWith('https://') || pdfFile.data.startsWith('data:'))) {
+      // URL pública ou Data URI enviada pelo Bubble → enviar como veio
+      mediaToSend = pdfFile.data;
+      console.log('🧾 PDF recebido como', pdfFile.data.startsWith('data:') ? 'Data URI' : 'URL');
     } else {
-      // Assumir que já é base64 puro
-      pdfBase64 = pdfFile.data;
+      // Base64 puro → prefixar corretamente como Data URI
+      const base64 = typeof pdfFile.data === 'string' && pdfFile.data.includes(',')
+        ? pdfFile.data.split(',')[1]
+        : String(pdfFile.data || '');
+      mediaToSend = `data:application/pdf;base64,${base64}`;
+      console.log('🧾 PDF recebido como base64 puro (prefixado em Data URI)');
     }
 
     // Enviar via Evolution API
@@ -145,18 +141,15 @@ serve(async (req) => {
       number: whatsappNumber,
       mediatype: 'document',
       mimetype: 'application/pdf',
-      media: pdfBase64,
+      media: mediaToSend,
       fileName: pdfFile.filename,
       caption: message || '',
-      options: {
-        delay: 1200,
-        presence: 'composing'
-      }
+      delay: 1200
     };
 
-    console.log('📦 Payload Evolution (sem base64):', {
+    console.log('📦 Payload Evolution (media preview):', {
       ...evolutionPayload,
-      media: `${pdfBase64.substring(0, 50)}...`
+      media: typeof mediaToSend === 'string' ? mediaToSend.substring(0, 80) + '…' : '[binary]'
     });
 
     const evolutionResponse = await fetch(sendMediaUrl, {
