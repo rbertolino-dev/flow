@@ -3,13 +3,13 @@ import { buildCopyNumber } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Building2, Calendar as CalendarIcon, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone, MessageCircle, Trash2 } from "lucide-react";
+import { Phone, Mail, Building2, Calendar as CalendarIcon, DollarSign, Edit2, Check, X, MoveRight, Clock, Smartphone, MessageCircle, Trash2, PhoneCall } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { formatBrazilianPhone } from "@/lib/phoneUtils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface LeadCardProps {
   lead: Lead;
@@ -49,6 +50,40 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
   const [tempName, setTempName] = useState(lead.name);
   const [tempValue, setTempValue] = useState(lead.value?.toString() || "");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [isInCallQueue, setIsInCallQueue] = useState(false);
+
+  useEffect(() => {
+    const checkCallQueue = async () => {
+      const { data } = await supabase
+        .from('call_queue')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+      
+      setIsInCallQueue(!!data);
+    };
+
+    checkCallQueue();
+
+    const channel = supabase
+      .channel(`call-queue-lead-${lead.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_queue',
+          filter: `lead_id=eq.${lead.id}`
+        },
+        () => checkCallQueue()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [lead.id]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -234,6 +269,20 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
           ) : (
             <div className="flex items-center gap-2 group">
               <h3 className="font-bold text-lg text-foreground line-clamp-1 flex-1">{lead.name}</h3>
+              {isInCallQueue && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
+                        <PhoneCall className="h-3 w-3" />
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Na fila de ligação</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {lead.has_unread_messages && (
                 <Badge variant="destructive" className="text-xs px-1.5 py-0.5 animate-pulse shrink-0">
                   <MessageCircle className="h-3 w-3 mr-1" />
