@@ -72,6 +72,7 @@ export default function BroadcastCampaigns() {
   const [pastedList, setPastedList] = useState("");
   const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
+  const [logsInstanceFilter, setLogsInstanceFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [sentDateFilter, setSentDateFilter] = useState<Date | undefined>(undefined);
@@ -1703,7 +1704,7 @@ export default function BroadcastCampaigns() {
               Histórico detalhado de todos os disparos desta campanha
             </DialogDescription>
           </DialogHeader>
-          <div className="mb-4">
+          <div className="mb-4 space-y-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -1714,13 +1715,31 @@ export default function BroadcastCampaigns() {
                 className="pl-10"
               />
             </div>
+            <div>
+              <Label>Filtrar por Instância</Label>
+              <Select value={logsInstanceFilter} onValueChange={setLogsInstanceFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as instâncias" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as instâncias</SelectItem>
+                  {instances.map((instance) => (
+                    <SelectItem key={instance.id} value={instance.id}>
+                      {instance.instance_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-3">
               {selectedCampaignLogs
-                .filter((log) => 
-                  !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""))
-                )
+                .filter((log) => {
+                  const matchesPhone = !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""));
+                  const matchesInstance = logsInstanceFilter === "all" || log.instance?.id === logsInstanceFilter;
+                  return matchesPhone && matchesInstance;
+                })
                 .map((log) => (
                 <Card key={log.id} className={log.status === 'failed' ? 'border-destructive' : ''}>
                   <CardContent className="p-4">
