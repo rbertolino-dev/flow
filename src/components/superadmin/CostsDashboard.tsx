@@ -105,42 +105,64 @@ export function CostsDashboard() {
 
   const fetchMetrics = async () => {
     try {
-      // Buscar APENAS de daily_usage_metrics para garantir consistência
-      const { data: metricsData, error } = await supabase
-        .from('daily_usage_metrics')
-        .select('metric_type, metric_value, organization_id');
+      // Buscar dados REAIS e ATUAIS das tabelas principais, não métricas históricas
+      
+      // 1. Organizações ativas
+      const { count: orgsCount } = await supabase
+        .from('organizations')
+        .select('*', { count: 'exact', head: true });
 
-      if (error) throw error;
+      // 2. Usuários únicos (via organization_members)
+      const { data: usersData } = await supabase
+        .from('organization_members')
+        .select('user_id');
+      
+      const uniqueUsers = new Set(usersData?.map(u => u.user_id) || []);
 
-      // Agregar métricas por tipo
-      const aggregated = (metricsData || []).reduce((acc, metric) => {
-        const type = metric.metric_type;
-        acc[type] = (acc[type] || 0) + (metric.metric_value || 0);
-        return acc;
-      }, {} as Record<string, number>);
+      // 3. Leads ativos (não deletados)
+      const { count: leadsCount } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .is('deleted_at', null);
 
-      // Contar organizações únicas
-      const uniqueOrgs = new Set(
-        (metricsData || [])
-          .filter(m => m.organization_id)
-          .map(m => m.organization_id)
-      );
+      // 4. Mensagens WhatsApp totais
+      const { count: messagesCount } = await supabase
+        .from('whatsapp_messages')
+        .select('*', { count: 'exact', head: true });
+
+      // 5. Mensagens recebidas (incoming)
+      const { count: incomingCount } = await supabase
+        .from('whatsapp_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'incoming');
+
+      // 6. Campanhas de broadcast
+      const { count: broadcastsCount } = await supabase
+        .from('broadcast_campaigns')
+        .select('*', { count: 'exact', head: true });
+
+      // 7. Mensagens de broadcast enviadas
+      const { count: broadcastSentCount } = await supabase
+        .from('broadcast_queue')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'sent');
+
+      // 8. Mensagens agendadas
+      const { count: scheduledCount } = await supabase
+        .from('scheduled_messages')
+        .select('*', { count: 'exact', head: true });
 
       setMetrics({
-        totalOrganizations: uniqueOrgs.size,
-        totalUsers: aggregated.auth_users || 0,
-        totalLeads: aggregated.leads_stored || 0,
-        totalMessages: 
-          (aggregated.incoming_messages || 0) + 
-          (aggregated.broadcast_messages || 0) + 
-          (aggregated.scheduled_messages || 0),
-        totalBroadcasts: aggregated.broadcast_messages || 0,
-        totalScheduledMessages: aggregated.scheduled_messages || 0,
-        totalEdgeFunctionCalls: aggregated.edge_function_calls || 0,
-        // Detalhamento
-        incomingMessages: aggregated.incoming_messages || 0,
-        broadcastMessages: aggregated.broadcast_messages || 0,
-        scheduledMessagesSent: aggregated.scheduled_messages || 0
+        totalOrganizations: orgsCount || 0,
+        totalUsers: uniqueUsers.size,
+        totalLeads: leadsCount || 0,
+        totalMessages: messagesCount || 0,
+        totalBroadcasts: broadcastsCount || 0,
+        totalScheduledMessages: scheduledCount || 0,
+        totalEdgeFunctionCalls: 0, // Não rastreável facilmente
+        incomingMessages: incomingCount || 0,
+        broadcastMessages: broadcastSentCount || 0,
+        scheduledMessagesSent: 0,
       });
     } catch (error) {
       console.error('Error fetching metrics:', error);
