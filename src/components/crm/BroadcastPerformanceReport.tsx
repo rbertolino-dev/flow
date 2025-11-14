@@ -86,78 +86,117 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
 
   const filteredCampaigns = getFilteredCampaigns();
 
+  // Calcular dados reais da fila para cada campanha
+  const getCampaignStats = (campaign: any) => {
+    const queueItems = campaign.broadcast_queue || [];
+    const sent = queueItems.filter((q: any) => q.status === 'sent').length;
+    const failed = queueItems.filter((q: any) => q.status === 'failed').length;
+    const cancelled = queueItems.filter((q: any) => q.status === 'cancelled').length;
+    const pending = queueItems.filter((q: any) => q.status === 'pending').length;
+    const total = campaign.total_contacts || 0;
+    
+    return { sent, failed, cancelled, pending, total };
+  };
+
   // Taxa de sucesso geral
-  const successRateData = filteredCampaigns.map(campaign => ({
-    name: campaign.name,
-    sucesso: campaign.sent_count || 0,
-    falha: campaign.failed_count || 0,
-    total: campaign.total_contacts || 0,
-    taxa: campaign.total_contacts > 0 
-      ? ((campaign.sent_count / campaign.total_contacts) * 100).toFixed(1)
-      : 0
-  }));
+  const successRateData = filteredCampaigns.map(campaign => {
+    const stats = getCampaignStats(campaign);
+    return {
+      name: campaign.name,
+      sucesso: stats.sent,
+      falha: stats.failed,
+      cancelado: stats.cancelled,
+      pendente: stats.pending,
+      total: stats.total,
+      taxa: stats.total > 0 
+        ? ((stats.sent / stats.total) * 100).toFixed(1)
+        : 0
+    };
+  });
 
   // Análise por horário (agrupado por hora do dia)
   const hourlyEngagement = filteredCampaigns.reduce((acc: any[], campaign) => {
-    if (!campaign.started_at) return acc;
-    const hour = new Date(campaign.started_at).getHours();
-    const existing = acc.find(item => item.hora === hour);
-    if (existing) {
-      existing.enviados += campaign.sent_count || 0;
-      existing.total += campaign.total_contacts || 0;
-    } else {
-      acc.push({
-        hora: hour,
-        horaLabel: `${hour}:00`,
-        enviados: campaign.sent_count || 0,
-        total: campaign.total_contacts || 0
-      });
-    }
+    const queueItems = campaign.broadcast_queue || [];
+    queueItems.forEach((item: any) => {
+      if (!item.sent_at) return;
+      const hour = new Date(item.sent_at).getHours();
+      const existing = acc.find(h => h.hora === hour);
+      if (existing) {
+        existing.enviados += 1;
+      } else {
+        acc.push({ 
+          hora: hour, 
+          horaLabel: `${hour}:00`,
+          enviados: 1 
+        });
+      }
+    });
     return acc;
   }, []).sort((a, b) => a.hora - b.hora);
 
   // Análise por dia da semana
   const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const dailyEngagement = filteredCampaigns.reduce((acc: any[], campaign) => {
-    if (!campaign.started_at) return acc;
-    const day = new Date(campaign.started_at).getDay();
-    const existing = acc.find(item => item.dia === day);
-    if (existing) {
-      existing.enviados += campaign.sent_count || 0;
-      existing.total += campaign.total_contacts || 0;
-    } else {
-      acc.push({
-        dia: day,
-        diaLabel: weekdays[day],
-        enviados: campaign.sent_count || 0,
-        total: campaign.total_contacts || 0
-      });
-    }
+    const queueItems = campaign.broadcast_queue || [];
+    queueItems.forEach((item: any) => {
+      if (!item.sent_at) return;
+      const day = new Date(item.sent_at).getDay();
+      const existing = acc.find(d => d.dia === day);
+      if (existing) {
+        existing.enviados += 1;
+      } else {
+        acc.push({
+          dia: day,
+          diaLabel: weekdays[day],
+          enviados: 1
+        });
+      }
+    });
     return acc;
   }, []).sort((a, b) => a.dia - b.dia);
 
   // Disparos por instância
   const instanceData = instances.map(instance => {
-    const instanceCampaigns = filteredCampaigns.filter(c => c.instance_id === instance.id);
-    const totalSent = instanceCampaigns.reduce((sum, c) => sum + (c.sent_count || 0), 0);
-    const totalFailed = instanceCampaigns.reduce((sum, c) => sum + (c.failed_count || 0), 0);
-    const totalCampaigns = instanceCampaigns.length;
+    const instanceCampaigns = filteredCampaigns.filter(c => 
+      c.instance_id === instance.id || c.instance_name === instance.instance_name
+    );
+    
+    let totalSent = 0;
+    let totalFailed = 0;
+    
+    instanceCampaigns.forEach(campaign => {
+      const queueItems = campaign.broadcast_queue || [];
+      totalSent += queueItems.filter((q: any) => q.status === 'sent').length;
+      totalFailed += queueItems.filter((q: any) => q.status === 'failed').length;
+    });
+    
     return {
       name: instance.instance_name,
       enviados: totalSent,
       falhas: totalFailed,
       total: totalSent + totalFailed,
-      campanhas: totalCampaigns
+      campanhas: instanceCampaigns.length
     };
   }).filter(item => item.total > 0);
 
   // Calcular totais gerais
   const totalStats = {
-    totalEnviados: filteredCampaigns.reduce((sum, c) => sum + (c.sent_count || 0), 0),
-    totalFalhas: filteredCampaigns.reduce((sum, c) => sum + (c.failed_count || 0), 0),
+    totalEnviados: 0,
+    totalFalhas: 0,
+    totalCancelados: 0,
+    totalPendentes: 0,
+    totalContatos: filteredCampaigns.reduce((sum, c) => sum + (c.total_contacts || 0), 0),
     totalCampanhas: filteredCampaigns.length,
     taxaSucesso: 0
   };
+  
+  filteredCampaigns.forEach(campaign => {
+    const queueItems = campaign.broadcast_queue || [];
+    totalStats.totalEnviados += queueItems.filter((q: any) => q.status === 'sent').length;
+    totalStats.totalFalhas += queueItems.filter((q: any) => q.status === 'failed').length;
+    totalStats.totalCancelados += queueItems.filter((q: any) => q.status === 'cancelled').length;
+    totalStats.totalPendentes += queueItems.filter((q: any) => q.status === 'pending').length;
+  });
   
   const totalGeral = totalStats.totalEnviados + totalStats.totalFalhas;
   if (totalGeral > 0) {
