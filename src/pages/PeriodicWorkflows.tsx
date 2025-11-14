@@ -147,7 +147,7 @@ export default function PeriodicWorkflows() {
         <Card>
           <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>Workflows periódicos de WhatsApp</CardTitle>
+              <CardTitle>Fluxo Automatizado</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Agende cobranças e lembretes automáticos com controle por organização.
               </p>

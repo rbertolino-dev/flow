@@ -59,7 +59,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "phonebook" as const, label: "Lista Telefônica", icon: PhoneCall },
     { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
-    { id: "workflows" as const, label: "Workflows Periódicos", icon: Repeat },
+    { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
