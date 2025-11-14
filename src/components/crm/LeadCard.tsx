@@ -31,6 +31,7 @@ interface LeadCardProps {
   instanceName?: string;
   onDelete?: (leadId: string) => void;
   onRefetch?: () => void;
+  compact?: boolean;
 }
 
 const sourceColors: Record<string, string> = {
@@ -41,7 +42,7 @@ const sourceColors: Record<string, string> = {
   Facebook: "bg-accent text-accent-foreground",
 };
 
-export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName, onDelete, onRefetch }: LeadCardProps) {
+export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = false, onToggleSelection, instanceName, onDelete, onRefetch, compact = false }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
@@ -214,6 +215,122 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
 
   const dragListeners = editingName || editingValue ? {} : listeners;
 
+  // Versão compacta do card
+  if (compact) {
+    return (
+      <Card
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...dragListeners}
+        className={`p-2 transition-all duration-200 bg-card border ${
+          isDragging 
+            ? 'border-primary shadow-lg scale-105' 
+            : isSelected
+              ? 'border-primary shadow-md ring-2 ring-primary/50'
+              : 'border-border hover:shadow-md hover:border-primary/50'
+        }`}
+        onClick={handleCardClick}
+      >
+        <div className="space-y-1">
+          {/* Checkbox e nome */}
+          <div className="flex items-start gap-2">
+            {onToggleSelection && (
+              <div 
+                className="flex items-center touch-none pt-0.5" 
+                onClick={handleCheckboxClick}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onToggleSelection();
+                }}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={onToggleSelection}
+                  className="h-4 w-4 touch-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
+            
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm text-foreground line-clamp-1">{lead.name}</h3>
+            </div>
+
+            {isInCallQueue && (
+              <Badge variant="default" className="text-[10px] px-1.5 py-0.5 shrink-0 bg-blue-600">
+                <PhoneCall className="h-2.5 w-2.5" />
+              </Badge>
+            )}
+          </div>
+
+          {/* Telefone */}
+          {lead.phone && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Smartphone className="h-3 w-3 shrink-0" />
+              <span className="truncate">{formatBrazilianPhone(lead.phone)}</span>
+            </div>
+          )}
+
+          {/* Valor e badges */}
+          <div className="flex items-center justify-between gap-2 pt-1">
+            {lead.value && (
+              <div className="flex items-center gap-1 text-xs font-medium text-success">
+                <DollarSign className="h-3 w-3" />
+                <span className="truncate">
+                  {lead.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+            )}
+            
+            {lead.unread_message_count > 0 && (
+              <Badge variant="destructive" className="text-[10px] h-4 px-1.5 shrink-0">
+                {lead.unread_message_count}
+              </Badge>
+            )}
+          </div>
+
+          {/* Ações rápidas */}
+          <div className="flex items-center gap-1 pt-1">
+            {lead.phone && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2"
+                  onClick={handleWhatsAppClick}
+                >
+                  <MessageCircle className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2"
+                  onClick={handlePhoneClick}
+                >
+                  <Phone className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+            
+            {onDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 ml-auto text-destructive hover:text-destructive"
+                onClick={handleDeleteClick}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Versão normal do card
   return (
     <Card
       ref={setNodeRef}
@@ -229,303 +346,4 @@ export function LeadCard({ lead, onClick, stages, onStageChange, isSelected = fa
       }`}
       onClick={handleCardClick}
     >
-      <div className="space-y-2">
-        {/* Checkbox de seleção */}
-        {onToggleSelection && (
-          <div 
-            className="flex items-center justify-end touch-none" 
-            onClick={handleCheckboxClick}
-            onTouchEnd={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onToggleSelection();
-            }}
-          >
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={onToggleSelection}
-              className="h-5 w-5 touch-none"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        )}
-
-        {/* Nome em destaque */}
-        <div>
-          {editingName ? (
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <Input
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                className="h-8 font-semibold"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveName();
-                  if (e.key === 'Escape') {
-                    setTempName(lead.name);
-                    setEditingName(false);
-                  }
-                }}
-              />
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleSaveName}>
-                <Check className="h-4 w-4 text-success" />
-              </Button>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="h-8 w-8 p-0"
-                onClick={() => {
-                  setTempName(lead.name);
-                  setEditingName(false);
-                }}
-              >
-                <X className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 group">
-              <h3 className="font-bold text-lg text-foreground line-clamp-1 flex-1">{lead.name}</h3>
-              {isInCallQueue && (
-                <Popover>
-                  <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600 hover:bg-blue-700 cursor-pointer flex items-center gap-1">
-                      <PhoneCall className="h-3.5 w-3.5" />
-                      <ChevronDown className="h-3 w-3" />
-                    </Badge>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0" align="start" onClick={(e) => e.stopPropagation()}>
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center gap-2 pb-2 border-b">
-                        <PhoneCall className="h-4 w-4 text-blue-600" />
-                        <h4 className="font-semibold text-sm">Na fila de ligação</h4>
-                      </div>
-                      
-                      {callQueueActivities.length > 0 ? (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">Observações recentes:</p>
-                          {callQueueActivities.map((activity) => (
-                            <div key={activity.id} className="bg-muted/50 rounded-md p-2 space-y-1">
-                              <p className="text-xs text-foreground">{activity.content}</p>
-                              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{activity.user_name || 'Usuário'}</span>
-                                <span>{format(new Date(activity.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Nenhuma observação registrada ainda.</p>
-                      )}
-                      
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onClick();
-                        }}
-                      >
-                        Ver detalhes completos
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
-              {lead.has_unread_messages && (
-                <Badge variant="destructive" className="text-xs px-1.5 py-0.5 animate-pulse shrink-0">
-                  <MessageCircle className="h-3 w-3 mr-1" />
-                  {lead.unread_message_count || 'Nova'}
-                </Badge>
-              )}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingName(true);
-                }}
-              >
-                <Edit2 className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Telefone em destaque */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1">
-            <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
-            <span className="font-semibold text-base text-foreground">{formatBrazilianPhone(lead.phone)}</span>
-          </div>
-          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-              onClick={handleWhatsAppClick}
-              title="Abrir WhatsApp"
-            >
-              <MessageCircle className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
-              onClick={handlePhoneClick}
-              title="Ligar"
-            >
-              <Phone className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                setScheduleDialogOpen(true);
-              }}
-              title="Agendar"
-            >
-              <CalendarIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Botão de Agendar em destaque */}
-        <Button
-          variant="default"
-          className="w-full"
-          onClick={(e) => {
-            e.stopPropagation();
-            setScheduleDialogOpen(true);
-          }}
-        >
-          <CalendarIcon className="h-4 w-4 mr-2" />
-          Agendar
-        </Button>
-
-        {/* Informações compactas */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
-          <Badge className={sourceColors[lead.source] || "bg-muted text-muted-foreground"} variant="secondary">
-            {lead.source}
-          </Badge>
-          {instanceName && (
-            <Badge variant="outline" className="text-xs">
-              <Smartphone className="h-3 w-3 mr-1" />
-              {instanceName}
-            </Badge>
-          )}
-          {lead.returnDate && (
-            <Badge variant="outline" className="text-xs border-primary/30 text-primary">
-              <Clock className="h-3 w-3 mr-1" />
-              {format(new Date(lead.returnDate), "dd/MM", { locale: ptBR })}
-            </Badge>
-          )}
-        </div>
-
-        {/* Etapa do pipeline - compacto */}
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <MoveRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-          <Select
-            value={lead.stageId || ''}
-            onValueChange={(value) => onStageChange(lead.id, value)}
-          >
-            <SelectTrigger className="h-7 text-xs flex-1">
-              <SelectValue placeholder="Etapa" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover z-50">
-              {stages.map((stage) => (
-                <SelectItem key={stage.id} value={stage.id}>
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: stage.color }}
-                    />
-                    {stage.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Info adicional compacta */}
-        {(lead.email || lead.company || lead.value) && (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {lead.email && (
-              <div className="flex items-center gap-1">
-                <Mail className="h-3 w-3" />
-                <span className="truncate max-w-[150px]">{lead.email}</span>
-              </div>
-            )}
-            {lead.company && (
-              <div className="flex items-center gap-1">
-                <Building2 className="h-3 w-3" />
-                <span className="truncate max-w-[100px]">{lead.company}</span>
-              </div>
-            )}
-            {lead.value && (
-              <div className="flex items-center gap-1 text-primary font-medium">
-                <DollarSign className="h-3 w-3" />
-                {new Intl.NumberFormat("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                  minimumFractionDigits: 0,
-                }).format(lead.value)}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tags */}
-        {lead.tags && lead.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {lead.tags.map((tag) => (
-              <Badge
-                key={tag.id}
-                variant="outline"
-                style={{ 
-                  backgroundColor: `${tag.color}20`, 
-                  borderColor: tag.color,
-                  color: tag.color 
-                }}
-                className="text-xs px-1.5 py-0"
-              >
-                {tag.name}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Footer compacto */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-3 w-3" />
-            {format(lead.lastContact, "dd/MM/yy", { locale: ptBR })}
-          </div>
-          <div className="truncate max-w-[120px]">{lead.assignedTo}</div>
-          {onDelete && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={handleDeleteClick}
-              title="Excluir lead"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <ScheduleGoogleEventDialog
-        open={scheduleDialogOpen}
-        onOpenChange={setScheduleDialogOpen}
-        leadName={lead.name}
-        leadPhone={lead.phone}
-      />
-    </Card>
-  );
-}
+      {/* ... keep existing code */}
