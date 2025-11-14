@@ -35,13 +35,13 @@ export function OrganizationCostComparison() {
       setLoading(true);
 
       // Período atual (mês corrente)
-      const currentMonthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-      const currentMonthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+      const currentMonthStart = startOfMonth(new Date());
+      const currentMonthEnd = endOfMonth(new Date());
 
       // Período anterior (mês passado)
       const previousMonth = subMonths(new Date(), 1);
-      const previousMonthStart = format(startOfMonth(previousMonth), 'yyyy-MM-dd');
-      const previousMonthEnd = format(endOfMonth(previousMonth), 'yyyy-MM-dd');
+      const previousMonthStart = startOfMonth(previousMonth);
+      const previousMonthEnd = endOfMonth(previousMonth);
 
       // Buscar organizações
       const { data: orgs, error: orgsError } = await supabase
@@ -54,95 +54,129 @@ export function OrganizationCostComparison() {
         return;
       }
 
-      // Buscar métricas do mês atual e anterior
-      const [currentMetrics, previousMetrics] = await Promise.all([
-        supabase
-          .from('daily_usage_metrics')
-          .select('*')
-          .gte('date', currentMonthStart)
-          .lte('date', currentMonthEnd),
-        supabase
-          .from('daily_usage_metrics')
-          .select('*')
-          .gte('date', previousMonthStart)
-          .lte('date', previousMonthEnd)
-      ]);
+      // Buscar configuração de custos
+      const { data: costConfig } = await supabase
+        .from('cloud_cost_config')
+        .select('*')
+        .single();
 
-      // Processar custos por organização
-      const costs: OrganizationCost[] = orgs.map(org => {
-        // Métricas do mês atual
-        const currentOrgMetrics = currentMetrics.data?.filter(
-          m => m.organization_id === org.id
-        ) || [];
+      if (!costConfig) {
+        console.error('Configuração de custos não encontrada');
+        setLoading(false);
+        return;
+      }
 
-        const currentCost = currentOrgMetrics.reduce(
-          (sum, m) => sum + Number(m.total_cost), 0
-        );
+      // Processar custos por organização usando dados REAIS
+      const costs: OrganizationCost[] = await Promise.all(
+        orgs.map(async (org) => {
+          // Métricas do mês atual
+          const [
+            { count: currentIncoming },
+            { count: currentBroadcast },
+            { count: currentScheduled },
+            { count: currentLeads }
+          ] = await Promise.all([
+            supabase.from('whatsapp_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .eq('direction', 'incoming')
+              .gte('timestamp', currentMonthStart.toISOString())
+              .lte('timestamp', currentMonthEnd.toISOString()),
+            supabase.from('broadcast_queue')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .eq('status', 'sent')
+              .gte('sent_at', currentMonthStart.toISOString())
+              .lte('sent_at', currentMonthEnd.toISOString()),
+            supabase.from('scheduled_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .eq('status', 'sent')
+              .gte('sent_at', currentMonthStart.toISOString())
+              .lte('sent_at', currentMonthEnd.toISOString()),
+            supabase.from('leads')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .is('deleted_at', null)
+          ]);
 
-        // Métricas do mês anterior
-        const previousOrgMetrics = previousMetrics.data?.filter(
-          m => m.organization_id === org.id
-        ) || [];
+          // Métricas do mês anterior
+          const [
+            { count: prevIncoming },
+            { count: prevBroadcast },
+            { count: prevScheduled },
+            { count: prevLeads }
+          ] = await Promise.all([
+            supabase.from('whatsapp_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .eq('direction', 'incoming')
+              .gte('timestamp', previousMonthStart.toISOString())
+              .lte('timestamp', previousMonthEnd.toISOString()),
+            supabase.from('broadcast_queue')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .eq('status', 'sent')
+              .gte('sent_at', previousMonthStart.toISOString())
+              .lte('sent_at', previousMonthEnd.toISOString()),
+            supabase.from('scheduled_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .eq('status', 'sent')
+              .gte('sent_at', previousMonthStart.toISOString())
+              .lte('sent_at', previousMonthEnd.toISOString()),
+            supabase.from('leads')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', org.id)
+              .is('deleted_at', null)
+              .lte('created_at', previousMonthEnd.toISOString())
+          ]);
 
-        const previousCost = previousOrgMetrics.reduce(
-          (sum, m) => sum + Number(m.total_cost), 0
-        );
+          // Calcular custos
+          const currentCost = 
+            (currentIncoming || 0) * Number(costConfig.cost_per_incoming_message) +
+            (currentBroadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
+            (currentScheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
+            (currentLeads || 0) * Number(costConfig.cost_per_lead_storage);
 
-        // Calcular tendência
-        let trend: 'up' | 'down' | 'stable' = 'stable';
-        let percentageChange = 0;
+          const previousCost = 
+            (prevIncoming || 0) * Number(costConfig.cost_per_incoming_message) +
+            (prevBroadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
+            (prevScheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
+            (prevLeads || 0) * Number(costConfig.cost_per_lead_storage);
 
-        if (previousCost > 0) {
-          percentageChange = ((currentCost - previousCost) / previousCost) * 100;
-          if (percentageChange > 5) trend = 'up';
-          else if (percentageChange < -5) trend = 'down';
-        } else if (currentCost > 0) {
-          trend = 'up';
-          percentageChange = 100;
-        }
+          // Calcular tendência
+          let trend: 'up' | 'down' | 'stable' = 'stable';
+          let percentageChange = 0;
 
-        // Breakdown por tipo
-        const breakdown = {
-          incomingMessages: 0,
-          broadcastMessages: 0,
-          scheduledMessages: 0,
-          leadsStored: 0,
-          databaseOps: 0
-        };
-
-        currentOrgMetrics.forEach(metric => {
-          const cost = Number(metric.total_cost);
-          switch (metric.metric_type) {
-            case 'incoming_messages':
-              breakdown.incomingMessages += cost;
-              break;
-            case 'broadcast_messages':
-              breakdown.broadcastMessages += cost;
-              break;
-            case 'scheduled_messages':
-              breakdown.scheduledMessages += cost;
-              break;
-            case 'leads_stored':
-              breakdown.leadsStored += cost;
-              break;
-            case 'database_reads':
-            case 'database_writes':
-              breakdown.databaseOps += cost;
-              break;
+          if (previousCost > 0) {
+            percentageChange = ((currentCost - previousCost) / previousCost) * 100;
+            if (percentageChange > 5) trend = 'up';
+            else if (percentageChange < -5) trend = 'down';
+          } else if (currentCost > 0) {
+            trend = 'up';
+            percentageChange = 100;
           }
-        });
 
-        return {
-          orgId: org.id,
-          orgName: org.name,
-          currentMonthCost: currentCost,
-          previousMonthCost: previousCost,
-          trend,
-          percentageChange,
-          breakdown
-        };
-      }).sort((a, b) => b.currentMonthCost - a.currentMonthCost);
+          return {
+            orgId: org.id,
+            orgName: org.name,
+            currentMonthCost: currentCost,
+            previousMonthCost: previousCost,
+            trend,
+            percentageChange,
+            breakdown: {
+              incomingMessages: (currentIncoming || 0) * Number(costConfig.cost_per_incoming_message),
+              broadcastMessages: (currentBroadcast || 0) * Number(costConfig.cost_per_broadcast_message),
+              scheduledMessages: (currentScheduled || 0) * Number(costConfig.cost_per_scheduled_message),
+              leadsStored: (currentLeads || 0) * Number(costConfig.cost_per_lead_storage),
+              databaseOps: 0
+            }
+          };
+        })
+      );
 
+      costs.sort((a, b) => b.currentMonthCost - a.currentMonthCost);
       setOrgCosts(costs);
     } catch (err) {
       console.error('Erro ao processar custos:', err);
