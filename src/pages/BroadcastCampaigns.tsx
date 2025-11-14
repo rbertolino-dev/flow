@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -22,6 +22,7 @@ import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
+import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
 import {
   Dialog,
@@ -834,7 +835,11 @@ export default function BroadcastCampaigns() {
               </TabsTrigger>
               <TabsTrigger value="reports">
                 <BarChart3 className="h-4 w-4 mr-2" />
-                Relatórios
+                Performance
+              </TabsTrigger>
+              <TabsTrigger value="export">
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
               </TabsTrigger>
             </TabsList>
 
@@ -1693,6 +1698,10 @@ export default function BroadcastCampaigns() {
                 instances={instances}
                 dateFilter={sentDateFilter}
               />
+            </TabsContent>
+
+            <TabsContent value="export">
+              <BroadcastExportReport instances={instances} />
             </TabsContent>
           </Tabs>
 
