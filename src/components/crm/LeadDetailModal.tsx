@@ -228,7 +228,16 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      const { error } = await (supabase as any)
+      // Atualizar o campo notes do lead
+      const { error: updateError } = await supabase
+        .from('leads')
+        .update({ notes: newComment })
+        .eq('id', lead.id);
+
+      if (updateError) throw updateError;
+
+      // Registrar a atividade no histórico
+      const { error: activityError } = await (supabase as any)
         .from('activities')
         .insert({
           lead_id: lead.id,
@@ -238,18 +247,18 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           direction: 'internal',
         });
 
-      if (error) throw error;
+      if (activityError) throw activityError;
 
       toast({
-        title: "Comentário adicionado",
-        description: "O comentário foi registrado no histórico",
+        title: "Observação salva",
+        description: "A observação foi salva no lead e registrada no histórico",
       });
 
       setNewComment("");
-      // A atividade será atualizada automaticamente via realtime
+      onUpdated?.();
     } catch (error: any) {
       toast({
-        title: "Erro ao adicionar comentário",
+        title: "Erro ao salvar observação",
         description: error.message,
         variant: "destructive",
       });
