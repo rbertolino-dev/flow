@@ -1743,13 +1743,52 @@ export default function BroadcastCampaigns() {
           </div>
           <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-3">
-              {selectedCampaignLogs
-                .filter((log) => {
-                  const matchesPhone = !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""));
-                  const matchesInstance = logsInstanceFilter === "all" || log.instance_id === logsInstanceFilter;
-                  return matchesPhone && matchesInstance;
-                })
-                .map((log) => (
+              {(() => {
+                const filteredLogs = selectedCampaignLogs
+                  .filter((log) => {
+                    const matchesPhone = !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""));
+                    const matchesInstance = logsInstanceFilter === "all" || log.instance_id === logsInstanceFilter;
+                    return matchesPhone && matchesInstance;
+                  });
+                
+                const campaignData = campaigns.find(c => c.id === filteredLogs[0]?.campaign_id);
+                const minDelay = filteredLogs[0]?.campaign?.min_delay_seconds || 30;
+                const maxDelay = filteredLogs[0]?.campaign?.max_delay_seconds || 60;
+                const avgDelay = (minDelay + maxDelay) / 2;
+                
+                const startTime = filteredLogs[0]?.scheduled_for ? new Date(filteredLogs[0].scheduled_for) : null;
+                const totalMessages = filteredLogs.length;
+                const estimatedDuration = totalMessages * avgDelay * 1000;
+                const endTime = startTime ? new Date(startTime.getTime() + estimatedDuration) : null;
+
+                return (
+                  <>
+                    {startTime && endTime && (
+                      <div className="mb-4 p-4 bg-muted rounded-lg space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4" />
+                          <span className="font-medium">Estimativa de Horário:</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Início:</span>
+                            <span className="ml-2 font-medium">
+                              {formatDate(startTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Fim estimado:</span>
+                            <span className="ml-2 font-medium">
+                              {formatDate(endTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Duração estimada: {Math.round(estimatedDuration / 1000 / 60)} minutos ({totalMessages} mensagens × {avgDelay}s de delay médio)
+                        </div>
+                      </div>
+                    )}
+                    {filteredLogs.map((log) => (
                 <Card key={log.id} className={log.status === 'failed' ? 'border-destructive' : ''}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
@@ -1799,14 +1838,15 @@ export default function BroadcastCampaigns() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-              {selectedCampaignLogs.filter((log) => 
-                !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""))
-              ).length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  {logsSearchQuery ? 'Nenhum log encontrado para este número' : 'Nenhum log encontrado'}
-                </div>
-              )}
+                    ))}
+                    {filteredLogs.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        {logsSearchQuery ? 'Nenhum log encontrado para este número' : 'Nenhum log encontrado'}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
         </ScrollArea>
         </DialogContent>
