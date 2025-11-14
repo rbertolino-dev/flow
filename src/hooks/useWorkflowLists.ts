@@ -46,7 +46,11 @@ export function useWorkflowLists() {
         throw error;
       }
 
-      return (data || []) as WorkflowList[];
+      const lists = (data || []).map(list => ({
+        ...list,
+        contacts: Array.isArray(list.contacts) ? list.contacts as any[] : []
+      })) as unknown as WorkflowList[];
+      return lists;
     },
   });
 
@@ -59,12 +63,12 @@ export function useWorkflowLists() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const baseData = {
+      const baseData: any = {
         organization_id: activeOrgId,
         name: payload.name,
         description: payload.description || null,
         default_instance_id: payload.default_instance_id || null,
-        contacts: payload.contacts,
+        contacts: payload.contacts as any,
         list_type: payload.list_type || "list",
         updated_by: user.id,
       };
@@ -78,20 +82,28 @@ export function useWorkflowLists() {
           .single();
 
         if (error) throw error;
-        return data as WorkflowList;
+        return {
+          ...data,
+          contacts: Array.isArray(data.contacts) ? data.contacts as any[] : []
+        } as unknown as WorkflowList;
       }
+
+      const insertData: any = {
+        ...baseData,
+        created_by: user.id,
+      };
 
       const { data, error } = await supabase
         .from("whatsapp_workflow_lists")
-        .insert({
-          ...baseData,
-          created_by: user.id,
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (error) throw error;
-      return data as WorkflowList;
+      return {
+        ...data,
+        contacts: Array.isArray(data.contacts) ? data.contacts as any[] : []
+      } as unknown as WorkflowList;
     },
     onSuccess: (data) => {
       invalidate();
@@ -166,14 +178,16 @@ export function useWorkflowLists() {
         variables: {},
       };
 
+      const insertPayload: any = {
+        organization_id: activeOrgId,
+        name: `${leadName} (individual)`,
+        list_type: "single",
+        contacts: [contact] as any,
+      };
+
       const { data, error } = await supabase
         .from("whatsapp_workflow_lists")
-        .insert({
-          organization_id: activeOrgId,
-          name: `${leadName} (individual)`,
-          list_type: "single",
-          contacts: [contact],
-        })
+        .insert(insertPayload)
         .select("id")
         .single();
 

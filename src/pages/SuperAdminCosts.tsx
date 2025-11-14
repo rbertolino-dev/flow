@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 export default function SuperAdminCosts() {
   const navigate = useNavigate();
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook") => {
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {

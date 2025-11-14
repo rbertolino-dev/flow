@@ -3,8 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { addDays, addMonths } from "npm:date-fns@4.1.0";
 import {
   formatInTimeZone,
-  zonedTimeToUtc,
-  utcToZonedTime,
+  toZonedTime,
+  fromZonedTime,
 } from "npm:date-fns-tz@3.2.0";
 
 const DEFAULT_TZ = "America/Sao_Paulo";
@@ -176,8 +176,9 @@ serve(async (req) => {
     );
   } catch (err) {
     console.error("Erro crítico", err);
+    const errMsg = err instanceof Error ? err.message : String(err);
     return new Response(
-      JSON.stringify({ error: "process-whatsapp-workflows failed", details: err.message }),
+      JSON.stringify({ error: "process-whatsapp-workflows failed", details: errMsg }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
@@ -188,10 +189,10 @@ function normalizeContacts(workflow: Workflow): WorkflowContact[] {
   if (!Array.isArray(rawContacts)) return [];
   return rawContacts
     .map((contact) => ({
-      lead_id: contact.lead_id ?? contact.leadId ?? null,
+      lead_id: contact.lead_id ?? null,
       phone: contact.phone ?? null,
       name: contact.name ?? null,
-      instance_id: contact.instance_id ?? contact.instanceId ?? null,
+      instance_id: contact.instance_id ?? null,
       variables: contact.variables ?? {},
     }))
     .filter((contact) => contact.lead_id && contact.phone) as WorkflowContact[];
@@ -217,7 +218,7 @@ function resolveMessageBody(
 
   return base.replace(/{{(.*?)}}/g, (_, key) => {
     const normalized = key.trim();
-    return variables[normalized] ?? "";
+    return (variables as Record<string, string>)[normalized] ?? "";
   });
 }
 
@@ -241,12 +242,12 @@ function calculateNextRun(workflow: Workflow): Date | null {
   const timezone = workflow.timezone || DEFAULT_TZ;
   const lastRun = workflow.next_run_at
     ? new Date(workflow.next_run_at)
-    : zonedTimeToUtc(
+    : fromZonedTime(
       `${workflow.start_date}T${normalizeSendTime(workflow.send_time)}`,
       timezone,
     );
 
-  const startBoundary = zonedTimeToUtc(
+  const startBoundary = fromZonedTime(
     `${workflow.start_date}T${normalizeSendTime(workflow.send_time)}`,
     timezone,
   );
@@ -275,7 +276,7 @@ function calculateNextRun(workflow: Workflow): Date | null {
   if (!next) return null;
 
   if (workflow.end_date) {
-    const endDateUtc = zonedTimeToUtc(
+    const endDateUtc = fromZonedTime(
       `${workflow.end_date}T${normalizeSendTime(workflow.send_time)}`,
       timezone,
     );
@@ -292,14 +293,14 @@ function findNextWeeklyRun(workflow: Workflow, reference: Date): Date | null {
       ? workflow.days_of_week
       : [getWeekdayForDate(workflow.start_date, workflow.send_time, timezone)];
 
-  const localReference = utcToZonedTime(reference, timezone);
+  const localReference = toZonedTime(reference, timezone);
   for (let i = 1; i <= 14; i++) {
     const candidateLocal = addDays(localReference, i);
     const weekday = formatInTimeZone(candidateLocal, timezone, "EEEE")
       .toLowerCase();
     if (allowed.includes(weekday)) {
       const dateStr = formatInTimeZone(candidateLocal, timezone, "yyyy-MM-dd");
-      return zonedTimeToUtc(
+      return fromZonedTime(
         `${dateStr}T${normalizeSendTime(workflow.send_time)}`,
         timezone,
       );
@@ -311,7 +312,7 @@ function findNextWeeklyRun(workflow: Workflow, reference: Date): Date | null {
 function findNextMonthlyRun(workflow: Workflow, reference: Date): Date | null {
   const timezone = workflow.timezone || DEFAULT_TZ;
   const targetDay = workflow.day_of_month ?? parseInt(workflow.start_date.slice(-2));
-  let localCandidate = utcToZonedTime(reference, timezone);
+  let localCandidate = toZonedTime(reference, timezone);
   for (let i = 1; i <= 3; i++) {
     localCandidate = addMonths(localCandidate, 1);
     const setDay = new Date(
@@ -320,7 +321,7 @@ function findNextMonthlyRun(workflow: Workflow, reference: Date): Date | null {
       Math.min(targetDay, daysInMonth(localCandidate)),
     );
     const dateStr = formatInTimeZone(setDay, timezone, "yyyy-MM-dd");
-    return zonedTimeToUtc(
+    return fromZonedTime(
       `${dateStr}T${normalizeSendTime(workflow.send_time)}`,
       timezone,
     );
@@ -348,11 +349,11 @@ function getWeekdayForDate(
   sendTime: string,
   timezone: string,
 ): string {
-  const base = zonedTimeToUtc(
+  const base = fromZonedTime(
     `${dateStr}T${normalizeSendTime(sendTime)}`,
     timezone,
   );
-  const local = utcToZonedTime(base, timezone);
+  const local = toZonedTime(base, timezone);
   return formatInTimeZone(local, timezone, "EEEE").toLowerCase();
 }
 

@@ -59,7 +59,16 @@ export function useWhatsAppWorkflows() {
         throw error;
       }
 
-      return (data || []) as WorkflowEnvio[];
+      const workflows = (data || []).map(w => ({
+        ...w,
+        list: w.list ? {
+          ...w.list,
+          contacts: Array.isArray(w.list.contacts) 
+            ? w.list.contacts as any[]
+            : []
+        } : null
+      })) as unknown as WorkflowEnvio[];
+      return workflows;
     },
   });
 
@@ -234,11 +243,12 @@ export function useWhatsAppWorkflows() {
         .single();
 
       if (payload.contact_attachments && listData?.contacts) {
+        const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
         await persistContactAttachments(
           workflow.id,
           payload.contact_attachments,
           payload.contact_attachments_metadata,
-          listData.contacts,
+          contacts,
         );
       }
 
@@ -290,11 +300,12 @@ export function useWhatsAppWorkflows() {
         .single();
 
       if (payload.contact_attachments && listData?.contacts) {
+        const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
         await persistContactAttachments(
           payload.id,
           payload.contact_attachments,
           payload.contact_attachments_metadata,
-          listData.contacts,
+          contacts,
         );
       }
     },
