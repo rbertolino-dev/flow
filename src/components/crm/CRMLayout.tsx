@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, UserCog, Send, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin";
-  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => void;
+  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook";
+  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -56,6 +56,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "contacts" as const, label: "Contatos", icon: Users },
+    { id: "phonebook" as const, label: "Lista Telefônica", icon: PhoneCall },
     { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "settings" as const, label: "Configurações", icon: Settings },
@@ -156,6 +157,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
               onClick={() => {
                 if (item.id === 'superadmin') {
                   window.location.href = '/superadmin';
+                } else if (item.id === 'phonebook') {
+                  window.location.href = '/lista-telefonica';
                 } else {
                   onViewChange(item.id);
                 }
@@ -243,6 +246,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                         onClick={() => {
                           if (item.id === 'superadmin') {
                             window.location.href = '/superadmin';
+                          } else if (item.id === 'phonebook') {
+                            window.location.href = '/lista-telefonica';
                           } else {
                             onViewChange(item.id);
                           }

@@ -15,6 +15,7 @@ import Organization from "./pages/Organization";
 import SuperAdmin from "./pages/SuperAdmin";
 import SuperAdminCosts from "./pages/SuperAdminCosts";
 import RLSDiagnostics from "./pages/RLSDiagnostics";
+import NovaFuncao from "./pages/NovaFuncao";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/superadmin" element={<SuperAdmin />} />
           <Route path="/superadmin/costs" element={<SuperAdminCosts />} />
           <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
+          <Route path="/lista-telefonica" element={<NovaFuncao />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -1,0 +1,33 @@
+feat: Adiciona página de Lista Telefônica completa com filtros, ordenação e ações rápidas
+
+Implementa nova funcionalidade de Lista Telefônica com visualização em cards e tabela,
+sistema completo de filtros, ordenação, agrupamento e ações rápidas de contato.
+
+Funcionalidades principais:
+- Página de Lista Telefônica (/lista-telefonica) com visualização em cards e tabela
+- Hook useContacts para buscar todos os contatos da organização
+- Sistema de busca em tempo real (nome, telefone, email, empresa)
+- Filtros avançados (etapas, tags, origem) com contadores visuais
+- Ordenação por nome, data, último contato ou valor (crescente/decrescente)
+- Agrupamento por etapa, origem, empresa ou tag com grupos colapsáveis
+- Ações rápidas: ligar, WhatsApp, email e copiar telefone
+- Seleção em massa e criação de listas personalizadas
+- Exportação para CSV com encoding UTF-8
+- Isolamento multi-empresa (filtro automático por organization_id)
+- Design responsivo e integração completa com menu lateral
+
+Arquivos:
+- Novo: src/pages/NovaFuncao.tsx (página principal)
+- Novo: src/hooks/useContacts.ts (hook de contatos)
+- Novo: IDEIAS_INTEGRACOES.md (documentação de ideias futuras)
+- Modificado: src/App.tsx (rota adicionada)
+- Modificado: src/components/crm/CRMLayout.tsx (menu atualizado)
+
+Padrões seguidos:
+- AuthGuard e CRMLayout
+- Filtro por organization_id
+- Componentes shadcn/ui
+- TypeScript tipado
+- Realtime subscriptions
+- Feedback com toasts
+
