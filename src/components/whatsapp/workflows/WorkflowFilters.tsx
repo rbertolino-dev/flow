@@ -1,4 +1,4 @@
-import { WorkflowFilters, WorkflowList } from "@/types/workflows";
+import type { WorkflowFilters, WorkflowList } from "@/types/workflows";
 import { Input } from "@/components/ui/input";
 import {
   Select,
