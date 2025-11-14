@@ -1,4 +1,4 @@
-import { MessageSquare, Send, Settings, FileText } from "lucide-react";
+import { MessageSquare, Send, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -15,7 +15,7 @@ export function WhatsAppNav() {
     {
       label: "Disparos",
       icon: Send,
-      path: "/broadcast-campaigns",
+      path: "/broadcast",
     },
     {
       label: "Configurações",

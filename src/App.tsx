@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
 import WhatsApp from "./pages/WhatsApp";
+import PeriodicWorkflows from "./pages/PeriodicWorkflows";
 import AuthLogs from "./pages/AuthLogs";
 import Diagnostics from "./pages/Diagnostics";
 import Organization from "./pages/Organization";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />
           <Route path="/whatsapp" element={<WhatsApp />} />
+          <Route path="/workflows" element={<PeriodicWorkflows />} />
           <Route path="/auth-logs" element={<AuthLogs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="/organization" element={<Organization />} />

@@ -1126,6 +1126,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          workflow_id: string | null
         }
         Insert: {
           created_at?: string
@@ -1143,6 +1144,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          workflow_id?: string | null
         }
         Update: {
           created_at?: string
@@ -1160,6 +1162,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          workflow_id?: string | null
         }
         Relationships: [
           {
@@ -1174,6 +1177,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_workflows"
             referencedColumns: ["id"]
           },
         ]
@@ -1323,6 +1333,242 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_workflow_attachments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          organization_id: string
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          organization_id: string
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          organization_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_workflow_attachments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflow_attachments_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_workflow_lists: {
+        Row: {
+          contacts: Json
+          created_at: string
+          created_by: string | null
+          default_instance_id: string | null
+          description: string | null
+          id: string
+          list_type: string
+          name: string
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          contacts?: Json
+          created_at?: string
+          created_by?: string | null
+          default_instance_id?: string | null
+          description?: string | null
+          id?: string
+          list_type?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          contacts?: Json
+          created_at?: string
+          created_by?: string | null
+          default_instance_id?: string | null
+          description?: string | null
+          id?: string
+          list_type?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_workflow_lists_default_instance_id_fkey"
+            columns: ["default_instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflow_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_workflows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          default_instance_id: string | null
+          day_of_month: number | null
+          days_of_week: string[] | null
+          end_date: string | null
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          message_body: string | null
+          message_template_id: string | null
+          name: string
+          next_run_at: string | null
+          observations: string | null
+          organization_id: string
+          periodicity: string
+          recipient_mode: string
+          send_time: string
+          start_date: string
+          status: string
+          template_mode: string
+          timezone: string
+          trigger_offset_days: number
+          trigger_type: string
+          updated_at: string
+          updated_by: string | null
+          workflow_list_id: string
+          workflow_type: string
+          custom_interval_unit: string | null
+          custom_interval_value: number | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          default_instance_id?: string | null
+          day_of_month?: number | null
+          days_of_week?: string[] | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          message_body?: string | null
+          message_template_id?: string | null
+          name: string
+          next_run_at?: string | null
+          observations?: string | null
+          organization_id: string
+          periodicity: string
+          recipient_mode?: string
+          send_time: string
+          start_date: string
+          status?: string
+          template_mode?: string
+          timezone?: string
+          trigger_offset_days?: number
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          workflow_list_id: string
+          workflow_type: string
+          custom_interval_unit?: string | null
+          custom_interval_value?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          default_instance_id?: string | null
+          day_of_month?: number | null
+          days_of_week?: string[] | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          message_body?: string | null
+          message_template_id?: string | null
+          name?: string
+          next_run_at?: string | null
+          observations?: string | null
+          organization_id?: string
+          periodicity?: string
+          recipient_mode?: string
+          send_time?: string
+          start_date?: string
+          status?: string
+          template_mode?: string
+          timezone?: string
+          trigger_offset_days?: number
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          workflow_list_id?: string
+          workflow_type?: string
+          custom_interval_unit?: string | null
+          custom_interval_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_workflows_default_instance_id_fkey"
+            columns: ["default_instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflows_message_template_id_fkey"
+            columns: ["message_template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflows_workflow_list_id_fkey"
+            columns: ["workflow_list_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_workflow_lists"
             referencedColumns: ["id"]
           },
         ]
