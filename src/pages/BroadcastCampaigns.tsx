@@ -1746,7 +1746,7 @@ export default function BroadcastCampaigns() {
               {selectedCampaignLogs
                 .filter((log) => {
                   const matchesPhone = !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""));
-                  const matchesInstance = logsInstanceFilter === "all" || log.instance?.id === logsInstanceFilter;
+                  const matchesInstance = logsInstanceFilter === "all" || log.instance_id === logsInstanceFilter;
                   return matchesPhone && matchesInstance;
                 })
                 .map((log) => (
