@@ -25,6 +25,7 @@ export function EvolutionLogsPanel() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [instanceFilter, setInstanceFilter] = useState<string>("all");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -85,8 +86,15 @@ export function EvolutionLogsPanel() {
       log.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.event?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.instance?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
+    
+    const matchesEvent = eventFilter === "all" || log.event === eventFilter;
+    const matchesInstance = instanceFilter === "all" || log.instance === instanceFilter;
+    
+    return matchesSearch && matchesEvent && matchesInstance;
   });
+
+  // Obter lista única de instâncias dos logs
+  const uniqueInstances = Array.from(new Set(logs.map(log => log.instance).filter(Boolean))) as string[];
 
   return (
     <Card>
@@ -131,6 +139,20 @@ export function EvolutionLogsPanel() {
               <SelectItem value="import_success">Importação sucesso</SelectItem>
               <SelectItem value="import_error">Erro de importação</SelectItem>
               <SelectItem value="webhook_received">Webhook recebido</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={instanceFilter} onValueChange={setInstanceFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as instâncias</SelectItem>
+              {uniqueInstances.map((instance) => (
+                <SelectItem key={instance} value={instance}>
+                  {instance}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
