@@ -21,9 +21,10 @@ interface KanbanColumnProps {
   onDeleteLead?: (leadId: string) => void;
   columnWidth: ColumnWidth;
   onRefetch?: () => void;
+  compact?: boolean;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, compact = false }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -110,6 +111,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                     instanceName={instanceName}
                     onDelete={onDeleteLead}
                     onRefetch={onRefetch}
+                    compact={compact}
                   />
                 </div>
               );

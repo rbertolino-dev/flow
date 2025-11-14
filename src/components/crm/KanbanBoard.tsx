@@ -9,7 +9,7 @@ import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, P
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
-import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2 } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
+import { useViewPreference } from "@/hooks/useViewPreference";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -42,6 +43,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
+  const { cardSize, toggleCardSize } = useViewPreference();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -417,6 +419,19 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             columnWidth={columnWidth}
             onColumnWidthChange={updateColumnWidth}
           />
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleCardSize}
+            className="gap-2"
+            title={cardSize === 'compact' ? 'Visualização Normal' : 'Visualização Compacta'}
+          >
+            {cardSize === 'compact' ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+            <span className="hidden sm:inline">
+              {cardSize === 'compact' ? 'Normal' : 'Compacto'}
+            </span>
+          </Button>
           
           <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => setSortOrder(value)}>
             <SelectTrigger className="w-[180px] sm:w-[200px]">
@@ -493,6 +508,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   instanceMap={instanceMap}
                   columnWidth={columnWidth}
                   onRefetch={onRefetch}
+                  compact={cardSize === 'compact'}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
