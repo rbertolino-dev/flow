@@ -70,69 +70,68 @@ export function DailyCostChart() {
     try {
       setLoading(true);
 
-      // Buscar métricas agregadas por data da tabela daily_usage_metrics
-      const { data: metricsData, error } = await supabase
-        .from('daily_usage_metrics')
-        .select('*')
-        .gte('date', format(dateRange.start, 'yyyy-MM-dd'))
-        .lte('date', format(dateRange.end, 'yyyy-MM-dd'))
-        .order('date', { ascending: true });
-
-      if (error) {
-        console.error('Erro ao buscar métricas:', error);
-        setLoading(false);
-        return;
-      }
-
-      // Agregar por data
-      const costsByDate = new Map<string, DailyCost>();
-
-      metricsData?.forEach(metric => {
-        const dateKey = metric.date;
-        
-        if (!costsByDate.has(dateKey)) {
-          costsByDate.set(dateKey, {
-            date: format(new Date(dateKey), 'dd/MM'),
-            totalCost: 0,
-            incomingMessages: 0,
-            broadcastMessages: 0,
-            scheduledMessages: 0,
-            databaseReads: 0,
-            databaseWrites: 0,
-            leadsStored: 0
-          });
-        }
-
-        const dayCost = costsByDate.get(dateKey)!;
-        dayCost.totalCost += Number(metric.total_cost);
-
-        // Mapear tipos de métrica para campos
-        switch (metric.metric_type) {
-          case 'incoming_messages':
-            dayCost.incomingMessages += Number(metric.metric_value);
-            break;
-          case 'broadcast_messages':
-            dayCost.broadcastMessages += Number(metric.metric_value);
-            break;
-          case 'scheduled_messages':
-            dayCost.scheduledMessages += Number(metric.metric_value);
-            break;
-          case 'database_reads':
-            dayCost.databaseReads += Number(metric.metric_value);
-            break;
-          case 'database_writes':
-            dayCost.databaseWrites += Number(metric.metric_value);
-            break;
-          case 'leads_stored':
-            dayCost.leadsStored += Number(metric.metric_value);
-            break;
-        }
+      // Criar array de todos os dias no intervalo
+      const days = eachDayOfInterval({
+        start: dateRange.start,
+        end: dateRange.end
       });
 
-      const aggregatedCosts = Array.from(costsByDate.values())
-        .sort((a, b) => a.date.localeCompare(b.date));
+      // Para cada dia, buscar dados REAIS das tabelas
+      const dailyData = await Promise.all(
+        days.map(async (day) => {
+          const dayStart = new Date(day);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(day);
+          dayEnd.setHours(23, 59, 59, 999);
 
-      setDailyCosts(aggregatedCosts);
+          // Buscar métricas do dia
+          const [
+            { count: incoming },
+            { count: broadcast },
+            { count: scheduled },
+            { count: leads }
+          ] = await Promise.all([
+            supabase.from('whatsapp_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('direction', 'incoming')
+              .gte('timestamp', dayStart.toISOString())
+              .lte('timestamp', dayEnd.toISOString()),
+            supabase.from('broadcast_queue')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'sent')
+              .gte('sent_at', dayStart.toISOString())
+              .lte('sent_at', dayEnd.toISOString()),
+            supabase.from('scheduled_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'sent')
+              .gte('sent_at', dayStart.toISOString())
+              .lte('sent_at', dayEnd.toISOString()),
+            supabase.from('leads')
+              .select('*', { count: 'exact', head: true })
+              .is('deleted_at', null)
+              .lte('created_at', dayEnd.toISOString())
+          ]);
+
+          // Calcular custos
+          const incomingCost = (incoming || 0) * costConfig.cost_per_incoming_message;
+          const broadcastCost = (broadcast || 0) * costConfig.cost_per_broadcast_message;
+          const scheduledCost = (scheduled || 0) * costConfig.cost_per_scheduled_message;
+          const totalCost = incomingCost + broadcastCost + scheduledCost;
+
+          return {
+            date: format(day, 'dd/MM'),
+            totalCost,
+            incomingMessages: incoming || 0,
+            broadcastMessages: broadcast || 0,
+            scheduledMessages: scheduled || 0,
+            databaseReads: 0,
+            databaseWrites: 0,
+            leadsStored: leads || 0
+          };
+        })
+      );
+
+      setDailyCosts(dailyData);
     } catch (err) {
       console.error('Erro ao processar métricas:', err);
     } finally {
