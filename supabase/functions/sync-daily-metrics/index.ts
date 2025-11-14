@@ -70,20 +70,20 @@ Deno.serve(async (req) => {
 
     const metrics = [];
 
-    // 3. Coletar métricas por organização
+    // 3. Coletar métricas por organização SOMENTE DO DIA ANTERIOR
     for (const org of organizations || []) {
       console.log(`📊 Processando organização: ${org.name}`);
 
-      // 3.1. Mensagens recebidas (incoming)
+      // 3.1. Mensagens recebidas (incoming) DO DIA
       const { count: incomingCount } = await supabase
         .from('whatsapp_messages')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', org.id)
         .eq('direction', 'incoming')
         .gte('timestamp', startOfDay.toISOString())
-        .lte('timestamp', endOfDay.toISOString());
+        .lt('timestamp', endOfDay.toISOString());
 
-      if (incomingCount) {
+      if (incomingCount && incomingCount > 0) {
         metrics.push({
           date: targetDate,
           organization_id: org.id,
@@ -94,14 +94,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      // 3.2. Mensagens de broadcast enviadas (agora com organization_id direto)
+      // 3.2. Mensagens de broadcast enviadas DO DIA
       const { count: broadcastCount } = await supabase
         .from('broadcast_queue')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', org.id)
         .eq('status', 'sent')
         .gte('sent_at', startOfDay.toISOString())
-        .lte('sent_at', endOfDay.toISOString());
+        .lt('sent_at', endOfDay.toISOString());
 
       if (broadcastCount && broadcastCount > 0) {
         metrics.push({
@@ -114,14 +114,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      // 3.3. Mensagens agendadas enviadas
+      // 3.3. Mensagens agendadas enviadas DO DIA
       const { count: scheduledCount } = await supabase
         .from('scheduled_messages')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', org.id)
         .eq('status', 'sent')
         .gte('sent_at', startOfDay.toISOString())
-        .lte('sent_at', endOfDay.toISOString());
+        .lt('sent_at', endOfDay.toISOString());
 
       if (scheduledCount) {
         metrics.push({
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // 3.4. Leads armazenados (snapshot do final do dia)
+      // 3.4. Leads ATIVOS no final do dia (snapshot)
       const { count: leadsCount } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
         .is('deleted_at', null)
         .lte('created_at', endOfDay.toISOString());
 
-      if (leadsCount) {
+      if (leadsCount && leadsCount > 0) {
         metrics.push({
           date: targetDate,
           organization_id: org.id,
