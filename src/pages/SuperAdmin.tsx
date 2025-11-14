@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 export default function SuperAdmin() {
   const navigate = useNavigate();
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin") => {
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
@@ -15,6 +15,8 @@ export default function SuperAdmin() {
       navigate('/whatsapp');
     } else if (view === "settings") {
       navigate('/settings');
+    } else if (view === "phonebook") {
+      navigate('/lista-telefonica');
     } else if (view === "superadmin") {
       // já estamos aqui
     } else {
