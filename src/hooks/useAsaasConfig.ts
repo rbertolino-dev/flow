@@ -131,9 +131,10 @@ export function useAsaasConfig() {
           organizationId: activeOrgId,
           customer: {
             name: "Teste Conexão",
+            cpfCnpj: "12345678909",
           },
           payment: {
-            value: 1,
+            value: 5,
             dueDate: new Date().toISOString().slice(0, 10),
             description: "Teste de conexão Asaas",
           },
