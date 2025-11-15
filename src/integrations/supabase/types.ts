@@ -1754,6 +1754,7 @@ export type Database = {
           days_of_week: string[] | null
           default_instance_id: string | null
           end_date: string | null
+          group_id: string | null
           id: string
           is_active: boolean
           last_run_at: string | null
@@ -1787,6 +1788,7 @@ export type Database = {
           days_of_week?: string[] | null
           default_instance_id?: string | null
           end_date?: string | null
+          group_id?: string | null
           id?: string
           is_active?: boolean
           last_run_at?: string | null
@@ -1820,6 +1822,7 @@ export type Database = {
           days_of_week?: string[] | null
           default_instance_id?: string | null
           end_date?: string | null
+          group_id?: string | null
           id?: string
           is_active?: boolean
           last_run_at?: string | null
@@ -1849,6 +1852,13 @@ export type Database = {
             columns: ["default_instance_id"]
             isOneToOne: false
             referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflows_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_workflow_groups"
             referencedColumns: ["id"]
           },
           {
