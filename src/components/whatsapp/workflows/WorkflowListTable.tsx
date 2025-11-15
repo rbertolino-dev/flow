@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Edit, Pause, Play, Trash2 } from "lucide-react";
+import { Edit, Pause, Play, Trash2, Users } from "lucide-react";
 
 interface WorkflowListTableProps {
   workflows: WorkflowEnvio[];
@@ -75,9 +75,18 @@ export function WorkflowListTable({
               <TableCell className="capitalize">{workflow.workflow_type}</TableCell>
               <TableCell>{formatPeriodicity(workflow)}</TableCell>
               <TableCell>
-                <Badge variant="outline">
-                  {workflow.list?.contacts?.length ?? 0} contato(s)
-                </Badge>
+                {workflow.recipient_type === "group" && workflow.group ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Users className="h-3 w-3" />
+                    {workflow.group.group_name}
+                  </Badge>
+                ) : workflow.recipient_type === "single" ? (
+                  <Badge variant="outline">Cliente individual</Badge>
+                ) : (
+                  <Badge variant="outline">
+                    {workflow.list?.contacts?.length ?? 0} contato(s)
+                  </Badge>
+                )}
               </TableCell>
               <TableCell>
                 {workflow.next_run_at

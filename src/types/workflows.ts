@@ -52,9 +52,27 @@ export interface WorkflowContactAttachment {
   file_name: string;
   file_type?: string | null;
   file_size?: number | null;
+  month_reference?: string | null; // Formato MM/YYYY (ex: "01/2025")
   metadata?: Record<string, any>; // Slots de informação do PDF
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkflowGroup {
+  id: string;
+  organization_id: string;
+  group_id: string; // ID do grupo na Evolution API
+  group_name: string;
+  instance_id: string;
+  participant_count?: number | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyAttachment {
+  month_reference: string; // Formato MM/YYYY
+  file: File;
 }
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "skipped";
@@ -96,6 +114,8 @@ export interface WorkflowEnvio {
   name: string;
   workflow_type: string;
   recipient_mode: "list" | "single";
+  recipient_type?: "list" | "single" | "group"; // Novo campo
+  group_id?: string | null; // Novo campo
   periodicity: WorkflowPeriodicity;
   days_of_week?: string[] | null;
   day_of_month?: number | null;
@@ -118,6 +138,7 @@ export interface WorkflowEnvio {
   requires_approval?: boolean;
   approval_deadline_hours?: number | null;
   list?: WorkflowList | null;
+  group?: WorkflowGroup | null; // Novo campo
   attachments?: WorkflowAttachment[];
   contact_attachments?: WorkflowContactAttachment[];
   template?: WorkflowTemplateRef | null;
@@ -134,9 +155,11 @@ export interface WorkflowFormValues {
   id?: string;
   name: string;
   workflow_type: string;
-  recipientMode: "list" | "single";
+  recipientMode: "list" | "single" | "group"; // Adicionado "group"
+  recipient_type?: "list" | "single" | "group"; // Novo campo
   workflow_list_id?: string;
   single_lead_id?: string;
+  group_id?: string; // Novo campo
   default_instance_id?: string;
   periodicity: WorkflowPeriodicity;
   days_of_week: string[];
@@ -157,8 +180,9 @@ export interface WorkflowFormValues {
   requires_approval?: boolean;
   approval_deadline_hours?: number | null;
   attachments?: WorkflowAttachment[];
-  contact_attachments?: Record<string, File>; // lead_id -> File
+  contact_attachments?: Record<string, File>; // lead_id -> File (para anexos gerais)
   contact_attachments_metadata?: Record<string, Record<string, any>>; // lead_id -> metadata
+  monthly_attachments?: Record<string, MonthlyAttachment[]>; // lead_id -> [{month_reference, file}]
 }
 
 export interface LeadOption {

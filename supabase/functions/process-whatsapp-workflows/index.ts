@@ -25,6 +25,8 @@ interface Workflow {
   default_instance_id: string | null;
   name: string;
   workflow_type: string;
+  recipient_type: "list" | "single" | "group" | null;
+  group_id: string | null;
   periodicity: "daily" | "weekly" | "biweekly" | "monthly" | "custom";
   days_of_week: string[] | null;
   day_of_month: number | null;
@@ -46,7 +48,19 @@ interface Workflow {
     contacts: WorkflowContact[] | null;
     default_instance_id: string | null;
   } | null;
+  group?: {
+    group_id: string;
+    group_name: string;
+    instance_id: string;
+  } | null;
   attachments: { file_url: string; file_type: string | null }[];
+  contact_attachments?: {
+    lead_id: string;
+    contact_phone: string;
+    file_url: string;
+    file_type: string | null;
+    month_reference: string | null;
+  }[];
   template?: {
     content: string;
     media_url: string | null;
@@ -77,7 +91,9 @@ serve(async (req) => {
         `
           *,
           list:whatsapp_workflow_lists (contacts, default_instance_id),
+          group:whatsapp_workflow_groups (group_id, group_name, instance_id),
           attachments:whatsapp_workflow_attachments (file_url, file_type),
+          contact_attachments:whatsapp_workflow_contact_attachments (lead_id, contact_phone, file_url, file_type, month_reference),
           template:message_templates (content, media_url, media_type)
         `,
       )
@@ -100,7 +116,15 @@ serve(async (req) => {
 
     let processed = 0;
     for (const workflow of workflows as unknown as Workflow[]) {
-      const contacts = normalizeContacts(workflow);
+      let contacts: WorkflowContact[] = [];
+      
+      // Buscar contatos baseado no tipo de destinatário
+      if (workflow.recipient_type === "group" && workflow.group) {
+        contacts = await fetchGroupParticipants(workflow.group, supabase);
+      } else {
+        contacts = normalizeContacts(workflow);
+      }
+
       if (contacts.length === 0) {
         await supabase
           .from("whatsapp_workflows")
@@ -120,35 +144,65 @@ serve(async (req) => {
         workflow,
         new Date(workflow.next_run_at!),
       );
-      const attachments = workflow.attachments ?? [];
+      const generalAttachments = workflow.attachments ?? [];
+      const contactAttachments = workflow.contact_attachments ?? [];
 
       for (const contact of contacts) {
-        if (!contact.lead_id || !contact.phone) continue;
+        if (!contact.phone) continue;
 
         const instanceId =
           contact.instance_id ||
           workflow.default_instance_id ||
-          workflow.list?.default_instance_id;
+          workflow.list?.default_instance_id ||
+          workflow.group?.instance_id;
 
         if (!instanceId) continue;
 
         const personalizedMessage = resolveMessageBody(workflow, contact);
         if (!personalizedMessage) continue;
 
-        const attachment = attachments[0];
-        await supabase.from("scheduled_messages").insert({
-          user_id: workflow.created_by,
-          organization_id: workflow.organization_id,
-          lead_id: contact.lead_id,
-          instance_id: instanceId,
-          phone: contact.phone,
-          message: personalizedMessage,
-          media_url: attachment?.file_url ?? null,
-          media_type: attachment?.file_type ?? null,
-          scheduled_for: scheduledFor.toISOString(),
-          status: "pending",
-          workflow_id: workflow.id,
-        });
+        // Buscar anexos específicos do contato (por mês se houver)
+        const contactSpecificAttachments = contact.lead_id
+          ? contactAttachments.filter(
+              (att) => att.lead_id === contact.lead_id && att.month_reference
+            )
+          : [];
+
+        // Se houver anexos por mês, enviar uma mensagem para cada mês/anexo
+        if (contactSpecificAttachments.length > 0) {
+          // Enviar todos os anexos correspondentes aos meses em aberto
+          for (const attachment of contactSpecificAttachments) {
+            await supabase.from("scheduled_messages").insert({
+              user_id: workflow.created_by,
+              organization_id: workflow.organization_id,
+              lead_id: contact.lead_id || null,
+              instance_id: instanceId,
+              phone: contact.phone,
+              message: personalizedMessage,
+              media_url: attachment.file_url,
+              media_type: attachment.file_type,
+              scheduled_for: scheduledFor.toISOString(),
+              status: "pending",
+              workflow_id: workflow.id,
+            });
+          }
+        } else {
+          // Se não houver anexos por mês, usar anexo geral ou primeiro anexo geral
+          const generalAttachment = generalAttachments[0] || null;
+          await supabase.from("scheduled_messages").insert({
+            user_id: workflow.created_by,
+            organization_id: workflow.organization_id,
+            lead_id: contact.lead_id || null,
+            instance_id: instanceId,
+            phone: contact.phone,
+            message: personalizedMessage,
+            media_url: generalAttachment?.file_url ?? null,
+            media_type: generalAttachment?.file_type ?? null,
+            scheduled_for: scheduledFor.toISOString(),
+            status: "pending",
+            workflow_id: workflow.id,
+          });
+        }
       }
 
       const nextRun = calculateNextRun(workflow);
@@ -195,7 +249,79 @@ function normalizeContacts(workflow: Workflow): WorkflowContact[] {
       instance_id: contact.instance_id ?? null,
       variables: contact.variables ?? {},
     }))
-    .filter((contact) => contact.lead_id && contact.phone) as WorkflowContact[];
+    .filter((contact) => contact.phone) as WorkflowContact[];
+}
+
+async function fetchGroupParticipants(
+  group: { group_id: string; group_name: string; instance_id: string },
+  supabase: any,
+): Promise<WorkflowContact[]> {
+  try {
+    // Buscar configuração da instância
+    const { data: instanceConfig, error: instanceError } = await supabase
+      .from("evolution_config")
+      .select("api_url, api_key, instance_name")
+      .eq("id", group.instance_id)
+      .single();
+
+    if (instanceError || !instanceConfig) {
+      console.error(`[grupo ${group.group_id}] Instância não encontrada`);
+      return [];
+    }
+
+    // Buscar participantes do grupo via Evolution API
+    const baseUrl = instanceConfig.api_url.replace(/\/$/, "").replace(/\/(manager|dashboard|app)$/, "");
+    // Tentar diferentes endpoints possíveis
+    const endpoints = [
+      `${baseUrl}/group/participants/${instanceConfig.instance_name}/${group.group_id}`,
+      `${baseUrl}/${instanceConfig.instance_name}/group/participants/${group.group_id}`,
+      `${baseUrl}/group/${instanceConfig.instance_name}/participants/${group.group_id}`,
+    ];
+
+    let participants: any[] = [];
+    for (const apiUrl of endpoints) {
+      try {
+        const response = await fetch(apiUrl, {
+          method: "GET",
+          headers: {
+            apikey: instanceConfig.api_key || "",
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const data = await response.json();
+        participants = Array.isArray(data) ? data : data.participants || data.data || [];
+        if (participants.length > 0) {
+          break;
+        }
+      } catch (endpointError) {
+        continue;
+      }
+    }
+
+    if (participants.length === 0) {
+      console.error(`[grupo ${group.group_id}] Nenhum participante encontrado ou endpoint inválido`);
+      return [];
+    }
+
+    // Converter participantes em WorkflowContact
+    return participants
+      .map((p: any) => ({
+        lead_id: null, // Grupos não têm lead_id
+        phone: p.id || p.phone || null,
+        name: p.name || p.pushName || group.group_name,
+        instance_id: group.instance_id,
+        variables: {},
+      }))
+      .filter((c: WorkflowContact) => c.phone) as WorkflowContact[];
+  } catch (error) {
+    console.error(`[grupo ${group.group_id}] Erro ao buscar participantes:`, error);
+    return [];
+  }
 }
 
 function resolveMessageBody(

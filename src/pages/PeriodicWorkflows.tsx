@@ -20,8 +20,12 @@ import { useWhatsAppWorkflows } from "@/hooks/useWhatsAppWorkflows";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
-import { Plus } from "lucide-react";
+import { Plus, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useAsaasConfig } from "@/hooks/useAsaasConfig";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DEFAULT_FILTERS: FiltersState = {
   status: "all",
@@ -39,6 +43,8 @@ export default function PeriodicWorkflows() {
   const { configs: instances } = useEvolutionConfigs();
   const { templates } = useMessageTemplates();
   const { pendingApprovals } = useWorkflowApprovals();
+  const { config: asaasConfig, loading: loadingAsaas, saving: savingAsaas, saveConfig: saveAsaasConfig, testConnection } =
+    useAsaasConfig();
 
   const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [formOpen, setFormOpen] = useState(false);
@@ -169,6 +175,7 @@ export default function PeriodicWorkflows() {
                     </Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="asaas">Integração Asaas</TabsTrigger>
               </TabsList>
               <TabsContent value="workflows" className="space-y-6 mt-6">
                 <WorkflowFilters
@@ -189,6 +196,95 @@ export default function PeriodicWorkflows() {
               </TabsContent>
               <TabsContent value="approvals" className="mt-6">
                 <WorkflowApprovalQueue />
+              </TabsContent>
+              <TabsContent value="asaas" className="mt-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <h3 className="font-semibold flex items-center gap-2 text-sm">
+                      <Link2 className="h-4 w-4" />
+                      Configuração da API Asaas
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Informe a chave de API do Asaas e o ambiente (sandbox ou produção). Esses dados
+                      serão usados para gerar cobranças de boleto nos fluxos de cobrança.
+                    </p>
+                    <form
+                      className="space-y-4"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        const formData = new FormData(event.currentTarget);
+                        const environment = formData.get("environment") as "sandbox" | "production";
+                        const api_key = String(formData.get("api_key") || "");
+                        const base_url = String(formData.get("base_url") || "");
+                        await saveAsaasConfig({ environment, api_key, base_url });
+                      }}
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor="asaas-environment">Ambiente</Label>
+                        <Select
+                          name="environment"
+                          defaultValue={asaasConfig?.environment || "sandbox"}
+                        >
+                          <SelectTrigger id="asaas-environment">
+                            <SelectValue placeholder="Selecione o ambiente" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sandbox">Sandbox (teste)</SelectItem>
+                            <SelectItem value="production">Produção</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="asaas-api-key">API Key Asaas</Label>
+                        <Input
+                          id="asaas-api-key"
+                          name="api_key"
+                          type="password"
+                          placeholder="Cole aqui a API Key do Asaas"
+                          defaultValue={asaasConfig?.api_key || ""}
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          A chave será armazenada por organização. Não compartilhe com terceiros.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="asaas-base-url">Base URL</Label>
+                        <Input
+                          id="asaas-base-url"
+                          name="base_url"
+                          type="text"
+                          defaultValue={asaasConfig?.base_url || "https://www.asaas.com/api/v3"}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="submit" disabled={savingAsaas || loadingAsaas}>
+                          {savingAsaas ? "Salvando..." : "Salvar configuração"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!asaasConfig || loadingAsaas}
+                          onClick={() => testConnection()}
+                        >
+                          Testar conexão
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                  <div className="space-y-3 text-xs text-muted-foreground">
+                    <h4 className="font-semibold text-sm">Como obter a API Key do Asaas</h4>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Acesse o painel do Asaas</li>
+                      <li>Vá em Configurações &gt; Integrações &gt; API</li>
+                      <li>Copie a API Key (sandbox ou produção)</li>
+                      <li>Cole neste formulário e salve</li>
+                    </ol>
+                    <p>
+                      Depois de configurar, os fluxos de cobrança poderão buscar e gerar boletos automaticamente
+                      usando a API do Asaas, mantendo os dados separados por organização.
+                    </p>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -23,6 +23,7 @@ interface PersistWorkflowArgs extends WorkflowFormValues {
   attachmentsToRemove?: string[];
   contact_attachments?: Record<string, File>;
   contact_attachments_metadata?: Record<string, Record<string, any>>;
+  monthly_attachments?: Record<string, { month_reference: string; file: File }[]>;
 }
 
 export function useWhatsAppWorkflows() {
@@ -42,7 +43,9 @@ export function useWhatsAppWorkflows() {
           `
             *,
             list:whatsapp_workflow_lists(*),
+            group:whatsapp_workflow_groups(*),
             attachments:whatsapp_workflow_attachments(*),
+            contact_attachments:whatsapp_workflow_contact_attachments(*),
             template:message_templates(id, name, content, media_url, media_type)
           `,
         )
@@ -141,6 +144,8 @@ export function useWhatsAppWorkflows() {
       name: values.name,
       workflow_type: values.workflow_type,
       recipient_mode: values.recipientMode,
+      recipient_type: values.recipient_type || values.recipientMode,
+      group_id: values.group_id || null,
       periodicity: values.periodicity,
       days_of_week: values.days_of_week,
       day_of_month: values.day_of_month || null,
@@ -206,14 +211,69 @@ export function useWhatsAppWorkflows() {
             file_name: file.name,
             file_type: file.type || null,
             file_size: file.size,
+            month_reference: null, // Anexo geral (não específico de mês)
             metadata,
           },
           {
             onConflict: "workflow_id,lead_id,contact_phone",
+            ignoreDuplicates: false,
           },
         );
 
       if (error) throw error;
+    }
+  };
+
+  const persistMonthlyAttachments = async (
+    workflowId: string,
+    monthlyAttachments: Record<string, { month_reference: string; file: File }[]> | undefined,
+    listContacts: any[],
+  ) => {
+    if (!monthlyAttachments || !activeOrgId || Object.keys(monthlyAttachments).length === 0) return;
+
+    for (const [leadId, attachments] of Object.entries(monthlyAttachments)) {
+      const contact = listContacts.find((c) => c.lead_id === leadId);
+      if (!contact) continue;
+
+      for (const { month_reference, file } of attachments) {
+        const path = `${activeOrgId}/${workflowId}/contacts/${leadId}/${month_reference.replace(/\//g, '-')}/${crypto.randomUUID()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_ID)
+          .upload(path, file, { upsert: false, cacheControl: "3600" });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrl } = supabase.storage
+          .from(BUCKET_ID)
+          .getPublicUrl(path);
+        const fileUrl = publicUrl.publicUrl;
+
+        // Verificar se já existe anexo para este mês e remover antes de inserir
+        await supabase
+          .from("whatsapp_workflow_contact_attachments")
+          .delete()
+          .eq("workflow_id", workflowId)
+          .eq("lead_id", leadId)
+          .eq("contact_phone", contact.phone)
+          .eq("month_reference", month_reference);
+
+        const { error } = await supabase
+          .from("whatsapp_workflow_contact_attachments")
+          .insert({
+            organization_id: activeOrgId,
+            workflow_id: workflowId,
+            lead_id: leadId,
+            contact_phone: contact.phone,
+            file_url: fileUrl,
+            file_name: file.name,
+            file_type: file.type || null,
+            file_size: file.size,
+            month_reference,
+            metadata: {},
+          });
+
+        if (error) throw error;
+      }
     }
   };
 
@@ -248,6 +308,16 @@ export function useWhatsAppWorkflows() {
           workflow.id,
           payload.contact_attachments,
           payload.contact_attachments_metadata,
+          contacts,
+        );
+      }
+
+      // Processar anexos por mês
+      if (payload.monthly_attachments && listData?.contacts) {
+        const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
+        await persistMonthlyAttachments(
+          workflow.id,
+          payload.monthly_attachments,
           contacts,
         );
       }
@@ -305,6 +375,16 @@ export function useWhatsAppWorkflows() {
           payload.id,
           payload.contact_attachments,
           payload.contact_attachments_metadata,
+          contacts,
+        );
+      }
+
+      // Processar anexos por mês
+      if (payload.monthly_attachments && listData?.contacts) {
+        const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
+        await persistMonthlyAttachments(
+          payload.id,
+          payload.monthly_attachments,
           contacts,
         );
       }

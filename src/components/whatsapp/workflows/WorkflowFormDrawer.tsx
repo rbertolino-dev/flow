@@ -27,6 +27,8 @@ import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { WorkflowListManager } from "./WorkflowListManager";
 import { WorkflowAttachmentsField } from "./WorkflowAttachmentsField";
 import { WorkflowContactAttachmentsField } from "./WorkflowContactAttachmentsField";
+import { WorkflowMonthlyAttachmentsField } from "./WorkflowMonthlyAttachmentsField";
+import { WorkflowGroupSelector } from "./WorkflowGroupSelector";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -78,8 +80,10 @@ const DEFAULT_FORM: WorkflowFormValues = {
   name: "",
   workflow_type: "cobranca",
   recipientMode: "list",
+  recipient_type: "list",
   workflow_list_id: undefined,
   single_lead_id: undefined,
+  group_id: undefined,
   default_instance_id: undefined,
   periodicity: "monthly",
   days_of_week: [],
@@ -129,6 +133,10 @@ export function WorkflowFormDrawer({
   const [attachmentsToRemove, setAttachmentsToRemove] = useState<string[]>([]);
   const [contactFiles, setContactFiles] = useState<Record<string, File>>({});
   const [contactMetadata, setContactMetadata] = useState<Record<string, Record<string, any>>>({});
+  const [monthlyAttachments, setMonthlyAttachments] = useState<
+    Record<string, { month_reference: string; file: File }[]>
+  >({});
+  const [selectedMonths, setSelectedMonths] = useState<Record<string, string[]>>({});
   const [listManagerOpen, setListManagerOpen] = useState(false);
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -218,6 +226,40 @@ export function WorkflowFormDrawer({
       return;
     }
 
+    if (values.recipientMode === "group" && !values.group_id) {
+      toast({
+        title: "Selecione um grupo",
+        description: "Escolha um grupo de WhatsApp para o workflow.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validação de anexos por mês para cobranças
+    if (values.workflow_type === "cobranca" && values.recipientMode === "list" && values.workflow_list_id) {
+      const months = selectedMonths;
+      const attachments = monthlyAttachments;
+      
+      for (const leadId of Object.keys(months)) {
+        const contactMonths = months[leadId] || [];
+        if (contactMonths.length > 0) {
+          for (const monthRef of contactMonths) {
+            const hasAttachment = attachments[leadId]?.some(
+              (a) => a.month_reference === monthRef
+            );
+            if (!hasAttachment) {
+              toast({
+                title: "Anexos obrigatórios",
+                description: `Falta anexo para o mês ${monthRef} em pelo menos um contato.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+        }
+      }
+    }
+
     if (
       values.template_mode === "existing" &&
       !values.message_template_id
@@ -260,6 +302,7 @@ export function WorkflowFormDrawer({
           workflow_list_id: workflowListId!,
           contact_attachments: contactFiles,
           contact_attachments_metadata: contactMetadata,
+          monthly_attachments: monthlyAttachments,
         },
         {
           attachmentsToUpload: pendingFiles,
@@ -365,16 +408,28 @@ export function WorkflowFormDrawer({
 
               <Select
                 value={values.recipientMode}
-                onValueChange={(value) =>
-                  handleChange("recipientMode", value as WorkflowFormValues["recipientMode"])
-                }
+                onValueChange={(value) => {
+                  handleChange("recipientMode", value as WorkflowFormValues["recipientMode"]);
+                  handleChange("recipient_type", value as "list" | "single" | "group");
+                  // Limpar seleções ao mudar o modo
+                  if (value !== "list") {
+                    handleChange("workflow_list_id", undefined);
+                  }
+                  if (value !== "single") {
+                    handleChange("single_lead_id", undefined);
+                  }
+                  if (value !== "group") {
+                    handleChange("group_id", undefined);
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Modo de destinatário" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="list">Usar lista/grupo</SelectItem>
+                  <SelectItem value="list">Usar lista</SelectItem>
                   <SelectItem value="single">Cliente individual</SelectItem>
+                  <SelectItem value="group">Grupo de WhatsApp</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -412,6 +467,15 @@ export function WorkflowFormDrawer({
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+
+              {values.recipientMode === "group" && (
+                <WorkflowGroupSelector
+                  instanceId={values.default_instance_id}
+                  instances={instances}
+                  selectedGroupId={values.group_id}
+                  onGroupSelect={(groupId) => handleChange("group_id", groupId)}
+                />
               )}
 
               {selectedList && (
@@ -656,25 +720,56 @@ export function WorkflowFormDrawer({
 
             {values.workflow_list_id && listContacts.length > 0 && (
               <section className="space-y-3">
-                <WorkflowContactAttachmentsField
-                  contacts={listContacts}
-                  contactFiles={contactFiles}
-                  contactMetadata={contactMetadata}
-                  onFileChange={(leadId, file) => {
-                    if (file) {
-                      setContactFiles((prev) => ({ ...prev, [leadId]: file }));
-                    } else {
-                      setContactFiles((prev) => {
-                        const newFiles = { ...prev };
-                        delete newFiles[leadId];
-                        return newFiles;
+                {values.workflow_type === "cobranca" ? (
+                  <WorkflowMonthlyAttachmentsField
+                    contacts={listContacts}
+                    monthlyAttachments={monthlyAttachments}
+                    selectedMonths={selectedMonths}
+                    onMonthToggle={(leadId, monthRef) => {
+                      setSelectedMonths((prev) => {
+                        const current = prev[leadId] || [];
+                        const isSelected = current.includes(monthRef);
+                        return {
+                          ...prev,
+                          [leadId]: isSelected
+                            ? current.filter((m) => m !== monthRef)
+                            : [...current, monthRef],
+                        };
                       });
-                    }
-                  }}
-                  onMetadataChange={(leadId, metadata) => {
-                    setContactMetadata((prev) => ({ ...prev, [leadId]: metadata }));
-                  }}
-                />
+                    }}
+                    onFileChange={(leadId, monthRef, file) => {
+                      setMonthlyAttachments((prev) => {
+                        const current = prev[leadId] || [];
+                        const filtered = current.filter((a) => a.month_reference !== monthRef);
+                        return {
+                          ...prev,
+                          [leadId]: file ? [...filtered, { month_reference: monthRef, file }] : filtered,
+                        };
+                      });
+                    }}
+                    workflowType={values.workflow_type}
+                  />
+                ) : (
+                  <WorkflowContactAttachmentsField
+                    contacts={listContacts}
+                    contactFiles={contactFiles}
+                    contactMetadata={contactMetadata}
+                    onFileChange={(leadId, file) => {
+                      if (file) {
+                        setContactFiles((prev) => ({ ...prev, [leadId]: file }));
+                      } else {
+                        setContactFiles((prev) => {
+                          const newFiles = { ...prev };
+                          delete newFiles[leadId];
+                          return newFiles;
+                        });
+                      }
+                    }}
+                    onMetadataChange={(leadId, metadata) => {
+                      setContactMetadata((prev) => ({ ...prev, [leadId]: metadata }));
+                    }}
+                  />
+                )}
               </section>
             )}
 
@@ -762,9 +857,11 @@ function transformWorkflowToForm(workflow: WorkflowEnvio): WorkflowFormValues {
     id: workflow.id,
     name: workflow.name,
     workflow_type: workflow.workflow_type,
-    recipientMode: workflow.recipient_mode,
+    recipientMode: (workflow.recipient_type || workflow.recipient_mode) as "list" | "single" | "group",
+    recipient_type: workflow.recipient_type || workflow.recipient_mode,
     workflow_list_id: workflow.workflow_list_id,
     single_lead_id: undefined,
+    group_id: workflow.group_id || undefined,
     default_instance_id: workflow.default_instance_id || undefined,
     periodicity: workflow.periodicity,
     days_of_week: workflow.days_of_week || [],
