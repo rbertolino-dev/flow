@@ -62,6 +62,44 @@ export type Database = {
           },
         ]
       }
+      asaas_configs: {
+        Row: {
+          api_key: string
+          base_url: string
+          created_at: string
+          environment: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          base_url: string
+          created_at?: string
+          environment: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          base_url?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auth_audit_logs: {
         Row: {
           created_at: string
@@ -1599,6 +1637,57 @@ export type Database = {
             columns: ["workflow_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_workflow_groups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          group_id: string
+          group_name: string
+          id: string
+          instance_id: string
+          organization_id: string
+          participant_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          group_id: string
+          group_name: string
+          id?: string
+          instance_id: string
+          organization_id: string
+          participant_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          group_id?: string
+          group_name?: string
+          id?: string
+          instance_id?: string
+          organization_id?: string
+          participant_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_workflow_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_workflow_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
