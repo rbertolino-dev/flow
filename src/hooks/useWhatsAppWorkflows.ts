@@ -43,7 +43,6 @@ export function useWhatsAppWorkflows() {
           `
             *,
             list:whatsapp_workflow_lists(*),
-            group:whatsapp_workflow_groups(*),
             attachments:whatsapp_workflow_attachments(*),
             contact_attachments:whatsapp_workflow_contact_attachments(*),
             template:message_templates(id, name, content, media_url, media_type)
@@ -249,13 +248,12 @@ export function useWhatsAppWorkflows() {
         const fileUrl = publicUrl.publicUrl;
 
         // Verificar se já existe anexo para este mês e remover antes de inserir
-        await supabase
+        const { error: deleteError } = await supabase
           .from("whatsapp_workflow_contact_attachments")
           .delete()
           .eq("workflow_id", workflowId)
           .eq("lead_id", leadId)
-          .eq("contact_phone", contact.phone)
-          .eq("month_reference", month_reference);
+          .eq("contact_phone", contact.phone);
 
         const { error } = await supabase
           .from("whatsapp_workflow_contact_attachments")

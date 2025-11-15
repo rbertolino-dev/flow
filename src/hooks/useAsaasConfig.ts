@@ -126,30 +126,25 @@ export function useAsaasConfig() {
     }
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-create-charge`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      const { data, error } = await supabase.functions.invoke("asaas-create-charge", {
+        body: {
+          organizationId: activeOrgId,
+          customer: {
+            name: "Teste Conexão",
           },
-          body: JSON.stringify({
-            organizationId: activeOrgId,
-            customer: {
-              name: "Teste Conexão",
-            },
-            payment: {
-              value: 1,
-              dueDate: new Date().toISOString().slice(0, 10),
-              description: "Teste de conexão Asaas",
-            },
-          }),
+          payment: {
+            value: 1,
+            dueDate: new Date().toISOString().slice(0, 10),
+            description: "Teste de conexão Asaas",
+          },
         },
-      );
+      });
 
-      const data = await response.json();
-      if (!response.ok || !data?.success) {
+      if (error) {
+        throw new Error(error.message || "Falha ao testar integração Asaas");
+      }
+
+      if (!data?.success) {
         throw new Error(data?.error || "Falha ao testar integração Asaas");
       }
 
