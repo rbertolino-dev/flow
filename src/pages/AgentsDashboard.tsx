@@ -374,13 +374,15 @@ const AgentsDashboard = () => {
         </Dialog>
       </div>
 
-      <Card className="border-blue-200 bg-blue-50">
+      <Card className="border-blue-200 bg-blue-50 shadow-md">
         <CardHeader>
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 mt-1" />
-            <div className="space-y-2">
-              <CardTitle className="text-blue-900">Como funciona a integração?</CardTitle>
-              <CardDescription className="text-blue-800">
+            <div className="rounded-full bg-blue-100 p-2">
+              <Info className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="space-y-2 flex-1">
+              <CardTitle className="text-blue-900 text-lg">📖 Como funciona a integração?</CardTitle>
+              <CardDescription className="text-blue-800 text-sm">
                 <div className="space-y-3">
                   <div>
                     <p className="font-medium mb-1">1️⃣ Criar Agente</p>
