@@ -30,11 +30,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-
-    if (!openaiKey) {
-      throw new Error("OPENAI_API_KEY não configurada");
-    }
 
     const { data: agent, error: agentError } = await supabase
       .from("agents")
@@ -45,6 +40,24 @@ serve(async (req) => {
     if (agentError || !agent) {
       throw new Error(agentError?.message || "Agente não encontrado");
     }
+
+    // Buscar a chave OpenAI da organização
+    const { data: openaiConfig, error: configError } = await supabase
+      .from("openai_configs")
+      .select("api_key")
+      .eq("organization_id", agent.organization_id)
+      .maybeSingle();
+
+    if (configError) {
+      console.error("[agents-sync-openai] Erro ao buscar config OpenAI:", configError);
+      throw new Error("Erro ao buscar configuração OpenAI");
+    }
+
+    if (!openaiConfig?.api_key) {
+      throw new Error("OPENAI_API_KEY não configurada para esta organização. Configure em Agentes > Configurar OpenAI");
+    }
+
+    const openaiKey = openaiConfig.api_key;
 
     const personaBlock = agent.persona
       ? `Persona:\n${JSON.stringify(agent.persona)}`
