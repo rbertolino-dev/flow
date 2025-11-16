@@ -71,25 +71,37 @@ export function WorkflowGroupSelector({
 
     setIsLoadingGroups(true);
     try {
-      // Passa o termo de busca para a API
-      const groups = await fetchGroupsFromEvolution(selectedInstance, searchTerm);
-      setAvailableGroups(groups);
+      // Busca todos os grupos da instância
+      const allGroups = await fetchGroupsFromEvolution(selectedInstance);
       
-      if (groups.length === 0) {
+      // Filtra localmente (case-insensitive)
+      const searchLower = searchTerm.toLowerCase().trim();
+      const filtered = allGroups.filter((group) => {
+        const subjectMatch = group.subject?.toLowerCase().includes(searchLower);
+        const idMatch = group.id.toLowerCase().includes(searchLower);
+        return subjectMatch || idMatch;
+      });
+      
+      setAvailableGroups(filtered);
+      
+      console.log(`🔍 Busca por "${searchTerm}": ${filtered.length} de ${allGroups.length} grupos encontrados`);
+      
+      if (filtered.length === 0) {
         toast({
           title: "Nenhum grupo encontrado",
-          description: `Não foram encontrados grupos com o termo "${searchTerm}".`,
+          description: `Não foram encontrados grupos com "${searchTerm}" entre ${allGroups.length} grupos disponíveis.`,
         });
       } else {
         toast({
           title: "Grupos encontrados",
-          description: `${groups.length} grupo(s) encontrado(s).`,
+          description: `${filtered.length} grupo(s) encontrado(s).`,
         });
       }
     } catch (error: any) {
+      console.error("❌ Erro ao buscar grupos:", error);
       toast({
         title: "Erro ao buscar grupos",
-        description: error.message,
+        description: error.message || "Erro desconhecido ao buscar grupos.",
         variant: "destructive",
       });
       setAvailableGroups([]);
@@ -135,7 +147,7 @@ export function WorkflowGroupSelector({
       <CardHeader>
         <CardTitle className="text-lg">Selecionar Grupo de WhatsApp</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Digite parte do nome do grupo e clique em "Buscar". Quanto mais específico o termo, mais rápida será a busca.
+          Digite parte do nome do grupo (ex: "M20", "Marketing", "Vendas") e clique em "Buscar".
         </p>
       </CardHeader>
       <CardContent className="space-y-4">

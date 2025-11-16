@@ -37,17 +37,16 @@ export function useWorkflowGroups(instanceId?: string) {
     },
   });
 
-  // Buscar grupos da Evolution API com termo de busca opcional
+  // Buscar grupos da Evolution API (retorna todos os grupos)
   const fetchGroupsFromEvolution = async (
-    instance: EvolutionConfig,
-    searchTerm?: string
+    instance: EvolutionConfig
   ): Promise<EvolutionGroup[]> => {
     console.log("🔍 Buscando grupos da instância:", instance.instance_name);
     
     const endpoints = [
-      `${instance.api_url}/group/fetchAllGroups/${instance.instance_name}`,
-      `${instance.api_url}/${instance.instance_name}/group/fetchAllGroups`,
-      `${instance.api_url}/group/${instance.instance_name}/fetchAllGroups`,
+      `${instance.api_url}/group/fetchAllGroups/${instance.instance_name}?getParticipants=true`,
+      `${instance.api_url}/${instance.instance_name}/group/fetchAllGroups?getParticipants=true`,
+      `${instance.api_url}/group/${instance.instance_name}/fetchAllGroups?getParticipants=true`,
     ];
 
     console.log("📡 Endpoints que serão testados:", endpoints);
@@ -60,35 +59,27 @@ export function useWorkflowGroups(instanceId?: string) {
       headers["apikey"] = instance.api_key;
     }
 
-    // Adicionar timeout de 15 segundos
+    // Timeout de 20 segundos
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Timeout: A busca demorou muito. Tente usar um termo mais específico.")), 15000);
+      setTimeout(() => reject(new Error("Timeout: A busca demorou muito. A instância pode ter muitos grupos.")), 20000);
     });
 
     for (const endpoint of endpoints) {
       try {
         console.log(`🌐 Tentando endpoint: ${endpoint}`);
-        
-        // URL com parâmetros de busca
-        const url = new URL(endpoint);
-        url.searchParams.append('getParticipants', 'true');
-        if (searchTerm && searchTerm.trim()) {
-          url.searchParams.append('search', searchTerm.trim());
-        }
 
-        const fetchPromise = fetch(url.toString(), {
+        const fetchPromise = fetch(endpoint, {
           method: "GET",
           headers,
         });
 
-        // Aplicar timeout
         const response = await Promise.race([fetchPromise, timeoutPromise]);
 
         console.log(`📥 Status da resposta: ${response.status}`);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.log(`❌ Erro na resposta: ${errorText}`);
+          console.log(`❌ Erro na resposta (${response.status}): ${errorText}`);
           continue;
         }
 
@@ -108,21 +99,21 @@ export function useWorkflowGroups(instanceId?: string) {
         }
 
         if (groups.length > 0) {
-          console.log(`✅ ${groups.length} grupos encontrados!`);
+          console.log(`✅ ${groups.length} grupos encontrados no total!`);
           return groups;
         } else {
           console.warn(`⚠️ Endpoint retornou sucesso mas sem grupos`);
         }
       } catch (error: any) {
         if (error.message.includes("Timeout")) {
-          throw error; // Propagar erro de timeout
+          throw error;
         }
-        console.log(`❌ Erro ao tentar endpoint ${endpoint}:`, error);
+        console.log(`❌ Erro ao tentar endpoint ${endpoint}:`, error.message);
         continue;
       }
     }
 
-    throw new Error("Não foi possível buscar os grupos. Tente usar um termo de busca mais específico.");
+    throw new Error("Não foi possível buscar os grupos. Verifique se a instância está conectada e tente novamente.");
   };
 
   // Criar ou obter grupo (registro inteligente)
