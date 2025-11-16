@@ -1,0 +1,165 @@
+import { supabase } from "@/integrations/supabase/client";
+import type {
+  Agent,
+  AgentUsageMetric,
+  AgentVersion,
+  CreateAgentPayload,
+  UpdateAgentPayload,
+} from "@/types/agents";
+
+type SyncTarget = "openai" | "evolution";
+
+const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
+  const functionName =
+    target === "openai" ? "agents-sync-openai" : "agents-sync-evolution";
+
+  const { data, error } = await supabase.functions.invoke(functionName, {
+    body: { agentId },
+  });
+
+  if (error) {
+    throw new Error(
+      error.message || `Falha ao sincronizar agente (${target}).`
+    );
+  }
+  return data;
+};
+
+export const AgentManager = {
+  async listAgents(organizationId: string): Promise<Agent[]> {
+    const { data, error } = await supabase
+      .from("agents")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data || []) as Agent[];
+  },
+
+  async getAgent(agentId: string): Promise<Agent | null> {
+    const { data, error } = await supabase
+      .from("agents")
+      .select("*")
+      .eq("id", agentId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data as Agent) || null;
+  },
+
+  async createAgent(payload: CreateAgentPayload): Promise<Agent> {
+    const { data, error } = await supabase
+      .from("agents")
+      .insert({
+        ...payload,
+        status: "draft",
+        version: 1,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    await this.saveVersionSnapshot(data.id, 1, "Criação inicial");
+
+    return data as Agent;
+  },
+
+  async updateAgent(agentId: string, payload: UpdateAgentPayload) {
+    const { data, error } = await supabase
+      .from("agents")
+      .update(payload)
+      .eq("id", agentId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (payload.version) {
+      await this.saveVersionSnapshot(
+        agentId,
+        payload.version,
+        "Atualização de configuração"
+      );
+    }
+
+    return data as Agent;
+  },
+
+  async saveVersionSnapshot(
+    agentId: string,
+    version: number,
+    summary?: string
+  ) {
+    const agent = await this.getAgent(agentId);
+    if (!agent) return;
+
+    const snapshot = {
+      ...agent,
+      created_at: undefined,
+      updated_at: undefined,
+      openai_assistant_id: agent.openai_assistant_id,
+    };
+
+    const { error } = await supabase.from("agent_versions").insert({
+      agent_id: agentId,
+      version,
+      snapshot,
+      change_summary: summary || null,
+    });
+
+    if (error) {
+      console.warn("[AgentManager] Falha ao salvar snapshot:", error.message);
+    }
+  },
+
+  async logUsage(
+    agentId: string,
+    metric: Omit<AgentUsageMetric, "id" | "created_at" | "agent_id">
+  ) {
+    const { error } = await supabase.from("agent_usage_metrics").upsert({
+      agent_id: agentId,
+      metric_date: metric.metric_date,
+      prompt_tokens: metric.prompt_tokens,
+      completion_tokens: metric.completion_tokens,
+      total_requests: metric.total_requests,
+      total_cost: metric.total_cost,
+      metadata: metric.metadata || {},
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  },
+
+  async syncWithOpenAI(agentId: string) {
+    return invokeAgentSync(agentId, "openai");
+  },
+
+  async syncWithEvolution(agentId: string) {
+    return invokeAgentSync(agentId, "evolution");
+  },
+
+  async listVersions(agentId: string): Promise<AgentVersion[]> {
+    const { data, error } = await supabase
+      .from("agent_versions")
+      .select("*")
+      .eq("agent_id", agentId)
+      .order("version", { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data || []) as AgentVersion[];
+  },
+};
+

@@ -15,6 +15,7 @@ import Diagnostics from "./pages/Diagnostics";
 import Organization from "./pages/Organization";
 import SuperAdmin from "./pages/SuperAdmin";
 import SuperAdminCosts from "./pages/SuperAdminCosts";
+import AgentsDashboard from "./pages/AgentsDashboard";
 import RLSDiagnostics from "./pages/RLSDiagnostics";
 import NovaFuncao from "./pages/NovaFuncao";
 import NotFound from "./pages/NotFound";
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/superadmin/costs" element={<SuperAdminCosts />} />
           <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
           <Route path="/lista-telefonica" element={<NovaFuncao />} />
+          <Route path="/agents" element={<AgentsDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

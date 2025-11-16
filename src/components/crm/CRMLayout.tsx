@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat } from "lucide-react";
+import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows";
-  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows") => void;
+  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents";
+  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows" | "agents") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -60,6 +60,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
+    { id: "agents" as const, label: "Agentes IA", icon: Bot },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
@@ -162,6 +163,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   window.location.href = '/lista-telefonica';
                 } else if (item.id === 'workflows') {
                   window.location.href = '/workflows';
+                } else if (item.id === 'agents') {
+                  window.location.href = '/agents';
                 } else {
                   onViewChange(item.id);
                 }
@@ -253,6 +256,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                             window.location.href = '/lista-telefonica';
                           } else if (item.id === 'workflows') {
                             window.location.href = '/workflows';
+                          } else if (item.id === 'agents') {
+                            window.location.href = '/agents';
                           } else {
                             onViewChange(item.id);
                           }

@@ -62,6 +62,181 @@ export type Database = {
           },
         ]
       }
+      agents: {
+        Row: {
+          allow_fallback: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          evolution_config_id: string | null
+          evolution_instance_id: string | null
+          id: string
+          language: string | null
+          metadata: Json | null
+          model: string | null
+          name: string
+          openai_assistant_id: string | null
+          organization_id: string
+          persona: Json | null
+          policies: Json | null
+          prompt_instructions: string | null
+          status: string
+          temperature: number | null
+          test_mode: boolean
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          allow_fallback?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          evolution_config_id?: string | null
+          evolution_instance_id?: string | null
+          id?: string
+          language?: string | null
+          metadata?: Json | null
+          model?: string | null
+          name: string
+          openai_assistant_id?: string | null
+          organization_id: string
+          persona?: Json | null
+          policies?: Json | null
+          prompt_instructions?: string | null
+          status?: string
+          temperature?: number | null
+          test_mode?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          allow_fallback?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          evolution_config_id?: string | null
+          evolution_instance_id?: string | null
+          id?: string
+          language?: string | null
+          metadata?: Json | null
+          model?: string | null
+          name?: string
+          openai_assistant_id?: string | null
+          organization_id?: string
+          persona?: Json | null
+          policies?: Json | null
+          prompt_instructions?: string | null
+          status?: string
+          temperature?: number | null
+          test_mode?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agents_evolution_config_id_fkey"
+            columns: ["evolution_config_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_usage_metrics: {
+        Row: {
+          agent_id: string
+          completion_tokens: number | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          metric_date: string
+          prompt_tokens: number | null
+          total_cost: number | null
+          total_requests: number | null
+          total_tokens: number | null
+        }
+        Insert: {
+          agent_id: string
+          completion_tokens?: number | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_date: string
+          prompt_tokens?: number | null
+          total_cost?: number | null
+          total_requests?: number | null
+          total_tokens?: number | null
+        }
+        Update: {
+          agent_id?: string
+          completion_tokens?: number | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_date?: string
+          prompt_tokens?: number | null
+          total_cost?: number | null
+          total_requests?: number | null
+          total_tokens?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_usage_metrics_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_versions: {
+        Row: {
+          agent_id: string
+          change_summary: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          agent_id: string
+          change_summary?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          agent_id?: string
+          change_summary?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_versions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asaas_configs: {
         Row: {
           api_key: string
