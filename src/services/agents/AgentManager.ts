@@ -27,7 +27,7 @@ const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
 
 export const AgentManager = {
   async listAgents(organizationId: string): Promise<Agent[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("agents")
       .select("*")
       .eq("organization_id", organizationId)
@@ -40,7 +40,7 @@ export const AgentManager = {
   },
 
   async getAgent(agentId: string): Promise<Agent | null> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("agents")
       .select("*")
       .eq("id", agentId)
@@ -58,7 +58,7 @@ export const AgentManager = {
       metadata: payload.metadata ? JSON.parse(JSON.stringify(payload.metadata)) : null,
     };
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("agents")
       .insert(insertPayload)
       .select()
@@ -79,7 +79,7 @@ export const AgentManager = {
       metadata: payload.metadata ? JSON.parse(JSON.stringify(payload.metadata)) : undefined,
     };
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("agents")
       .update(updatePayload)
       .eq("id", agentId)
@@ -116,7 +116,7 @@ export const AgentManager = {
       openai_assistant_id: agent.openai_assistant_id,
     };
 
-    const { error } = await supabase.from("agent_versions").insert({
+    const { error } = await (supabase as any).from("agent_versions").insert({
       agent_id: agentId,
       version,
       snapshot,
@@ -132,7 +132,7 @@ export const AgentManager = {
     agentId: string,
     metric: Omit<AgentUsageMetric, "id" | "created_at" | "agent_id">
   ) {
-    const { error } = await supabase.from("agent_usage_metrics").upsert({
+    const { error } = await (supabase as any).from("agent_usage_metrics").upsert({
       agent_id: agentId,
       metric_date: metric.metric_date,
       prompt_tokens: metric.prompt_tokens || 0,
@@ -156,7 +156,7 @@ export const AgentManager = {
   },
 
   async listVersions(agentId: string): Promise<AgentVersion[]> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("agent_versions")
       .select("*")
       .eq("agent_id", agentId)
