@@ -113,9 +113,8 @@ export interface WorkflowEnvio {
   default_instance_id?: string | null;
   name: string;
   workflow_type: string;
-  recipient_mode: "list" | "single";
-  recipient_type?: "list" | "single" | "group"; // Novo campo
-  group_id?: string | null; // Novo campo
+  recipient_mode: "list" | "single" | "group";
+  group_id?: string | null;
   periodicity: WorkflowPeriodicity;
   days_of_week?: string[] | null;
   day_of_month?: number | null;
@@ -155,11 +154,10 @@ export interface WorkflowFormValues {
   id?: string;
   name: string;
   workflow_type: string;
-  recipientMode: "list" | "single" | "group"; // Adicionado "group"
-  recipient_type?: "list" | "single" | "group"; // Novo campo
+  recipientMode: "list" | "single" | "group";
   workflow_list_id?: string;
   single_lead_id?: string;
-  group_id?: string; // Novo campo
+  group_id?: string;
   default_instance_id?: string;
   periodicity: WorkflowPeriodicity;
   days_of_week: string[];

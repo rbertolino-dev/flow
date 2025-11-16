@@ -147,7 +147,6 @@ export function useWhatsAppWorkflows() {
       name: values.name,
       workflow_type: values.workflow_type,
       recipient_mode: values.recipientMode,
-      recipient_type: values.recipient_type || values.recipientMode,
       group_id: values.group_id || null,
       periodicity: values.periodicity,
       days_of_week: values.days_of_week,
