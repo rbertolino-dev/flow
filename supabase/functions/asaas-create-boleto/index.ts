@@ -174,6 +174,8 @@ serve(async (req) => {
       );
     }
 
+    console.log("✅ Boleto criado no Asaas:", JSON.stringify(paymentData, null, 2));
+
     // 3) Gerar PDF do boleto
     let boleoPdfUrl: string | null = null;
     if (paymentData.id) {
@@ -188,12 +190,22 @@ serve(async (req) => {
         if (pdfRes.ok) {
           const pdfData = await pdfRes.json();
           boleoPdfUrl = pdfData.url || pdfData.data?.url || null;
+          console.log("📄 PDF URL gerada:", boleoPdfUrl);
+        } else {
+          console.warn("⚠️ Erro ao gerar PDF:", await pdfRes.text());
         }
       } catch (pdfError) {
         console.warn("Aviso: Não foi possível gerar PDF do boleto:", pdfError);
         // Continuar mesmo se falhar a geração do PDF
       }
     }
+
+    console.log("💾 Dados que serão salvos no banco:", {
+      boleto_url: paymentData.paymentLink,
+      boleto_pdf_url: boleoPdfUrl,
+      bankSlipUrl: paymentData.bankSlipUrl,
+      invoiceUrl: paymentData.invoiceUrl,
+    });
 
     // 4) Registrar boleto no banco de dados
     const { data: boletoRecord, error: insertError } = await supabase
