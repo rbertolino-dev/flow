@@ -1680,6 +1680,7 @@ export type Database = {
           id: string
           lead_id: string
           metadata: Json | null
+          month_reference: string | null
           organization_id: string
           updated_at: string
           workflow_id: string
@@ -1694,6 +1695,7 @@ export type Database = {
           id?: string
           lead_id: string
           metadata?: Json | null
+          month_reference?: string | null
           organization_id: string
           updated_at?: string
           workflow_id: string
@@ -1708,6 +1710,7 @@ export type Database = {
           id?: string
           lead_id?: string
           metadata?: Json | null
+          month_reference?: string | null
           organization_id?: string
           updated_at?: string
           workflow_id?: string
