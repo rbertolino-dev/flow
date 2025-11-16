@@ -45,7 +45,8 @@ import { MessageTemplate } from "@/hooks/useMessageTemplates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { Badge } from "@/components/ui/badge";
-import { Info } from "lucide-react";
+import { Info, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface WorkflowFormDrawerProps {
   open: boolean;
@@ -148,6 +149,11 @@ export function WorkflowFormDrawer({
   const [boletoValor, setBoletoValor] = useState("");
   const [boletoVencimento, setBoletoVencimento] = useState("");
   const [boletoDescricao, setBoletoDescricao] = useState("");
+  
+  // Estados para dialog de CPF/CNPJ
+  const [showCpfCnpjDialog, setShowCpfCnpjDialog] = useState(false);
+  const [leadsSemCpfCnpj, setLeadsSemCpfCnpj] = useState<Array<{ id: string; name: string; cpf_cnpj: string }>>([]);
+  const [cpfCnpjValues, setCpfCnpjValues] = useState<Record<string, string>>({});
 
   const existingAttachments = workflow?.attachments || [];
 
@@ -219,6 +225,53 @@ export function WorkflowFormDrawer({
 
   const handleMetadataChange = (leadId: string, metadata: Record<string, any>) => {
     setContactMetadata((prev) => ({ ...prev, [leadId]: metadata }));
+  };
+
+  const continueWorkflowSubmit = async () => {
+    // Esta função continua o submit após salvar CPF/CNPJ
+    try {
+      setIsSubmitting(true);
+      let workflowListId = values.workflow_list_id;
+      if (values.recipientMode === "single") {
+        const lead = leadOptions.find(
+          (item) => item.id === values.single_lead_id,
+        );
+        if (!lead) throw new Error("Cliente inválido");
+        workflowListId = await ensureSingleList({
+          leadId: lead.id,
+          leadName: lead.name,
+          phone: lead.phone,
+        });
+      }
+
+      await onSubmit(
+        {
+          ...values,
+          workflow_list_id: workflowListId!,
+          contact_attachments: contactFiles,
+          contact_attachments_metadata: contactMetadata,
+          monthly_attachments: monthlyAttachments,
+          // Passar dados do boleto para criação automática
+          gerar_boleto: gerarBoleto,
+          boleto_valor: gerarBoleto ? parseFloat(boletoValor) : undefined,
+          boleto_vencimento: gerarBoleto ? boletoVencimento : undefined,
+          boleto_descricao: gerarBoleto ? boletoDescricao : undefined,
+        },
+        {
+          attachmentsToUpload: pendingFiles,
+          attachmentsToRemove,
+        },
+      );
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar workflow",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -321,6 +374,54 @@ export function WorkflowFormDrawer({
           variant: "destructive",
         });
         return;
+      }
+
+      // Validação obrigatória de CPF/CNPJ - abrir dialog se faltar
+      if (values.recipientMode === "single" && selectedLead) {
+        // Para lead único, verificar se tem CPF/CNPJ
+        const { data: leadData } = await supabase
+          .from("leads")
+          .select("id, name, cpf_cnpj")
+          .eq("id", selectedLead.id)
+          .single();
+
+        if (!leadData?.cpf_cnpj || leadData.cpf_cnpj.trim() === "") {
+          // Abrir dialog para adicionar CPF/CNPJ
+          setLeadsSemCpfCnpj([{ id: leadData.id, name: leadData.name, cpf_cnpj: "" }]);
+          setCpfCnpjValues({ [leadData.id]: "" });
+          setShowCpfCnpjDialog(true);
+          return;
+        }
+      } else if (values.recipientMode === "list" && listContacts.length > 0) {
+        // Para lista, verificar todos os leads
+        const leadIds = listContacts
+          .map((c) => c.lead_id)
+          .filter((id): id is string => !!id);
+
+        if (leadIds.length > 0) {
+          const { data: leadsData } = await supabase
+            .from("leads")
+            .select("id, name, cpf_cnpj")
+            .in("id", leadIds);
+
+          if (leadsData) {
+            const leadsFaltando = leadsData.filter(
+              (lead) => !lead.cpf_cnpj || lead.cpf_cnpj.trim() === ""
+            );
+
+            if (leadsFaltando.length > 0) {
+              // Abrir dialog para adicionar CPF/CNPJ de todos os leads
+              setLeadsSemCpfCnpj(leadsFaltando.map(l => ({ id: l.id, name: l.name, cpf_cnpj: "" })));
+              const initialValues: Record<string, string> = {};
+              leadsFaltando.forEach(l => {
+                initialValues[l.id] = "";
+              });
+              setCpfCnpjValues(initialValues);
+              setShowCpfCnpjDialog(true);
+              return;
+            }
+          }
+        }
       }
     }
 
@@ -903,16 +1004,28 @@ export function WorkflowFormDrawer({
                             {selectedLead.phone && ` • ${selectedLead.phone}`}
                             <br />
                             <strong>Será gerado:</strong> 1 boleto para este cliente
+                            <br />
+                            <span className="text-orange-600 font-semibold">
+                              ⚠️ CPF/CNPJ é obrigatório para gerar boleto
+                            </span>
                           </>
                         ) : values.recipientMode === "list" && listContacts.length > 0 ? (
                           <>
                             <strong>Lista:</strong> {selectedList?.name}
                             <br />
                             <strong>Será gerado:</strong> {listContacts.length} boleto(s), um para cada cliente da lista
+                            <br />
+                            <span className="text-orange-600 font-semibold">
+                              ⚠️ Todos os clientes precisam ter CPF/CNPJ cadastrado
+                            </span>
                           </>
                         ) : values.recipientMode === "group" ? (
                           <>
                             <strong>Grupo:</strong> Boleto será gerado para os membros do grupo selecionado
+                            <br />
+                            <span className="text-orange-600 font-semibold">
+                              ⚠️ Todos os membros precisam ter CPF/CNPJ cadastrado
+                            </span>
                           </>
                         ) : (
                           "Selecione os clientes primeiro"
@@ -1005,6 +1118,130 @@ export function WorkflowFormDrawer({
             <DialogTitle>Templates de mensagem</DialogTitle>
           </DialogHeader>
           <MessageTemplateManager />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para adicionar CPF/CNPJ */}
+      <Dialog open={showCpfCnpjDialog} onOpenChange={setShowCpfCnpjDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              CPF/CNPJ Obrigatório para Gerar Boleto
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Para gerar boletos, é necessário cadastrar CPF ou CNPJ dos clientes abaixo.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            {leadsSemCpfCnpj.map((lead) => (
+              <div key={lead.id} className="space-y-2 p-3 border rounded-lg">
+                <Label className="text-sm font-semibold">
+                  {lead.name}
+                </Label>
+                <Input
+                  placeholder="Digite o CPF ou CNPJ (apenas números)"
+                  value={cpfCnpjValues[lead.id] || ""}
+                  onChange={(e) => {
+                    // Remover caracteres não numéricos
+                    const value = e.target.value.replace(/\D/g, "");
+                    setCpfCnpjValues((prev) => ({
+                      ...prev,
+                      [lead.id]: value,
+                    }));
+                  }}
+                  maxLength={18}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  CPF: 11 dígitos | CNPJ: 14 dígitos
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 justify-end mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCpfCnpjDialog(false);
+                setLeadsSemCpfCnpj([]);
+                setCpfCnpjValues({});
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                // Validar se todos os campos foram preenchidos
+                const todosPreenchidos = leadsSemCpfCnpj.every(
+                  (lead) => cpfCnpjValues[lead.id] && cpfCnpjValues[lead.id].trim() !== ""
+                );
+
+                if (!todosPreenchidos) {
+                  toast({
+                    title: "Campos obrigatórios",
+                    description: "Preencha o CPF/CNPJ de todos os clientes.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                // Validar formato (CPF: 11 dígitos, CNPJ: 14 dígitos)
+                const validos = leadsSemCpfCnpj.every((lead) => {
+                  const value = cpfCnpjValues[lead.id];
+                  return value.length === 11 || value.length === 14;
+                });
+
+                if (!validos) {
+                  toast({
+                    title: "CPF/CNPJ inválido",
+                    description: "CPF deve ter 11 dígitos e CNPJ deve ter 14 dígitos.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                try {
+                  // Atualizar todos os leads com CPF/CNPJ
+                  for (const lead of leadsSemCpfCnpj) {
+                    const { error } = await supabase
+                      .from("leads")
+                      .update({ cpf_cnpj: cpfCnpjValues[lead.id] })
+                      .eq("id", lead.id);
+
+                    if (error) {
+                      throw new Error(`Erro ao atualizar ${lead.name}: ${error.message}`);
+                    }
+                  }
+
+                  toast({
+                    title: "CPF/CNPJ cadastrado",
+                    description: "Os dados foram salvos com sucesso. Você pode continuar criando o workflow.",
+                  });
+
+                  // Fechar dialog
+                  setShowCpfCnpjDialog(false);
+                  const leadsSalvos = [...leadsSemCpfCnpj];
+                  setLeadsSemCpfCnpj([]);
+                  setCpfCnpjValues({});
+
+                  // Continuar com o submit do workflow
+                  // O CPF/CNPJ já foi salvo, então podemos continuar diretamente
+                  await continueWorkflowSubmit();
+                } catch (error: any) {
+                  toast({
+                    title: "Erro ao salvar CPF/CNPJ",
+                    description: error.message,
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Salvar e Continuar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

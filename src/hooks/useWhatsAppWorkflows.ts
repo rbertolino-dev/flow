@@ -140,15 +140,13 @@ export function useWhatsAppWorkflows() {
       timezone,
     ).toISOString();
 
-    return {
+    const payload: any = {
       organization_id: organizationId,
       workflow_list_id: values.workflow_list_id,
       default_instance_id: values.default_instance_id || null,
       name: values.name,
       workflow_type: values.workflow_type,
       recipient_mode: values.recipientMode,
-      recipient_type: values.recipient_type || values.recipientMode,
-      group_id: values.group_id || null,
       periodicity: values.periodicity,
       days_of_week: values.days_of_week,
       day_of_month: values.day_of_month || null,
@@ -174,6 +172,17 @@ export function useWhatsAppWorkflows() {
       status: values.is_active ? "active" : "paused",
       next_run_at: nextRun,
     };
+
+    // Tentar adicionar recipient_type (pode não existir no banco ainda)
+    // Se a coluna não existir, o Supabase vai rejeitar, mas vamos tentar
+    if (values.recipient_type || values.recipientMode) {
+      payload.recipient_type = values.recipient_type || values.recipientMode;
+    }
+    if (values.group_id) {
+      payload.group_id = values.group_id;
+    }
+
+    return payload;
   };
 
   const persistContactAttachments = async (

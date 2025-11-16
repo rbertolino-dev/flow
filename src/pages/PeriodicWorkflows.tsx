@@ -26,6 +26,7 @@ import { useAsaasConfig } from "@/hooks/useAsaasConfig";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BoletosList } from "@/components/whatsapp/workflows/BoletosList";
 
 const DEFAULT_FILTERS: FiltersState = {
   status: "all",
@@ -198,12 +199,18 @@ export default function PeriodicWorkflows() {
                 <WorkflowApprovalQueue />
               </TabsContent>
               <TabsContent value="asaas" className="mt-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold flex items-center gap-2 text-sm">
-                      <Link2 className="h-4 w-4" />
-                      Configuração da API Asaas
-                    </h3>
+                <Tabs defaultValue="config" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="config">Configuração Asaas</TabsTrigger>
+                    <TabsTrigger value="boletos">Gestão de Boletos Asaas</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="config" className="mt-6">
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-4">
+                        <h3 className="font-semibold flex items-center gap-2 text-sm">
+                          <Link2 className="h-4 w-4" />
+                          Configuração da API Asaas
+                        </h3>
                     <p className="text-xs text-muted-foreground">
                       Informe a chave de API do Asaas e o ambiente (sandbox ou produção). Esses dados
                       serão usados para gerar cobranças de boleto nos fluxos de cobrança.
@@ -285,6 +292,17 @@ export default function PeriodicWorkflows() {
                     </p>
                   </div>
                 </div>
+                  </TabsContent>
+                  <TabsContent value="boletos" className="mt-6">
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm">Boletos Gerados</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Visualize e gerencie todos os boletos criados através dos workflows de cobrança.
+                      </p>
+                      <BoletosList />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
             </Tabs>
           </CardContent>

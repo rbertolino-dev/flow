@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,7 +71,41 @@ serve(async (req) => {
 
         // Formatar telefone
         const formattedPhone = message.phone.replace(/\D/g, '');
-        const remoteJid = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@s.whatsapp.net`;
+        
+        // Aplicar modo de teste se ativo
+        const testConfig = getTestModeConfig();
+        const finalPhone = applyTestMode(formattedPhone, testConfig);
+        const remoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
+
+        // Verificar se deve realmente enviar
+        if (!shouldSendMessage(testConfig)) {
+          console.log(`🧪 [process-scheduled-messages] TEST MODE - LOG ONLY: Mensagem ${message.id} não será enviada`);
+          
+          // Marcar como enviada (simulado) mas com flag de teste
+          await supabase
+            .from('scheduled_messages')
+            .update({
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+              error_message: '[TEST MODE - LOG ONLY] Mensagem simulada, não enviada realmente',
+            })
+            .eq('id', message.id);
+
+          // Registrar atividade no lead (marcada como teste)
+          if (message.lead_id) {
+            await supabase.from('activities').insert({
+              lead_id: message.lead_id,
+              type: 'whatsapp',
+              content: `[TEST MODE] ${message.message}`,
+              user_name: 'Sistema (Agendado - TEST MODE)',
+              direction: 'outgoing',
+            });
+          }
+
+          console.log(`✅ Mensagem ${message.id} simulada (TEST MODE)`);
+          successCount++;
+          continue;
+        }
 
         // Montar URL e payload
         const baseUrl = config.api_url.replace(/\/manager\/?$/, '');
@@ -85,12 +120,22 @@ serve(async (req) => {
             media: message.media_url,
             caption: message.message || '',
           };
+          console.log('🖼️ [process-scheduled-messages] Enviando mensagem com mídia:', {
+            to: remoteJid,
+            test_mode: testConfig.enabled,
+            original_phone: message.phone
+          });
         } else {
           evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
           payload = {
             number: remoteJid,
             text: message.message,
           };
+          console.log('📝 [process-scheduled-messages] Enviando mensagem de texto:', {
+            to: remoteJid,
+            test_mode: testConfig.enabled,
+            original_phone: message.phone
+          });
         }
 
         // Enviar mensagem via Evolution API

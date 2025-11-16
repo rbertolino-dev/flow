@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,6 +94,46 @@ serve(async (req) => {
 
     console.log('📱 [send-whatsapp-message] Telefone formatado:', { original: phone, formatted: formattedPhone, remoteJid });
 
+    // Aplicar modo de teste se ativo
+    const testConfig = getTestModeConfig();
+    const finalPhone = applyTestMode(formattedPhone, testConfig);
+    const finalRemoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
+
+    // Verificar se deve realmente enviar
+    if (!shouldSendMessage(testConfig)) {
+      console.log('🧪 [send-whatsapp-message] TEST MODE - LOG ONLY: Mensagem não será enviada');
+      
+      // Mesmo em modo de teste, registrar atividade no banco se leadId foi fornecido
+      if (leadId) {
+        console.log(`💾 [send-whatsapp-message] Registrando atividade para lead ${leadId} (TEST MODE)...`);
+        
+        const { error: activityError } = await supabase.from('activities').insert({
+          lead_id: leadId,
+          type: 'whatsapp',
+          content: `[TEST MODE] ${message}`,
+          user_name: 'Você',
+          direction: 'outgoing',
+        });
+
+        if (activityError) {
+          console.error('⚠️ [send-whatsapp-message] Erro ao registrar atividade:', activityError);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Mensagem simulada (TEST MODE - LOG ONLY)',
+          test_mode: true,
+          original_phone: phone,
+          would_send_to: finalRemoteJid
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     // Definir endpoint e payload baseado no tipo de mensagem
     const baseUrl = config.api_url.replace(/\/manager\/?$/, '');
     let evolutionUrl: string;
@@ -102,19 +143,28 @@ serve(async (req) => {
       // Enviar mensagem com mídia - campos vão direto no root do payload
       evolutionUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
       payload = {
-        number: remoteJid,
+        number: finalRemoteJid,
         mediatype: mediaType || 'image',
         media: mediaUrl,
         caption: message || '',
       };
-      console.log('🖼️ [send-whatsapp-message] Enviando mensagem com mídia:', { mediatype: mediaType || 'image', mediaUrl });
+      console.log('🖼️ [send-whatsapp-message] Enviando mensagem com mídia:', { 
+        mediatype: mediaType || 'image', 
+        mediaUrl,
+        to: finalRemoteJid,
+        test_mode: testConfig.enabled
+      });
     } else {
       // Enviar mensagem de texto simples
       evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
       payload = {
-        number: remoteJid,
+        number: finalRemoteJid,
         text: message,
       };
+      console.log('📝 [send-whatsapp-message] Enviando mensagem de texto:', {
+        to: finalRemoteJid,
+        test_mode: testConfig.enabled
+      });
     }
     
     console.log('🔗 [send-whatsapp-message] URL da Evolution:', evolutionUrl);
@@ -193,7 +243,10 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Mensagem enviada com sucesso',
-        data: evolutionData 
+        data: evolutionData,
+        test_mode: testConfig.enabled,
+        original_phone: phone,
+        sent_to: testConfig.enabled ? finalRemoteJid : phone
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
