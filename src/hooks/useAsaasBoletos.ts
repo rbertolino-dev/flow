@@ -40,7 +40,7 @@ export function useAsaasBoletos() {
         .from("whatsapp_boletos")
         .select("*")
         .eq("organization_id", activeOrgId)
-        .order("criado_em", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as Boleto[];
     },
@@ -54,7 +54,7 @@ export function useAsaasBoletos() {
       .select("*")
       .eq("organization_id", activeOrgId)
       .eq("lead_id", leadId)
-      .order("criado_em", { ascending: false });
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return (data || []) as Boleto[];
   };
@@ -67,7 +67,7 @@ export function useAsaasBoletos() {
       .select("*")
       .eq("organization_id", activeOrgId)
       .eq("workflow_id", workflowId)
-      .order("criado_em", { ascending: false });
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return (data || []) as Boleto[];
   };
