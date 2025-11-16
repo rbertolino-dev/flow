@@ -131,9 +131,9 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
       instructions: baseInstructions || undefined,
       response_format: { type: "json_object" },
       metadata: {
-        organization_id: agent.organization_id,
-        agent_id: agent.id,
-        version: agent.version,
+        organization_id: String(agent.organization_id || ""),
+        agent_id: String(agent.id || ""),
+        version: String(agent.version ?? 1),
       },
       tools,
     };
