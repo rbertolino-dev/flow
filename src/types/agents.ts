@@ -54,6 +54,7 @@ export interface AgentFormValues {
   test_mode?: boolean;
   allow_fallback?: boolean;
   evolution_config_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateAgentPayload extends AgentFormValues {

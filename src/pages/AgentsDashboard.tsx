@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAgents } from "@/hooks/useAgents";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { AgentFormValues, AgentStatus } from "@/types/agents";
@@ -38,7 +38,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Wand2 } from "lucide-react";
+import { Loader2, RefreshCw, Wand2, Upload, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const statusLabel: Record<AgentStatus, string> = {
   draft: "Rascunho",
@@ -65,6 +66,36 @@ const AgentsDashboard = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formValues, setFormValues] = useState<AgentFormValues>(defaultForm);
+  const [availableModels, setAvailableModels] = useState<string[]>([
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4-turbo",
+    "gpt-4",
+    "gpt-3.5-turbo",
+  ]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+
+  useEffect(() => {
+    fetchOpenAIModels();
+  }, []);
+
+  const fetchOpenAIModels = async () => {
+    setLoadingModels(true);
+    try {
+      // Tentar buscar modelos via Edge Function
+      const { data, error } = await supabase.functions.invoke("openai-list-models");
+      
+      if (!error && data?.models) {
+        setAvailableModels(data.models);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar modelos:", err);
+      // Mantém lista padrão em caso de erro
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const handleInputChange = (
     field: keyof AgentFormValues,
@@ -76,11 +107,37 @@ const AgentsDashboard = () => {
     }));
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setUploadedFiles((prev) => [...prev, ...newFiles]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleCreateAgent = async () => {
     setIsSubmitting(true);
     try {
-      await createAgent(formValues);
+      const agentData = { ...formValues };
+      
+      // Se houver arquivos, adicionar ao metadata
+      if (uploadedFiles.length > 0) {
+        agentData.metadata = {
+          ...agentData.metadata,
+          files: uploadedFiles.map((f) => ({
+            name: f.name,
+            size: f.size,
+            type: f.type,
+          })),
+        };
+      }
+      
+      await createAgent(agentData);
       setFormValues(defaultForm);
+      setUploadedFiles([]);
       setIsDialogOpen(false);
     } finally {
       setIsSubmitting(false);
@@ -135,12 +192,23 @@ const AgentsDashboard = () => {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Modelo</Label>
-                <Input
+                <Label>Modelo OpenAI</Label>
+                <Select
                   value={formValues.model}
-                  onChange={(e) => handleInputChange("model", e.target.value)}
-                  placeholder="gpt-4o-mini"
-                />
+                  onValueChange={(value) => handleInputChange("model", value)}
+                  disabled={loadingModels}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um modelo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableModels.map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Instruções básicas</Label>
@@ -165,6 +233,55 @@ const AgentsDashboard = () => {
                   }
                 />
               </div>
+              
+              <div className="grid gap-2">
+                <Label>Arquivos de Conhecimento</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      onChange={handleFileUpload}
+                      multiple
+                      accept=".pdf,.txt,.doc,.docx,.md"
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => document.getElementById("file-upload")?.click()}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload de Arquivos
+                    </Button>
+                  </div>
+                  {uploadedFiles.length > 0 && (
+                    <div className="space-y-1">
+                      {uploadedFiles.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-muted p-2 rounded text-sm"
+                        >
+                          <span className="truncate">{file.name}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Arquivos suportados: PDF, TXT, DOC, DOCX, MD
+                  </p>
+                </div>
+              </div>
+              
               <div className="flex items-center justify-between border rounded-md px-4 py-3">
                 <div>
                   <Label>Modo de testes</Label>
