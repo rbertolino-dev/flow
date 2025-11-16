@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,14 +13,53 @@ serve(async (req) => {
   }
 
   try {
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
-      throw new Error("OPENAI_API_KEY não configurada");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Obter o usuário autenticado
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("Não autenticado");
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      throw new Error("Usuário não autenticado");
+    }
+
+    // Buscar a organização do usuário
+    const { data: memberData, error: memberError } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (memberError || !memberData) {
+      throw new Error("Usuário não possui organização");
+    }
+
+    // Buscar a chave OpenAI da organização
+    const { data: openaiConfig, error: configError } = await supabase
+      .from("openai_configs")
+      .select("api_key")
+      .eq("organization_id", memberData.organization_id)
+      .maybeSingle();
+
+    if (configError) {
+      console.error("[openai-list-models] Erro ao buscar config:", configError);
+      throw new Error("Erro ao buscar configuração OpenAI");
+    }
+
+    if (!openaiConfig?.api_key) {
+      throw new Error("OPENAI_API_KEY não configurada para esta organização. Configure em Agentes > Configurar OpenAI");
     }
 
     const response = await fetch("https://api.openai.com/v1/models", {
       headers: {
-        Authorization: `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${openaiConfig.api_key}`,
         "Content-Type": "application/json",
       },
     });
