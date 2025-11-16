@@ -50,20 +50,42 @@ export function WorkflowGroupSelector({
   const { registeredGroups, createOrGetGroup, fetchGroupsFromEvolution } =
     useWorkflowGroups(instanceId);
 
-  // Buscar grupos da Evolution API quando instância for selecionada
-  useEffect(() => {
-    if (selectedInstance && selectedInstance.is_connected) {
-      loadGroupsFromEvolution(selectedInstance);
-    } else {
-      setAvailableGroups([]);
+  const handleSearchGroups = async () => {
+    if (!selectedInstance) {
+      toast({
+        title: "Selecione uma instância",
+        description: "É necessário selecionar uma instância antes de buscar grupos.",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [selectedInstance]);
 
-  const loadGroupsFromEvolution = async (instance: EvolutionConfig) => {
+    if (!searchTerm.trim()) {
+      toast({
+        title: "Digite um termo de busca",
+        description: "Digite o nome do grupo para buscar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoadingGroups(true);
     try {
-      const groups = await fetchGroupsFromEvolution(instance);
-      setAvailableGroups(groups);
+      const groups = await fetchGroupsFromEvolution(selectedInstance);
+      // Filtrar grupos pelo termo de busca
+      const filtered = groups.filter((group) =>
+        group.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        group.id.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setAvailableGroups(filtered);
+      
+      if (filtered.length === 0) {
+        toast({
+          title: "Nenhum grupo encontrado",
+          description: `Não foram encontrados grupos com o termo "${searchTerm}".`,
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao buscar grupos",
@@ -105,10 +127,6 @@ export function WorkflowGroupSelector({
     }
   };
 
-  const filteredGroups = availableGroups.filter((group) =>
-    group.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    group.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const selectedRegisteredGroup = registeredGroups.find((g) => g.id === selectedGroupId);
 
@@ -147,36 +165,51 @@ export function WorkflowGroupSelector({
 
         {selectedInstance && selectedInstance.is_connected && (
           <>
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="group-search">Buscar Grupo</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="group-search"
-                  placeholder="Digite para buscar grupos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="group-search"
+                    placeholder="Digite o nome do grupo..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearchGroups();
+                      }
+                    }}
+                    className="pl-8"
+                  />
+                </div>
+                <Button
+                  onClick={handleSearchGroups}
+                  disabled={isLoadingGroups || !searchTerm.trim()}
+                >
+                  {isLoadingGroups ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Buscar"
+                  )}
+                </Button>
               </div>
             </div>
 
-            {isLoadingGroups ? (
+            {availableGroups.length === 0 && !isLoadingGroups ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Digite o nome do grupo e clique em "Buscar" para encontrar grupos.
+              </div>
+            ) : availableGroups.length === 0 && isLoadingGroups ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-sm text-muted-foreground">
-                  Carregando grupos...
+                  Buscando grupos...
                 </span>
-              </div>
-            ) : filteredGroups.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                {searchTerm
-                  ? "Nenhum grupo encontrado com esse termo."
-                  : "Nenhum grupo disponível nesta instância."}
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {filteredGroups.map((group) => (
+                {availableGroups.map((group) => (
                   <Button
                     key={group.id}
                     variant={
