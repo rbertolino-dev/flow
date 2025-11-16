@@ -2044,6 +2044,36 @@ export type Database = {
           org_name: string
         }[]
       }
+      get_daily_metrics: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          broadcast_count: number
+          date: string
+          incoming_count: number
+          leads_count: number
+          scheduled_count: number
+        }[]
+      }
+      get_organization_metrics: {
+        Args: {
+          current_month_end: string
+          current_month_start: string
+          previous_month_end: string
+          previous_month_start: string
+        }
+        Returns: {
+          current_broadcast: number
+          current_incoming: number
+          current_leads: number
+          current_scheduled: number
+          org_id: string
+          org_name: string
+          prev_broadcast: number
+          prev_incoming: number
+          prev_leads: number
+          prev_scheduled: number
+        }[]
+      }
       get_user_organization: { Args: { _user_id: string }; Returns: string }
       get_user_permissions: {
         Args: { _user_id: string }

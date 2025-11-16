@@ -28,6 +28,7 @@ interface PersistWorkflowArgs extends WorkflowFormValues {
   boleto_valor?: number;
   boleto_vencimento?: string;
   boleto_descricao?: string;
+  recipient_type?: string;
 }
 
 export function useWhatsAppWorkflows() {
