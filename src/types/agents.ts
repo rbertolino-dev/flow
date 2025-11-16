@@ -9,6 +9,8 @@ export interface Agent {
   persona?: Record<string, unknown> | null;
   policies?: Record<string, unknown>[] | null;
   prompt_instructions?: string | null;
+  guardrails?: string | null;
+  few_shot_examples?: string | null;
   temperature?: number | null;
   model?: string | null;
   status: AgentStatus;
@@ -50,6 +52,8 @@ export interface AgentFormValues {
   language?: string;
   model?: string;
   prompt_instructions?: string;
+  guardrails?: string;
+  few_shot_examples?: string;
   temperature?: number;
   test_mode?: boolean;
   allow_fallback?: boolean;

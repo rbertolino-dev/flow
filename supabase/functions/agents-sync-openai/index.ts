@@ -72,10 +72,35 @@ serve(async (req) => {
             .join("\n")}`
         : null;
 
+    // Construir guardrails block
+    const guardrailsBlock = agent.guardrails
+      ? `REGRAS OBRIGATÓRIAS:\n${agent.guardrails}`
+      : null;
+
+    // Construir few-shot examples block
+    const fewShotBlock = agent.few_shot_examples
+      ? `EXEMPLOS DE BOAS RESPOSTAS:\n${agent.few_shot_examples}`
+      : null;
+
+    // Instruções para Response Format JSON
+    const jsonFormatInstructions = `
+IMPORTANTE: Responda SEMPRE em JSON válido com esta estrutura:
+{
+  "resposta": "sua resposta aqui",
+  "confianca": 0-100,
+  "precisa_escalacao": true/false
+}
+
+Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina "precisa_escalacao" como true.
+    `.trim();
+
     const baseInstructions = [
       agent.prompt_instructions,
       personaBlock,
       policiesBlock,
+      guardrailsBlock,
+      fewShotBlock,
+      jsonFormatInstructions,
     ]
       .filter(Boolean)
       .join("\n\n")
@@ -91,6 +116,7 @@ serve(async (req) => {
       model: agent.model || "gpt-4o-mini",
       temperature: agent.temperature ?? 0.6,
       instructions: baseInstructions || undefined,
+      response_format: { type: "json_object" },
       metadata: {
         organization_id: agent.organization_id,
         agent_id: agent.id,

@@ -220,6 +220,36 @@ const AgentsDashboard = () => {
                   rows={4}
                 />
               </div>
+              
+              <div className="grid gap-2">
+                <Label>Guardrails (Regras Obrigatórias)</Label>
+                <Textarea
+                  value={formValues.guardrails || ""}
+                  onChange={(e) =>
+                    handleInputChange("guardrails", e.target.value)
+                  }
+                  placeholder="- NUNCA invente informações que você não tem&#10;- Se não souber, diga 'Não tenho essa informação'&#10;- NUNCA forneça preços sem confirmar no sistema"
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Regras que o agente DEVE seguir sempre. Ajuda a evitar erros.
+                </p>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label>Exemplos de Boas Respostas (Few-Shot)</Label>
+                <Textarea
+                  value={formValues.few_shot_examples || ""}
+                  onChange={(e) =>
+                    handleInputChange("few_shot_examples", e.target.value)
+                  }
+                  placeholder="Cliente: Qual o prazo de entrega?&#10;Agente: O prazo varia de 5-7 dias úteis. Posso verificar para seu CEP, qual é?&#10;&#10;Cliente: Quanto custa?&#10;Agente: Vou consultar o preço atualizado. Um momento..."
+                  rows={5}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Exemplos de perguntas e respostas ideais para treinar o agente.
+                </p>
+              </div>
               <div className="grid gap-2">
                 <Label>Temperatura</Label>
                 <Input
