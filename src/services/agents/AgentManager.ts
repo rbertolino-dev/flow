@@ -53,12 +53,14 @@ export const AgentManager = {
   },
 
   async createAgent(payload: CreateAgentPayload): Promise<Agent> {
+    const insertPayload: any = {
+      ...payload,
+      metadata: payload.metadata ? JSON.parse(JSON.stringify(payload.metadata)) : null,
+    };
+    
     const { data, error } = await supabase
       .from("agents")
-      .insert({
-        ...payload,
-        version: 1,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -72,9 +74,14 @@ export const AgentManager = {
   },
 
   async updateAgent(agentId: string, payload: UpdateAgentPayload) {
+    const updatePayload: any = {
+      ...payload,
+      metadata: payload.metadata ? JSON.parse(JSON.stringify(payload.metadata)) : undefined,
+    };
+    
     const { data, error } = await supabase
       .from("agents")
-      .update(payload)
+      .update(updatePayload)
       .eq("id", agentId)
       .select()
       .single();
