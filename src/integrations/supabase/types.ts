@@ -860,6 +860,8 @@ export type Database = {
           organization_id: string
           phone_number: string | null
           qr_code: string | null
+          sync_method: string | null
+          sync_path: string | null
           updated_at: string | null
           user_id: string
           webhook_enabled: boolean
@@ -875,6 +877,8 @@ export type Database = {
           organization_id: string
           phone_number?: string | null
           qr_code?: string | null
+          sync_method?: string | null
+          sync_path?: string | null
           updated_at?: string | null
           user_id: string
           webhook_enabled?: boolean
@@ -890,6 +894,8 @@ export type Database = {
           organization_id?: string
           phone_number?: string | null
           qr_code?: string | null
+          sync_method?: string | null
+          sync_path?: string | null
           updated_at?: string | null
           user_id?: string
           webhook_enabled?: boolean
