@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useAgents } from "@/hooks/useAgents";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { AgentFormValues, AgentStatus } from "@/types/agents";
@@ -61,6 +64,7 @@ const defaultForm: AgentFormValues = {
 };
 
 const AgentsDashboard = () => {
+  const navigate = useNavigate();
   const { agents, stats, loading, createAgent, syncAgent } = useAgents();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -144,7 +148,22 @@ const AgentsDashboard = () => {
     }
   };
 
+  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows" | "agents") => {
+    if (view === "kanban") navigate('/');
+    else if (view === "calls") navigate('/');
+    else if (view === "contacts") navigate('/');
+    else if (view === "settings") navigate('/settings');
+    else if (view === "users") navigate('/users');
+    else if (view === "broadcast") navigate('/broadcast');
+    else if (view === "whatsapp") navigate('/whatsapp');
+    else if (view === "phonebook") navigate('/lista-telefonica');
+    else if (view === "workflows") navigate('/workflows');
+    else if (view === "agents") navigate('/agents');
+  };
+
   return (
+    <AuthGuard>
+      <CRMLayout activeView="agents" onViewChange={handleViewChange}>
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
@@ -516,6 +535,8 @@ const AgentsDashboard = () => {
         </CardContent>
       </Card>
     </div>
+      </CRMLayout>
+    </AuthGuard>
   );
 };
 
