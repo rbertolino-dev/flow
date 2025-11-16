@@ -16,7 +16,7 @@ export function useLeadOptions() {
 
       const { data, error } = await supabase
         .from("leads")
-        .select("id, name, phone")
+        .select("id, name, phone, email")
         .eq("organization_id", activeOrgId)
         .is("deleted_at", null)
         .order("name", { ascending: true });
@@ -37,6 +37,7 @@ export function useLeadOptions() {
             id: lead.id,
             name: lead.name || lead.phone,
             phone: lead.phone,
+            email: lead.email || undefined,
           } satisfies LeadOption),
       );
     },
