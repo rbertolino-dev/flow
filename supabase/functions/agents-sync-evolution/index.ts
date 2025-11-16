@@ -46,8 +46,68 @@ serve(async (req) => {
       throw new Error("Instância Evolution não configurada para este agente");
     }
 
-    // Apenas vincular o agente à instância Evolution
-    // A Evolution API usa webhooks para comunicação, não tem endpoint de "sync"
+    if (!agent.openai_assistant_id) {
+      throw new Error("Sincronize primeiro com OpenAI para obter o assistantId");
+    }
+
+    // Buscar API key da instância
+    const { data: evolutionConfig, error: configError } = await supabase
+      .from("evolution_config")
+      .select("api_key, api_url")
+      .eq("id", agent.evolution_config_id)
+      .single();
+
+    if (configError || !evolutionConfig) {
+      throw new Error("Configuração Evolution não encontrada");
+    }
+
+    // Normalizar URL da API
+    const normalizeUrl = (url: string) => {
+      try {
+        const u = new URL(url);
+        let base = u.origin + u.pathname.replace(/\/$/, '');
+        base = base.replace(/\/(manager|dashboard|app)$/, '');
+        return base;
+      } catch {
+        return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/, '');
+      }
+    };
+
+    const baseUrl = normalizeUrl(evolutionConfig.api_url);
+    const syncEndpoint = `${baseUrl}/settings/set/${config.instance_name}`;
+
+    // Payload para configurar OpenAI na Evolution
+    const evolutionPayload = {
+      openai_enabled: true,
+      openai_api_key: Deno.env.get("OPENAI_API_KEY") || "",
+      openai_assistant_id: agent.openai_assistant_id,
+      openai_organization_id: agent.organization_id,
+    };
+
+    console.log(`[agents-sync-evolution] Chamando Evolution API: ${syncEndpoint}`);
+
+    // Chamar Evolution API para configurar OpenAI
+    const evolutionResponse = await fetch(syncEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": evolutionConfig.api_key || "",
+      },
+      body: JSON.stringify(evolutionPayload),
+    });
+
+    if (!evolutionResponse.ok) {
+      const errorText = await evolutionResponse.text();
+      console.error("[agents-sync-evolution] Evolution API error:", errorText);
+      throw new Error(
+        `Falha ao configurar OpenAI na Evolution: ${evolutionResponse.status} ${errorText}`
+      );
+    }
+
+    const evolutionResult = await evolutionResponse.json();
+    console.log("[agents-sync-evolution] Evolution API response:", evolutionResult);
+
+    // Atualizar agente no banco
     const { error: updateErr } = await supabase
       .from("agents")
       .update({ 
@@ -61,16 +121,18 @@ serve(async (req) => {
       throw new Error("Erro ao atualizar agente com instância Evolution");
     }
 
-    console.log(`[agents-sync-evolution] Agente ${agent.name} vinculado à instância ${config.instance_name}`);
+    console.log(`[agents-sync-evolution] Agente ${agent.name} sincronizado com Evolution`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Agente vinculado à instância Evolution "${config.instance_name}"`,
+        message: `Agente sincronizado com Evolution "${config.instance_name}"`,
         data: {
           agentId: agent.id,
           agentName: agent.name,
           evolutionInstance: config.instance_name,
+          openaiAssistantId: agent.openai_assistant_id,
+          evolutionResponse: evolutionResult,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
