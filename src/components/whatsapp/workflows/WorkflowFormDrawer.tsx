@@ -29,6 +29,8 @@ import { WorkflowAttachmentsField } from "./WorkflowAttachmentsField";
 import { WorkflowContactAttachmentsField } from "./WorkflowContactAttachmentsField";
 import { WorkflowMonthlyAttachmentsField } from "./WorkflowMonthlyAttachmentsField";
 import { WorkflowGroupSelector } from "./WorkflowGroupSelector";
+import { AsaasBoletoForm } from "./AsaasBoletoForm";
+import { BoletosList } from "./BoletosList";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -181,6 +183,11 @@ export function WorkflowFormDrawer({
     [lists, values.workflow_list_id],
   );
   const listContacts = selectedList?.contacts || [];
+
+  const selectedLead = useMemo(
+    () => leadOptions.find((lead) => lead.id === values.single_lead_id),
+    [leadOptions, values.single_lead_id],
+  );
 
   const handleFileChange = (leadId: string, file: File | null) => {
     if (file) {
@@ -769,6 +776,64 @@ export function WorkflowFormDrawer({
                       setContactMetadata((prev) => ({ ...prev, [leadId]: metadata }));
                     }}
                   />
+                )}
+              </section>
+            )}
+
+            {/* Seção de Boletos para workflows de cobrança */}
+            {values.workflow_type === "cobranca" && (
+              <section className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Gerar Boletos</Label>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 space-y-1">
+                  <p className="font-semibold">💡 Gerar Boleto Bancário</p>
+                  <p>
+                    Você pode gerar boletos bancários para os clientes selecionados. 
+                    Os boletos serão rastreados e associados a este workflow.
+                  </p>
+                </div>
+
+                {/* Formulário para lead individual */}
+                {values.recipientMode === "single" && selectedLead && (
+                  <div className="space-y-3">
+                    <AsaasBoletoForm
+                      leadId={selectedLead.id}
+                      leadName={selectedLead.name}
+                      leadEmail={selectedLead.email}
+                      leadPhone={selectedLead.phone}
+                      leadCpfCnpj={selectedLead.cpf_cnpj}
+                      onSuccess={(boleto) => {
+                        toast({
+                          title: "Boleto gerado com sucesso",
+                          description: `Boleto para ${selectedLead.name} criado`,
+                        });
+                      }}
+                    />
+                    <BoletosList leadId={selectedLead.id} />
+                  </div>
+                )}
+
+                {/* Lista de boletos para workflow existente */}
+                {workflow?.id && (
+                  <div className="mt-4">
+                    <BoletosList workflowId={workflow.id} />
+                  </div>
+                )}
+
+                {/* Mensagem quando não há lead selecionado */}
+                {values.recipientMode === "single" && !selectedLead && (
+                  <p className="text-xs text-muted-foreground">
+                    Selecione um cliente para gerar boleto
+                  </p>
+                )}
+
+                {/* Mensagem para lista */}
+                {values.recipientMode === "list" && (
+                  <p className="text-xs text-muted-foreground">
+                    Após criar o workflow, você poderá gerar boletos para cada cliente da lista
+                  </p>
                 )}
               </section>
             )}
