@@ -6,6 +6,7 @@ import { useAgents } from "@/hooks/useAgents";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { AgentFormValues, AgentStatus } from "@/types/agents";
 import { Button } from "@/components/ui/button";
+import { OpenAIConfigDialog } from "@/components/agents/OpenAIConfigDialog";
 import {
   Card,
   CardContent,
@@ -41,7 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Wand2, Upload, X, Info, Zap } from "lucide-react";
+import { Loader2, RefreshCw, Wand2, Upload, X, Info, Zap, Key } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const statusLabel: Record<AgentStatus, string> = {
@@ -68,6 +69,7 @@ const AgentsDashboard = () => {
   const { agents, stats, loading, createAgent, syncAgent } = useAgents();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [openaiConfigOpen, setOpenaiConfigOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formValues, setFormValues] = useState<AgentFormValues>(defaultForm);
   const [availableModels, setAvailableModels] = useState<string[]>([
@@ -172,13 +174,19 @@ const AgentsDashboard = () => {
             Centralize a criação e sincronização de agentes com OpenAI e Evolution.
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Wand2 className="mr-2 h-4 w-4" />
-              Novo agente
-            </Button>
-          </DialogTrigger>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setOpenaiConfigOpen(true)}>
+            <Key className="mr-2 h-4 w-4" />
+            Configurar OpenAI
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Wand2 className="mr-2 h-4 w-4" />
+                Novo agente
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar agente</DialogTitle>
@@ -543,6 +551,12 @@ const AgentsDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* OpenAI Config Dialog */}
+      <OpenAIConfigDialog
+        open={openaiConfigOpen}
+        onOpenChange={setOpenaiConfigOpen}
+      />
     </div>
       </CRMLayout>
     </AuthGuard>
