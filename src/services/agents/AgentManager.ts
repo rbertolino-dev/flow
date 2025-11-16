@@ -13,13 +13,19 @@ const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
   const functionName =
     target === "openai" ? "agents-sync-openai" : "agents-sync-evolution";
 
+  console.log(`🔷🔷🔷 [AgentManager] Invocando Edge Function: ${functionName}`);
+  console.log(`📋 [AgentManager] AgentId:`, agentId);
+
   const { data, error } = await supabase.functions.invoke(functionName, {
     body: { agentId },
   });
 
+  console.log(`📦 [AgentManager] Resposta bruta do Supabase:`, { data, error });
+
   // Verificar erro retornado pelo Supabase client
   if (error) {
-    console.error(`[AgentManager] Erro do Supabase client ao invocar ${functionName}:`, error);
+    console.error(`❌ [AgentManager] Erro do Supabase client ao invocar ${functionName}:`, error);
+    console.error(`📋 [AgentManager] Error completo:`, JSON.stringify(error, null, 2));
     throw new Error(
       error.message || `Falha ao sincronizar agente (${target}).`
     );
@@ -27,11 +33,15 @@ const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
 
   // Verificar se o Edge Function retornou erro no corpo da resposta
   if (data && typeof data === 'object' && 'error' in data) {
-    console.error(`[AgentManager] Erro retornado pelo Edge Function ${functionName}:`, data.error);
+    console.error(`❌ [AgentManager] Erro retornado pelo Edge Function ${functionName}:`, data.error);
+    console.error(`📋 [AgentManager] Data completo:`, JSON.stringify(data, null, 2));
     throw new Error(
       typeof data.error === 'string' ? data.error : `Falha ao sincronizar agente (${target}).`
     );
   }
+
+  console.log(`✅ [AgentManager] Sincronização ${target} bem-sucedida!`);
+  console.log(`📊 [AgentManager] Data retornado:`, JSON.stringify(data, null, 2));
 
   return data;
 };

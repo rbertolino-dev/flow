@@ -116,24 +116,34 @@ export function useAgents() {
   const syncAgent = useCallback(
     async (agentId: string, target: "openai" | "evolution") => {
       try {
-        console.log(`[useAgents] Iniciando sincronização ${target} para agente ${agentId}`);
+        console.log(`🚀🚀🚀 [useAgents] INICIANDO sincronização ${target} para agente ${agentId}`);
+        console.log(`📋 [useAgents] Dados do agente:`, agents.find(a => a.id === agentId));
         
+        let result;
         if (target === "openai") {
-          await AgentManager.syncWithOpenAI(agentId);
+          console.log(`🔵 [useAgents] Chamando AgentManager.syncWithOpenAI...`);
+          result = await AgentManager.syncWithOpenAI(agentId);
+          console.log(`✅ [useAgents] Resposta do OpenAI:`, result);
         } else {
-          await AgentManager.syncWithEvolution(agentId);
+          console.log(`🟢 [useAgents] Chamando AgentManager.syncWithEvolution...`);
+          result = await AgentManager.syncWithEvolution(agentId);
+          console.log(`✅ [useAgents] Resposta do Evolution:`, result);
         }
         
-        console.log(`[useAgents] Sincronização ${target} concluída com sucesso`);
+        console.log(`🎉🎉🎉 [useAgents] Sincronização ${target} concluída com sucesso!`);
+        console.log(`📊 [useAgents] Resultado completo:`, JSON.stringify(result, null, 2));
         
         toast({
           title: `✅ Sincronização com ${target === "openai" ? "OpenAI" : "Evolution"} concluída`,
-          description: "O agente está pronto para uso.",
+          description: `O agente está pronto para uso. ${target === "evolution" ? "Verifique a aba Integrações na Evolution!" : ""}`,
         });
         
         await fetchAgents();
       } catch (error) {
-        console.error(`[useAgents] Erro ao sincronizar com ${target}:`, error);
+        console.error(`❌❌❌ [useAgents] ERRO ao sincronizar com ${target}:`, error);
+        console.error(`📋 [useAgents] Tipo do erro:`, typeof error);
+        console.error(`📋 [useAgents] Error.message:`, error instanceof Error ? error.message : 'N/A');
+        console.error(`📋 [useAgents] Error completo:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         
         // Extrair mensagem de erro detalhada
         let errorMessage = "Falha inesperada na sincronização.";
@@ -147,17 +157,19 @@ export function useAgents() {
           }
         }
         
+        console.error(`🔴 [useAgents] Mensagem de erro final:`, errorMessage);
+        
         toast({
           title: `❌ Erro ao sincronizar com ${target === "openai" ? "OpenAI" : "Evolution"}`,
           description: errorMessage,
           variant: "destructive",
-          duration: 8000, // Mais tempo para ler a mensagem de erro
+          duration: 10000, // Mais tempo para ler a mensagem de erro
         });
         
         throw error;
       }
     },
-    [fetchAgents, toast]
+    [fetchAgents, toast, agents]
   );
 
   const deleteAgent = useCallback(

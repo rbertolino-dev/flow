@@ -200,19 +200,30 @@ const AgentsDashboard = () => {
   };
 
   const handleSyncAgent = async (agentId: string, target: "openai" | "evolution") => {
+    // ALERT GIGANTE para confirmar que o clique funcionou
+    alert(`🚀 CLIQUE DETECTADO!\n\nSincronizando ${target} para agente ${agentId}\n\nAguarde...`);
+    
     setSyncingAgentId(agentId);
     setSyncingTarget(target);
     
-    console.log(`🔄 [Dashboard] Iniciando sincronização ${target} para agente ${agentId}`);
+    console.log(`🔄🔄🔄 [Dashboard] INICIANDO sincronização ${target} para agente ${agentId}`);
+    console.log(`📋 [Dashboard] Agent completo:`, agents.find(a => a.id === agentId));
     
     try {
-      await syncAgent(agentId, target);
-      console.log(`✅ [Dashboard] Sincronização ${target} concluída com sucesso!`);
-    } catch (err) {
-      console.error(`❌ [Dashboard] Erro na sincronização ${target}:`, err);
+      console.log(`🔵 [Dashboard] Chamando syncAgent(${agentId}, "${target}")...`);
+      const result = await syncAgent(agentId, target);
+      console.log(`✅✅✅ [Dashboard] Sincronização ${target} concluída!`, result);
       
-      // Mostrar alert visual para o usuário
-      alert(`❌ ERRO na sincronização com ${target}:\n\n${err instanceof Error ? err.message : String(err)}\n\nVeja o console (F12) para mais detalhes.`);
+      alert(`✅ SUCESSO!\n\nSincronização com ${target} concluída!\n\nVerifique a aba Integrações na Evolution.`);
+    } catch (err) {
+      console.error(`❌❌❌ [Dashboard] ERRO na sincronização ${target}:`, err);
+      console.error(`📋 [Dashboard] Tipo do erro:`, typeof err);
+      console.error(`📋 [Dashboard] Error.message:`, err instanceof Error ? err.message : 'N/A');
+      console.error(`📋 [Dashboard] Error completo:`, JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+      
+      // Alert GIGANTE com o erro completo
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      alert(`❌❌❌ ERRO CRÍTICO na sincronização com ${target}:\n\n${errorMsg}\n\n\nVeja o console (F12) para mais detalhes.\n\nCopie o erro e me envie!`);
     } finally {
       setSyncingAgentId(null);
       setSyncingTarget(null);
