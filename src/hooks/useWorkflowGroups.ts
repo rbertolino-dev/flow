@@ -37,60 +37,83 @@ export function useWorkflowGroups(instanceId?: string) {
     },
   });
 
-  // Buscar grupos da Evolution API
+  // Buscar grupos da Evolution API (retorna todos os grupos)
   const fetchGroupsFromEvolution = async (
     instance: EvolutionConfig
   ): Promise<EvolutionGroup[]> => {
-    try {
-      const baseUrl = instance.api_url.replace(/\/$/, "").replace(/\/(manager|dashboard|app)$/, "");
-      // Tentar diferentes endpoints possíveis da Evolution API
-      const endpoints = [
-        `${baseUrl}/group/fetchAllGroups/${instance.instance_name}`,
-        `${baseUrl}/${instance.instance_name}/group/fetchAllGroups`,
-        `${baseUrl}/group/${instance.instance_name}/fetchAllGroups`,
-      ];
+    console.log("🔍 Buscando grupos da instância:", instance.instance_name);
+    
+    const endpoints = [
+      `${instance.api_url}/group/fetchAllGroups/${instance.instance_name}?getParticipants=true`,
+      `${instance.api_url}/${instance.instance_name}/group/fetchAllGroups?getParticipants=true`,
+      `${instance.api_url}/group/${instance.instance_name}/fetchAllGroups?getParticipants=true`,
+    ];
 
-      let lastError: Error | null = null;
-      for (const apiUrl of endpoints) {
-        try {
-          const response = await fetch(apiUrl, {
-            method: "GET",
-            headers: {
-              apikey: instance.api_key || "",
-              "Content-Type": "application/json",
-            },
-          });
+    console.log("📡 Endpoints que serão testados:", endpoints);
 
-          if (!response.ok) {
-            lastError = new Error(`Erro ao buscar grupos: ${response.status}`);
-            continue;
-          }
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
 
-          const data = await response.json();
-          // A Evolution API pode retornar em diferentes formatos
-          let groups: EvolutionGroup[] = [];
-          if (Array.isArray(data)) {
-            groups = data;
-          } else if (data.groups && Array.isArray(data.groups)) {
-            groups = data.groups;
-          } else if (data.data && Array.isArray(data.data)) {
-            groups = data.data;
-          }
+    if (instance.api_key) {
+      headers["apikey"] = instance.api_key;
+    }
 
-          if (groups.length > 0) {
-            return groups;
-          }
-        } catch (endpointError) {
-          lastError = endpointError as Error;
+    // Timeout de 20 segundos
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Timeout: A busca demorou muito. A instância pode ter muitos grupos.")), 20000);
+    });
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🌐 Tentando endpoint: ${endpoint}`);
+
+        const fetchPromise = fetch(endpoint, {
+          method: "GET",
+          headers,
+        });
+
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+        console.log(`📥 Status da resposta: ${response.status}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log(`❌ Erro na resposta (${response.status}): ${errorText}`);
           continue;
         }
-      }
 
-      throw lastError || new Error("Nenhum endpoint de grupos funcionou");
-    } catch (error: any) {
-      console.error("Erro ao buscar grupos da Evolution API:", error);
-      throw error;
+        const data = await response.json();
+        console.log("📦 Dados recebidos:", data);
+
+        let groups: EvolutionGroup[] = [];
+
+        if (Array.isArray(data)) {
+          groups = data;
+        } else if (data.groups && Array.isArray(data.groups)) {
+          groups = data.groups;
+        } else if (data.data && Array.isArray(data.data)) {
+          groups = data.data;
+        } else if (data.response && Array.isArray(data.response)) {
+          groups = data.response;
+        }
+
+        if (groups.length > 0) {
+          console.log(`✅ ${groups.length} grupos encontrados no total!`);
+          return groups;
+        } else {
+          console.warn(`⚠️ Endpoint retornou sucesso mas sem grupos`);
+        }
+      } catch (error: any) {
+        if (error.message.includes("Timeout")) {
+          throw error;
+        }
+        console.log(`❌ Erro ao tentar endpoint ${endpoint}:`, error.message);
+        continue;
+      }
     }
+
+    throw new Error("Não foi possível buscar os grupos. Verifique se a instância está conectada e tente novamente.");
   };
 
   // Criar ou obter grupo (registro inteligente)

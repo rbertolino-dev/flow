@@ -50,24 +50,58 @@ export function WorkflowGroupSelector({
   const { registeredGroups, createOrGetGroup, fetchGroupsFromEvolution } =
     useWorkflowGroups(instanceId);
 
-  // Buscar grupos da Evolution API quando instância for selecionada
-  useEffect(() => {
-    if (selectedInstance && selectedInstance.is_connected) {
-      loadGroupsFromEvolution(selectedInstance);
-    } else {
-      setAvailableGroups([]);
+  const handleSearchGroups = async () => {
+    if (!selectedInstance) {
+      toast({
+        title: "Selecione uma instância",
+        description: "É necessário selecionar uma instância antes de buscar grupos.",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [selectedInstance]);
 
-  const loadGroupsFromEvolution = async (instance: EvolutionConfig) => {
+    if (!searchTerm.trim()) {
+      toast({
+        title: "Digite um termo de busca",
+        description: "Digite parte do nome do grupo para buscar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoadingGroups(true);
     try {
-      const groups = await fetchGroupsFromEvolution(instance);
-      setAvailableGroups(groups);
+      // Busca todos os grupos da instância
+      const allGroups = await fetchGroupsFromEvolution(selectedInstance);
+      
+      // Filtra localmente (case-insensitive)
+      const searchLower = searchTerm.toLowerCase().trim();
+      const filtered = allGroups.filter((group) => {
+        const subjectMatch = group.subject?.toLowerCase().includes(searchLower);
+        const idMatch = group.id.toLowerCase().includes(searchLower);
+        return subjectMatch || idMatch;
+      });
+      
+      setAvailableGroups(filtered);
+      
+      console.log(`🔍 Busca por "${searchTerm}": ${filtered.length} de ${allGroups.length} grupos encontrados`);
+      
+      if (filtered.length === 0) {
+        toast({
+          title: "Nenhum grupo encontrado",
+          description: `Não foram encontrados grupos com "${searchTerm}" entre ${allGroups.length} grupos disponíveis.`,
+        });
+      } else {
+        toast({
+          title: "Grupos encontrados",
+          description: `${filtered.length} grupo(s) encontrado(s).`,
+        });
+      }
     } catch (error: any) {
+      console.error("❌ Erro ao buscar grupos:", error);
       toast({
         title: "Erro ao buscar grupos",
-        description: error.message,
+        description: error.message || "Erro desconhecido ao buscar grupos.",
         variant: "destructive",
       });
       setAvailableGroups([]);
@@ -105,10 +139,6 @@ export function WorkflowGroupSelector({
     }
   };
 
-  const filteredGroups = availableGroups.filter((group) =>
-    group.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    group.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const selectedRegisteredGroup = registeredGroups.find((g) => g.id === selectedGroupId);
 
@@ -117,7 +147,7 @@ export function WorkflowGroupSelector({
       <CardHeader>
         <CardTitle className="text-lg">Selecionar Grupo de WhatsApp</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Escolha uma instância e selecione um grupo. O grupo será registrado automaticamente.
+          Digite parte do nome do grupo (ex: "M20", "Marketing", "Vendas") e clique em "Buscar".
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -147,36 +177,51 @@ export function WorkflowGroupSelector({
 
         {selectedInstance && selectedInstance.is_connected && (
           <>
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="group-search">Buscar Grupo</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="group-search"
-                  placeholder="Digite para buscar grupos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="group-search"
+                    placeholder="Digite o nome do grupo..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearchGroups();
+                      }
+                    }}
+                    className="pl-8"
+                  />
+                </div>
+                <Button
+                  onClick={handleSearchGroups}
+                  disabled={isLoadingGroups || !searchTerm.trim()}
+                >
+                  {isLoadingGroups ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Buscar"
+                  )}
+                </Button>
               </div>
             </div>
 
-            {isLoadingGroups ? (
+            {availableGroups.length === 0 && !isLoadingGroups ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Digite o nome do grupo e clique em "Buscar" para encontrar grupos.
+              </div>
+            ) : availableGroups.length === 0 && isLoadingGroups ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-sm text-muted-foreground">
-                  Carregando grupos...
+                  Buscando grupos...
                 </span>
-              </div>
-            ) : filteredGroups.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                {searchTerm
-                  ? "Nenhum grupo encontrado com esse termo."
-                  : "Nenhum grupo disponível nesta instância."}
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {filteredGroups.map((group) => (
+                {availableGroups.map((group) => (
                   <Button
                     key={group.id}
                     variant={

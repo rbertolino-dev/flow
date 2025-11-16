@@ -36,6 +36,7 @@ export function AsaasBoletoForm({
   const { createBoleto, isCreatingBoleto } = useAsaasBoletos();
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState({
+    cpfCnpj: leadCpfCnpj || "",
     valor: "",
     dataVencimento: format(new Date(), "yyyy-MM-dd"),
     descricao: "",
@@ -56,7 +57,7 @@ export function AsaasBoletoForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.valor || !formData.dataVencimento) {
+    if (!formData.valor || !formData.dataVencimento || !formData.cpfCnpj) {
       return;
     }
 
@@ -65,7 +66,7 @@ export function AsaasBoletoForm({
         leadId,
         customer: {
           name: leadName,
-          cpfCnpj: leadCpfCnpj,
+          cpfCnpj: formData.cpfCnpj,
           email: leadEmail,
           phone: leadPhone,
         },
@@ -84,6 +85,7 @@ export function AsaasBoletoForm({
 
       // Resetar form
       setFormData({
+        cpfCnpj: "",
         valor: "",
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
         descricao: "",
@@ -128,6 +130,18 @@ export function AsaasBoletoForm({
 
           {!generatedBoleto ? (
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="cpfCnpj">CPF/CNPJ *</Label>
+                <Input
+                  id="cpfCnpj"
+                  name="cpfCnpj"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  value={formData.cpfCnpj}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="valor">Valor *</Label>
@@ -179,11 +193,6 @@ export function AsaasBoletoForm({
                 />
               </div>
 
-              {leadCpfCnpj && (
-                <p className="text-xs text-muted-foreground">
-                  CPF/CNPJ: {leadCpfCnpj}
-                </p>
-              )}
               {leadEmail && (
                 <p className="text-xs text-muted-foreground">
                   Email: {leadEmail}
@@ -200,7 +209,7 @@ export function AsaasBoletoForm({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!formData.valor || isCreatingBoleto}
+                  disabled={!formData.valor || !formData.cpfCnpj || isCreatingBoleto}
                 >
                   {isCreatingBoleto ? "Gerando..." : "Gerar Boleto"}
                 </Button>

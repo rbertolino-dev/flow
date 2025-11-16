@@ -21,11 +21,8 @@ export interface Boleto {
   codigo_barras?: string | null;
   nosso_numero?: string | null;
   status: "pending" | "open" | "paid" | "cancelled" | "overdue" | "refunded";
-  data_pagamento?: string | null;
-  valor_pago?: number | null;
-  criado_por?: string | null;
-  criado_em: string;
-  atualizado_em: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export function useAsaasBoletos() {
@@ -43,7 +40,7 @@ export function useAsaasBoletos() {
         .from("whatsapp_boletos")
         .select("*")
         .eq("organization_id", activeOrgId)
-        .order("criado_em", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as Boleto[];
     },
@@ -57,7 +54,7 @@ export function useAsaasBoletos() {
       .select("*")
       .eq("organization_id", activeOrgId)
       .eq("lead_id", leadId)
-      .order("criado_em", { ascending: false });
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return (data || []) as Boleto[];
   };
@@ -70,7 +67,7 @@ export function useAsaasBoletos() {
       .select("*")
       .eq("organization_id", activeOrgId)
       .eq("workflow_id", workflowId)
-      .order("criado_em", { ascending: false });
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return (data || []) as Boleto[];
   };
@@ -139,21 +136,15 @@ export function useAsaasBoletos() {
     mutationFn: async ({
       boletoId,
       status,
-      dataPagamento,
-      valorPago,
     }: {
       boletoId: string;
       status: string;
-      dataPagamento?: string;
-      valorPago?: number;
     }) => {
       const { error } = await supabase
         .from("whatsapp_boletos")
         .update({
           status,
-          data_pagamento: dataPagamento,
-          valor_pago: valorPago,
-          atualizado_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", boletoId);
 

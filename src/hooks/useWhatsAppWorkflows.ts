@@ -147,6 +147,10 @@ export function useWhatsAppWorkflows() {
       name: values.name,
       workflow_type: values.workflow_type,
       recipient_mode: values.recipientMode,
+<<<<<<< HEAD
+=======
+      group_id: values.group_id || null,
+>>>>>>> 3496eed9855698ee102ef81d1ec6136d65342230
       periodicity: values.periodicity,
       days_of_week: values.days_of_week,
       day_of_month: values.day_of_month || null,
@@ -346,19 +350,26 @@ export function useWhatsAppWorkflows() {
           
           // Buscar dados dos leads para criar boletos
           const leadIds = contacts
-            .map((c) => c.lead_id)
+            .map((c) => {
+              if (typeof c === 'object' && c !== null && 'lead_id' in c) {
+                return (c as any).lead_id as string;
+              }
+              return null;
+            })
             .filter((id): id is string => !!id);
 
           if (leadIds.length > 0) {
             const { data: leadsData } = await supabase
               .from("leads")
-              .select("id, name, email, phone, cpf_cnpj")
+              .select("id, name, email, phone")
               .in("id", leadIds);
 
             if (leadsData) {
               for (const lead of leadsData) {
-                const contact = contacts.find((c) => c.lead_id === lead.id);
+                const contact = contacts.find((c: any) => c.lead_id === lead.id);
                 if (!contact) continue;
+
+                const contactObj = contact as any;
 
                 try {
                   await supabase.functions.invoke("asaas-create-boleto", {
@@ -367,10 +378,9 @@ export function useWhatsAppWorkflows() {
                       leadId: lead.id,
                       workflowId: workflow.id,
                       customer: {
-                        name: lead.name || contact.name || contact.phone,
-                        cpfCnpj: lead.cpf_cnpj || undefined,
+                        name: lead.name || contactObj.name || contactObj.phone,
                         email: lead.email || undefined,
-                        phone: contact.phone || lead.phone || undefined,
+                        phone: contactObj.phone || lead.phone || undefined,
                       },
                       boleto: {
                         valor: payload.boleto_valor,

@@ -174,6 +174,8 @@ serve(async (req) => {
       );
     }
 
+    console.log("✅ Boleto criado no Asaas:", JSON.stringify(paymentData, null, 2));
+
     // 3) Gerar PDF do boleto
     let boleoPdfUrl: string | null = null;
     if (paymentData.id) {
@@ -188,6 +190,9 @@ serve(async (req) => {
         if (pdfRes.ok) {
           const pdfData = await pdfRes.json();
           boleoPdfUrl = pdfData.url || pdfData.data?.url || null;
+          console.log("📄 PDF URL gerada:", boleoPdfUrl);
+        } else {
+          console.warn("⚠️ Erro ao gerar PDF:", await pdfRes.text());
         }
       } catch (pdfError) {
         console.warn("Aviso: Não foi possível gerar PDF do boleto:", pdfError);
@@ -195,7 +200,19 @@ serve(async (req) => {
       }
     }
 
+    console.log("💾 Dados que serão salvos no banco:", {
+      boleto_url: paymentData.paymentLink,
+      boleto_pdf_url: boleoPdfUrl,
+      bankSlipUrl: paymentData.bankSlipUrl,
+      invoiceUrl: paymentData.invoiceUrl,
+    });
+
     // 4) Registrar boleto no banco de dados
+    const boletoUrl = paymentData.invoiceUrl || paymentData.bankSlipUrl || paymentData.paymentLink || null;
+    const boletoPdfFinal = boleoPdfUrl || paymentData.bankSlipUrl || paymentData.invoiceUrl || null;
+
+    console.log("🔗 URLs finais:", { boletoUrl, boletoPdfFinal });
+
     const { data: boletoRecord, error: insertError } = await supabase
       .from("whatsapp_boletos")
       .insert({
@@ -209,8 +226,8 @@ serve(async (req) => {
         data_vencimento: boleto.dataVencimento,
         descricao: boleto.descricao,
         referencia_externa: boleto.referenciaExterna,
-        boleto_url: paymentData.paymentLink,
-        boleto_pdf_url: boleoPdfUrl,
+        boleto_url: boletoUrl,
+        boleto_pdf_url: boletoPdfFinal,
         linha_digitavel: paymentData.barCode,
         codigo_barras: paymentData.barCode,
         nosso_numero: paymentData.nossoNumero,

@@ -83,7 +83,6 @@ const DEFAULT_FORM: WorkflowFormValues = {
   name: "",
   workflow_type: "cobranca",
   recipientMode: "list",
-  recipient_type: "list",
   workflow_list_id: undefined,
   single_lead_id: undefined,
   group_id: undefined,
@@ -559,7 +558,6 @@ export function WorkflowFormDrawer({
                 value={values.recipientMode}
                 onValueChange={(value) => {
                   handleChange("recipientMode", value as WorkflowFormValues["recipientMode"]);
-                  handleChange("recipient_type", value as "list" | "single" | "group");
                   // Limpar seleções ao mudar o modo
                   if (value !== "list") {
                     handleChange("workflow_list_id", undefined);
@@ -1035,6 +1033,22 @@ export function WorkflowFormDrawer({
                   </div>
                 )}
 
+                {/* Geração manual de boleto para lead único */}
+                {values.recipientMode === "single" && selectedLead && (
+                  <div className="mt-4">
+                    <Label className="text-sm font-semibold mb-2 block">Gerar boleto agora</Label>
+                    <AsaasBoletoForm
+                      leadId={selectedLead.id}
+                      leadName={selectedLead.name}
+                      leadEmail={selectedLead.email}
+                      leadPhone={selectedLead.phone}
+                      onSuccess={() => {
+                        // A listagem será atualizada via invalidation do hook useAsaasBoletos
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Lista de boletos para workflow existente */}
                 {workflow?.id && (
                   <div className="mt-4">
@@ -1253,8 +1267,7 @@ function transformWorkflowToForm(workflow: WorkflowEnvio): WorkflowFormValues {
     id: workflow.id,
     name: workflow.name,
     workflow_type: workflow.workflow_type,
-    recipientMode: (workflow.recipient_type || workflow.recipient_mode) as "list" | "single" | "group",
-    recipient_type: workflow.recipient_type || workflow.recipient_mode,
+    recipientMode: workflow.recipient_mode as "list" | "single" | "group",
     workflow_list_id: workflow.workflow_list_id,
     single_lead_id: undefined,
     group_id: workflow.group_id || undefined,
