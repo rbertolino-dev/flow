@@ -471,7 +471,16 @@ const AgentsDashboard = () => {
         <CardContent>
           {loading ? (
             <div className="flex h-32 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Carregando agentes...</p>
+              </div>
+            </div>
+          ) : agents.length === 0 ? (
+            <div className="flex h-32 items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                Nenhum agente criado ainda. Clique em "Novo agente" para começar.
+              </p>
             </div>
           ) : (
             <Table>
