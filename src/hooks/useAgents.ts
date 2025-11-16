@@ -67,6 +67,7 @@ export function useAgents() {
         organization_id: orgId,
       });
       setAgents((prev) => [agent, ...prev]);
+      setLoading(false);
       toast({
         title: "Agente criado",
         description: "Sincronize com a OpenAI para ativar o agente.",
