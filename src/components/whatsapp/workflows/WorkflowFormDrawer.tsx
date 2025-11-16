@@ -422,6 +422,7 @@ export function WorkflowFormDrawer({
           // }
         }
       }
+    }
 
     try {
       setIsSubmitting(true);
@@ -1289,4 +1290,3 @@ function transformWorkflowToForm(workflow: WorkflowEnvio): WorkflowFormValues {
     attachments: workflow.attachments || [],
   };
 }
-
