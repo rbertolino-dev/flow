@@ -42,7 +42,10 @@ export function useWorkflowGroups(instanceId?: string) {
     instance: EvolutionConfig
   ): Promise<EvolutionGroup[]> => {
     try {
+      console.log("🔍 Buscando grupos da instância:", instance.instance_name);
+      
       const baseUrl = instance.api_url.replace(/\/$/, "").replace(/\/(manager|dashboard|app)$/, "");
+      
       // Tentar diferentes endpoints possíveis da Evolution API
       const endpoints = [
         `${baseUrl}/group/fetchAllGroups/${instance.instance_name}`,
@@ -50,9 +53,14 @@ export function useWorkflowGroups(instanceId?: string) {
         `${baseUrl}/group/${instance.instance_name}/fetchAllGroups`,
       ];
 
+      console.log("📡 Endpoints que serão testados:", endpoints);
+
       let lastError: Error | null = null;
+      
       for (const apiUrl of endpoints) {
         try {
+          console.log(`🌐 Tentando endpoint: ${apiUrl}`);
+          
           const response = await fetch(apiUrl, {
             method: "GET",
             headers: {
@@ -61,35 +69,53 @@ export function useWorkflowGroups(instanceId?: string) {
             },
           });
 
+          console.log(`📊 Status da resposta (${apiUrl}):`, response.status);
+
           if (!response.ok) {
-            lastError = new Error(`Erro ao buscar grupos: ${response.status}`);
+            const errorText = await response.text();
+            console.error(`❌ Erro no endpoint ${apiUrl}:`, errorText);
+            lastError = new Error(`Erro ao buscar grupos: ${response.status} - ${errorText}`);
             continue;
           }
 
           const data = await response.json();
+          console.log("📦 Dados recebidos:", data);
+          
           // A Evolution API pode retornar em diferentes formatos
           let groups: EvolutionGroup[] = [];
+          
           if (Array.isArray(data)) {
             groups = data;
           } else if (data.groups && Array.isArray(data.groups)) {
             groups = data.groups;
           } else if (data.data && Array.isArray(data.data)) {
             groups = data.data;
+          } else if (data.response && Array.isArray(data.response)) {
+            groups = data.response;
           }
+
+          console.log(`✅ ${groups.length} grupos encontrados no endpoint ${apiUrl}`);
 
           if (groups.length > 0) {
             return groups;
           }
-        } catch (endpointError) {
-          lastError = endpointError as Error;
+          
+          // Se retornou sucesso mas sem grupos, continuar para próximo endpoint
+          console.warn(`⚠️ Endpoint ${apiUrl} retornou sucesso mas sem grupos`);
+          
+        } catch (endpointError: any) {
+          console.error(`❌ Erro ao processar endpoint ${apiUrl}:`, endpointError);
+          lastError = endpointError;
           continue;
         }
       }
 
-      throw lastError || new Error("Nenhum endpoint de grupos funcionou");
+      console.error("❌ Todos os endpoints falharam. Último erro:", lastError);
+      throw lastError || new Error("Nenhum endpoint de grupos funcionou. Verifique se a instância está conectada e possui grupos.");
+      
     } catch (error: any) {
-      console.error("Erro ao buscar grupos da Evolution API:", error);
-      throw error;
+      console.error("❌ Erro geral ao buscar grupos da Evolution API:", error);
+      throw new Error(error.message || "Erro ao buscar grupos do WhatsApp");
     }
   };
 
