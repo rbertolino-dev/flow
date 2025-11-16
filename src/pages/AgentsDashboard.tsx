@@ -4,8 +4,9 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useAgents } from "@/hooks/useAgents";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
-import { AgentFormValues, AgentStatus } from "@/types/agents";
+import { Agent, AgentFormValues, AgentStatus } from "@/types/agents";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { OpenAIConfigDialog } from "@/components/agents/OpenAIConfigDialog";
 import {
   Card,
@@ -42,7 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Wand2, Upload, X, Info, Zap, Key } from "lucide-react";
+import { Loader2, RefreshCw, Wand2, Upload, X, Info, Zap, Key, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const statusLabel: Record<AgentStatus, string> = {
@@ -66,9 +67,11 @@ const defaultForm: AgentFormValues = {
 
 const AgentsDashboard = () => {
   const navigate = useNavigate();
-  const { agents, stats, loading, createAgent, syncAgent } = useAgents();
+  const { toast } = useToast();
+  const { agents, stats, loading, createAgent, updateAgent, deleteAgent, syncAgent } = useAgents();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [openaiConfigOpen, setOpenaiConfigOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formValues, setFormValues] = useState<AgentFormValues>(defaultForm);
@@ -141,12 +144,59 @@ const AgentsDashboard = () => {
         };
       }
       
-      await createAgent(agentData);
+      if (editingAgent) {
+        await updateAgent(editingAgent.id, agentData);
+        toast({
+          title: "Agente atualizado",
+          description: "As alterações foram salvas com sucesso.",
+        });
+      } else {
+        await createAgent(agentData);
+      }
+      
       setFormValues(defaultForm);
       setUploadedFiles([]);
+      setEditingAgent(null);
       setIsDialogOpen(false);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditAgent = (agent: Agent) => {
+    setEditingAgent(agent);
+    setFormValues({
+      name: agent.name,
+      description: agent.description || "",
+      language: agent.language || "pt-BR",
+      model: agent.model || "gpt-4o-mini",
+      prompt_instructions: agent.prompt_instructions || "",
+      guardrails: agent.guardrails || "",
+      few_shot_examples: agent.few_shot_examples || "",
+      temperature: agent.temperature || 0.6,
+      test_mode: agent.test_mode ?? true,
+      allow_fallback: agent.allow_fallback ?? false,
+      evolution_config_id: agent.evolution_config_id || undefined,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteAgent = async (agentId: string, agentName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o agente "${agentName}"?`)) {
+      return;
+    }
+    try {
+      await deleteAgent(agentId);
+    } catch (err) {
+      console.error("Erro ao excluir agente:", err);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setFormValues(defaultForm);
+      setEditingAgent(null);
     }
   };
 
@@ -400,7 +450,7 @@ const AgentsDashboard = () => {
                 disabled={isSubmitting || !formValues.name}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Criar agente
+                {editingAgent ? "Salvar alterações" : "Criar agente"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -526,6 +576,20 @@ const AgentsDashboard = () => {
                         : "Não sincronizado"}
                     </TableCell>
                     <TableCell className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditAgent(agent)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteAgent(agent.id, agent.name)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

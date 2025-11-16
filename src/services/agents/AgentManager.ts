@@ -155,6 +155,17 @@ export const AgentManager = {
     return invokeAgentSync(agentId, "evolution");
   },
 
+  async deleteAgent(agentId: string): Promise<void> {
+    const { error } = await (supabase as any)
+      .from("agents")
+      .delete()
+      .eq("id", agentId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  },
+
   async listVersions(agentId: string): Promise<AgentVersion[]> {
     const { data, error } = await (supabase as any)
       .from("agent_versions")

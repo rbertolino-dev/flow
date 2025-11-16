@@ -129,6 +129,28 @@ export function useAgents() {
     [fetchAgents, toast]
   );
 
+  const deleteAgent = useCallback(
+    async (agentId: string) => {
+      try {
+        await AgentManager.deleteAgent(agentId);
+        setAgents((prev) => prev.filter((a) => a.id !== agentId));
+        toast({
+          title: "Agente excluído",
+          description: "O agente foi removido com sucesso.",
+        });
+      } catch (error) {
+        console.error("[useAgents] Erro ao excluir agente:", error);
+        toast({
+          title: "Erro ao excluir agente",
+          description: error instanceof Error ? error.message : "Falha inesperada.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [toast]
+  );
+
   const stats = useMemo(() => {
     const total = agents.length;
     const active = agents.filter((agent) => agent.status === "active").length;
@@ -144,6 +166,7 @@ export function useAgents() {
     setSelectedAgent,
     createAgent,
     updateAgent,
+    deleteAgent,
     syncAgent,
     refetch: fetchAgents,
   };
