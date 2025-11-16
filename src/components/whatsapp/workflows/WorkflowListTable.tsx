@@ -75,12 +75,12 @@ export function WorkflowListTable({
               <TableCell className="capitalize">{workflow.workflow_type}</TableCell>
               <TableCell>{formatPeriodicity(workflow)}</TableCell>
               <TableCell>
-                {workflow.recipient_type === "group" && workflow.group ? (
+                {workflow.recipient_mode === "group" && workflow.group ? (
                   <Badge variant="secondary" className="gap-1">
                     <Users className="h-3 w-3" />
                     {workflow.group.group_name}
                   </Badge>
-                ) : workflow.recipient_type === "single" ? (
+                ) : workflow.recipient_mode === "single" ? (
                   <Badge variant="outline">Cliente individual</Badge>
                 ) : (
                   <Badge variant="outline">
