@@ -46,11 +46,11 @@ export function useWorkflowGroups(instanceId?: string) {
       
       const baseUrl = instance.api_url.replace(/\/$/, "").replace(/\/(manager|dashboard|app)$/, "");
       
-      // Tentar diferentes endpoints possíveis da Evolution API
+      // Tentar diferentes endpoints possíveis da Evolution API (COM getParticipants=true)
       const endpoints = [
-        `${baseUrl}/group/fetchAllGroups/${instance.instance_name}`,
-        `${baseUrl}/${instance.instance_name}/group/fetchAllGroups`,
-        `${baseUrl}/group/${instance.instance_name}/fetchAllGroups`,
+        `${baseUrl}/group/fetchAllGroups/${instance.instance_name}?getParticipants=true`,
+        `${baseUrl}/${instance.instance_name}/group/fetchAllGroups?getParticipants=true`,
+        `${baseUrl}/group/${instance.instance_name}/fetchAllGroups?getParticipants=true`,
       ];
 
       console.log("📡 Endpoints que serão testados:", endpoints);
