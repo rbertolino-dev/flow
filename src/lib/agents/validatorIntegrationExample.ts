@@ -188,7 +188,9 @@ async function callOpenAIAssistant(
   message: string,
   leadId: string
 ): Promise<string> {
-  const openaiKey = Deno.env.get('OPENAI_API_KEY');
+  // This function is for documentation purposes only
+  // In production, use Supabase Edge Functions to call OpenAI
+  const openaiKey = 'YOUR_API_KEY';
   
   // 1. Criar thread (ou recuperar thread existente do lead)
   const threadResponse = await fetch('https://api.openai.com/v1/threads', {
