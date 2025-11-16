@@ -86,6 +86,8 @@ const AgentsDashboard = () => {
   ]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [syncingAgentId, setSyncingAgentId] = useState<string | null>(null);
+  const [syncingTarget, setSyncingTarget] = useState<"openai" | "evolution" | null>(null);
 
   useEffect(() => {
     if (activeOrgId) {
@@ -197,6 +199,26 @@ const AgentsDashboard = () => {
     }
   };
 
+  const handleSyncAgent = async (agentId: string, target: "openai" | "evolution") => {
+    setSyncingAgentId(agentId);
+    setSyncingTarget(target);
+    
+    console.log(`🔄 [Dashboard] Iniciando sincronização ${target} para agente ${agentId}`);
+    
+    try {
+      await syncAgent(agentId, target);
+      console.log(`✅ [Dashboard] Sincronização ${target} concluída com sucesso!`);
+    } catch (err) {
+      console.error(`❌ [Dashboard] Erro na sincronização ${target}:`, err);
+      
+      // Mostrar alert visual para o usuário
+      alert(`❌ ERRO na sincronização com ${target}:\n\n${err instanceof Error ? err.message : String(err)}\n\nVeja o console (F12) para mais detalhes.`);
+    } finally {
+      setSyncingAgentId(null);
+      setSyncingTarget(null);
+    }
+  };
+
   const handleDialogClose = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
@@ -221,7 +243,7 @@ const AgentsDashboard = () => {
   return (
     <AuthGuard>
       <CRMLayout activeView="agents" onViewChange={handleViewChange}>
-    <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Agentes Inteligentes</h1>
@@ -460,6 +482,7 @@ const AgentsDashboard = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card className="border-blue-200 bg-blue-50 shadow-md">
@@ -600,19 +623,20 @@ const AgentsDashboard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => syncAgent(agent.id, "openai")}
+                        disabled={syncingAgentId === agent.id && syncingTarget === "openai"}
+                        onClick={() => handleSyncAgent(agent.id, "openai")}
                       >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        OpenAI
+                        <RefreshCw className={`mr-2 h-4 w-4 ${syncingAgentId === agent.id && syncingTarget === "openai" ? "animate-spin" : ""}`} />
+                        {syncingAgentId === agent.id && syncingTarget === "openai" ? "Sincronizando..." : "OpenAI"}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={!agent.evolution_config_id}
-                        onClick={() => syncAgent(agent.id, "evolution")}
+                        disabled={!agent.evolution_config_id || (syncingAgentId === agent.id && syncingTarget === "evolution")}
+                        onClick={() => handleSyncAgent(agent.id, "evolution")}
                       >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Evolution
+                        <RefreshCw className={`mr-2 h-4 w-4 ${syncingAgentId === agent.id && syncingTarget === "evolution" ? "animate-spin" : ""}`} />
+                        {syncingAgentId === agent.id && syncingTarget === "evolution" ? "Sincronizando..." : "Evolution"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -624,11 +648,11 @@ const AgentsDashboard = () => {
       </Card>
 
       {/* OpenAI Config Dialog */}
-      <OpenAIConfigDialog
-        open={openaiConfigOpen}
-        onOpenChange={setOpenaiConfigOpen}
-      />
-    </div>
+        <OpenAIConfigDialog
+          open={openaiConfigOpen}
+          onOpenChange={setOpenaiConfigOpen}
+        />
+        </div>
       </CRMLayout>
     </AuthGuard>
   );
