@@ -644,7 +644,24 @@ const AgentsDashboard = () => {
                         variant="outline"
                         size="sm"
                         disabled={!agent.evolution_config_id || (syncingAgentId === agent.id && syncingTarget === "evolution")}
-                        onClick={() => handleSyncAgent(agent.id, "evolution")}
+                        onClick={() => {
+                          console.log(`🔴🔴🔴 [Dashboard] BOTÃO EVOLUTION CLICADO!`);
+                          console.log(`📋 [Dashboard] Agent:`, agent);
+                          console.log(`📋 [Dashboard] evolution_config_id:`, agent.evolution_config_id);
+                          console.log(`📋 [Dashboard] openai_assistant_id:`, agent.openai_assistant_id);
+                          
+                          if (!agent.evolution_config_id) {
+                            alert(`⚠️ ATENÇÃO!\n\nEste agente não tem uma instância Evolution vinculada.\n\nVá em "Editar agente" e selecione uma instância no campo "Instância Evolution (opcional)" no final do formulário.`);
+                            return;
+                          }
+                          
+                          if (!agent.openai_assistant_id) {
+                            alert(`⚠️ ATENÇÃO!\n\nEste agente ainda não foi sincronizado com OpenAI.\n\nClique primeiro no botão "OpenAI" para criar o assistente na OpenAI.`);
+                            return;
+                          }
+                          
+                          handleSyncAgent(agent.id, "evolution");
+                        }}
                       >
                         <RefreshCw className={`mr-2 h-4 w-4 ${syncingAgentId === agent.id && syncingTarget === "evolution" ? "animate-spin" : ""}`} />
                         {syncingAgentId === agent.id && syncingTarget === "evolution" ? "Sincronizando..." : "Evolution"}
