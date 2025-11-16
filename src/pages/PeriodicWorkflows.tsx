@@ -8,6 +8,7 @@ import { WorkflowFilters } from "@/components/whatsapp/workflows/WorkflowFilters
 import { WorkflowListTable } from "@/components/whatsapp/workflows/WorkflowListTable";
 import { WorkflowFormDrawer } from "@/components/whatsapp/workflows/WorkflowFormDrawer";
 import { WorkflowApprovalQueue } from "@/components/whatsapp/workflows/WorkflowApprovalQueue";
+import { BoletoManagement } from "@/components/whatsapp/workflows/BoletoManagement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWorkflowApprovals } from "@/hooks/useWorkflowApprovals";
 import {
@@ -175,6 +176,7 @@ export default function PeriodicWorkflows() {
                     </Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="boletos">Gestão de Boletos Asaas</TabsTrigger>
                 <TabsTrigger value="asaas">Integração Asaas</TabsTrigger>
               </TabsList>
               <TabsContent value="workflows" className="space-y-6 mt-6">
@@ -196,6 +198,9 @@ export default function PeriodicWorkflows() {
               </TabsContent>
               <TabsContent value="approvals" className="mt-6">
                 <WorkflowApprovalQueue />
+              </TabsContent>
+              <TabsContent value="boletos" className="mt-6">
+                <BoletoManagement />
               </TabsContent>
               <TabsContent value="asaas" className="mt-6">
                 <div className="grid gap-6 md:grid-cols-2">

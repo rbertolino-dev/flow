@@ -193,5 +193,6 @@ export interface LeadOption {
   id: string;
   name: string;
   phone: string;
+  email?: string;
 }
 

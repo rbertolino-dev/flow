@@ -21,11 +21,8 @@ export interface Boleto {
   codigo_barras?: string | null;
   nosso_numero?: string | null;
   status: "pending" | "open" | "paid" | "cancelled" | "overdue" | "refunded";
-  data_pagamento?: string | null;
-  valor_pago?: number | null;
-  criado_por?: string | null;
-  criado_em: string;
-  atualizado_em: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export function useAsaasBoletos() {
@@ -139,21 +136,15 @@ export function useAsaasBoletos() {
     mutationFn: async ({
       boletoId,
       status,
-      dataPagamento,
-      valorPago,
     }: {
       boletoId: string;
       status: string;
-      dataPagamento?: string;
-      valorPago?: number;
     }) => {
       const { error } = await supabase
         .from("whatsapp_boletos")
         .update({
           status,
-          data_pagamento: dataPagamento,
-          valor_pago: valorPago,
-          atualizado_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", boletoId);
 

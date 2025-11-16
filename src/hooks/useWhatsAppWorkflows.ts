@@ -337,19 +337,26 @@ export function useWhatsAppWorkflows() {
           
           // Buscar dados dos leads para criar boletos
           const leadIds = contacts
-            .map((c) => c.lead_id)
+            .map((c) => {
+              if (typeof c === 'object' && c !== null && 'lead_id' in c) {
+                return (c as any).lead_id as string;
+              }
+              return null;
+            })
             .filter((id): id is string => !!id);
 
           if (leadIds.length > 0) {
             const { data: leadsData } = await supabase
               .from("leads")
-              .select("id, name, email, phone, cpf_cnpj")
+              .select("id, name, email, phone")
               .in("id", leadIds);
 
             if (leadsData) {
               for (const lead of leadsData) {
-                const contact = contacts.find((c) => c.lead_id === lead.id);
+                const contact = contacts.find((c: any) => c.lead_id === lead.id);
                 if (!contact) continue;
+
+                const contactObj = contact as any;
 
                 try {
                   await supabase.functions.invoke("asaas-create-boleto", {
@@ -358,10 +365,9 @@ export function useWhatsAppWorkflows() {
                       leadId: lead.id,
                       workflowId: workflow.id,
                       customer: {
-                        name: lead.name || contact.name || contact.phone,
-                        cpfCnpj: lead.cpf_cnpj || undefined,
+                        name: lead.name || contactObj.name || contactObj.phone,
                         email: lead.email || undefined,
-                        phone: contact.phone || lead.phone || undefined,
+                        phone: contactObj.phone || lead.phone || undefined,
                       },
                       boleto: {
                         valor: payload.boleto_valor,
