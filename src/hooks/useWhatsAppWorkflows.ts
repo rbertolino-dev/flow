@@ -24,6 +24,10 @@ interface PersistWorkflowArgs extends WorkflowFormValues {
   contact_attachments?: Record<string, File>;
   contact_attachments_metadata?: Record<string, Record<string, any>>;
   monthly_attachments?: Record<string, { month_reference: string; file: File }[]>;
+  gerar_boleto?: boolean;
+  boleto_valor?: number;
+  boleto_vencimento?: string;
+  boleto_descricao?: string;
 }
 
 export function useWhatsAppWorkflows() {
@@ -318,6 +322,65 @@ export function useWhatsAppWorkflows() {
           payload.monthly_attachments,
           contacts,
         );
+      }
+
+      // Criar boletos automaticamente se solicitado
+      if (
+        payload.gerar_boleto &&
+        payload.workflow_type === "cobranca" &&
+        payload.boleto_valor &&
+        payload.boleto_vencimento
+      ) {
+        // Para listas e leads individuais
+        if (listData?.contacts) {
+          const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
+          
+          // Buscar dados dos leads para criar boletos
+          const leadIds = contacts
+            .map((c) => c.lead_id)
+            .filter((id): id is string => !!id);
+
+          if (leadIds.length > 0) {
+            const { data: leadsData } = await supabase
+              .from("leads")
+              .select("id, name, email, phone, cpf_cnpj")
+              .in("id", leadIds);
+
+            if (leadsData) {
+              for (const lead of leadsData) {
+                const contact = contacts.find((c) => c.lead_id === lead.id);
+                if (!contact) continue;
+
+                try {
+                  await supabase.functions.invoke("asaas-create-boleto", {
+                    body: {
+                      organizationId: activeOrgId,
+                      leadId: lead.id,
+                      workflowId: workflow.id,
+                      customer: {
+                        name: lead.name || contact.name || contact.phone,
+                        cpfCnpj: lead.cpf_cnpj || undefined,
+                        email: lead.email || undefined,
+                        phone: contact.phone || lead.phone || undefined,
+                      },
+                      boleto: {
+                        valor: payload.boleto_valor,
+                        dataVencimento: payload.boleto_vencimento,
+                        descricao: payload.boleto_descricao || `Cobrança: ${workflow.name}`,
+                        referenciaExterna: `WF-${workflow.id}`,
+                      },
+                    },
+                  });
+                } catch (boletoError) {
+                  console.error(`Erro ao criar boleto para lead ${lead.id}:`, boletoError);
+                  // Continuar criando boletos para outros leads mesmo se um falhar
+                }
+              }
+            }
+          }
+        }
+        // Para grupos: boletos serão criados quando a Edge Function processar o workflow
+        // (grupos não têm lead_id direto, então precisa buscar participantes primeiro)
       }
 
       return workflow;

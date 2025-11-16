@@ -142,6 +142,12 @@ export function WorkflowFormDrawer({
   const [listManagerOpen, setListManagerOpen] = useState(false);
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Estados para geração de boleto
+  const [gerarBoleto, setGerarBoleto] = useState(false);
+  const [boletoValor, setBoletoValor] = useState("");
+  const [boletoVencimento, setBoletoVencimento] = useState("");
+  const [boletoDescricao, setBoletoDescricao] = useState("");
 
   const existingAttachments = workflow?.attachments || [];
 
@@ -151,6 +157,11 @@ export function WorkflowFormDrawer({
         setValues(transformWorkflowToForm(workflow));
         setPendingFiles([]);
         setAttachmentsToRemove([]);
+        // Resetar campos de boleto ao editar
+        setGerarBoleto(false);
+        setBoletoValor("");
+        setBoletoVencimento("");
+        setBoletoDescricao("");
       } else {
         setValues({
           ...DEFAULT_FORM,
@@ -158,6 +169,11 @@ export function WorkflowFormDrawer({
         });
         setPendingFiles([]);
         setAttachmentsToRemove([]);
+        // Resetar campos de boleto ao criar novo
+        setGerarBoleto(false);
+        setBoletoValor("");
+        setBoletoVencimento(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+        setBoletoDescricao("");
       }
     }
   }, [open, workflow, lists]);
@@ -288,6 +304,26 @@ export function WorkflowFormDrawer({
       return;
     }
 
+    // Validação de campos de boleto
+    if (gerarBoleto && values.workflow_type === "cobranca") {
+      if (!boletoValor || parseFloat(boletoValor) <= 0) {
+        toast({
+          title: "Valor do boleto obrigatório",
+          description: "Informe um valor válido para o boleto.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!boletoVencimento) {
+        toast({
+          title: "Data de vencimento obrigatória",
+          description: "Selecione uma data de vencimento para o boleto.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
       let workflowListId = values.workflow_list_id;
@@ -310,6 +346,11 @@ export function WorkflowFormDrawer({
           contact_attachments: contactFiles,
           contact_attachments_metadata: contactMetadata,
           monthly_attachments: monthlyAttachments,
+          // Passar dados do boleto para criação automática
+          gerar_boleto: gerarBoleto,
+          boleto_valor: gerarBoleto ? parseFloat(boletoValor) : undefined,
+          boleto_vencimento: gerarBoleto ? boletoVencimento : undefined,
+          boleto_descricao: gerarBoleto ? boletoDescricao : undefined,
         },
         {
           attachmentsToUpload: pendingFiles,
@@ -784,56 +825,109 @@ export function WorkflowFormDrawer({
             {values.workflow_type === "cobranca" && (
               <section className="space-y-3 border-t pt-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Gerar Boletos</Label>
-                </div>
-                
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 space-y-1">
-                  <p className="font-semibold">💡 Gerar Boleto Bancário</p>
-                  <p>
-                    Você pode gerar boletos bancários para os clientes selecionados. 
-                    Os boletos serão rastreados e associados a este workflow.
-                  </p>
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-semibold">Gerar Boleto Automaticamente</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ative para gerar boleto bancário ao criar o workflow
+                    </p>
+                  </div>
+                  <Switch
+                    checked={gerarBoleto}
+                    onCheckedChange={setGerarBoleto}
+                  />
                 </div>
 
-                {/* Formulário para lead individual */}
-                {values.recipientMode === "single" && selectedLead && (
-                  <div className="space-y-3">
-                    <AsaasBoletoForm
-                      leadId={selectedLead.id}
-                      leadName={selectedLead.name}
-                      leadEmail={selectedLead.email}
-                      leadPhone={selectedLead.phone}
-                      leadCpfCnpj={selectedLead.cpf_cnpj}
-                      onSuccess={(boleto) => {
-                        toast({
-                          title: "Boleto gerado com sucesso",
-                          description: `Boleto para ${selectedLead.name} criado`,
-                        });
-                      }}
-                    />
-                    <BoletosList leadId={selectedLead.id} />
+                {gerarBoleto && (
+                  <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-xs text-blue-800">
+                      <Info className="h-4 w-4" />
+                      <span className="font-semibold">
+                        Configure os dados do boleto que será gerado para cada cliente
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="boleto-valor">Valor do Boleto *</Label>
+                        <Input
+                          id="boleto-valor"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={boletoValor}
+                          onChange={(e) => setBoletoValor(e.target.value)}
+                          required={gerarBoleto}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Valor em reais (R$)
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="boleto-vencimento">Data de Vencimento *</Label>
+                        <Input
+                          id="boleto-vencimento"
+                          type="date"
+                          value={boletoVencimento || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                          onChange={(e) => setBoletoVencimento(e.target.value)}
+                          required={gerarBoleto}
+                          min={new Date().toISOString().split('T')[0]}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Data limite para pagamento
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="boleto-descricao">Descrição do Boleto</Label>
+                      <Textarea
+                        id="boleto-descricao"
+                        rows={2}
+                        placeholder="Ex: Cobrança referente ao mês de Janeiro/2025"
+                        value={boletoDescricao}
+                        onChange={(e) => setBoletoDescricao(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Esta descrição aparecerá no boleto gerado (opcional)
+                      </p>
+                    </div>
+
+                    <div className="mt-2 p-2 bg-white rounded border border-blue-200">
+                      <p className="text-xs text-muted-foreground">
+                        {values.recipientMode === "single" && selectedLead ? (
+                          <>
+                            <strong>Cliente:</strong> {selectedLead.name}
+                            {selectedLead.email && ` • ${selectedLead.email}`}
+                            {selectedLead.phone && ` • ${selectedLead.phone}`}
+                            <br />
+                            <strong>Será gerado:</strong> 1 boleto para este cliente
+                          </>
+                        ) : values.recipientMode === "list" && listContacts.length > 0 ? (
+                          <>
+                            <strong>Lista:</strong> {selectedList?.name}
+                            <br />
+                            <strong>Será gerado:</strong> {listContacts.length} boleto(s), um para cada cliente da lista
+                          </>
+                        ) : values.recipientMode === "group" ? (
+                          <>
+                            <strong>Grupo:</strong> Boleto será gerado para os membros do grupo selecionado
+                          </>
+                        ) : (
+                          "Selecione os clientes primeiro"
+                        )}
+                      </p>
+                    </div>
                   </div>
                 )}
 
                 {/* Lista de boletos para workflow existente */}
                 {workflow?.id && (
                   <div className="mt-4">
+                    <Label className="text-sm font-semibold mb-2 block">Boletos Gerados</Label>
                     <BoletosList workflowId={workflow.id} />
                   </div>
-                )}
-
-                {/* Mensagem quando não há lead selecionado */}
-                {values.recipientMode === "single" && !selectedLead && (
-                  <p className="text-xs text-muted-foreground">
-                    Selecione um cliente para gerar boleto
-                  </p>
-                )}
-
-                {/* Mensagem para lista */}
-                {values.recipientMode === "list" && (
-                  <p className="text-xs text-muted-foreground">
-                    Após criar o workflow, você poderá gerar boletos para cada cliente da lista
-                  </p>
                 )}
               </section>
             )}

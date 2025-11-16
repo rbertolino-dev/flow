@@ -183,6 +183,10 @@ export interface WorkflowFormValues {
   contact_attachments?: Record<string, File>; // lead_id -> File (para anexos gerais)
   contact_attachments_metadata?: Record<string, Record<string, any>>; // lead_id -> metadata
   monthly_attachments?: Record<string, MonthlyAttachment[]>; // lead_id -> [{month_reference, file}]
+  gerar_boleto?: boolean; // Se deve gerar boleto automaticamente
+  boleto_valor?: number; // Valor do boleto
+  boleto_vencimento?: string; // Data de vencimento (yyyy-MM-dd)
+  boleto_descricao?: string; // Descrição do boleto
 }
 
 export interface LeadOption {
