@@ -57,7 +57,6 @@ export const AgentManager = {
       .from("agents")
       .insert({
         ...payload,
-        status: "draft",
         version: 1,
       })
       .select()
@@ -129,11 +128,11 @@ export const AgentManager = {
     const { error } = await supabase.from("agent_usage_metrics").upsert({
       agent_id: agentId,
       metric_date: metric.metric_date,
-      prompt_tokens: metric.prompt_tokens,
-      completion_tokens: metric.completion_tokens,
-      total_requests: metric.total_requests,
-      total_cost: metric.total_cost,
-      metadata: metric.metadata || {},
+      prompt_tokens: metric.prompt_tokens || 0,
+      completion_tokens: metric.completion_tokens || 0,
+      total_requests: metric.total_requests || 0,
+      total_cost: metric.total_cost || 0,
+      metadata: metric.metadata ? JSON.parse(JSON.stringify(metric.metadata)) : null,
     });
 
     if (error) {
