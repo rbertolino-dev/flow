@@ -72,42 +72,71 @@ export function useCallQueue() {
 
       if (error) throw error;
 
-      // Fetch tags for each queue item and lead
-      const queueWithTags = await Promise.all(
-        (queueData || []).map(async (item) => {
-          if (!item.leads?.id) return { ...item, tags: [], queueTags: [] };
-          
-          // Get lead tags
-          const { data: leadTags } = await (supabase as any)
-            .from('lead_tags')
-            .select('tag_id, tags(id, name, color)')
-            .eq('lead_id', item.leads.id);
+      // OTIMIZAÇÃO: Buscar todas as tags de uma vez em vez de queries individuais (N+1)
+      // Isso reduz de 100+ queries para apenas 2 queries, mantendo estrutura idêntica
+      
+      // Extrair todos os IDs únicos
+      const leadIds = [...new Set((queueData || []).map((q: any) => q.leads?.id).filter(Boolean))];
+      const callQueueIds = [...new Set((queueData || []).map((q: any) => q.id).filter(Boolean))];
 
-          // Get call queue tags
-          const { data: callQueueTags } = await (supabase as any)
-            .from('call_queue_tags')
-            .select('tag_id, tags(id, name, color)')
-            .eq('call_queue_id', item.id);
-          
-          return {
-            ...item,
-            tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
-            queueTags: (callQueueTags || []).map((qt: any) => qt.tags).filter(Boolean)
-          };
-        })
-      );
+      // Buscar TODAS as tags de uma vez (2 queries apenas, independente do número de itens)
+      const [leadTagsResult, callQueueTagsResult] = await Promise.all([
+        leadIds.length > 0
+          ? (supabase as any)
+              .from('lead_tags')
+              .select('lead_id, tag_id, tags(id, name, color)')
+              .in('lead_id', leadIds)
+          : Promise.resolve({ data: [], error: null }),
+        callQueueIds.length > 0
+          ? (supabase as any)
+              .from('call_queue_tags')
+              .select('call_queue_id, tag_id, tags(id, name, color)')
+              .in('call_queue_id', callQueueIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      // Criar mapas para agrupamento rápido (O(1) lookup)
+      const leadTagsMap = new Map<string, any[]>();
+      (leadTagsResult.data || []).forEach((lt: any) => {
+        if (!lt.lead_id || !lt.tags) return;
+        if (!leadTagsMap.has(lt.lead_id)) {
+          leadTagsMap.set(lt.lead_id, []);
+        }
+        leadTagsMap.get(lt.lead_id)!.push(lt.tags);
+      });
+
+      const callQueueTagsMap = new Map<string, any[]>();
+      (callQueueTagsResult.data || []).forEach((ct: any) => {
+        if (!ct.call_queue_id || !ct.tags) return;
+        if (!callQueueTagsMap.has(ct.call_queue_id)) {
+          callQueueTagsMap.set(ct.call_queue_id, []);
+        }
+        callQueueTagsMap.get(ct.call_queue_id)!.push(ct.tags);
+      });
+
+      // Mapear tags de volta para cada item (MESMA ESTRUTURA DE ANTES)
+      const queueWithTags = (queueData || []).map((item: any) => {
+        if (!item.leads?.id) return { ...item, tags: [], queueTags: [] };
+        
+        return {
+          ...item,
+          // MESMA ESTRUTURA: array de objetos {id, name, color}
+          tags: (leadTagsMap.get(item.leads.id) || []).filter(Boolean),
+          queueTags: (callQueueTagsMap.get(item.id) || []).filter(Boolean)
+        };
+      });
 
       // Contar ligações completadas por lead apenas do histórico (fonte única de verdade)
-      const leadIds = [...new Set((queueData || []).map((q: any) => q.lead_id).filter(Boolean))];
+      const leadIdsForHistory = [...new Set((queueData || []).map((q: any) => q.lead_id).filter(Boolean))];
       const callCountsByLead: Record<string, number> = {};
       
-      if (leadIds.length > 0) {
+      if (leadIdsForHistory.length > 0) {
         // Contar APENAS no histórico para evitar duplicação
         const { data: completedInHistory } = await (supabase as any)
           .from('call_queue_history')
           .select('lead_id')
           .eq('action', 'completed')
-          .in('lead_id', leadIds);
+          .in('lead_id', leadIdsForHistory);
 
         // Somar contagens por lead
         (completedInHistory || []).forEach((row: any) => {

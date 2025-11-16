@@ -43,17 +43,6 @@ export function OrganizationCostComparison() {
       const previousMonthStart = startOfMonth(previousMonth);
       const previousMonthEnd = endOfMonth(previousMonth);
 
-      // Buscar organizações
-      const { data: orgs, error: orgsError } = await supabase
-        .from('organizations')
-        .select('id, name');
-
-      if (orgsError) {
-        console.error('Erro ao buscar organizações:', orgsError);
-        setLoading(false);
-        return;
-      }
-
       // Buscar configuração de custos
       const { data: costConfig } = await supabase
         .from('cloud_cost_config')
@@ -66,116 +55,186 @@ export function OrganizationCostComparison() {
         return;
       }
 
-      // Processar custos por organização usando dados REAIS
-      const costs: OrganizationCost[] = await Promise.all(
-        orgs.map(async (org) => {
-          // Métricas do mês atual
-          const [
-            { count: currentIncoming },
-            { count: currentBroadcast },
-            { count: currentScheduled },
-            { count: currentLeads }
-          ] = await Promise.all([
-            supabase.from('whatsapp_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .eq('direction', 'incoming')
-              .gte('timestamp', currentMonthStart.toISOString())
-              .lte('timestamp', currentMonthEnd.toISOString()),
-            supabase.from('broadcast_queue')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .eq('status', 'sent')
-              .gte('sent_at', currentMonthStart.toISOString())
-              .lte('sent_at', currentMonthEnd.toISOString()),
-            supabase.from('scheduled_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .eq('status', 'sent')
-              .gte('sent_at', currentMonthStart.toISOString())
-              .lte('sent_at', currentMonthEnd.toISOString()),
-            supabase.from('leads')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .is('deleted_at', null)
-          ]);
+      // OTIMIZAÇÃO: Usar função SQL agregada em vez de múltiplas queries
+      // Reduz de 80 queries (10 orgs × 8) para 1 query apenas
+      
+      const { data: metricsData, error } = await supabase.rpc('get_organization_metrics', {
+        current_month_start: currentMonthStart.toISOString(),
+        current_month_end: currentMonthEnd.toISOString(),
+        previous_month_start: previousMonthStart.toISOString(),
+        previous_month_end: previousMonthEnd.toISOString()
+      });
 
-          // Métricas do mês anterior
-          const [
-            { count: prevIncoming },
-            { count: prevBroadcast },
-            { count: prevScheduled },
-            { count: prevLeads }
-          ] = await Promise.all([
-            supabase.from('whatsapp_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .eq('direction', 'incoming')
-              .gte('timestamp', previousMonthStart.toISOString())
-              .lte('timestamp', previousMonthEnd.toISOString()),
-            supabase.from('broadcast_queue')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .eq('status', 'sent')
-              .gte('sent_at', previousMonthStart.toISOString())
-              .lte('sent_at', previousMonthEnd.toISOString()),
-            supabase.from('scheduled_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .eq('status', 'sent')
-              .gte('sent_at', previousMonthStart.toISOString())
-              .lte('sent_at', previousMonthEnd.toISOString()),
-            supabase.from('leads')
-              .select('*', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-              .is('deleted_at', null)
-              .lte('created_at', previousMonthEnd.toISOString())
-          ]);
+      if (error) {
+        console.error('Erro ao buscar métricas de organizações:', error);
+        // Fallback: se a função SQL não existir, usar método antigo
+        // Isso garante compatibilidade durante migração
+        const { data: orgs, error: orgsError } = await supabase
+          .from('organizations')
+          .select('id, name');
 
-          // Calcular custos
-          const currentCost = 
-            (currentIncoming || 0) * Number(costConfig.cost_per_incoming_message) +
-            (currentBroadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
-            (currentScheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
-            (currentLeads || 0) * Number(costConfig.cost_per_lead_storage);
+        if (orgsError) {
+          console.error('Erro ao buscar organizações:', orgsError);
+          setLoading(false);
+          return;
+        }
 
-          const previousCost = 
-            (prevIncoming || 0) * Number(costConfig.cost_per_incoming_message) +
-            (prevBroadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
-            (prevScheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
-            (prevLeads || 0) * Number(costConfig.cost_per_lead_storage);
+        const costs: OrganizationCost[] = await Promise.all(
+          orgs.map(async (org) => {
+            const [
+              { count: currentIncoming },
+              { count: currentBroadcast },
+              { count: currentScheduled },
+              { count: currentLeads }
+            ] = await Promise.all([
+              supabase.from('whatsapp_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .eq('direction', 'incoming')
+                .gte('timestamp', currentMonthStart.toISOString())
+                .lte('timestamp', currentMonthEnd.toISOString()),
+              supabase.from('broadcast_queue')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .eq('status', 'sent')
+                .gte('sent_at', currentMonthStart.toISOString())
+                .lte('sent_at', currentMonthEnd.toISOString()),
+              supabase.from('scheduled_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .eq('status', 'sent')
+                .gte('sent_at', currentMonthStart.toISOString())
+                .lte('sent_at', currentMonthEnd.toISOString()),
+              supabase.from('leads')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .is('deleted_at', null)
+            ]);
 
-          // Calcular tendência
-          let trend: 'up' | 'down' | 'stable' = 'stable';
-          let percentageChange = 0;
+            const [
+              { count: prevIncoming },
+              { count: prevBroadcast },
+              { count: prevScheduled },
+              { count: prevLeads }
+            ] = await Promise.all([
+              supabase.from('whatsapp_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .eq('direction', 'incoming')
+                .gte('timestamp', previousMonthStart.toISOString())
+                .lte('timestamp', previousMonthEnd.toISOString()),
+              supabase.from('broadcast_queue')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .eq('status', 'sent')
+                .gte('sent_at', previousMonthStart.toISOString())
+                .lte('sent_at', previousMonthEnd.toISOString()),
+              supabase.from('scheduled_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .eq('status', 'sent')
+                .gte('sent_at', previousMonthStart.toISOString())
+                .lte('sent_at', previousMonthEnd.toISOString()),
+              supabase.from('leads')
+                .select('*', { count: 'exact', head: true })
+                .eq('organization_id', org.id)
+                .is('deleted_at', null)
+                .lte('created_at', previousMonthEnd.toISOString())
+            ]);
 
-          if (previousCost > 0) {
-            percentageChange = ((currentCost - previousCost) / previousCost) * 100;
-            if (percentageChange > 5) trend = 'up';
-            else if (percentageChange < -5) trend = 'down';
-          } else if (currentCost > 0) {
-            trend = 'up';
-            percentageChange = 100;
-          }
+            const currentCost = 
+              (currentIncoming || 0) * Number(costConfig.cost_per_incoming_message) +
+              (currentBroadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
+              (currentScheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
+              (currentLeads || 0) * Number(costConfig.cost_per_lead_storage);
 
-          return {
-            orgId: org.id,
-            orgName: org.name,
-            currentMonthCost: currentCost,
-            previousMonthCost: previousCost,
-            trend,
-            percentageChange,
-            breakdown: {
-              incomingMessages: (currentIncoming || 0) * Number(costConfig.cost_per_incoming_message),
-              broadcastMessages: (currentBroadcast || 0) * Number(costConfig.cost_per_broadcast_message),
-              scheduledMessages: (currentScheduled || 0) * Number(costConfig.cost_per_scheduled_message),
-              leadsStored: (currentLeads || 0) * Number(costConfig.cost_per_lead_storage),
-              databaseOps: 0
+            const previousCost = 
+              (prevIncoming || 0) * Number(costConfig.cost_per_incoming_message) +
+              (prevBroadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
+              (prevScheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
+              (prevLeads || 0) * Number(costConfig.cost_per_lead_storage);
+
+            let trend: 'up' | 'down' | 'stable' = 'stable';
+            let percentageChange = 0;
+
+            if (previousCost > 0) {
+              percentageChange = ((currentCost - previousCost) / previousCost) * 100;
+              if (percentageChange > 5) trend = 'up';
+              else if (percentageChange < -5) trend = 'down';
+            } else if (currentCost > 0) {
+              trend = 'up';
+              percentageChange = 100;
             }
-          };
-        })
-      );
 
+            return {
+              orgId: org.id,
+              orgName: org.name,
+              currentMonthCost: currentCost,
+              previousMonthCost: previousCost,
+              trend,
+              percentageChange,
+              breakdown: {
+                incomingMessages: (currentIncoming || 0) * Number(costConfig.cost_per_incoming_message),
+                broadcastMessages: (currentBroadcast || 0) * Number(costConfig.cost_per_broadcast_message),
+                scheduledMessages: (currentScheduled || 0) * Number(costConfig.cost_per_scheduled_message),
+                leadsStored: (currentLeads || 0) * Number(costConfig.cost_per_lead_storage),
+                databaseOps: 0
+              }
+            };
+          })
+        );
+
+        costs.sort((a, b) => b.currentMonthCost - a.currentMonthCost);
+        setOrgCosts(costs);
+        return;
+      }
+
+      // Transformar dados da função SQL para o formato esperado (MESMA ESTRUTURA)
+      const costs: OrganizationCost[] = (metricsData || []).map((row: any) => {
+        // MESMOS CÁLCULOS DE CUSTO (lógica idêntica)
+        const currentCost = 
+          (row.current_incoming || 0) * Number(costConfig.cost_per_incoming_message) +
+          (row.current_broadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
+          (row.current_scheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
+          (row.current_leads || 0) * Number(costConfig.cost_per_lead_storage);
+
+        const previousCost = 
+          (row.prev_incoming || 0) * Number(costConfig.cost_per_incoming_message) +
+          (row.prev_broadcast || 0) * Number(costConfig.cost_per_broadcast_message) +
+          (row.prev_scheduled || 0) * Number(costConfig.cost_per_scheduled_message) +
+          (row.prev_leads || 0) * Number(costConfig.cost_per_lead_storage);
+
+        // MESMA LÓGICA DE TENDÊNCIA
+        let trend: 'up' | 'down' | 'stable' = 'stable';
+        let percentageChange = 0;
+
+        if (previousCost > 0) {
+          percentageChange = ((currentCost - previousCost) / previousCost) * 100;
+          if (percentageChange > 5) trend = 'up';
+          else if (percentageChange < -5) trend = 'down';
+        } else if (currentCost > 0) {
+          trend = 'up';
+          percentageChange = 100;
+        }
+
+        return {
+          orgId: row.org_id,
+          orgName: row.org_name,
+          currentMonthCost: currentCost,
+          previousMonthCost: previousCost,
+          trend,
+          percentageChange,
+          breakdown: {
+            incomingMessages: (row.current_incoming || 0) * Number(costConfig.cost_per_incoming_message),
+            broadcastMessages: (row.current_broadcast || 0) * Number(costConfig.cost_per_broadcast_message),
+            scheduledMessages: (row.current_scheduled || 0) * Number(costConfig.cost_per_scheduled_message),
+            leadsStored: (row.current_leads || 0) * Number(costConfig.cost_per_lead_storage),
+            databaseOps: 0
+          }
+        };
+      });
+
+      // MESMA ORDENAÇÃO
       costs.sort((a, b) => b.currentMonthCost - a.currentMonthCost);
       setOrgCosts(costs);
     } catch (err) {

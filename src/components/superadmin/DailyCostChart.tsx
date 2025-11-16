@@ -70,66 +70,102 @@ export function DailyCostChart() {
     try {
       setLoading(true);
 
-      // Criar array de todos os dias no intervalo
-      const days = eachDayOfInterval({
-        start: dateRange.start,
-        end: dateRange.end
+      // OTIMIZAÇÃO: Usar função SQL agregada em vez de múltiplas queries
+      // Reduz de 120 queries (30 dias × 4) para 1 query apenas
+      // A função SQL retorna todos os dias do intervalo, mesmo sem dados
+      
+      const { data: metricsData, error } = await supabase.rpc('get_daily_metrics', {
+        start_date: dateRange.start.toISOString(),
+        end_date: dateRange.end.toISOString()
       });
 
-      // Para cada dia, buscar dados REAIS das tabelas
-      const dailyData = await Promise.all(
-        days.map(async (day) => {
-          const dayStart = new Date(day);
-          dayStart.setHours(0, 0, 0, 0);
-          const dayEnd = new Date(day);
-          dayEnd.setHours(23, 59, 59, 999);
+      if (error) {
+        console.error('Erro ao buscar métricas diárias:', error);
+        // Fallback: se a função SQL não existir, usar método antigo
+        // Isso garante compatibilidade durante migração
+        const days = eachDayOfInterval({
+          start: dateRange.start,
+          end: dateRange.end
+        });
 
-          // Buscar métricas do dia
-          const [
-            { count: incoming },
-            { count: broadcast },
-            { count: scheduled },
-            { count: leads }
-          ] = await Promise.all([
-            supabase.from('whatsapp_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('direction', 'incoming')
-              .gte('timestamp', dayStart.toISOString())
-              .lte('timestamp', dayEnd.toISOString()),
-            supabase.from('broadcast_queue')
-              .select('*', { count: 'exact', head: true })
-              .eq('status', 'sent')
-              .gte('sent_at', dayStart.toISOString())
-              .lte('sent_at', dayEnd.toISOString()),
-            supabase.from('scheduled_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('status', 'sent')
-              .gte('sent_at', dayStart.toISOString())
-              .lte('sent_at', dayEnd.toISOString()),
-            supabase.from('leads')
-              .select('*', { count: 'exact', head: true })
-              .is('deleted_at', null)
-              .lte('created_at', dayEnd.toISOString())
-          ]);
+        const dailyData = await Promise.all(
+          days.map(async (day) => {
+            const dayStart = new Date(day);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(day);
+            dayEnd.setHours(23, 59, 59, 999);
 
-          // Calcular custos
-          const incomingCost = (incoming || 0) * costConfig.cost_per_incoming_message;
-          const broadcastCost = (broadcast || 0) * costConfig.cost_per_broadcast_message;
-          const scheduledCost = (scheduled || 0) * costConfig.cost_per_scheduled_message;
-          const totalCost = incomingCost + broadcastCost + scheduledCost;
+            const [
+              { count: incoming },
+              { count: broadcast },
+              { count: scheduled },
+              { count: leads }
+            ] = await Promise.all([
+              supabase.from('whatsapp_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('direction', 'incoming')
+                .gte('timestamp', dayStart.toISOString())
+                .lte('timestamp', dayEnd.toISOString()),
+              supabase.from('broadcast_queue')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'sent')
+                .gte('sent_at', dayStart.toISOString())
+                .lte('sent_at', dayEnd.toISOString()),
+              supabase.from('scheduled_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'sent')
+                .gte('sent_at', dayStart.toISOString())
+                .lte('sent_at', dayEnd.toISOString()),
+              supabase.from('leads')
+                .select('*', { count: 'exact', head: true })
+                .is('deleted_at', null)
+                .lte('created_at', dayEnd.toISOString())
+            ]);
 
-          return {
-            date: format(day, 'dd/MM'),
-            totalCost,
-            incomingMessages: incoming || 0,
-            broadcastMessages: broadcast || 0,
-            scheduledMessages: scheduled || 0,
-            databaseReads: 0,
-            databaseWrites: 0,
-            leadsStored: leads || 0
-          };
-        })
-      );
+            const incomingCost = (incoming || 0) * costConfig.cost_per_incoming_message;
+            const broadcastCost = (broadcast || 0) * costConfig.cost_per_broadcast_message;
+            const scheduledCost = (scheduled || 0) * costConfig.cost_per_scheduled_message;
+            const totalCost = incomingCost + broadcastCost + scheduledCost;
+
+            return {
+              date: format(day, 'dd/MM'),
+              totalCost,
+              incomingMessages: incoming || 0,
+              broadcastMessages: broadcast || 0,
+              scheduledMessages: scheduled || 0,
+              databaseReads: 0,
+              databaseWrites: 0,
+              leadsStored: leads || 0
+            };
+          })
+        );
+
+        setDailyCosts(dailyData);
+        return;
+      }
+
+      // Transformar dados da função SQL para o formato esperado (MESMA ESTRUTURA)
+      const dailyData = (metricsData || []).map((row: any) => {
+        // Converter string de data para objeto Date
+        const day = new Date(row.date);
+        
+        // MESMOS CÁLCULOS DE CUSTO (lógica idêntica)
+        const incomingCost = (row.incoming_count || 0) * costConfig.cost_per_incoming_message;
+        const broadcastCost = (row.broadcast_count || 0) * costConfig.cost_per_broadcast_message;
+        const scheduledCost = (row.scheduled_count || 0) * costConfig.cost_per_scheduled_message;
+        const totalCost = incomingCost + broadcastCost + scheduledCost;
+
+        return {
+          date: format(day, 'dd/MM'), // MESMO FORMATO DE DATA
+          totalCost, // MESMO CÁLCULO
+          incomingMessages: row.incoming_count || 0,
+          broadcastMessages: row.broadcast_count || 0,
+          scheduledMessages: row.scheduled_count || 0,
+          databaseReads: 0, // MANTIDO (mesmo valor)
+          databaseWrites: 0, // MANTIDO (mesmo valor)
+          leadsStored: row.leads_count || 0
+        };
+      });
 
       setDailyCosts(dailyData);
     } catch (err) {
