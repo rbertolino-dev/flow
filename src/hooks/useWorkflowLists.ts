@@ -70,7 +70,6 @@ export function useWorkflowLists() {
         default_instance_id: payload.default_instance_id || null,
         contacts: payload.contacts as any,
         list_type: payload.list_type || "list",
-        updated_by: user.id,
       };
 
       if (payload.id) {
@@ -90,7 +89,6 @@ export function useWorkflowLists() {
 
       const insertData: any = {
         ...baseData,
-        created_by: user.id,
       };
 
       const { data, error } = await supabase
