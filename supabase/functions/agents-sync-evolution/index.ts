@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { agentId } = await req.json();
+    const { agentId, syncPath } = await req.json();
 
     if (!agentId) {
       return new Response(
@@ -76,12 +76,18 @@ serve(async (req) => {
       "/api/viewpool/sync-agent",
       "/api/sync-agent",
     ];
+    if (syncPath && typeof syncPath === "string") {
+      // Priorizar caminho informado pelo cliente
+      candidates.unshift(syncPath.startsWith("/") ? syncPath : `/${syncPath}`);
+    }
 
     let response: Response | null = null;
     let lastErrorText = "";
+    const tried: string[] = [];
 
     for (const path of candidates) {
       const url = `${evolutionUrl}${path}`;
+      tried.push(url);
       const r = await fetch(url, {
         method: "POST",
         headers: {
@@ -101,16 +107,14 @@ serve(async (req) => {
 
       const t = await r.text();
       lastErrorText = `${r.status} ${t}`;
-      // 404: tentar próximo endpoint
-      if (r.status === 404) continue;
-      // Outros erros: abortar
+      if (r.status === 404) continue; // tenta próximo
       console.error("[agents-sync-evolution] Evolution error:", t);
       throw new Error(`Erro ao sincronizar com Evolution: ${r.status} ${t}`);
     }
 
     if (!response) {
       throw new Error(
-        `Erro ao sincronizar com Evolution: ${lastErrorText || "Nenhum endpoint compatível encontrado"}`
+        `Erro ao sincronizar com Evolution: ${lastErrorText || "Nenhum endpoint compatível encontrado"}. Tentados: ${tried.join(", ")}`
       );
     }
 
