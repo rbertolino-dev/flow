@@ -208,6 +208,11 @@ serve(async (req) => {
     });
 
     // 4) Registrar boleto no banco de dados
+    const boletoUrl = paymentData.invoiceUrl || paymentData.bankSlipUrl || paymentData.paymentLink || null;
+    const boletoPdfFinal = boleoPdfUrl || paymentData.bankSlipUrl || paymentData.invoiceUrl || null;
+
+    console.log("🔗 URLs finais:", { boletoUrl, boletoPdfFinal });
+
     const { data: boletoRecord, error: insertError } = await supabase
       .from("whatsapp_boletos")
       .insert({
@@ -221,8 +226,8 @@ serve(async (req) => {
         data_vencimento: boleto.dataVencimento,
         descricao: boleto.descricao,
         referencia_externa: boleto.referenciaExterna,
-        boleto_url: paymentData.paymentLink,
-        boleto_pdf_url: boleoPdfUrl,
+        boleto_url: boletoUrl,
+        boleto_pdf_url: boletoPdfFinal,
         linha_digitavel: paymentData.barCode,
         codigo_barras: paymentData.barCode,
         nosso_numero: paymentData.nossoNumero,
