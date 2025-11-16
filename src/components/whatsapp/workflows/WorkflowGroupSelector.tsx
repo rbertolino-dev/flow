@@ -105,10 +105,30 @@ export function WorkflowGroupSelector({
     }
   };
 
-  const filteredGroups = availableGroups.filter((group) =>
-    group.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    group.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Normalização para busca (remove acentos e padroniza)
+  const normalize = (s?: string) =>
+    (s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const search = normalize(searchTerm);
+  const searchDigits = searchTerm.replace(/\D/g, "");
+
+  const filteredGroups = availableGroups.filter((group) => {
+    const subject = normalize(group.subject);
+    const id = (group.id || "").toLowerCase();
+
+    const bySubjectOrId = subject.includes(search) || id.includes(search);
+
+    const byParticipant = !!searchDigits &&
+      (group.participants || []).some((p) => {
+        const participantDigits = (p.id || "").replace(/\D/g, "");
+        return participantDigits.includes(searchDigits);
+      });
+
+    return search ? (bySubjectOrId || byParticipant) : true;
+  });
 
   const selectedRegisteredGroup = registeredGroups.find((g) => g.id === selectedGroupId);
 
