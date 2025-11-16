@@ -12,10 +12,16 @@ export function useAgents() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
   const fetchAgents = useCallback(async () => {
-    if (!organizationId) return;
+    if (!organizationId) {
+      console.log("[useAgents] organizationId ainda não disponível");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    console.log("[useAgents] Buscando agentes para org:", organizationId);
     try {
       const result = await AgentManager.listAgents(organizationId);
+      console.log("[useAgents] Agentes encontrados:", result);
       setAgents(result);
     } catch (error) {
       console.error("[useAgents] Erro ao buscar agentes:", error);
@@ -38,6 +44,7 @@ export function useAgents() {
 
   const createAgent = useCallback(
     async (values: AgentFormValues) => {
+      console.log("[useAgents] createAgent iniciado", values);
       let orgId = organizationId;
       if (!orgId) {
         try {
@@ -46,10 +53,11 @@ export function useAgents() {
             const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_organization', { _user_id: user.id });
             if (!rpcError && rpcData) {
               orgId = rpcData as string;
+              console.log("[useAgents] OrganizationId via RPC:", orgId);
             }
           }
         } catch (e) {
-          // ignore fallback failure
+          console.error("[useAgents] Erro ao buscar org via RPC:", e);
         }
       }
 
@@ -62,17 +70,27 @@ export function useAgents() {
         throw new Error("Sem organizationId");
       }
 
-      const agent = await AgentManager.createAgent({
-        ...values,
-        organization_id: orgId,
-      });
-      setAgents((prev) => [agent, ...prev]);
-      setLoading(false);
-      toast({
-        title: "Agente criado",
-        description: "Sincronize com a OpenAI para ativar o agente.",
-      });
-      return agent;
+      try {
+        const agent = await AgentManager.createAgent({
+          ...values,
+          organization_id: orgId,
+        });
+        console.log("[useAgents] Agente criado com sucesso:", agent);
+        setAgents((prev) => [agent, ...prev]);
+        toast({
+          title: "Agente criado",
+          description: "Sincronize com a OpenAI para ativar o agente.",
+        });
+        return agent;
+      } catch (error) {
+        console.error("[useAgents] Erro ao criar agente:", error);
+        toast({
+          title: "Erro ao criar agente",
+          description: error instanceof Error ? error.message : "Falha inesperada.",
+          variant: "destructive",
+        });
+        throw error;
+      }
     },
     [organizationId, toast]
   );
