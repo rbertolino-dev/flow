@@ -341,7 +341,10 @@ const AgentsDashboard = () => {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Instância Evolution (opcional)</Label>
+                <Label className="flex items-center gap-2">
+                  <span>Instância Evolution (opcional)</span>
+                  <Badge variant="outline" className="text-xs">WhatsApp</Badge>
+                </Label>
                 <Select
                   value={formValues.evolution_config_id}
                   onValueChange={(value) =>
@@ -349,7 +352,7 @@ const AgentsDashboard = () => {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a instância" />
+                    <SelectValue placeholder="Selecione a instância do WhatsApp" />
                   </SelectTrigger>
                   <SelectContent>
                     {evolutionConfigs.map((config) => (
@@ -359,6 +362,9 @@ const AgentsDashboard = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Vincule este agente a uma instância do WhatsApp para respostas automáticas
+                </p>
               </div>
             </div>
             <DialogFooter>
@@ -385,20 +391,20 @@ const AgentsDashboard = () => {
               <CardDescription className="text-blue-800 text-sm">
                 <div className="space-y-3">
                   <div>
-                    <p className="font-medium mb-1">1️⃣ Criar Agente</p>
-                    <p className="text-sm">Configure o nome, instruções, guardrails e exemplos aqui na plataforma.</p>
+                    <p className="font-medium mb-1">1️⃣ Criar Agente no Formulário</p>
+                    <p className="text-sm">Clique em "Novo agente" → Preencha nome, instruções, guardrails, exemplos e selecione a instância do WhatsApp (campo no final do formulário).</p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">2️⃣ Sincronizar com OpenAI</p>
-                    <p className="text-sm">Clique em "OpenAI" para criar o assistente na OpenAI automaticamente. A API Key é configurada no sistema.</p>
+                    <p className="text-sm">Na tabela abaixo, clique no botão <strong>"OpenAI"</strong> do agente criado. Isso cria o assistente automaticamente na OpenAI (API Key já configurada).</p>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">3️⃣ Vincular à Instância Evolution (Opcional)</p>
-                    <p className="text-sm">Selecione uma instância do WhatsApp e clique em "Evolution" para sincronizar. O agente responderá automaticamente.</p>
+                    <p className="font-medium mb-1">3️⃣ Sincronizar com Evolution (WhatsApp)</p>
+                    <p className="text-sm">Na tabela, clique no botão <strong>"Evolution"</strong>. Isso vincula o agente à instância do WhatsApp que você selecionou no formulário.</p>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">4️⃣ Monitoramento e Logs</p>
-                    <p className="text-sm">O sistema valida automaticamente as respostas (CPF, preços, URLs) e loga conversas para análise.</p>
+                    <p className="font-medium mb-1">4️⃣ Pronto! Agente Ativo</p>
+                    <p className="text-sm">Após sincronizar, o agente responde automaticamente no WhatsApp. O sistema valida respostas e loga conversas para análise.</p>
                   </div>
                   <div className="flex items-center gap-2 mt-2 pt-2 border-t border-blue-200">
                     <Zap className="h-4 w-4 text-blue-600" />
