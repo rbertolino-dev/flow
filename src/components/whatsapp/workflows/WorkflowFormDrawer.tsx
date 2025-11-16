@@ -380,17 +380,17 @@ export function WorkflowFormDrawer({
         // Para lead único, verificar se tem CPF/CNPJ
         const { data: leadData } = await supabase
           .from("leads")
-          .select("id, name, cpf_cnpj")
+          .select("id, name")
           .eq("id", selectedLead.id)
           .single();
 
-        if (!leadData?.cpf_cnpj || leadData.cpf_cnpj.trim() === "") {
-          // Abrir dialog para adicionar CPF/CNPJ
-          setLeadsSemCpfCnpj([{ id: leadData.id, name: leadData.name, cpf_cnpj: "" }]);
-          setCpfCnpjValues({ [leadData.id]: "" });
-          setShowCpfCnpjDialog(true);
-          return;
-        }
+        // Validação de CPF/CNPJ removida temporariamente - coluna não existe ainda
+        // if (!leadData?.cpf_cnpj || leadData.cpf_cnpj.trim() === "") {
+        //   setLeadsSemCpfCnpj([{ id: leadData.id, name: leadData.name, cpf_cnpj: "" }]);
+        //   setCpfCnpjValues({ [leadData.id]: "" });
+        //   setShowCpfCnpjDialog(true);
+        //   return;
+        // }
       } else if (values.recipientMode === "list" && listContacts.length > 0) {
         // Para lista, verificar todos os leads
         const leadIds = listContacts
@@ -400,29 +400,28 @@ export function WorkflowFormDrawer({
         if (leadIds.length > 0) {
           const { data: leadsData } = await supabase
             .from("leads")
-            .select("id, name, cpf_cnpj")
+            .select("id, name")
             .in("id", leadIds);
 
-          if (leadsData) {
-            const leadsFaltando = leadsData.filter(
-              (lead) => !lead.cpf_cnpj || lead.cpf_cnpj.trim() === ""
-            );
+          // Validação de CPF/CNPJ removida temporariamente - coluna não existe ainda
+          // if (leadsData) {
+          //   const leadsFaltando = leadsData.filter(
+          //     (lead) => !lead.cpf_cnpj || lead.cpf_cnpj.trim() === ""
+          //   );
 
-            if (leadsFaltando.length > 0) {
-              // Abrir dialog para adicionar CPF/CNPJ de todos os leads
-              setLeadsSemCpfCnpj(leadsFaltando.map(l => ({ id: l.id, name: l.name, cpf_cnpj: "" })));
-              const initialValues: Record<string, string> = {};
-              leadsFaltando.forEach(l => {
-                initialValues[l.id] = "";
-              });
-              setCpfCnpjValues(initialValues);
-              setShowCpfCnpjDialog(true);
-              return;
-            }
-          }
+          //   if (leadsFaltando.length > 0) {
+          //     setLeadsSemCpfCnpj(leadsFaltando.map(l => ({ id: l.id, name: l.name, cpf_cnpj: "" })));
+          //     const initialValues: Record<string, string> = {};
+          //     leadsFaltando.forEach(l => {
+          //       initialValues[l.id] = "";
+          //     });
+          //     setCpfCnpjValues(initialValues);
+          //     setShowCpfCnpjDialog(true);
+          //     return;
+          //   }
+          // }
         }
       }
-    }
 
     try {
       setIsSubmitting(true);
@@ -1218,35 +1217,32 @@ export function WorkflowFormDrawer({
                 }
 
                 try {
-                  // Atualizar todos os leads com CPF/CNPJ
-                  for (const lead of leadsSemCpfCnpj) {
-                    const { error } = await supabase
-                      .from("leads")
-                      .update({ cpf_cnpj: cpfCnpjValues[lead.id] })
-                      .eq("id", lead.id);
-
-                    if (error) {
-                      throw new Error(`Erro ao atualizar ${lead.name}: ${error.message}`);
-                    }
-                  }
+                  // Atualizar todos os leads com CPF/CNPJ - removido temporariamente
+                  // for (const lead of leadsSemCpfCnpj) {
+                  //   const { error } = await supabase
+                  //     .from("leads")
+                  //     .update({ cpf_cnpj: cpfCnpjValues[lead.id] })
+                  //     .eq("id", lead.id);
+                  //   if (error) {
+                  //     throw new Error(`Erro ao atualizar ${lead.name}: ${error.message}`);
+                  //   }
+                  // }
 
                   toast({
-                    title: "CPF/CNPJ cadastrado",
-                    description: "Os dados foram salvos com sucesso. Você pode continuar criando o workflow.",
+                    title: "Workflow criado",
+                    description: "Você pode continuar criando o workflow.",
                   });
 
                   // Fechar dialog
                   setShowCpfCnpjDialog(false);
-                  const leadsSalvos = [...leadsSemCpfCnpj];
                   setLeadsSemCpfCnpj([]);
                   setCpfCnpjValues({});
 
                   // Continuar com o submit do workflow
-                  // O CPF/CNPJ já foi salvo, então podemos continuar diretamente
                   await continueWorkflowSubmit();
                 } catch (error: any) {
                   toast({
-                    title: "Erro ao salvar CPF/CNPJ",
+                    title: "Erro ao processar",
                     description: error.message,
                     variant: "destructive",
                   });
