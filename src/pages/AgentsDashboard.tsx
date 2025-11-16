@@ -4,6 +4,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useAgents } from "@/hooks/useAgents";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Agent, AgentFormValues, AgentStatus } from "@/types/agents";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +69,7 @@ const defaultForm: AgentFormValues = {
 const AgentsDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
   const { agents, stats, loading, createAgent, updateAgent, deleteAgent, syncAgent } = useAgents();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -86,14 +88,17 @@ const AgentsDashboard = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
   useEffect(() => {
-    fetchOpenAIModels();
-  }, []);
+    if (activeOrgId) {
+      fetchOpenAIModels(activeOrgId);
+    }
+  }, [activeOrgId]);
 
-  const fetchOpenAIModels = async () => {
+  const fetchOpenAIModels = async (organizationId: string) => {
     setLoadingModels(true);
     try {
-      // Tentar buscar modelos via Edge Function
-      const { data, error } = await supabase.functions.invoke("openai-list-models");
+      const { data, error } = await supabase.functions.invoke("openai-list-models", {
+        body: { organizationId },
+      });
       
       if (!error && data?.models) {
         setAvailableModels(data.models);
@@ -217,15 +222,15 @@ const AgentsDashboard = () => {
     <AuthGuard>
       <CRMLayout activeView="agents" onViewChange={handleViewChange}>
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Agentes Inteligentes</h1>
           <p className="text-muted-foreground">
             Centralize a criação e sincronização de agentes com OpenAI e Evolution.
           </p>
         </div>
-        </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="outline" onClick={() => setOpenaiConfigOpen(true)}>
             <Key className="mr-2 h-4 w-4" />
             Configurar OpenAI
@@ -473,7 +478,9 @@ const AgentsDashboard = () => {
                   </div>
                   <div>
                     <p className="font-medium mb-1">2️⃣ Sincronizar com OpenAI</p>
-                    <p className="text-sm">Na tabela abaixo, clique no botão <strong>"OpenAI"</strong> do agente criado. Isso cria o assistente automaticamente na OpenAI (API Key já configurada).</p>
+                    <p className="text-sm">
+                      Na tabela abaixo, clique no botão <strong>"OpenAI"</strong> do agente criado. Certifique-se de que a variável <code>OPENAI_API_KEY</code> está configurada no Lovable Cloud (botão "Configurar OpenAI" explica).
+                    </p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">3️⃣ Sincronizar com Evolution (WhatsApp)</p>

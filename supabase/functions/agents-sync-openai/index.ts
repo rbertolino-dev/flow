@@ -41,23 +41,13 @@ serve(async (req) => {
       throw new Error(agentError?.message || "Agente não encontrado");
     }
 
-    // Buscar a chave OpenAI da organização
-    const { data: openaiConfig, error: configError } = await supabase
-      .from("openai_configs")
-      .select("api_key")
-      .eq("organization_id", agent.organization_id)
-      .maybeSingle();
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-    if (configError) {
-      console.error("[agents-sync-openai] Erro ao buscar config OpenAI:", configError);
-      throw new Error("Erro ao buscar configuração OpenAI");
+    if (!openaiKey) {
+      throw new Error(
+        "OPENAI_API_KEY não configurada. Defina a variável no Lovable Cloud para sincronizar agentes."
+      );
     }
-
-    if (!openaiConfig?.api_key) {
-      throw new Error("OPENAI_API_KEY não configurada para esta organização. Configure em Agentes > Configurar OpenAI");
-    }
-
-    const openaiKey = openaiConfig.api_key;
 
     const personaBlock = agent.persona
       ? `Persona:\n${JSON.stringify(agent.persona)}`
