@@ -3,7 +3,7 @@ import { Agent, AgentFormValues } from "@/types/agents";
 import { AgentManager } from "@/services/agents/AgentManager";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
-
+import { supabase } from "@/integrations/supabase/client";
 export function useAgents() {
   const { toast } = useToast();
   const { organizationId, loading: organizationLoading } = useOrganization();
@@ -38,10 +38,33 @@ export function useAgents() {
 
   const createAgent = useCallback(
     async (values: AgentFormValues) => {
-      if (!organizationId) return;
+      let orgId = organizationId;
+      if (!orgId) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_organization', { _user_id: user.id });
+            if (!rpcError && rpcData) {
+              orgId = rpcData as string;
+            }
+          }
+        } catch (e) {
+          // ignore fallback failure
+        }
+      }
+
+      if (!orgId) {
+        toast({
+          title: "Organização não encontrada",
+          description: "Associe-se a uma organização antes de criar agentes.",
+          variant: "destructive",
+        });
+        throw new Error("Sem organizationId");
+      }
+
       const agent = await AgentManager.createAgent({
         ...values,
-        organization_id: organizationId,
+        organization_id: orgId,
       });
       setAgents((prev) => [agent, ...prev]);
       toast({
