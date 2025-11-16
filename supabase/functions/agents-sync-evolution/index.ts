@@ -69,6 +69,10 @@ serve(async (req) => {
     };
 
     // Tentar múltiplos endpoints conhecidos para diferentes versões do Evolution
+    const base = evolutionUrl;
+    const baseUrl = new URL(base);
+    const hasCustomPath = !!baseUrl.pathname && baseUrl.pathname !== "/";
+
     const candidates = [
       "/viewpool/sync-agent",
       "/agents/sync",
@@ -76,45 +80,58 @@ serve(async (req) => {
       "/api/viewpool/sync-agent",
       "/api/sync-agent",
     ];
+
+    const dynamicCandidates: string[] = [];
     if (syncPath && typeof syncPath === "string") {
-      // Priorizar caminho informado pelo cliente
-      candidates.unshift(syncPath.startsWith("/") ? syncPath : `/${syncPath}`);
+      dynamicCandidates.push(syncPath.startsWith("/") ? syncPath : `/${syncPath}`);
     }
+    if (hasCustomPath) {
+      // Quando api_url já contém caminho, tente exatamente esse caminho (sem anexar nada)
+      dynamicCandidates.unshift("");
+    }
+
+    const finalCandidates = [...dynamicCandidates, ...candidates];
 
     let response: Response | null = null;
     let lastErrorText = "";
     const tried: string[] = [];
+    const methods = ["POST", "PUT"]; // tente POST e PUT
 
-    for (const path of candidates) {
-      const url = `${evolutionUrl}${path}`;
-      tried.push(url);
-      const r = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: agent.evolution_config.api_key,
-        },
-        body: JSON.stringify({
-          instanceName,
-          agent: syncPayload,
-        }),
-      });
+    for (const path of finalCandidates) {
+      const url = `${base}${path}`;
+      for (const method of methods) {
+        tried.push(`${method} ${url}`);
+        const r = await fetch(url, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            apikey: agent.evolution_config.api_key,
+          },
+          body: JSON.stringify({
+            instanceName,
+            agent: syncPayload,
+          }),
+        });
 
-      if (r.ok) {
-        response = r;
-        break;
+        if (r.ok) {
+          response = r;
+          break;
+        }
+
+        const t = await r.text();
+        lastErrorText = `${r.status} ${t}`;
+        if (r.status === 404) {
+          continue; // tenta próximo método/path
+        }
+        console.error("[agents-sync-evolution] Evolution error:", t);
+        throw new Error(`Erro ao sincronizar com Evolution: ${r.status} ${t}`);
       }
-
-      const t = await r.text();
-      lastErrorText = `${r.status} ${t}`;
-      if (r.status === 404) continue; // tenta próximo
-      console.error("[agents-sync-evolution] Evolution error:", t);
-      throw new Error(`Erro ao sincronizar com Evolution: ${r.status} ${t}`);
+      if (response) break;
     }
 
     if (!response) {
       throw new Error(
-        `Erro ao sincronizar com Evolution: ${lastErrorText || "Nenhum endpoint compatível encontrado"}. Tentados: ${tried.join(", ")}`
+        `Erro ao sincronizar com Evolution: ${lastErrorText || "Nenhum endpoint compatível encontrado"}. Tentados: ${tried.join(" | ")}`
       );
     }
 
