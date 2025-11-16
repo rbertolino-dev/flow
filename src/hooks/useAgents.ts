@@ -2,25 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Agent, AgentFormValues } from "@/types/agents";
 import { AgentManager } from "@/services/agents/AgentManager";
 import { useToast } from "@/hooks/use-toast";
-import { useOrganization } from "@/hooks/useOrganization";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 export function useAgents() {
   const { toast } = useToast();
-  const { organizationId, loading: organizationLoading } = useOrganization();
+  const { activeOrgId, loading: orgLoading } = useActiveOrganization();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
   const fetchAgents = useCallback(async () => {
-    if (!organizationId) {
-      console.log("[useAgents] organizationId ainda não disponível");
+    if (!activeOrgId) {
+      console.log("[useAgents] activeOrgId ainda não disponível");
       setLoading(false);
       return;
     }
     setLoading(true);
-    console.log("[useAgents] Buscando agentes para org:", organizationId);
+    console.log("[useAgents] Buscando agentes para org:", activeOrgId);
     try {
-      const result = await AgentManager.listAgents(organizationId);
+      const result = await AgentManager.listAgents(activeOrgId);
       console.log("[useAgents] Agentes encontrados:", result);
       setAgents(result);
     } catch (error) {
@@ -34,18 +34,18 @@ export function useAgents() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, toast]);
+  }, [activeOrgId, toast]);
 
   useEffect(() => {
-    if (organizationId) {
+    if (activeOrgId) {
       fetchAgents();
     }
-  }, [organizationId, fetchAgents]);
+  }, [activeOrgId, fetchAgents]);
 
   const createAgent = useCallback(
     async (values: AgentFormValues) => {
       console.log("[useAgents] createAgent iniciado", values);
-      let orgId = organizationId;
+      let orgId = activeOrgId;
       if (!orgId) {
         try {
           const { data: { user } } = await supabase.auth.getUser();
@@ -95,7 +95,7 @@ export function useAgents() {
         throw error;
       }
     },
-    [organizationId, toast]
+    [activeOrgId, toast]
   );
 
   const updateAgent = useCallback(async (agentId: string, values: AgentFormValues) => {
@@ -139,7 +139,7 @@ export function useAgents() {
   return {
     agents,
     stats,
-    loading: loading || organizationLoading,
+    loading: loading || orgLoading,
     selectedAgent,
     setSelectedAgent,
     createAgent,
