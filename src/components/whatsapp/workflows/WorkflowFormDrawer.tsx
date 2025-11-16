@@ -920,6 +920,22 @@ export function WorkflowFormDrawer({
                   </div>
                 )}
 
+                {/* Geração manual de boleto para lead único */}
+                {values.recipientMode === "single" && selectedLead && (
+                  <div className="mt-4">
+                    <Label className="text-sm font-semibold mb-2 block">Gerar boleto agora</Label>
+                    <AsaasBoletoForm
+                      leadId={selectedLead.id}
+                      leadName={selectedLead.name}
+                      leadEmail={selectedLead.email}
+                      leadPhone={selectedLead.phone}
+                      onSuccess={() => {
+                        // A listagem será atualizada via invalidation do hook useAsaasBoletos
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Lista de boletos para workflow existente */}
                 {workflow?.id && (
                   <div className="mt-4">
