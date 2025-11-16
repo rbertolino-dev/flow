@@ -76,10 +76,13 @@ export function useAgents() {
           organization_id: orgId,
         });
         console.log("[useAgents] Agente criado com sucesso:", agent);
-        setAgents((prev) => [agent, ...prev]);
+        
+        // Refetch agents to ensure we have the latest data
+        await fetchAgents();
+        
         toast({
-          title: "Agente criado",
-          description: "Sincronize com a OpenAI para ativar o agente.",
+          title: "Agente criado com sucesso",
+          description: "Agente criado. Sincronize com OpenAI para ativá-lo.",
         });
         return agent;
       } catch (error) {

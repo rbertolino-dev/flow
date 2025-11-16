@@ -23,7 +23,10 @@ export function useActiveOrganization() {
   const fetchUserOrganizations = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('organization_members')
@@ -37,7 +40,11 @@ export function useActiveOrganization() {
         `)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao buscar organizações:', error);
+        setLoading(false);
+        return;
+      }
 
       const orgs: Organization[] = (data || []).map((item: any) => ({
         id: item.organization_id,
@@ -50,7 +57,9 @@ export function useActiveOrganization() {
       // Se não tem organização ativa ou a ativa não está na lista, pegar a primeira
       if (!activeOrgId || !orgs.find(o => o.id === activeOrgId)) {
         if (orgs.length > 0) {
-          setActiveOrganization(orgs[0].id);
+          const firstOrgId = orgs[0].id;
+          setActiveOrgId(firstOrgId);
+          localStorage.setItem(STORAGE_KEY, firstOrgId);
         }
       }
     } catch (error) {
@@ -61,10 +70,12 @@ export function useActiveOrganization() {
   };
 
   const setActiveOrganization = (orgId: string) => {
-    setActiveOrgId(orgId);
-    localStorage.setItem(STORAGE_KEY, orgId);
-    // Recarregar a página para atualizar todos os dados
-    window.location.reload();
+    if (orgId !== activeOrgId) {
+      setActiveOrgId(orgId);
+      localStorage.setItem(STORAGE_KEY, orgId);
+      // Recarregar a página para atualizar todos os dados
+      window.location.reload();
+    }
   };
 
   const activeOrganization = organizations.find(o => o.id === activeOrgId);
