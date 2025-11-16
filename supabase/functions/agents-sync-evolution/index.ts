@@ -68,23 +68,49 @@ serve(async (req) => {
       metadata: agent.metadata,
     };
 
-    const response = await fetch(`${evolutionUrl}/viewpool/sync-agent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: agent.evolution_config.api_key,
-      },
-      body: JSON.stringify({
-        instanceName,
-        agent: syncPayload,
-      }),
-    });
+    // Tentar múltiplos endpoints conhecidos para diferentes versões do Evolution
+    const candidates = [
+      "/viewpool/sync-agent",
+      "/agents/sync",
+      "/sync-agent",
+      "/api/viewpool/sync-agent",
+      "/api/sync-agent",
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[agents-sync-evolution] Evolution error:", errorText);
+    let response: Response | null = null;
+    let lastErrorText = "";
+
+    for (const path of candidates) {
+      const url = `${evolutionUrl}${path}`;
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: agent.evolution_config.api_key,
+        },
+        body: JSON.stringify({
+          instanceName,
+          agent: syncPayload,
+        }),
+      });
+
+      if (r.ok) {
+        response = r;
+        break;
+      }
+
+      const t = await r.text();
+      lastErrorText = `${r.status} ${t}`;
+      // 404: tentar próximo endpoint
+      if (r.status === 404) continue;
+      // Outros erros: abortar
+      console.error("[agents-sync-evolution] Evolution error:", t);
+      throw new Error(`Erro ao sincronizar com Evolution: ${r.status} ${t}`);
+    }
+
+    if (!response) {
       throw new Error(
-        `Erro ao sincronizar com Evolution: ${response.status} ${errorText}`
+        `Erro ao sincronizar com Evolution: ${lastErrorText || "Nenhum endpoint compatível encontrado"}`
       );
     }
 
