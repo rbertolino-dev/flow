@@ -1328,6 +1328,101 @@ export type Database = {
           },
         ]
       }
+      whatsapp_boletos: {
+        Row: {
+          asaas_customer_id: string
+          asaas_payment_id: string
+          boleto_pdf_url: string | null
+          boleto_url: string | null
+          codigo_barras: string | null
+          created_at: string
+          data_vencimento: string
+          descricao: string | null
+          id: string
+          lead_id: string
+          linha_digitavel: string | null
+          nosso_numero: string | null
+          organization_id: string
+          referencia_externa: string | null
+          scheduled_message_id: string | null
+          status: string
+          updated_at: string
+          valor: number
+          workflow_id: string | null
+        }
+        Insert: {
+          asaas_customer_id: string
+          asaas_payment_id: string
+          boleto_pdf_url?: string | null
+          boleto_url?: string | null
+          codigo_barras?: string | null
+          created_at?: string
+          data_vencimento: string
+          descricao?: string | null
+          id?: string
+          lead_id: string
+          linha_digitavel?: string | null
+          nosso_numero?: string | null
+          organization_id: string
+          referencia_externa?: string | null
+          scheduled_message_id?: string | null
+          status?: string
+          updated_at?: string
+          valor: number
+          workflow_id?: string | null
+        }
+        Update: {
+          asaas_customer_id?: string
+          asaas_payment_id?: string
+          boleto_pdf_url?: string | null
+          boleto_url?: string | null
+          codigo_barras?: string | null
+          created_at?: string
+          data_vencimento?: string
+          descricao?: string | null
+          id?: string
+          lead_id?: string
+          linha_digitavel?: string | null
+          nosso_numero?: string | null
+          organization_id?: string
+          referencia_externa?: string | null
+          scheduled_message_id?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_boletos_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_boletos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_boletos_scheduled_message_id_fkey"
+            columns: ["scheduled_message_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_boletos_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_lid_contacts: {
         Row: {
           created_at: string | null
