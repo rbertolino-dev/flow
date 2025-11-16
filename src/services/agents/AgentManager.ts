@@ -17,11 +17,22 @@ const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
     body: { agentId },
   });
 
+  // Verificar erro retornado pelo Supabase client
   if (error) {
+    console.error(`[AgentManager] Erro do Supabase client ao invocar ${functionName}:`, error);
     throw new Error(
       error.message || `Falha ao sincronizar agente (${target}).`
     );
   }
+
+  // Verificar se o Edge Function retornou erro no corpo da resposta
+  if (data && typeof data === 'object' && 'error' in data) {
+    console.error(`[AgentManager] Erro retornado pelo Edge Function ${functionName}:`, data.error);
+    throw new Error(
+      typeof data.error === 'string' ? data.error : `Falha ao sincronizar agente (${target}).`
+    );
+  }
+
   return data;
 };
 

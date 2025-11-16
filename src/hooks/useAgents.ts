@@ -115,16 +115,47 @@ export function useAgents() {
 
   const syncAgent = useCallback(
     async (agentId: string, target: "openai" | "evolution") => {
-      if (target === "openai") {
-        await AgentManager.syncWithOpenAI(agentId);
-      } else {
-        await AgentManager.syncWithEvolution(agentId);
+      try {
+        console.log(`[useAgents] Iniciando sincronização ${target} para agente ${agentId}`);
+        
+        if (target === "openai") {
+          await AgentManager.syncWithOpenAI(agentId);
+        } else {
+          await AgentManager.syncWithEvolution(agentId);
+        }
+        
+        console.log(`[useAgents] Sincronização ${target} concluída com sucesso`);
+        
+        toast({
+          title: `✅ Sincronização com ${target === "openai" ? "OpenAI" : "Evolution"} concluída`,
+          description: "O agente está pronto para uso.",
+        });
+        
+        await fetchAgents();
+      } catch (error) {
+        console.error(`[useAgents] Erro ao sincronizar com ${target}:`, error);
+        
+        // Extrair mensagem de erro detalhada
+        let errorMessage = "Falha inesperada na sincronização.";
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Se o erro for sobre OPENAI_API_KEY, melhorar a mensagem
+          if (errorMessage.includes("OPENAI_API_KEY")) {
+            errorMessage = "⚠️ OPENAI_API_KEY não configurada. Vá para Lovable Cloud → Settings → Environment Variables e adicione a chave OPENAI_API_KEY.";
+          }
+        }
+        
+        toast({
+          title: `❌ Erro ao sincronizar com ${target === "openai" ? "OpenAI" : "Evolution"}`,
+          description: errorMessage,
+          variant: "destructive",
+          duration: 8000, // Mais tempo para ler a mensagem de erro
+        });
+        
+        throw error;
       }
-      toast({
-        title: `Sincronização com ${target === "openai" ? "OpenAI" : "Evolution"} concluída`,
-        description: "O agente está pronto para uso.",
-      });
-      await fetchAgents();
     },
     [fetchAgents, toast]
   );
