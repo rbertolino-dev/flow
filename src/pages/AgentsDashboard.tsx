@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Wand2, Upload, X } from "lucide-react";
+import { Loader2, RefreshCw, Wand2, Upload, X, Info, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const statusLabel: Record<AgentStatus, string> = {
@@ -160,7 +160,7 @@ const AgentsDashboard = () => {
               Novo agente
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar agente</DialogTitle>
             </DialogHeader>
@@ -287,7 +287,7 @@ const AgentsDashboard = () => {
                     </Button>
                   </div>
                   {uploadedFiles.length > 0 && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
                       {uploadedFiles.map((file, index) => (
                         <div
                           key={index}
@@ -307,7 +307,7 @@ const AgentsDashboard = () => {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Arquivos suportados: PDF, TXT, DOC, DOCX, MD
+                    Arquivos suportados: PDF, TXT, DOC, DOCX, MD (apenas metadata salvo)
                   </p>
                 </div>
               </div>
@@ -373,6 +373,43 @@ const AgentsDashboard = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      <Card className="border-blue-200 bg-blue-50">
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-600 mt-1" />
+            <div className="space-y-2">
+              <CardTitle className="text-blue-900">Como funciona a integração?</CardTitle>
+              <CardDescription className="text-blue-800">
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-medium mb-1">1️⃣ Criar Agente</p>
+                    <p className="text-sm">Configure o nome, instruções, guardrails e exemplos aqui na plataforma.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">2️⃣ Sincronizar com OpenAI</p>
+                    <p className="text-sm">Clique em "OpenAI" para criar o assistente na OpenAI automaticamente. A API Key é configurada no sistema.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">3️⃣ Vincular à Instância Evolution (Opcional)</p>
+                    <p className="text-sm">Selecione uma instância do WhatsApp e clique em "Evolution" para sincronizar. O agente responderá automaticamente.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">4️⃣ Monitoramento e Logs</p>
+                    <p className="text-sm">O sistema valida automaticamente as respostas (CPF, preços, URLs) e loga conversas para análise.</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-blue-200">
+                    <Zap className="h-4 w-4 text-blue-600" />
+                    <p className="text-sm font-medium">
+                      Tudo integrado! Após sincronizar, o agente funciona automaticamente no WhatsApp.
+                    </p>
+                  </div>
+                </div>
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
