@@ -27,15 +27,7 @@ serve(async (req) => {
       `
     });
 
-    // 2. Atualizar valores existentes
-    const updateResult = await supabase
-      .from('whatsapp_workflows')
-      .update({
-        recipient_type: supabase.raw('CASE WHEN recipient_mode = \'single\' THEN \'single\' ELSE \'list\' END')
-      })
-      .is('recipient_type', null);
-
-    // Alternativa: usar query direta
+    // 2. Atualizar valores existentes usando RPC
     const { error: updateError } = await supabase
       .rpc('exec_sql', {
         sql: `
