@@ -63,7 +63,7 @@ export function WorkflowGroupSelector({
     if (!searchTerm.trim()) {
       toast({
         title: "Digite um termo de busca",
-        description: "Digite o nome do grupo para buscar.",
+        description: "Digite parte do nome do grupo para buscar.",
         variant: "destructive",
       });
       return;
@@ -71,19 +71,19 @@ export function WorkflowGroupSelector({
 
     setIsLoadingGroups(true);
     try {
-      const groups = await fetchGroupsFromEvolution(selectedInstance);
-      // Filtrar grupos pelo termo de busca
-      const filtered = groups.filter((group) =>
-        group.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        group.id.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setAvailableGroups(filtered);
+      // Passa o termo de busca para a API
+      const groups = await fetchGroupsFromEvolution(selectedInstance, searchTerm);
+      setAvailableGroups(groups);
       
-      if (filtered.length === 0) {
+      if (groups.length === 0) {
         toast({
           title: "Nenhum grupo encontrado",
           description: `Não foram encontrados grupos com o termo "${searchTerm}".`,
-          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Grupos encontrados",
+          description: `${groups.length} grupo(s) encontrado(s).`,
         });
       }
     } catch (error: any) {
@@ -135,7 +135,7 @@ export function WorkflowGroupSelector({
       <CardHeader>
         <CardTitle className="text-lg">Selecionar Grupo de WhatsApp</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Escolha uma instância e selecione um grupo. O grupo será registrado automaticamente.
+          Digite parte do nome do grupo e clique em "Buscar". Quanto mais específico o termo, mais rápida será a busca.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
