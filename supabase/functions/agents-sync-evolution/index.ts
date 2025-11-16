@@ -100,77 +100,187 @@ serve(async (req) => {
     console.log("🔑 [agents-sync-evolution] OPENAI_API_KEY presente:", !!openaiKey);
 
     // Payload para configurar OpenAI na Evolution (estrutura correta da API)
-    const evolutionPayload = {
-      openai_enabled: true,
-      openai_api_key: openaiKey,
-      openai_assistant_id: agent.openai_assistant_id,
-      openai_organization_id: agent.organization_id,
-    };
+    // Tentar diferentes formatos de payload para compatibilidade
+    const payloadVariants = [
+      // Formato 1: Flat (mais comum)
+      {
+        openai_enabled: true,
+        openai_api_key: openaiKey,
+        openai_assistant_id: agent.openai_assistant_id,
+        openai_organization_id: agent.organization_id,
+      },
+      // Formato 2: Aninhado em settings
+      {
+        settings: {
+          openai_enabled: true,
+          openai_api_key: openaiKey,
+          openai_assistant_id: agent.openai_assistant_id,
+          openai_organization_id: agent.organization_id,
+        }
+      },
+      // Formato 3: Aninhado em openai
+      {
+        openai: {
+          enabled: true,
+          api_key: openaiKey,
+          assistant_id: agent.openai_assistant_id,
+          organization_id: agent.organization_id,
+        }
+      },
+    ];
 
-    console.log("📦 [agents-sync-evolution] Payload para Evolution API:", {
-      ...evolutionPayload,
-      openai_api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***"
-    });
+    console.log("📦 [agents-sync-evolution] Variantes de payload preparadas:", payloadVariants.length);
 
     // Lista de endpoints possíveis (diferentes versões da Evolution API)
+    // Baseado na documentação da Evolution API v2
     const possibleEndpoints = [
-      `${baseUrl}/instance/settings/${config.instance_name}`,
-      `${baseUrl}/settings/set/${config.instance_name}`,
-      `${baseUrl}/instance/${config.instance_name}/settings`,
-      `${baseUrl}/instance/update/${config.instance_name}`,
+      `${baseUrl}/instance/settings/${config.instance_name}`, // Endpoint mais comum
+      `${baseUrl}/settings/set/${config.instance_name}`, // Alternativa
+      `${baseUrl}/instance/${config.instance_name}/settings`, // Formato alternativo
+      `${baseUrl}/instance/update/${config.instance_name}`, // Update endpoint
+      `${baseUrl}/instance/${config.instance_name}`, // Direto na instância
+      `${baseUrl}/settings/${config.instance_name}`, // Formato simplificado
     ];
 
     console.log("🌐 [agents-sync-evolution] URL base normalizada:", baseUrl);
     console.log("🎯 [agents-sync-evolution] Tentando endpoints:", possibleEndpoints);
 
     let evolutionResponse: Response | null = null;
+    let evolutionResult: any = null;
     let lastError = "";
     let successEndpoint = "";
 
-    // Tentar cada endpoint até encontrar um que funcione
-    for (const endpoint of possibleEndpoints) {
-      console.log(`🚀 [agents-sync-evolution] Tentando endpoint: ${endpoint}`);
-      
-      try {
-        evolutionResponse = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": evolutionConfig.api_key || "",
-          },
-          body: JSON.stringify(evolutionPayload),
+    // Tentar cada combinação de endpoint + payload até encontrar uma que funcione
+    endpointLoop: for (const endpoint of possibleEndpoints) {
+      for (let payloadIndex = 0; payloadIndex < payloadVariants.length; payloadIndex++) {
+        const evolutionPayload = payloadVariants[payloadIndex];
+        console.log(`🚀 [agents-sync-evolution] Tentando endpoint: ${endpoint} com payload formato ${payloadIndex + 1}`);
+        console.log(`📦 [agents-sync-evolution] Payload:`, {
+          ...evolutionPayload,
+          openai_api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***",
+          settings: evolutionPayload.settings ? {
+            ...evolutionPayload.settings,
+            openai_api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***"
+          } : undefined,
+          openai: evolutionPayload.openai ? {
+            ...evolutionPayload.openai,
+            api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***"
+          } : undefined,
         });
+        
+        try {
+          evolutionResponse = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": evolutionConfig.api_key || "",
+            },
+            body: JSON.stringify(evolutionPayload),
+          });
 
-        console.log(`📡 [agents-sync-evolution] Status da resposta (${endpoint}):`, evolutionResponse.status);
-        console.log(`📡 [agents-sync-evolution] Status text:`, evolutionResponse.statusText);
+          console.log(`📡 [agents-sync-evolution] Status da resposta (${endpoint}):`, evolutionResponse.status);
+          console.log(`📡 [agents-sync-evolution] Status text:`, evolutionResponse.statusText);
 
-        if (evolutionResponse.ok) {
-          successEndpoint = endpoint;
-          console.log(`✅ [agents-sync-evolution] Endpoint funcionou: ${endpoint}`);
-          break;
-        } else {
-          const errorText = await evolutionResponse.text();
-          lastError = errorText;
-          console.warn(`⚠️ [agents-sync-evolution] Endpoint ${endpoint} falhou com ${evolutionResponse.status}: ${errorText}`);
+          const responseText = await evolutionResponse.text();
+          console.log(`📄 [agents-sync-evolution] Resposta completa (${endpoint}):`, responseText);
+          
+          if (evolutionResponse.ok) {
+            // Tentar parsear JSON da resposta
+            let responseData: any;
+            try {
+              responseData = JSON.parse(responseText);
+              console.log(`📊 [agents-sync-evolution] Resposta JSON:`, JSON.stringify(responseData, null, 2));
+            } catch (e) {
+              console.warn(`⚠️ [agents-sync-evolution] Resposta não é JSON válido:`, responseText);
+              responseData = { raw: responseText };
+            }
+            
+            // Verificar se a resposta realmente indica sucesso
+            // Algumas APIs retornam 200 mas com erro no corpo
+            if (responseData && typeof responseData === 'object') {
+              if (responseData.error || responseData.message?.toLowerCase().includes('error')) {
+                console.error(`❌ [agents-sync-evolution] Resposta indica erro:`, responseData);
+                lastError = responseData.error || responseData.message || 'Erro na resposta da Evolution';
+                continue;
+              }
+            }
+            
+            successEndpoint = `${endpoint} (payload formato ${payloadIndex + 1})`;
+            evolutionResult = responseData;
+            console.log(`✅ [agents-sync-evolution] Endpoint funcionou: ${endpoint} com payload formato ${payloadIndex + 1}`);
+            console.log(`📊 [agents-sync-evolution] Dados da resposta:`, responseData);
+            break endpointLoop; // Sair dos dois loops
+          } else {
+            lastError = responseText || `HTTP ${evolutionResponse.status}`;
+            console.warn(`⚠️ [agents-sync-evolution] Endpoint ${endpoint} falhou com ${evolutionResponse.status}: ${responseText}`);
+          }
+        } catch (fetchError) {
+          console.error(`❌ [agents-sync-evolution] Erro ao chamar ${endpoint}:`, fetchError);
+          lastError = fetchError instanceof Error ? fetchError.message : String(fetchError);
         }
-      } catch (fetchError) {
-        console.error(`❌ [agents-sync-evolution] Erro ao chamar ${endpoint}:`, fetchError);
-        lastError = fetchError instanceof Error ? fetchError.message : String(fetchError);
       }
     }
 
-    if (!evolutionResponse || !evolutionResponse.ok) {
+    if (!evolutionResponse || !evolutionResponse.ok || !evolutionResult) {
       console.error("❌❌❌ [agents-sync-evolution] Todos os endpoints falharam!");
       console.error("📋 [agents-sync-evolution] Último erro:", lastError);
       throw new Error(
         `Falha ao configurar OpenAI na Evolution. Tentamos ${possibleEndpoints.length} endpoints diferentes. Último erro: ${lastError}`
       );
     }
-
-    const evolutionResult = await evolutionResponse.json();
     console.log(`✅✅✅ [agents-sync-evolution] Sucesso com endpoint: ${successEndpoint}`);
     console.log("✅✅✅ [agents-sync-evolution] Evolution API response:", evolutionResult);
     console.log("📊 [agents-sync-evolution] Response completo:", JSON.stringify(evolutionResult, null, 2));
+
+    // Verificar se realmente configurou fazendo uma chamada GET para confirmar
+    console.log("🔍 [agents-sync-evolution] Verificando se configuração foi aplicada...");
+    const verifyEndpoints = [
+      `${baseUrl}/instance/fetchInstances`,
+      `${baseUrl}/instance/${config.instance_name}`,
+      `${baseUrl}/instance/${config.instance_name}/settings`,
+    ];
+    
+    let verified = false;
+    for (const verifyEndpoint of verifyEndpoints) {
+      try {
+        console.log(`🔍 [agents-sync-evolution] Verificando em: ${verifyEndpoint}`);
+        const verifyResponse = await fetch(verifyEndpoint, {
+          headers: {
+            "apikey": evolutionConfig.api_key || "",
+          },
+        });
+        
+        if (verifyResponse.ok) {
+          const verifyData = await verifyResponse.json();
+          console.log(`📊 [agents-sync-evolution] Dados da verificação:`, JSON.stringify(verifyData, null, 2));
+          
+          // Tentar encontrar a configuração OpenAI nos dados retornados
+          const instanceData = Array.isArray(verifyData) 
+            ? verifyData.find((i: any) => i.instance?.instanceName === config.instance_name || i.instanceName === config.instance_name)
+            : verifyData;
+          
+          if (instanceData) {
+            const hasOpenAI = instanceData.openai_enabled || 
+                             instanceData.settings?.openai_enabled ||
+                             instanceData.instance?.openai_enabled;
+            
+            if (hasOpenAI) {
+              console.log(`✅✅✅ [agents-sync-evolution] CONFIRMADO: OpenAI está habilitado na instância!`);
+              verified = true;
+              break;
+            } else {
+              console.warn(`⚠️ [agents-sync-evolution] OpenAI não encontrado habilitado na resposta de verificação`);
+            }
+          }
+        }
+      } catch (verifyError) {
+        console.warn(`⚠️ [agents-sync-evolution] Erro ao verificar:`, verifyError);
+      }
+    }
+    
+    if (!verified) {
+      console.warn(`⚠️⚠️⚠️ [agents-sync-evolution] ATENÇÃO: Não foi possível confirmar se a configuração foi aplicada. Mas continuando...`);
+    }
 
     // Atualizar agente no banco
     const { error: updateErr } = await supabase
