@@ -20,20 +20,12 @@ export function useGoogleCalendarOAuth() {
 
     setIsLoading(true);
     try {
-      // Obter token de autenticação
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("Usuário não autenticado");
-      }
-
       // Chamar Edge Function para iniciar OAuth
+      // O Supabase client já inclui automaticamente o token de autenticação
       const { data, error } = await supabase.functions.invoke("google-calendar-oauth-init", {
         body: {
           organization_id: activeOrgId,
           account_name: accountName,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
