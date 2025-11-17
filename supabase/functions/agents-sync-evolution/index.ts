@@ -96,8 +96,33 @@ serve(async (req) => {
 
     const baseUrl = normalizeUrl(evolutionConfig.api_url);
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY") || "";
-    console.log("🔑 [agents-sync-evolution] OPENAI_API_KEY presente:", !!openaiKey);
+    // Buscar API key da tabela openai_configs
+    console.log("🔍 [agents-sync-evolution] Buscando API key da organização...");
+    const { data: openaiConfig, error: configError } = await supabase
+      .from("openai_configs")
+      .select("api_key")
+      .eq("organization_id", agent.organization_id)
+      .single();
+
+    console.log("📦 [agents-sync-evolution] Resultado da busca da config:", { 
+      encontrado: !!openaiConfig, 
+      configError 
+    });
+
+    if (configError || !openaiConfig?.api_key) {
+      console.error("❌ [agents-sync-evolution] Erro ao buscar config OpenAI:", configError);
+      throw new Error("Configuração OpenAI não encontrada para esta organização. Configure a API key no botão 'Configurar OpenAI'.");
+    }
+
+    const openaiKey = openaiConfig.api_key;
+    console.log("🔑 [agents-sync-evolution] API key encontrada:", !!openaiKey);
+
+    if (!openaiKey) {
+      console.error("❌ [agents-sync-evolution] API key vazia na configuração!");
+      throw new Error(
+        "API key OpenAI não configurada para esta organização. Configure no botão 'Configurar OpenAI'."
+      );
+    }
 
     // Payload para configurar OpenAI na Evolution (estrutura correta da API)
     // Tentar diferentes formatos de payload para compatibilidade

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,13 +13,30 @@ serve(async (req) => {
   }
 
   try {
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    const { organizationId } = await req.json();
 
-    if (!openaiKey) {
+    if (!organizationId) {
+      throw new Error("organizationId é obrigatório");
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Buscar API key da tabela openai_configs
+    const { data: openaiConfig, error: configError } = await supabase
+      .from("openai_configs")
+      .select("api_key")
+      .eq("organization_id", organizationId)
+      .single();
+
+    if (configError || !openaiConfig?.api_key) {
       throw new Error(
-        "OPENAI_API_KEY não configurada no ambiente. Defina a variável no Lovable Cloud."
+        "Configuração OpenAI não encontrada para esta organização. Configure a API key no botão 'Configurar OpenAI'."
       );
     }
+
+    const openaiKey = openaiConfig.api_key;
 
     const response = await fetch("https://api.openai.com/v1/models", {
       headers: {
