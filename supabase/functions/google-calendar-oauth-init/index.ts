@@ -18,6 +18,9 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
     // Obter token de autenticação do header
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
@@ -27,15 +30,8 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!serviceRoleKey) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurado');
-    }
-
-    // Criar cliente Supabase com service role e repassar o token do usuário para autenticação
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    // Criar cliente Supabase com o token do usuário
+    const supabase = createClient(supabaseUrl, supabaseKey, {
       global: {
         headers: {
           Authorization: authHeader,

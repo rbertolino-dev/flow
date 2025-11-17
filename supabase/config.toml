@@ -4,7 +4,7 @@ project_id = "orcbxgajfhgmjobsjlix"
 verify_jwt = false
 
 [functions.google-calendar-oauth-init]
-verify_jwt = false
+verify_jwt = true
 
 [functions.google-calendar-oauth-callback]
 verify_jwt = false
