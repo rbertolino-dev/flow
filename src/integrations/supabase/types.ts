@@ -561,6 +561,66 @@ export type Database = {
           },
         ]
       }
+      calendar_events: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_datetime: string
+          google_calendar_config_id: string
+          google_event_id: string
+          html_link: string | null
+          id: string
+          location: string | null
+          organization_id: string
+          start_datetime: string
+          summary: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_datetime: string
+          google_calendar_config_id: string
+          google_event_id: string
+          html_link?: string | null
+          id?: string
+          location?: string | null
+          organization_id: string
+          start_datetime: string
+          summary: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_datetime?: string
+          google_calendar_config_id?: string
+          google_event_id?: string
+          html_link?: string | null
+          id?: string
+          location?: string | null
+          organization_id?: string
+          start_datetime?: string
+          summary?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_google_calendar_config_id_fkey"
+            columns: ["google_calendar_config_id"]
+            isOneToOne: false
+            referencedRelation: "google_calendar_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_queue: {
         Row: {
           call_count: number | null
@@ -948,6 +1008,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "evolution_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_calendar_configs: {
+        Row: {
+          account_name: string
+          calendar_id: string
+          client_id: string
+          client_secret: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          organization_id: string
+          refresh_token: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_name: string
+          calendar_id: string
+          client_id: string
+          client_secret: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          organization_id: string
+          refresh_token: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_name?: string
+          calendar_id?: string
+          client_id?: string
+          client_secret?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          organization_id?: string
+          refresh_token?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

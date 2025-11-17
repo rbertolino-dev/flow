@@ -64,18 +64,17 @@ serve(async (req) => {
       throw new Error("Sincronize primeiro com OpenAI para obter o assistantId");
     }
 
-    console.log("🔍 [agents-sync-evolution] Buscando API key da instância Evolution...");
     // Buscar API key da instância
-    const { data: evolutionConfig, error: configError } = await supabase
+    const { data: evolutionConfig, error: evolutionConfigError } = await supabase
       .from("evolution_config")
       .select("api_key, api_url")
       .eq("id", agent.evolution_config_id)
       .single();
 
-    console.log("📦 [agents-sync-evolution] Evolution config completa:", { evolutionConfig, configError });
+    console.log("📦 [agents-sync-evolution] Evolution config completa:", { evolutionConfig, evolutionConfigError });
 
-    if (configError || !evolutionConfig) {
-      console.error("❌ [agents-sync-evolution] Erro ao buscar config Evolution:", configError);
+    if (evolutionConfigError || !evolutionConfig) {
+      console.error("❌ [agents-sync-evolution] Erro ao buscar config Evolution:", evolutionConfigError);
       throw new Error("Configuração Evolution não encontrada");
     }
 
@@ -98,7 +97,7 @@ serve(async (req) => {
 
     // Buscar API key da tabela openai_configs
     console.log("🔍 [agents-sync-evolution] Buscando API key da organização...");
-    const { data: openaiConfig, error: configError } = await supabase
+    const { data: openaiConfig, error: openaiConfigError } = await supabase
       .from("openai_configs")
       .select("api_key")
       .eq("organization_id", agent.organization_id)
@@ -106,11 +105,11 @@ serve(async (req) => {
 
     console.log("📦 [agents-sync-evolution] Resultado da busca da config:", { 
       encontrado: !!openaiConfig, 
-      configError 
+      openaiConfigError 
     });
 
-    if (configError || !openaiConfig?.api_key) {
-      console.error("❌ [agents-sync-evolution] Erro ao buscar config OpenAI:", configError);
+    if (openaiConfigError || !openaiConfig?.api_key) {
+      console.error("❌ [agents-sync-evolution] Erro ao buscar config OpenAI:", openaiConfigError);
       throw new Error("Configuração OpenAI não encontrada para esta organização. Configure a API key no botão 'Configurar OpenAI'.");
     }
 
