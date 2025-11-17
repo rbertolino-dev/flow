@@ -30,8 +30,9 @@ serve(async (req) => {
       );
     }
 
-    // Criar cliente Supabase com o token do usuário
-    const supabase = createClient(supabaseUrl, supabaseKey, {
+    // Criar cliente Supabase com o token do usuário (usar URL sem /rest/v1)
+    const projectUrl = supabaseUrl.replace('/rest/v1', '');
+    const supabase = createClient(projectUrl, supabaseKey, {
       global: {
         headers: {
           Authorization: authHeader,
@@ -96,8 +97,7 @@ serve(async (req) => {
     
     // URL de callback (será chamada pelo Google após autorização)
     // Formato: https://[project-ref].supabase.co/functions/v1/google-calendar-oauth-callback
-    const baseUrl = supabaseUrl.replace('/rest/v1', '');
-    const redirectUri = `${baseUrl}/functions/v1/google-calendar-oauth-callback`;
+    const redirectUri = `${projectUrl}/functions/v1/google-calendar-oauth-callback`;
     
     // Escopos necessários para Google Calendar
     const scopes = [
