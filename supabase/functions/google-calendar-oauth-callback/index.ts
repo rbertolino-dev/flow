@@ -131,9 +131,9 @@ serve(async (req) => {
     }
 
     // Criar cliente Supabase com service role
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const sbUrl = Deno.env.get('SUPABASE_URL')!;
+    const sbKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(sbUrl, sbKey);
 
     // Garantir que o usuário ainda pertence à organização
     const { data: membership, error: membershipError } = await supabase
@@ -163,8 +163,8 @@ serve(async (req) => {
       console.error('Erro ao buscar email do usuário:', e);
     }
 
-    // Salvar configuração na tabela
-    const { data: config, error: insertError } = await supabase
+    // Salvar configuração na tabela  
+    const { data: savedConfig, error: insertError } = await supabase
       .from('google_calendar_configs')
       .insert({
         organization_id: organizationId,
@@ -215,8 +215,8 @@ serve(async (req) => {
             try {
               window.opener.postMessage({ 
                 type: 'GOOGLE_CALENDAR_OAUTH_SUCCESS', 
-                configId: '${config.id}',
-                accountName: '${config.account_name}'
+                configId: '${savedConfig.id}',
+                accountName: '${savedConfig.account_name}'
               }, '*');
               setTimeout(() => window.close(), 1500);
             } catch (e) {

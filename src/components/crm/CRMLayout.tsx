@@ -14,7 +14,7 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 interface CRMLayoutProps {
   children: React.ReactNode;
   activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar";
-  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows" | "agents" | "calendar") => void;
+  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
