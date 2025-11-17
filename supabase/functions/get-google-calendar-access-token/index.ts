@@ -6,13 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface CreateEventPayload {
+interface GetAccessTokenPayload {
   google_calendar_config_id: string;
-  summary: string;
-  startDateTime: string;
-  durationMinutes?: number;
-  description?: string;
-  location?: string;
 }
 
 serve(async (req) => {
@@ -21,19 +16,11 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      google_calendar_config_id,
-      summary, 
-      startDateTime, 
-      durationMinutes = 60, 
-      description,
-      location 
-    } = await req.json() as CreateEventPayload;
+    const { google_calendar_config_id } = await req.json() as GetAccessTokenPayload;
 
-    // Validar parâmetros
-    if (!google_calendar_config_id || !summary || !startDateTime) {
+    if (!google_calendar_config_id) {
       return new Response(
-        JSON.stringify({ error: 'google_calendar_config_id, summary e startDateTime são obrigatórios' }),
+        JSON.stringify({ error: 'google_calendar_config_id é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -91,57 +78,11 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // Calcular data de término
-    const startDate = new Date(startDateTime);
-    const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
-
-    // Criar evento no Google Calendar
-    const event: any = {
-      summary,
-      description: description || '',
-      start: {
-        dateTime: startDate.toISOString(),
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endDate.toISOString(),
-        timeZone: 'America/Sao_Paulo',
-      },
-    };
-
-    if (location) {
-      event.location = location;
-    }
-
-    const calendarResponse = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.calendar_id)}/events`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(event),
-      }
-    );
-
-    if (!calendarResponse.ok) {
-      const errorText = await calendarResponse.text();
-      console.error('Erro ao criar evento:', errorText);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao criar evento no Google Calendar' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const eventData = await calendarResponse.json();
-    console.log('Evento criado:', eventData.id);
-
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        eventId: eventData.id,
-        htmlLink: eventData.htmlLink 
+        success: true,
+        access_token: accessToken,
+        expires_in: tokenData.expires_in || 3600
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -155,3 +96,4 @@ serve(async (req) => {
     );
   }
 });
+
