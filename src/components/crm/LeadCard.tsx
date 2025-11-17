@@ -158,6 +158,12 @@ export function LeadCard({
             </div>
           )}
 
+          {lead.createdAt && (
+            <div className="text-[10px] text-muted-foreground/70">
+              Criado: {new Date(lead.createdAt).toLocaleDateString('pt-BR')}
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-2 pt-1">
             {lead.value && (
               <div className="flex items-center gap-1 text-xs font-medium text-success">
@@ -257,6 +263,16 @@ export function LeadCard({
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Smartphone className="h-4 w-4" />
             <span>{formatBrazilianPhone(lead.phone)}</span>
+          </div>
+        )}
+
+        {lead.createdAt && (
+          <div className="text-xs text-muted-foreground/70">
+            Criado em: {new Date(lead.createdAt).toLocaleDateString('pt-BR', { 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric' 
+            })}
           </div>
         )}
 
