@@ -37,6 +37,25 @@ export function GoogleCalendarIntegrationPanel() {
     is_active: true,
   });
 
+  // Escutar mensagens do popup OAuth
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GOOGLE_CALENDAR_OAUTH_SUCCESS') {
+        const { configId } = event.data;
+        console.log('OAuth sucesso, sincronizando eventos...', configId);
+        // Sincronizar eventos automaticamente após conexão
+        if (configId) {
+          setTimeout(() => {
+            sync({ google_calendar_config_id: configId });
+          }, 1000);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [sync]);
+
   // Fechar dialog quando criação for bem-sucedida
   useEffect(() => {
     if (!isCreating && configs.length > 0 && showAddDialog) {
