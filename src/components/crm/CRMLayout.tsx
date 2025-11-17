@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Users, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar";
-  onViewChange: (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar") => void;
+  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar";
+  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -23,7 +23,7 @@ interface CRMLayoutProps {
 }
 
 export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRMLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -55,7 +55,6 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const baseMenuItems = [
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
-    { id: "contacts" as const, label: "Contatos", icon: Users },
     { id: "phonebook" as const, label: "Lista Telefônica", icon: PhoneCall },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
     { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
@@ -128,25 +127,57 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         )}
       >
         <div className="p-4 border-b border-sidebar-border flex items-center justify-between gap-2">
-          {sidebarOpen ? (
-            <img src={agilizeLogo} alt="CRM Agilize" className="h-10 w-auto" />
-          ) : (
-            <div className="w-8 h-8 flex items-center justify-center">
-              <img src={agilizeLogo} alt="CRM" className="h-8 w-8 object-contain" />
-            </div>
-          )}
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0"
+          >
+            {sidebarOpen ? (
+              <img src={agilizeLogo} alt="CRM Agilize" className="h-10 w-auto cursor-pointer" />
+            ) : (
+              <div className="w-8 h-8 flex items-center justify-center">
+                <img src={agilizeLogo} alt="CRM" className="h-8 w-8 object-contain cursor-pointer" />
+              </div>
+            )}
+          </button>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0"
+            className="text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0 z-10"
+            title={sidebarOpen ? "Recolher menu" : "Expandir menu"}
           >
             <Menu className="h-5 w-5" />
           </Button>
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => (
+          {menuItems.map((item) => {
+            const handleClick = () => {
+              if (item.id === 'superadmin') {
+                navigate('/superadmin');
+              } else if (item.id === 'phonebook') {
+                navigate('/lista-telefonica');
+              } else if (item.id === 'workflows') {
+                navigate('/workflows');
+              } else if (item.id === 'agents') {
+                navigate('/agents');
+              } else if (item.id === 'calendar') {
+                navigate('/calendar');
+              } else if (item.id === 'whatsapp') {
+                navigate('/whatsapp');
+              } else if (item.id === 'broadcast') {
+                navigate('/broadcast');
+              } else if (item.id === 'users') {
+                navigate('/users');
+              } else if (item.id === 'settings') {
+                navigate('/settings');
+              } else if (item.id === 'kanban' || item.id === 'calls') {
+                // Navega para a página inicial passando a view como state
+                navigate('/', { state: { view: item.id } });
+              }
+            };
+
+            return (
             <Button
               key={item.id}
               variant={activeView === item.id ? "default" : "ghost"}
@@ -157,26 +188,13 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               )}
-              onClick={() => {
-                if (item.id === 'superadmin') {
-                  window.location.href = '/superadmin';
-                } else if (item.id === 'phonebook') {
-                  window.location.href = '/lista-telefonica';
-                } else if (item.id === 'workflows') {
-                  window.location.href = '/workflows';
-                } else if (item.id === 'agents') {
-                  window.location.href = '/agents';
-                } else if (item.id === 'calendar') {
-                  window.location.href = '/calendar';
-                } else {
-                  onViewChange(item.id);
-                }
-              }}
+              onClick={handleClick}
             >
               <item.icon className="h-5 w-5 shrink-0" />
               {sidebarOpen && <span className="ml-3">{item.label}</span>}
             </Button>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="p-4 border-t border-sidebar-border space-y-3">
@@ -216,7 +234,12 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
         <div className="flex items-center justify-between p-3">
-          <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto" />
+          <button
+            onClick={() => navigate('/')}
+            className="hover:opacity-80 transition-opacity"
+          >
+            <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto cursor-pointer" />
+          </button>
           
           <div className="flex items-center gap-2">
             <RealtimeStatusIndicator compact />
@@ -238,11 +261,46 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
               <SheetContent side="right" className="w-64 p-0">
                 <div className="flex flex-col h-full">
                   <div className="p-4 border-b flex items-center justify-between">
-                    <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto" />
+                    <button
+                      onClick={() => {
+                        navigate('/');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="hover:opacity-80 transition-opacity"
+                    >
+                      <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto cursor-pointer" />
+                    </button>
                   </div>
                   
                   <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-                    {menuItems.map((item) => (
+                    {menuItems.map((item) => {
+                      const handleClick = () => {
+                        if (item.id === 'superadmin') {
+                          navigate('/superadmin');
+                        } else if (item.id === 'phonebook') {
+                          navigate('/lista-telefonica');
+                        } else if (item.id === 'workflows') {
+                          navigate('/workflows');
+                        } else if (item.id === 'agents') {
+                          navigate('/agents');
+                        } else if (item.id === 'calendar') {
+                          navigate('/calendar');
+                        } else if (item.id === 'whatsapp') {
+                          navigate('/whatsapp');
+                        } else if (item.id === 'broadcast') {
+                          navigate('/broadcast');
+                        } else if (item.id === 'users') {
+                          navigate('/users');
+                        } else if (item.id === 'settings') {
+                          navigate('/settings');
+                        } else if (item.id === 'kanban' || item.id === 'calls') {
+                          // Navega para a página inicial passando a view como state
+                          navigate('/', { state: { view: item.id } });
+                        }
+                        setMobileMenuOpen(false);
+                      };
+
+                      return (
                       <Button
                         key={item.id}
                         variant={activeView === item.id ? "default" : "ghost"}
@@ -252,27 +310,13 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                             ? "bg-primary text-primary-foreground"
                             : ""
                         )}
-                        onClick={() => {
-                          if (item.id === 'superadmin') {
-                            window.location.href = '/superadmin';
-                          } else if (item.id === 'phonebook') {
-                            window.location.href = '/lista-telefonica';
-                          } else if (item.id === 'workflows') {
-                            window.location.href = '/workflows';
-                          } else if (item.id === 'agents') {
-                            window.location.href = '/agents';
-                          } else if (item.id === 'calendar') {
-                            window.location.href = '/calendar';
-                          } else {
-                            onViewChange(item.id);
-                          }
-                          setMobileMenuOpen(false);
-                        }}
+                        onClick={handleClick}
                       >
                         <item.icon className="h-5 w-5" />
                         <span className="ml-3">{item.label}</span>
                       </Button>
-                    ))}
+                      );
+                    })}
                   </nav>
 
                   <div className="p-4 border-t space-y-3">

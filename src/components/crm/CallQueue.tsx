@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useTags } from "@/hooks/useTags";
+import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 
 interface CallQueueProps {
   callQueue: CallQueueItem[];
@@ -32,6 +33,7 @@ interface CallQueueProps {
   onCallReschedule: (id: string, newDate: Date) => void;
   onAddTag: (callQueueId: string, tagId: string) => void;
   onRemoveTag: (callQueueId: string, tagId: string) => void;
+  onAssignToUser: (callQueueId: string, userId: string | null) => void;
   onRefetch: () => void;
 }
 
@@ -47,9 +49,10 @@ const priorityLabels = {
   low: "Baixa",
 };
 
-export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onRefetch }: CallQueueProps) {
+export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onAssignToUser, onRefetch }: CallQueueProps) {
   const { toast } = useToast();
   const { tags: allTags } = useTags();
+  const { users: organizationUsers } = useOrganizationUsers();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCallNotes, setActiveCallNotes] = useState<Record<string, string>>({});
   const [rescheduleDialog, setRescheduleDialog] = useState<{ open: boolean; callId: string; currentDate?: Date }>({
@@ -65,11 +68,16 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     open: false,
     callItem: null,
   });
+  const [assignDialog, setAssignDialog] = useState<{ open: boolean; callId: string; currentUserId?: string }>({
+    open: false,
+    callId: "",
+  });
   
   // Filtros
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
   const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [selectedAssignedUser, setSelectedAssignedUser] = useState<string>("all");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -138,7 +146,18 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
       if (!hasSelectedTag) return false;
     }
 
-    // Filtro de usuário (apenas para concluídas)
+    // Filtro de usuário atribuído (para todas as ligações)
+    if (selectedAssignedUser !== "all") {
+      if (selectedAssignedUser === "unassigned") {
+        // Filtrar apenas não atribuídos
+        if (call.assignedToUserId) return false;
+      } else {
+        // Filtrar por usuário específico
+        if (call.assignedToUserId !== selectedAssignedUser) return false;
+      }
+    }
+
+    // Filtro de usuário que completou (apenas para concluídas)
     if (call.status === "completed" && selectedUser !== "all" && call.completedBy !== selectedUser) {
       return false;
     }
@@ -160,7 +179,7 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     return true;
   });
 
-  // Obter lista de usuários únicos
+  // Obter lista de usuários únicos que completaram ligações
   const uniqueUsers = Array.from(
     new Set(
       callQueue
@@ -533,7 +552,25 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Usuário</label>
+                  <label className="text-sm font-medium">Usuário Atribuído</label>
+                  <Select value={selectedAssignedUser} onValueChange={setSelectedAssignedUser}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os usuários" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
+                      <SelectItem value="unassigned">Não atribuídos</SelectItem>
+                      {organizationUsers.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.full_name || user.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Usuário que Completou</label>
                   <Select value={selectedUser} onValueChange={setSelectedUser}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os usuários" />
@@ -767,6 +804,32 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             Ligações: <strong>{call.callCount}</strong>
                           </span>
                         </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2 flex-1">
+                            {call.assignedToUserId ? (
+                              <Badge variant="outline" className="gap-1">
+                                {call.assignedToUserName || call.assignedToUserEmail || 'Usuário atribuído'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                Não atribuído
+                              </Badge>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAssignDialog({ 
+                                open: true, 
+                                callId: call.id, 
+                                currentUserId: call.assignedToUserId 
+                              })}
+                              className="h-6 px-2 text-xs"
+                            >
+                              {call.assignedToUserId ? 'Reatribuir' : 'Atribuir'}
+                            </Button>
+                          </div>
+                        </div>
                         <div className="space-y-2 mt-2">
                           <div className="flex items-center gap-2">
                             <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -895,6 +958,32 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             <p className="mt-2 p-2 bg-muted rounded">{call.notes}</p>
                           </details>
                         )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2 flex-1">
+                            {call.assignedToUserId ? (
+                              <Badge variant="outline" className="gap-1">
+                                {call.assignedToUserName || call.assignedToUserEmail || 'Usuário atribuído'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                Não atribuído
+                              </Badge>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAssignDialog({ 
+                                open: true, 
+                                callId: call.id, 
+                                currentUserId: call.assignedToUserId 
+                              })}
+                              className="h-6 px-2 text-xs"
+                            >
+                              {call.assignedToUserId ? 'Reatribuir' : 'Atribuir'}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex flex-col gap-2 w-full lg:w-auto">
                         <Button
@@ -1046,6 +1135,37 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           });
         }}
       />
+
+      {/* Dialog para atribuir usuário */}
+      <Dialog open={assignDialog.open} onOpenChange={(open) => setAssignDialog({ ...assignDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Atribuir Lead</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select
+              value={assignDialog.currentUserId || "unassigned"}
+              onValueChange={(value) => {
+                const userId = value === "unassigned" ? null : value;
+                onAssignToUser(assignDialog.callId, userId);
+                setAssignDialog({ open: false, callId: "", currentUserId: undefined });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Não atribuído</SelectItem>
+                {organizationUsers.map(user => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.full_name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

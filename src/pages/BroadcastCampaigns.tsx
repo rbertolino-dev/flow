@@ -90,10 +90,9 @@ export default function BroadcastCampaigns() {
   const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "kanban") navigate('/');
     else if (view === "calls") navigate('/');
-    else if (view === "contacts") navigate('/');
     else if (view === "settings") navigate('/settings');
     else if (view === "users") navigate('/users');
     else if (view === "whatsapp") navigate('/whatsapp');

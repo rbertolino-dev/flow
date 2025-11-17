@@ -66,7 +66,7 @@ export default function Diagnostics() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") window.location.href = '/users';
     else if (view === "broadcast") window.location.href = '/broadcast';
     else if (view === "whatsapp") window.location.href = '/whatsapp';

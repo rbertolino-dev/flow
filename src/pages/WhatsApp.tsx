@@ -28,7 +28,7 @@ export default function WhatsApp() {
 
   const selectedChat = filteredChats.find(c => c.phone === selectedPhone);
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {

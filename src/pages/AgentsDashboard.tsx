@@ -238,10 +238,9 @@ const AgentsDashboard = () => {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows" | "agents") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows" | "agents") => {
     if (view === "kanban") navigate('/');
     else if (view === "calls") navigate('/');
-    else if (view === "contacts") navigate('/');
     else if (view === "settings") navigate('/settings');
     else if (view === "users") navigate('/users');
     else if (view === "broadcast") navigate('/broadcast');

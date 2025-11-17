@@ -82,7 +82,7 @@ export default function AuthLogs() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {

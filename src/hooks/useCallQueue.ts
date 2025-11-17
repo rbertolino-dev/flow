@@ -64,13 +64,50 @@ export function useCallQueue() {
         return;
       }
 
-      const { data: queueData, error } = await (supabase as any)
+      // Buscar dados da fila (sem join do assigned_user para evitar erro se migração não aplicada)
+      const { data, error: queryError } = await (supabase as any)
         .from('call_queue')
         .select('*, leads(id, name, phone, call_count)')
         .eq('organization_id', organizationId)
         .order('scheduled_for', { ascending: true });
 
-      if (error) throw error;
+      if (queryError) {
+        console.error('Erro ao buscar call_queue:', queryError);
+        throw queryError;
+      }
+
+      let queueData: any[] = data || [];
+      console.log('📞 Call queue data encontrada:', queueData.length, 'itens');
+
+      // Se houver dados, tentar buscar informações do usuário atribuído separadamente
+      // Isso evita erro se a migração ainda não foi aplicada
+      if (queueData.length > 0) {
+        // Verificar se o campo assigned_to_user_id existe nos dados
+        const hasAssignedField = queueData.some((q: any) => 'assigned_to_user_id' in q);
+        
+        if (hasAssignedField) {
+          const assignedUserIds = [...new Set(queueData.map((q: any) => q.assigned_to_user_id).filter(Boolean))];
+          
+          if (assignedUserIds.length > 0) {
+            const { data: profilesData } = await (supabase as any)
+              .from('profiles')
+              .select('id, email, full_name')
+              .in('id', assignedUserIds);
+
+            // Criar mapa de usuários
+            const usersMap = new Map();
+            (profilesData || []).forEach((profile: any) => {
+              usersMap.set(profile.id, profile);
+            });
+
+            // Adicionar dados do usuário a cada item
+            queueData = queueData.map((item: any) => ({
+              ...item,
+              assigned_user: item.assigned_to_user_id ? usersMap.get(item.assigned_to_user_id) : null
+            }));
+          }
+        }
+      }
 
       // OTIMIZAÇÃO: Buscar todas as tags de uma vez em vez de queries individuais (N+1)
       // Isso reduz de 100+ queries para apenas 2 queries, mantendo estrutura idêntica
@@ -165,6 +202,9 @@ export function useCallQueue() {
           callCount: finalCount,
           completedBy: item.completed_by || undefined,
           completedAt: item.completed_at ? new Date(item.completed_at) : undefined,
+          assignedToUserId: item.assigned_to_user_id || undefined,
+          assignedToUserName: item.assigned_user?.full_name || undefined,
+          assignedToUserEmail: item.assigned_user?.email || undefined,
         };
       }) as CallQueueItem[];
       setCallQueue(formattedQueue);
@@ -476,6 +516,31 @@ export function useCallQueue() {
     }
   };
 
+  const assignToUser = async (callQueueId: string, userId: string | null) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .update({ assigned_to_user_id: userId })
+        .eq('id', callQueueId);
+
+      if (error) throw error;
+
+      await fetchCallQueue();
+      toast({
+        title: userId ? "Lead atribuído" : "Atribuição removida",
+        description: userId ? "Lead atribuído ao usuário com sucesso" : "Atribuição removida com sucesso",
+      });
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atribuir lead",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   return { 
     callQueue, 
     loading, 
@@ -484,6 +549,7 @@ export function useCallQueue() {
     addToQueue, 
     refetch: fetchCallQueue,
     addCallQueueTag,
-    removeCallQueueTag
+    removeCallQueueTag,
+    assignToUser
   };
 }

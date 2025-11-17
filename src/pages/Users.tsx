@@ -316,7 +316,7 @@ export default function Users() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") {
       // já estamos aqui
     } else if (view === "broadcast") {

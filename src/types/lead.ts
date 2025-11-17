@@ -57,4 +57,7 @@ export interface CallQueueItem {
   callCount: number;
   completedBy?: string;
   completedAt?: Date;
+  assignedToUserId?: string;
+  assignedToUserName?: string;
+  assignedToUserEmail?: string;
 }

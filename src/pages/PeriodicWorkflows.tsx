@@ -53,7 +53,7 @@ export default function PeriodicWorkflows() {
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowEnvio | null>(null);
 
   const handleViewChange = (
-    view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows",
+    view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows",
   ) => {
     switch (view) {
       case "users":

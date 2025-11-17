@@ -57,7 +57,7 @@ export default function NovaFuncao() {
   // Estado de visualização
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {

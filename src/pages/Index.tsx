@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
 import { LeadsListView } from "@/components/crm/LeadsListView";
 import { CalendarView } from "@/components/crm/CalendarView";
 import { CallQueue } from "@/components/crm/CallQueue";
-import { LidContactsList } from "@/components/crm/LidContactsList";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
@@ -28,7 +27,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<"kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast">("kanban");
+  const location = useLocation();
+  const [activeView, setActiveView] = useState<"kanban" | "calls" | "settings" | "users" | "broadcast">("kanban");
+  
+  // Lê o state da navegação para definir a view inicial
+  useEffect(() => {
+    if (location.state && (location.state as any).view) {
+      const view = (location.state as any).view;
+      if (view === "kanban" || view === "calls") {
+        setActiveView(view);
+      }
+      // Limpa o state para evitar que seja aplicado novamente
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
@@ -42,7 +54,7 @@ const Index = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
-  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, refetch: refetchCallQueue } = useCallQueue();
+  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, assignToUser, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
   const { tags } = useTags();
   const { viewMode, toggleView } = useViewPreference();
@@ -123,7 +135,7 @@ const Index = () => {
     );
   }
 
-  const handleViewChange = (view: "kanban" | "calls" | "contacts" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
@@ -427,12 +439,9 @@ const Index = () => {
           onCallReschedule={handleCallReschedule}
           onAddTag={addCallQueueTag}
           onRemoveTag={removeCallQueueTag}
+          onAssignToUser={assignToUser}
           onRefetch={refetchCallQueue}
         />
-      )}
-
-      {activeView === "contacts" && (
-        <LidContactsList />
       )}
 
       {activeView === "settings" && <Settings />}
