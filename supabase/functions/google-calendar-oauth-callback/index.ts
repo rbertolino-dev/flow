@@ -230,7 +230,7 @@ serve(async (req) => {
       `,
       { 
         status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'text/html' } 
+        headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' } 
       }
     );
 
