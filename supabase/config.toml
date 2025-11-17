@@ -9,6 +9,21 @@ verify_jwt = false
 [functions.create-google-calendar-event]
 verify_jwt = false
 
+[functions.get-google-calendar-access-token]
+verify_jwt = false
+
+[functions.list-google-calendars]
+verify_jwt = false
+
+[functions.sync-google-calendar-events]
+verify_jwt = false
+
+[functions.google-calendar-oauth-init]
+verify_jwt = false
+
+[functions.google-calendar-oauth-callback]
+verify_jwt = false
+
 [functions.log-auth-attempt]
 verify_jwt = false
 

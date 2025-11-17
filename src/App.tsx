@@ -18,6 +18,7 @@ import SuperAdminCosts from "./pages/SuperAdminCosts";
 import AgentsDashboard from "./pages/AgentsDashboard";
 import RLSDiagnostics from "./pages/RLSDiagnostics";
 import NovaFuncao from "./pages/NovaFuncao";
+import Calendar from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
           <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
           <Route path="/lista-telefonica" element={<NovaFuncao />} />
           <Route path="/agents" element={<AgentsDashboard />} />
+          <Route path="/calendar" element={<Calendar />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -189,10 +189,6 @@ export default function Settings() {
               <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Templates</span>
             </TabsTrigger>
-            <TabsTrigger value="google-calendar" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Google Calendar</span>
-              <span className="sm:hidden">Google</span>
-            </TabsTrigger>
             <TabsTrigger value="archived" className="text-xs sm:text-sm">
               <Archive className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Arquivados</span>
@@ -458,79 +454,6 @@ export default function Settings() {
 
               <TabsContent value="templates" className="space-y-4">
                 <MessageTemplateManager />
-              </TabsContent>
-
-              <TabsContent value="google-calendar" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Configuração do Google Calendar</CardTitle>
-                    <CardDescription>
-                      Configure as credenciais OAuth2 do Google Calendar para agendar eventos diretamente do CRM
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Alert>
-                      <AlertDescription>
-                        <strong>Como configurar:</strong>
-                        <ol className="list-decimal list-inside space-y-2 mt-2">
-                          <li>Acesse o <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Cloud Console</a></li>
-                          <li>Crie um projeto ou selecione um existente</li>
-                          <li>Ative a API do Google Calendar</li>
-                          <li>Crie credenciais OAuth 2.0 (Client ID e Client Secret)</li>
-                          <li>Configure a URL de redirecionamento: <code className="bg-muted px-1 py-0.5 rounded">https://developers.google.com/oauthplayground</code></li>
-                          <li>Use o <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OAuth 2.0 Playground</a> para gerar o Refresh Token</li>
-                          <li>Cole as credenciais abaixo e salve no Lovable Cloud</li>
-                        </ol>
-                      </AlertDescription>
-                    </Alert>
-
-                    <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/50">
-                      <div className="space-y-2">
-                        <Label>Client ID</Label>
-                        <Input 
-                          placeholder="Seu Client ID do Google"
-                          disabled
-                          className="bg-background"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Configure em: Lovable Cloud → Secrets → GOOGLE_CALENDAR_CLIENT_ID
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Client Secret</Label>
-                        <Input 
-                          type="password"
-                          placeholder="Seu Client Secret do Google"
-                          disabled
-                          className="bg-background"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Configure em: Lovable Cloud → Secrets → GOOGLE_CALENDAR_CLIENT_SECRET
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Refresh Token</Label>
-                        <Input 
-                          type="password"
-                          placeholder="Refresh Token do OAuth Playground"
-                          disabled
-                          className="bg-background"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Configure em: Lovable Cloud → Secrets → GOOGLE_CALENDAR_REFRESH_TOKEN
-                        </p>
-                      </div>
-
-                      <Alert>
-                        <AlertDescription>
-                          Para adicionar os secrets, clique no botão abaixo para acessar o Lovable Cloud.
-                        </AlertDescription>
-                      </Alert>
-                    </div>
-                  </CardContent>
-                </Card>
               </TabsContent>
 
               <TabsContent value="archived" className="space-y-6">
