@@ -10,14 +10,20 @@ const corsHeaders = {
 const OPENAI_API_URL = "https://api.openai.com/v1/assistants";
 
 serve(async (req) => {
+  console.log("🟢🟢🟢 [agents-sync-openai] INÍCIO DA EXECUÇÃO");
+  console.log("📋 [agents-sync-openai] Método:", req.method);
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log("📋 [agents-sync-openai] Lendo body da requisição...");
     const { agentId } = await req.json();
+    console.log("📋 [agents-sync-openai] AgentId recebido:", agentId);
 
     if (!agentId) {
+      console.error("❌ [agents-sync-openai] agentId não fornecido!");
       return new Response(
         JSON.stringify({ error: "agentId é obrigatório" }),
         {
@@ -27,23 +33,39 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    console.log("🔍 [agents-sync-openai] Buscando variáveis de ambiente...");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    console.log("📋 [agents-sync-openai] SUPABASE_URL presente:", !!supabaseUrl);
+    console.log("📋 [agents-sync-openai] SUPABASE_SERVICE_ROLE_KEY presente:", !!supabaseKey);
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Variáveis de ambiente do Supabase não configuradas");
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    console.log("🔍 [agents-sync-openai] Buscando agente no banco...");
     const { data: agent, error: agentError } = await supabase
       .from("agents")
       .select("*")
       .eq("id", agentId)
       .single();
 
+    console.log("📦 [agents-sync-openai] Resultado da busca:", { agent: agent ? "encontrado" : "não encontrado", agentError });
+
     if (agentError || !agent) {
+      console.error("❌ [agents-sync-openai] Erro ao buscar agente:", agentError);
       throw new Error(agentError?.message || "Agente não encontrado");
     }
 
+    console.log("✅ [agents-sync-openai] Agente encontrado:", agent.name);
+    console.log("🔍 [agents-sync-openai] Verificando OPENAI_API_KEY...");
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    console.log("📋 [agents-sync-openai] OPENAI_API_KEY presente:", !!openaiKey);
 
     if (!openaiKey) {
+      console.error("❌ [agents-sync-openai] OPENAI_API_KEY não configurada!");
       throw new Error(
         "OPENAI_API_KEY não configurada. Defina a variável no Lovable Cloud para sincronizar agentes."
       );
@@ -138,15 +160,24 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
       ? `${OPENAI_API_URL}/${agent.openai_assistant_id}`
       : OPENAI_API_URL;
 
+    console.log("🚀 [agents-sync-openai] Chamando OpenAI API...");
+    console.log("📋 [agents-sync-openai] URL:", url);
+    console.log("📋 [agents-sync-openai] Método: POST");
+    console.log("📋 [agents-sync-openai] Payload:", JSON.stringify(assistantPayload, null, 2));
+
     const response = await fetch(url, {
-      method: "POST",
+      method: agent.openai_assistant_id ? "POST" : "POST",
       headers,
       body: JSON.stringify(assistantPayload),
     });
 
+    console.log("📡 [agents-sync-openai] Status da resposta OpenAI:", response.status);
+    console.log("📡 [agents-sync-openai] Status text:", response.statusText);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[agents-sync-openai] OpenAI error:", errorText);
+      console.error("❌ [agents-sync-openai] OpenAI error:", errorText);
+      console.error("❌ [agents-sync-openai] Status:", response.status);
       throw new Error(
         `Falha ao sincronizar com OpenAI: ${response.status} ${errorText}`
       );
@@ -175,10 +206,22 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("[agents-sync-openai] error:", error);
+    console.error("❌❌❌ [agents-sync-openai] ERRO CAPTURADO:");
+    console.error("📋 [agents-sync-openai] Tipo:", typeof error);
+    console.error("📋 [agents-sync-openai] Mensagem:", error instanceof Error ? error.message : String(error));
+    console.error("📋 [agents-sync-openai] Stack:", error instanceof Error ? error.stack : "N/A");
+    console.error("📋 [agents-sync-openai] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : typeof error === 'string' 
+        ? error 
+        : "Erro desconhecido";
+    
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Erro desconhecido",
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : undefined,
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
