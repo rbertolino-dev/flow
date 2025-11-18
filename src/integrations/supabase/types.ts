@@ -149,13 +149,21 @@ export type Database = {
           allow_fallback: boolean | null
           created_at: string | null
           created_by: string | null
+          debounce_time: number | null
+          delay_message: number | null
           description: string | null
           evolution_config_id: string | null
           evolution_instance_id: string | null
+          expire: number | null
           few_shot_examples: string | null
+          function_url: string | null
           guardrails: string | null
           id: string
+          ignore_jids: Json | null
+          keep_open: boolean | null
+          keyword_finish: string | null
           language: string | null
+          listening_from_me: boolean | null
           metadata: Json | null
           model: string | null
           name: string
@@ -165,8 +173,13 @@ export type Database = {
           policies: Json | null
           prompt_instructions: string | null
           status: string | null
+          stop_bot_from_me: boolean | null
           temperature: number | null
           test_mode: boolean | null
+          trigger_operator: string | null
+          trigger_type: string | null
+          trigger_value: string | null
+          unknown_message: string | null
           updated_at: string | null
           version: number | null
         }
@@ -174,13 +187,21 @@ export type Database = {
           allow_fallback?: boolean | null
           created_at?: string | null
           created_by?: string | null
+          debounce_time?: number | null
+          delay_message?: number | null
           description?: string | null
           evolution_config_id?: string | null
           evolution_instance_id?: string | null
+          expire?: number | null
           few_shot_examples?: string | null
+          function_url?: string | null
           guardrails?: string | null
           id?: string
+          ignore_jids?: Json | null
+          keep_open?: boolean | null
+          keyword_finish?: string | null
           language?: string | null
+          listening_from_me?: boolean | null
           metadata?: Json | null
           model?: string | null
           name: string
@@ -190,8 +211,13 @@ export type Database = {
           policies?: Json | null
           prompt_instructions?: string | null
           status?: string | null
+          stop_bot_from_me?: boolean | null
           temperature?: number | null
           test_mode?: boolean | null
+          trigger_operator?: string | null
+          trigger_type?: string | null
+          trigger_value?: string | null
+          unknown_message?: string | null
           updated_at?: string | null
           version?: number | null
         }
@@ -199,13 +225,21 @@ export type Database = {
           allow_fallback?: boolean | null
           created_at?: string | null
           created_by?: string | null
+          debounce_time?: number | null
+          delay_message?: number | null
           description?: string | null
           evolution_config_id?: string | null
           evolution_instance_id?: string | null
+          expire?: number | null
           few_shot_examples?: string | null
+          function_url?: string | null
           guardrails?: string | null
           id?: string
+          ignore_jids?: Json | null
+          keep_open?: boolean | null
+          keyword_finish?: string | null
           language?: string | null
+          listening_from_me?: boolean | null
           metadata?: Json | null
           model?: string | null
           name?: string
@@ -215,8 +249,13 @@ export type Database = {
           policies?: Json | null
           prompt_instructions?: string | null
           status?: string | null
+          stop_bot_from_me?: boolean | null
           temperature?: number | null
           test_mode?: boolean | null
+          trigger_operator?: string | null
+          trigger_type?: string | null
+          trigger_value?: string | null
+          unknown_message?: string | null
           updated_at?: string | null
           version?: number | null
         }

@@ -46,6 +46,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Wand2, Upload, X, Info, Zap, Key, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { EvolutionBotConfigFields } from "@/components/agents/EvolutionBotConfigFields";
 
 const statusLabel: Record<AgentStatus, string> = {
   draft: "Rascunho",
@@ -64,6 +65,19 @@ const defaultForm: AgentFormValues = {
   temperature: 0.6,
   test_mode: true,
   allow_fallback: false,
+  trigger_type: "keyword",
+  trigger_operator: "contains",
+  trigger_value: "",
+  expire: 20,
+  keyword_finish: "#SAIR",
+  delay_message: 1000,
+  unknown_message: "Desculpe, não entendi. Pode repetir?",
+  listening_from_me: false,
+  stop_bot_from_me: false,
+  keep_open: true,
+  debounce_time: 10,
+  ignore_jids: [],
+  function_url: "",
 };
 
 const AgentsDashboard = () => {
@@ -480,6 +494,14 @@ const AgentsDashboard = () => {
                   Vincule este agente a uma instância do WhatsApp para respostas automáticas
                 </p>
               </div>
+              
+              {/* Campos de configuração do Bot Evolution */}
+              {formValues.evolution_config_id && (
+                <EvolutionBotConfigFields
+                  values={formValues}
+                  onChange={handleInputChange}
+                />
+              )}
             </div>
             <DialogFooter>
               <Button

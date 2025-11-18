@@ -21,6 +21,20 @@ export interface Agent {
   test_mode: boolean;
   allow_fallback: boolean;
   metadata?: Record<string, unknown> | null;
+  // Evolution OpenAI bot configuration
+  trigger_type?: string | null;
+  trigger_operator?: string | null;
+  trigger_value?: string | null;
+  expire?: number | null;
+  keyword_finish?: string | null;
+  delay_message?: number | null;
+  unknown_message?: string | null;
+  listening_from_me?: boolean | null;
+  stop_bot_from_me?: boolean | null;
+  keep_open?: boolean | null;
+  debounce_time?: number | null;
+  ignore_jids?: string[] | null;
+  function_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +73,20 @@ export interface AgentFormValues {
   allow_fallback?: boolean;
   evolution_config_id?: string;
   metadata?: Record<string, unknown>;
+  // Evolution OpenAI bot configuration
+  trigger_type?: string;
+  trigger_operator?: string;
+  trigger_value?: string;
+  expire?: number;
+  keyword_finish?: string;
+  delay_message?: number;
+  unknown_message?: string;
+  listening_from_me?: boolean;
+  stop_bot_from_me?: boolean;
+  keep_open?: boolean;
+  debounce_time?: number;
+  ignore_jids?: string[];
+  function_url?: string;
 }
 
 export interface CreateAgentPayload extends AgentFormValues {
