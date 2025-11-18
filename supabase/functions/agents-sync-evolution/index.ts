@@ -184,14 +184,17 @@ const buildPayloadForPath = (path: string, basePayload: Record<string, unknown>)
   }
 
   if (normalizedPath.includes("integrations/openai")) {
+    // Para endpoints específicos de OpenAI, enviar tanto o objeto openai quanto integrations completo
     return {
       instanceName: basePayload.instanceName,
       openai: basePayload.openai,
       openAI: basePayload.openai,
+      integrations: basePayload.integrations, // Incluir também o objeto completo de integrations
     };
   }
 
   if (normalizedPath.includes("integrations")) {
+    // Para endpoints genéricos de integrations, sempre enviar o objeto completo
     return {
       instanceName: basePayload.instanceName,
       integrations: basePayload.integrations,
@@ -202,23 +205,33 @@ const buildPayloadForPath = (path: string, basePayload: Record<string, unknown>)
 };
 
 const buildCandidatePaths = (instanceName: string, configPath?: string | null) => {
-  const candidates = new Set<string>();
+  const candidates: string[] = [];
 
+  // Priorizar endpoint customizado se configurado
   if (configPath) {
-    candidates.add(configPath);
+    candidates.push(configPath);
   }
 
-  candidates.add(`/instance/${instanceName}/integrations/openai`);
-  candidates.add(`/instance/${instanceName}/integrations`);
-  candidates.add(`/integrations/${instanceName}/openai`);
-  candidates.add(`/integrations/${instanceName}`);
-  candidates.add(`/instance/settings/${instanceName}`);
-  candidates.add(`/instance/${instanceName}/settings`);
-  candidates.add(`/instance/update/${instanceName}`);
-  candidates.add(`/settings/set/${instanceName}`);
-  candidates.add(`/viewpool/sync-agent`);
+  // Priorizar endpoints específicos de integrations/openai (mais diretos)
+  candidates.push(`/instance/${instanceName}/integrations/openai`);
+  candidates.push(`/integrations/${instanceName}/openai`);
+  
+  // Depois endpoints genéricos de integrations
+  candidates.push(`/instance/${instanceName}/integrations`);
+  candidates.push(`/integrations/${instanceName}`);
+  
+  // Depois endpoints de settings (podem aceitar integrations)
+  candidates.push(`/instance/settings/${instanceName}`);
+  candidates.push(`/instance/${instanceName}/settings`);
+  candidates.push(`/settings/set/${instanceName}`);
+  
+  // Endpoints de update genéricos
+  candidates.push(`/instance/update/${instanceName}`);
+  
+  // Fallback para ViewPool (legado)
+  candidates.push(`/viewpool/sync-agent`);
 
-  return Array.from(candidates);
+  return candidates;
 };
 
 const buildMethodCandidates = (syncMethod?: string | null) => {
@@ -505,6 +518,10 @@ serve(async (req) => {
     }
 
     // Verificar se realmente configurou fazendo uma nova leitura
+    // Aguardar um pouco para a Evolution processar a atualização
+    console.log("🔍 [agents-sync-evolution] Aguardando 2 segundos antes de verificar integrações...");
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     console.log("🔍 [agents-sync-evolution] Verificando integrações após atualização...");
     const verifySnapshot = await fetchInstanceSnapshot(baseUrl, config);
     const verifyIntegrations = extractIntegrations(verifySnapshot.normalized);
@@ -512,9 +529,22 @@ serve(async (req) => {
       verifyIntegrations.openai || verifyIntegrations.openAI || (verifyIntegrations as any)?.openAi;
 
     if (verifyOpenAI) {
+      const assistantIdFound = (verifyOpenAI as any).assistant_id || (verifyOpenAI as any).assistantId;
+      const assistantsArray = (verifyOpenAI as any).assistants || [];
       console.log("✅✅✅ [agents-sync-evolution] Integrações OpenAI encontradas após atualização!");
+      console.log("📋 [agents-sync-evolution] Assistant ID encontrado:", assistantIdFound);
+      console.log("📋 [agents-sync-evolution] Assistants array:", assistantsArray.length > 0 ? `${assistantsArray.length} assistente(s)` : "vazio");
+      
+      // Verificar se o assistant ID correto está presente
+      if (assistantIdFound === agent.openai_assistant_id || 
+          assistantsArray.some((a: any) => (a.assistant_id || a.assistantId) === agent.openai_assistant_id)) {
+        console.log("✅✅✅ [agents-sync-evolution] CONFIRMADO: O assistant ID correto está presente na integração!");
+      } else {
+        console.warn("⚠️ [agents-sync-evolution] Assistant ID encontrado não corresponde ao esperado.");
+      }
     } else {
       console.warn("⚠️⚠️⚠️ [agents-sync-evolution] Não foi possível confirmar a integração OpenAI na verificação.");
+      console.warn("📋 [agents-sync-evolution] Isso pode ser normal se a Evolution API processar a atualização de forma assíncrona.");
     }
 
     // Atualizar agente no banco
