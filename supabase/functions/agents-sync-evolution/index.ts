@@ -33,10 +33,10 @@ const buildFullUrl = (baseUrl: string, path: string, instanceName: string) => {
   return `${baseUrl}/${normalizedPath}`;
 };
 
-const normalizeInstanceResponse = (payload: any, instanceName: string) => {
+const normalizeInstanceResponse = (payload: any, instanceName: string): any => {
   if (!payload) return null;
 
-  const tryMatch = (entry: any) => {
+  const tryMatch = (entry: any): any => {
     if (!entry) return null;
     if (entry.instance && (!instanceName || entry.instance.instanceName === instanceName)) {
       return entry.instance;
@@ -65,7 +65,7 @@ const normalizeInstanceResponse = (payload: any, instanceName: string) => {
   }
 
   if (payload.data && typeof payload.data === "object") {
-    const nested = normalizeInstanceResponse(payload.data, instanceName);
+    const nested: any = normalizeInstanceResponse(payload.data, instanceName);
     if (nested) return nested;
   }
 
