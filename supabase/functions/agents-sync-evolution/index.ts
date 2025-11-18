@@ -16,6 +16,19 @@ interface Agent {
   model?: string;
   temperature?: number;
   prompt_instructions?: string;
+  trigger_type?: string;
+  trigger_operator?: string;
+  trigger_value?: string;
+  expire?: number;
+  keyword_finish?: string;
+  delay_message?: number;
+  unknown_message?: string;
+  listening_from_me?: boolean;
+  stop_bot_from_me?: boolean;
+  keep_open?: boolean;
+  debounce_time?: number;
+  ignore_jids?: string[];
+  function_url?: string;
 }
 
 interface EvolutionConfig {
@@ -201,18 +214,19 @@ async function syncAgentToEvolution(
     openaiCredsId: openaiCredsId,
     botType: 'assistant',
     assistantId: agent.openai_assistant_id,
-    triggerType: 'keyword',
-    triggerOperator: 'contains',
-    triggerValue: agent.name.toLowerCase(),
-    expire: 20,
-    keywordFinish: '#SAIR',
-    delayMessage: 1000,
-    unknownMessage: 'Desculpe, não entendi. Pode repetir?',
-    listeningFromMe: false,
-    stopBotFromMe: false,
-    keepOpen: true,
-    debounceTime: 10,
-    ignoreJids: []
+    triggerType: agent.trigger_type || 'keyword',
+    triggerOperator: agent.trigger_operator || 'contains',
+    triggerValue: agent.trigger_value || agent.name.toLowerCase(),
+    expire: agent.expire || 20,
+    keywordFinish: agent.keyword_finish || '#SAIR',
+    delayMessage: agent.delay_message || 1000,
+    unknownMessage: agent.unknown_message || 'Desculpe, não entendi. Pode repetir?',
+    listeningFromMe: agent.listening_from_me || false,
+    stopBotFromMe: agent.stop_bot_from_me || false,
+    keepOpen: agent.keep_open !== false, // default true
+    debounceTime: agent.debounce_time || 10,
+    ignoreJids: agent.ignore_jids || [],
+    ...(agent.function_url && { functionUrl: agent.function_url }),
   };
 
   console.log(`📦 [agents-sync-evolution] Payload do bot:`, JSON.stringify(botPayload, null, 2));
