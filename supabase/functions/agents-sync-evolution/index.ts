@@ -531,34 +531,54 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se realmente configurou fazendo uma nova leitura
-    // Aguardar um pouco para a Evolution processar a atualização
-    console.log("🔍 [agents-sync-evolution] Aguardando 2 segundos antes de verificar integrações...");
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Aguardar mais tempo para a Evolution processar a atualização
+    console.log("🔍 [agents-sync-evolution] Aguardando 5 segundos para a Evolution processar...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     console.log("🔍 [agents-sync-evolution] Verificando integrações após atualização...");
-    const verifySnapshot = await fetchInstanceSnapshot(baseUrl, config);
-    const verifyIntegrations = extractIntegrations(verifySnapshot.normalized);
-    const verifyOpenAI =
-      verifyIntegrations.openai || verifyIntegrations.openAI || (verifyIntegrations as any)?.openAi;
+    
+    // Usar o mesmo endpoint que funcionou para configurar
+    const verifyUrl = `${baseUrl}/settings/set/${config.instance_name}`;
+    console.log(`🔍 [agents-sync-evolution] Verificando em: GET ${verifyUrl}`);
+    
+    try {
+      const verifyResponse = await fetch(verifyUrl, {
+        method: 'GET',
+        headers: {
+          'apikey': config.api_key || '',
+          'Content-Type': 'application/json'
+        }
+      });
 
-    if (verifyOpenAI) {
-      const assistantIdFound = (verifyOpenAI as any).assistant_id || (verifyOpenAI as any).assistantId;
-      const assistantsArray = (verifyOpenAI as any).assistants || [];
-      console.log("✅✅✅ [agents-sync-evolution] Integrações OpenAI encontradas após atualização!");
-      console.log("📋 [agents-sync-evolution] Assistant ID encontrado:", assistantIdFound);
-      console.log("📋 [agents-sync-evolution] Assistants array:", assistantsArray.length > 0 ? `${assistantsArray.length} assistente(s)` : "vazio");
-      
-      // Verificar se o assistant ID correto está presente
-      if (assistantIdFound === agent.openai_assistant_id || 
-          assistantsArray.some((a: any) => (a.assistant_id || a.assistantId) === agent.openai_assistant_id)) {
-        console.log("✅✅✅ [agents-sync-evolution] CONFIRMADO: O assistant ID correto está presente na integração!");
+      if (verifyResponse.ok) {
+        const settingsData = await verifyResponse.json();
+        console.log('📄 [agents-sync-evolution] Configurações recuperadas com sucesso!');
+        
+        // Verificar se a integração OpenAI está presente
+        const hasOpenAI = settingsData?.settings?.integrations?.openai?.enabled || 
+                          settingsData?.settings?.integrations?.openAI?.enabled;
+        
+        const assistantId = settingsData?.settings?.integrations?.openai?.assistant_id || 
+                           settingsData?.settings?.integrations?.openAI?.assistant_id ||
+                           settingsData?.settings?.integrations?.openai?.assistantId || 
+                           settingsData?.settings?.integrations?.openAI?.assistantId;
+        
+        if (hasOpenAI && assistantId === agent.openai_assistant_id) {
+          console.log('✅✅✅ [agents-sync-evolution] CONFIRMADO: Integração OpenAI com assistant correto!');
+        } else if (hasOpenAI) {
+          console.warn('⚠️ [agents-sync-evolution] Integração OpenAI encontrada mas assistant ID não corresponde.');
+          console.warn(`📋 Esperado: ${agent.openai_assistant_id}, Encontrado: ${assistantId}`);
+        } else {
+          console.warn('⚠️ [agents-sync-evolution] Integração OpenAI não encontrada nas configurações.');
+        }
       } else {
-        console.warn("⚠️ [agents-sync-evolution] Assistant ID encontrado não corresponde ao esperado.");
+        const errorText = await verifyResponse.text();
+        console.warn(`⚠️ [agents-sync-evolution] Verificação retornou ${verifyResponse.status}`);
+        console.log(`📄 [agents-sync-evolution] Resposta: ${errorText}`);
       }
-    } else {
-      console.warn("⚠️⚠️⚠️ [agents-sync-evolution] Não foi possível confirmar a integração OpenAI na verificação.");
-      console.warn("📋 [agents-sync-evolution] Isso pode ser normal se a Evolution API processar a atualização de forma assíncrona.");
+    } catch (verifyError) {
+      console.warn('⚠️ [agents-sync-evolution] Erro ao verificar integração:', verifyError);
+      console.warn('📋 [agents-sync-evolution] A integração pode ter sido aplicada mesmo assim.');
     }
 
     // Atualizar agente no banco
