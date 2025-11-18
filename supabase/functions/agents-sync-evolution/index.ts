@@ -207,7 +207,40 @@ async function syncAgentToEvolution(
     }
   }
 
-  // 3. Criar/atualizar bot assistente
+  // 3. Verificar se bot já existe e deletar se necessário
+  console.log(`🔍 [agents-sync-evolution] Verificando bots existentes...`);
+  const listBotsResponse = await fetch(`${baseUrl}/openai/find/${instanceName}`, {
+    method: 'GET',
+    headers: {
+      'apikey': config.api_key || '',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (listBotsResponse.ok) {
+    const existingBots = await listBotsResponse.json();
+    const botsArray = Array.isArray(existingBots) ? existingBots : [existingBots];
+    const existingBot = botsArray.find((b: any) => b.assistantId === agent.openai_assistant_id);
+    
+    if (existingBot) {
+      console.log(`🗑️ [agents-sync-evolution] Bot existente encontrado (ID: ${existingBot.id}), deletando...`);
+      const deleteResponse = await fetch(`${baseUrl}/openai/delete/${existingBot.id}/${instanceName}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': config.api_key || '',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (deleteResponse.ok) {
+        console.log(`✅ [agents-sync-evolution] Bot anterior deletado com sucesso`);
+      } else {
+        console.warn(`⚠️ [agents-sync-evolution] Falha ao deletar bot anterior: ${await deleteResponse.text()}`);
+      }
+    }
+  }
+
+  // 4. Criar bot assistente
   console.log(`📤 [agents-sync-evolution] Criando bot/assistente OpenAI...`);
   const botPayload = {
     enabled: true,
@@ -223,7 +256,7 @@ async function syncAgentToEvolution(
     unknownMessage: agent.unknown_message || 'Desculpe, não entendi. Pode repetir?',
     listeningFromMe: agent.listening_from_me || false,
     stopBotFromMe: agent.stop_bot_from_me || false,
-    keepOpen: agent.keep_open !== false, // default true
+    keepOpen: agent.keep_open !== false,
     debounceTime: agent.debounce_time || 10,
     ignoreJids: agent.ignore_jids || [],
     ...(agent.function_url && { functionUrl: agent.function_url }),
@@ -249,9 +282,9 @@ async function syncAgentToEvolution(
   const botData = await botResponse.json();
   console.log(`✅ [agents-sync-evolution] Bot criado com sucesso!`, botData);
 
-  // 4. Verificar se o bot foi criado corretamente
-  console.log(`🔍 [agents-sync-evolution] Aguardando 3 segundos antes de verificar...`);
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  // 5. Verificar se o bot foi criado corretamente
+  console.log(`🔍 [agents-sync-evolution] Aguardando 2 segundos antes de verificar...`);
+  await new Promise(resolve => setTimeout(resolve, 2000));
   
   console.log(`🔍 [agents-sync-evolution] Verificando bots cadastrados...`);
   const verifyResponse = await fetch(`${baseUrl}/openai/find/${instanceName}`, {
@@ -273,13 +306,13 @@ async function syncAgentToEvolution(
     if (botFound) {
       console.log(`✅✅✅ [agents-sync-evolution] CONFIRMADO: Bot com assistant ${agent.openai_assistant_id} está registrado!`);
     } else {
-      console.warn(`⚠️ [agents-sync-evolution] Bot criado mas não encontrado na listagem. Isso pode ser normal.`);
+      console.warn(`⚠️ [agents-sync-evolution] Bot criado mas não encontrado na listagem.`);
     }
   } else {
     console.warn(`⚠️ [agents-sync-evolution] Não foi possível verificar bots: ${await verifyResponse.text()}`);
   }
 
-  // 5. Atualizar agente no banco
+  // 6. Atualizar agente no banco
   const { error: updateError } = await supabase
     .from('agents')
     .update({
