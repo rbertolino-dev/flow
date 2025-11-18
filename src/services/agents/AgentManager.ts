@@ -18,7 +18,7 @@ const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
 
   try {
     const { data, error } = await supabase.functions.invoke(functionName, {
-      body: { agentId },
+      body: { agent_id: agentId },
     });
 
     console.log(`📦 [AgentManager] Resposta bruta do Supabase:`, { data, error });
@@ -42,7 +42,7 @@ const invokeAgentSync = async (agentId: string, target: SyncTarget) => {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${supabaseKey}`,
               },
-              body: JSON.stringify({ agentId }),
+              body: JSON.stringify({ agent_id: agentId }),
             }
           );
           
