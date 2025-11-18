@@ -517,16 +517,21 @@ const AgentsDashboard = () => {
                   </div>
                   <div>
                     <p className="font-medium mb-1">3️⃣ Sincronizar com Evolution (WhatsApp)</p>
-                    <p className="text-sm">Na tabela, clique no botão <strong>"Evolution"</strong>. Isso vincula o agente à instância do WhatsApp que você selecionou no formulário.</p>
+                    <p className="text-sm">Na tabela, clique no botão <strong>"Evolution"</strong>. Isso adiciona o assistente OpenAI ao campo <code>integrations.openai</code> da sua instância Evolution, vinculando o agente ao WhatsApp.</p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">4️⃣ Pronto! Agente Ativo</p>
                     <p className="text-sm">Após sincronizar, o agente responde automaticamente no WhatsApp. O sistema valida respostas e loga conversas para análise.</p>
                   </div>
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-blue-200">
-                    <Zap className="h-4 w-4 text-blue-600" />
-                    <p className="text-sm font-medium">
-                      Tudo integrado! Após sincronizar, o agente funciona automaticamente no WhatsApp.
+                  <div className="space-y-2 mt-2 pt-2 border-t border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm font-medium">
+                        Tudo integrado! Após sincronizar, o agente funciona automaticamente no WhatsApp.
+                      </p>
+                    </div>
+                    <p className="text-xs text-blue-700 ml-6">
+                      💡 <strong>Verificar integração:</strong> Acesse o painel Evolution → Instâncias → Sua instância → Aba "Integrações" → Verifique se o campo OpenAI está preenchido com o assistant ID.
                     </p>
                   </div>
                 </div>
