@@ -201,6 +201,20 @@ const buildPayloadForPath = (path: string, basePayload: Record<string, unknown>)
     };
   }
 
+  if (normalizedPath.includes("settings")) {
+    // Para endpoints de settings, incluir propriedades adicionais da instância
+    return {
+      instanceName: basePayload.instanceName,
+      rejectCall: false,
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: false,
+      integrations: basePayload.integrations,
+    };
+  }
+
   return basePayload;
 };
 
