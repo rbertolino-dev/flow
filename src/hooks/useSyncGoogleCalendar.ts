@@ -33,26 +33,37 @@ export function useSyncGoogleCalendar() {
 
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
-      queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
-      
-      toast({
-        title: "Sincronização concluída",
-        description: `Encontrados ${data.events_found} eventos. ${data.inserted} novos, ${data.updated} atualizados.`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erro na sincronização",
-        description: error.message || "Não foi possível sincronizar os eventos.",
-        variant: "destructive",
-      });
-    },
   });
 
   return {
-    sync: syncMutation.mutate,
+    sync: (options: SyncGoogleCalendarOptions, callbacks?: { onSuccess?: () => void; onError?: () => void }) => {
+      syncMutation.mutate(options, {
+        onSuccess: (data) => {
+          queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
+          
+          toast({
+            title: "Sincronização concluída",
+            description: `Encontrados ${data.events_found} eventos. ${data.inserted} novos, ${data.updated} atualizados.`,
+          });
+          
+          if (callbacks?.onSuccess) {
+            callbacks.onSuccess();
+          }
+        },
+        onError: (error: any) => {
+          toast({
+            title: "Erro na sincronização",
+            description: error.message || "Não foi possível sincronizar os eventos.",
+            variant: "destructive",
+          });
+          
+          if (callbacks?.onError) {
+            callbacks.onError();
+          }
+        },
+      });
+    },
     isSyncing: syncMutation.isPending,
   };
 }

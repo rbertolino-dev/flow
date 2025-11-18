@@ -125,6 +125,7 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json();
     const refreshToken = tokenData.refresh_token;
     const accessToken = tokenData.access_token;
+    const idToken = tokenData.id_token;
 
     if (!refreshToken) {
       throw new Error('Refresh token não recebido. Certifique-se de que o prompt=consent está configurado.');
@@ -149,6 +150,7 @@ serve(async (req) => {
 
     // Buscar email do usuário do Google usando access token
     let userEmail = accountName;
+    let userName = accountName;
     try {
       const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: {
@@ -158,29 +160,77 @@ serve(async (req) => {
       if (userInfoResponse.ok) {
         const userInfo = await userInfoResponse.json();
         userEmail = userInfo.email || accountName;
+        userName = userInfo.name || userInfo.email || accountName;
       }
     } catch (e) {
       console.error('Erro ao buscar email do usuário:', e);
     }
 
-    // Salvar configuração na tabela  
-    const { data: savedConfig, error: insertError } = await supabase
-      .from('google_calendar_configs')
-      .insert({
-        organization_id: organizationId,
-        account_name: userEmail || accountName,
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        calendar_id: 'primary',
-        is_active: true,
-      })
-      .select()
-      .single();
+    // Fallback: tentar decodificar id_token para obter email
+    if ((!userEmail || userEmail === accountName) && idToken) {
+      try {
+        const payload = JSON.parse(atob(idToken.split('.')[1]));
+        if (payload.email) {
+          userEmail = payload.email;
+        }
+        if (payload.name) {
+          userName = payload.name;
+        }
+      } catch (e) {
+        console.error('Erro ao decodificar id_token:', e);
+      }
+    }
 
-    if (insertError) {
-      console.error('Erro ao salvar configuração:', insertError);
-      throw new Error('Falha ao salvar configuração do Google Calendar');
+    // Verificar se já existe uma conta com o mesmo email nesta organização
+    const { data: existingConfig } = await supabase
+      .from('google_calendar_configs')
+      .select('id, account_name')
+      .eq('organization_id', organizationId)
+      .eq('account_name', userEmail)
+      .maybeSingle();
+
+    let savedConfig;
+    if (existingConfig) {
+      // Atualizar configuração existente
+      const { data: updatedConfig, error: updateError } = await supabase
+        .from('google_calendar_configs')
+        .update({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingConfig.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Erro ao atualizar configuração:', updateError);
+        throw new Error('Falha ao atualizar configuração do Google Calendar');
+      }
+      savedConfig = updatedConfig;
+    } else {
+      // Criar nova configuração
+      const { data: newConfig, error: insertError } = await supabase
+        .from('google_calendar_configs')
+        .insert({
+          organization_id: organizationId,
+          account_name: userEmail,
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          calendar_id: 'primary',
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Erro ao salvar configuração:', insertError);
+        throw new Error('Falha ao salvar configuração do Google Calendar');
+      }
+      savedConfig = newConfig;
     }
 
     // Retornar página de sucesso

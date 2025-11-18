@@ -67,7 +67,7 @@ export function useCallQueue() {
       // Buscar dados da fila (sem join do assigned_user para evitar erro se migração não aplicada)
       const { data, error: queryError } = await (supabase as any)
         .from('call_queue')
-        .select('*, leads(id, name, phone, call_count)')
+        .select('*, leads(id, name, phone, call_count, created_at)')
         .eq('organization_id', organizationId)
         .order('scheduled_for', { ascending: true });
 
@@ -205,6 +205,7 @@ export function useCallQueue() {
           assignedToUserId: item.assigned_to_user_id || undefined,
           assignedToUserName: item.assigned_user?.full_name || undefined,
           assignedToUserEmail: item.assigned_user?.email || undefined,
+          leadCreatedAt: item.leads?.created_at ? new Date(item.leads.created_at) : undefined,
         };
       }) as CallQueueItem[];
       setCallQueue(formattedQueue);
@@ -238,7 +239,7 @@ export function useCallQueue() {
       // Get the call queue item with lead data
       const { data: queueItem, error: fetchError } = await (supabase as any)
         .from('call_queue')
-        .select('*, leads(id, name, phone, call_count)')
+        .select('*, leads(id, name, phone, call_count, created_at)')
         .eq('id', callId)
         .maybeSingle();
 

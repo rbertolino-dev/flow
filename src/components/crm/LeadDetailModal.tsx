@@ -182,15 +182,19 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         title: "Etiqueta adicionada",
         description: "A etiqueta foi adicionada ao lead.",
       });
+      onUpdated?.(); // Atualizar o lead após adicionar etiqueta
     }
   };
 
   const handleRemoveTag = async (tagId: string) => {
-    await removeTagFromLead(lead.id, tagId);
-    toast({
-      title: "Etiqueta removida",
-      description: "A etiqueta foi removida do lead.",
-    });
+    const success = await removeTagFromLead(lead.id, tagId);
+    if (success) {
+      toast({
+        title: "Etiqueta removida",
+        description: "A etiqueta foi removida do lead.",
+      });
+      onUpdated?.(); // Atualizar o lead após remover etiqueta
+    }
   };
 
   const handleAddToCallQueue = async () => {
@@ -462,8 +466,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full">
-        <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col">
+        <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-xl sm:text-2xl mb-2 truncate">{lead.name}</DialogTitle>
@@ -488,8 +492,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
         <Separator />
 
-        <ScrollArea className="max-h-[55vh] sm:max-h-[60vh]">
-          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Informações de Contato</h3>
@@ -852,11 +857,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
               </div>
             </div>
           </div>
-        </ScrollArea>
+          </ScrollArea>
+        </div>
 
-        <Separator />
+        <Separator className="flex-shrink-0" />
 
-        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex flex-wrap gap-2">
+        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex flex-wrap gap-2 flex-shrink-0">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">

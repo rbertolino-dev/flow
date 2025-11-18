@@ -183,26 +183,37 @@ supabase migration up
 
 ### Endpoint Esperado
 
-A Evolution API deve ter um endpoint:
+Atualmente o conector utiliza o painel de **Integrações** da Evolution. A API precisa aceitar requisições para cadastrar/atualizar o bloco `integrations.openai` da instância:
 
 ```
-POST /viewpool/sync-agent
+POST /instance/{instanceName}/integrations/openai
 Headers:
-  apikey: <api_key>
+  apikey: <api_key_da_instancia>
 Body:
   {
     "instanceName": "instance-123",
-    "agent": {
-      "agentName": "Assistente de Vendas",
-      "assistantId": "asst_abc123",
-      "prompt": "Você é...",
-      "language": "pt-BR",
-      "status": "active",
-      "testMode": false,
-      "metadata": {}
+    "openai": {
+      "enabled": true,
+      "api_key": "sk-xxx",
+      "assistant_id": "asst_abc123",
+      "assistant_name": "Assistente de Vendas",
+      "organization_id": "org-uuid",
+      "assistants": [
+        {
+          "assistant_id": "asst_abc123",
+          "name": "Assistente de Vendas",
+          "model": "gpt-4o-mini",
+          "prompt": "Você é...",
+          "language": "pt-BR",
+          "temperature": 0.6
+        }
+      ],
+      "last_sync_at": "2025-11-19T12:00:00Z"
     }
   }
 ```
+
+> Para ambientes legados ainda é possível reutilizar o endpoint `/viewpool/sync-agent`, mas o fluxo preferencial é atualizar diretamente o objeto `integrations.openai`.
 
 ### Fluxo de Mensagem
 
@@ -253,7 +264,7 @@ Verificar se o agente pertence à organização ativa.
 
 ### Erro: "Evolution API error: 404"
 
-Confirmar que a instância Evolution existe e que o endpoint `/viewpool/sync-agent` está implementado.
+Confirmar que a instância Evolution existe e que o endpoint `/instance/{instance}/integrations/openai` (ou fallback `/viewpool/sync-agent`) está implementado.
 
 ### Sincronização não atualiza
 

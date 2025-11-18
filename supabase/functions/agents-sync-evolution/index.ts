@@ -7,6 +7,294 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const replaceInstancePlaceholder = (value: string | null, instanceName: string) => {
+  if (!value) return null;
+  return value
+    .replace(/:instance/gi, instanceName)
+    .replace(/{instance}/gi, instanceName)
+    .replace(/{instanceName}/gi, instanceName);
+};
+
+const buildFullUrl = (baseUrl: string, path: string, instanceName: string) => {
+  if (!path) {
+    return baseUrl;
+  }
+
+  const normalizedPath = replaceInstancePlaceholder(path, instanceName) || "";
+
+  if (normalizedPath.startsWith("http://") || normalizedPath.startsWith("https://")) {
+    return normalizedPath;
+  }
+
+  if (normalizedPath.startsWith("/")) {
+    return `${baseUrl}${normalizedPath}`;
+  }
+
+  return `${baseUrl}/${normalizedPath}`;
+};
+
+const normalizeInstanceResponse = (payload: any, instanceName: string) => {
+  if (!payload) return null;
+
+  const tryMatch = (entry: any) => {
+    if (!entry) return null;
+    if (entry.instance && (!instanceName || entry.instance.instanceName === instanceName)) {
+      return entry.instance;
+    }
+    if (entry.instanceName === instanceName || entry.name === instanceName) {
+      return entry;
+    }
+    if (!instanceName) {
+      return entry.instance || entry;
+    }
+    return null;
+  };
+
+  if (Array.isArray(payload)) {
+    const found =
+      payload.find((item) => tryMatch(item)) ||
+      payload.find((item) => item.instanceName === instanceName || item.name === instanceName);
+    if (found) {
+      return tryMatch(found) || found.instance || found;
+    }
+    return null;
+  }
+
+  if (payload.instance && (!instanceName || payload.instance.instanceName === instanceName)) {
+    return payload.instance;
+  }
+
+  if (payload.data && typeof payload.data === "object") {
+    const nested = normalizeInstanceResponse(payload.data, instanceName);
+    if (nested) return nested;
+  }
+
+  if (payload.settings && payload.settings.instance) {
+    return payload.settings.instance;
+  }
+
+  if (!instanceName || payload.instanceName === instanceName || payload.name === instanceName) {
+    return payload.instance || payload;
+  }
+
+  return payload;
+};
+
+const extractIntegrations = (snapshot: any) => {
+  if (!snapshot) return {};
+  return (
+    snapshot.integrations ||
+    snapshot.settings?.integrations ||
+    snapshot.instance?.integrations ||
+    snapshot.data?.integrations ||
+    {}
+  );
+};
+
+const buildAssistantEntry = (agent: any) => {
+  const timestamp = new Date().toISOString();
+  return {
+    assistant_id: agent.openai_assistant_id,
+    assistantId: agent.openai_assistant_id,
+    agent_id: agent.id,
+    name: agent.name,
+    description: agent.description || "",
+    model: agent.model || null,
+    language: agent.language || null,
+    temperature: agent.temperature ?? null,
+    prompt: agent.prompt_instructions || "",
+    guardrails: agent.guardrails || "",
+    few_shot_examples: agent.few_shot_examples || "",
+    policies: agent.policies,
+    persona: agent.persona,
+    metadata: agent.metadata,
+    allow_fallback: agent.allow_fallback ?? false,
+    test_mode: agent.test_mode ?? false,
+    version: agent.version ?? 1,
+    updated_at: timestamp,
+    last_synced_at: timestamp,
+  };
+};
+
+const mergeOpenAIIntegrations = (
+  existingIntegrations: Record<string, unknown>,
+  assistantEntry: Record<string, unknown>,
+  openaiKey: string,
+  agent: any
+) => {
+  const existingOpenAI =
+    (existingIntegrations?.openai as Record<string, unknown>) ||
+    (existingIntegrations?.openAI as Record<string, unknown>) ||
+    {};
+
+  const assistantsSource = Array.isArray((existingOpenAI as any).assistants)
+    ? (existingOpenAI as any).assistants
+    : Array.isArray((existingOpenAI as any).agents)
+      ? (existingOpenAI as any).agents
+      : [];
+
+  const assistantsMap = new Map<string, any>();
+  for (const entry of assistantsSource) {
+    if (!entry) continue;
+    const key = entry.assistant_id || entry.assistantId || entry.id;
+    if (key) {
+      assistantsMap.set(String(key), entry);
+    }
+  }
+  assistantsMap.set(String(assistantEntry.assistant_id), assistantEntry);
+
+  const assistants = Array.from(assistantsMap.values());
+
+  const openaiIntegration = {
+    ...existingOpenAI,
+    enabled: true,
+    api_key: openaiKey,
+    apiKey: openaiKey,
+    assistant_id: assistantEntry.assistant_id,
+    assistantId: assistantEntry.assistant_id,
+    assistant_name: assistantEntry.name,
+    assistantName: assistantEntry.name,
+    organization_id: agent.organization_id,
+    organizationId: agent.organization_id,
+    last_sync_at: assistantEntry.updated_at,
+    lastSyncAt: assistantEntry.updated_at,
+    assistants,
+  };
+
+  const updatedIntegrations = {
+    ...existingIntegrations,
+    openai: openaiIntegration,
+    openAI: openaiIntegration,
+  };
+
+  return { openaiIntegration, updatedIntegrations };
+};
+
+const buildPayloadForPath = (path: string, basePayload: Record<string, unknown>) => {
+  const normalizedPath = path.toLowerCase();
+
+  if (normalizedPath.includes("viewpool")) {
+    return {
+      instanceName: basePayload.instanceName,
+      agent: basePayload.assistant,
+      assistant: basePayload.assistant,
+      openai: basePayload.openai,
+      openAI: basePayload.openai,
+    };
+  }
+
+  if (normalizedPath.includes("integrations/openai")) {
+    return {
+      instanceName: basePayload.instanceName,
+      openai: basePayload.openai,
+      openAI: basePayload.openai,
+    };
+  }
+
+  if (normalizedPath.includes("integrations")) {
+    return {
+      instanceName: basePayload.instanceName,
+      integrations: basePayload.integrations,
+    };
+  }
+
+  return basePayload;
+};
+
+const buildCandidatePaths = (instanceName: string, configPath?: string | null) => {
+  const candidates = new Set<string>();
+
+  if (configPath) {
+    candidates.add(configPath);
+  }
+
+  candidates.add(`/instance/${instanceName}/integrations/openai`);
+  candidates.add(`/instance/${instanceName}/integrations`);
+  candidates.add(`/integrations/${instanceName}/openai`);
+  candidates.add(`/integrations/${instanceName}`);
+  candidates.add(`/instance/settings/${instanceName}`);
+  candidates.add(`/instance/${instanceName}/settings`);
+  candidates.add(`/instance/update/${instanceName}`);
+  candidates.add(`/settings/set/${instanceName}`);
+  candidates.add(`/viewpool/sync-agent`);
+
+  return Array.from(candidates);
+};
+
+const buildMethodCandidates = (syncMethod?: string | null) => {
+  if (syncMethod) {
+    return [syncMethod.toUpperCase()];
+  }
+  return ["POST", "PUT", "PATCH"];
+};
+
+const fetchInstanceSnapshot = async (baseUrl: string, config: any) => {
+  const fetchPaths = [
+    `/instance/settings/${config.instance_name}`,
+    `/instance/${config.instance_name}/settings`,
+    `/instance/${config.instance_name}`,
+    `/instance/fetchInstances/${config.instance_name}`,
+    `/instance/fetchInstances?instanceName=${config.instance_name}`,
+    `/settings/${config.instance_name}`,
+  ];
+
+  for (const path of fetchPaths) {
+    const url = buildFullUrl(baseUrl, path, config.instance_name);
+    try {
+      console.log(`🔍 [agents-sync-evolution] Buscando snapshot em: ${url}`);
+      const response = await fetch(url, {
+        headers: {
+          "apikey": config.api_key || "",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`⚠️ [agents-sync-evolution] Snapshot ${url} retornou ${response.status}`);
+        continue;
+      }
+
+      const raw = await response.json();
+      const normalized = normalizeInstanceResponse(raw, config.instance_name);
+      if (normalized) {
+        console.log("📄 [agents-sync-evolution] Snapshot encontrado!");
+        return { raw, normalized };
+      }
+    } catch (error) {
+      console.warn(`⚠️ [agents-sync-evolution] Erro ao buscar snapshot em ${url}:`, error);
+    }
+  }
+
+  console.warn("⚠️ [agents-sync-evolution] Nenhum snapshot da instância foi obtido. Usando integrações vazias.");
+  return { raw: null, normalized: null };
+};
+
+const maskSecrets = (payload: any, openaiKey: string) => {
+  if (!payload) return payload;
+  const clone = JSON.parse(JSON.stringify(payload));
+
+  const maskRecursive = (node: any) => {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    for (const key of Object.keys(node)) {
+      if (
+        key === "api_key" ||
+        key === "apiKey" ||
+        key === "openai_api_key" ||
+        key === "openaiApiKey"
+      ) {
+        node[key] = openaiKey ? "***PRESENTE***" : "***AUSENTE***";
+      } else {
+        maskRecursive(node[key]);
+      }
+    }
+  };
+
+  maskRecursive(clone);
+  return clone;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,7 +322,10 @@ serve(async (req) => {
         *,
         evolution_config:evolution_config_id (
           api_url,
-          instance_name
+          api_key,
+          instance_name,
+          sync_path,
+          sync_method
         )
       `)
       .eq("id", agentId)
@@ -64,23 +355,6 @@ serve(async (req) => {
       throw new Error("Sincronize primeiro com OpenAI para obter o assistantId");
     }
 
-    // Buscar API key da instância
-    const { data: evolutionConfig, error: evolutionConfigError } = await supabase
-      .from("evolution_config")
-      .select("api_key, api_url")
-      .eq("id", agent.evolution_config_id)
-      .single();
-
-    console.log("📦 [agents-sync-evolution] Evolution config completa:", { evolutionConfig, evolutionConfigError });
-
-    if (evolutionConfigError || !evolutionConfig) {
-      console.error("❌ [agents-sync-evolution] Erro ao buscar config Evolution:", evolutionConfigError);
-      throw new Error("Configuração Evolution não encontrada");
-    }
-
-    console.log("✅ [agents-sync-evolution] API URL:", evolutionConfig.api_url);
-    console.log("✅ [agents-sync-evolution] API Key presente:", !!evolutionConfig.api_key);
-
     // Normalizar URL da API
     const normalizeUrl = (url: string) => {
       try {
@@ -93,7 +367,14 @@ serve(async (req) => {
       }
     };
 
-    const baseUrl = normalizeUrl(evolutionConfig.api_url);
+    if (!config.api_url) {
+      console.error("❌ [agents-sync-evolution] API URL não encontrada na configuração Evolution!");
+      throw new Error("API URL não configurada para a instância Evolution");
+    }
+
+    const baseUrl = normalizeUrl(config.api_url);
+    console.log("✅ [agents-sync-evolution] API URL normalizada:", baseUrl);
+    console.log("✅ [agents-sync-evolution] API Key presente:", !!config.api_key);
 
     // Buscar API key da tabela openai_configs
     console.log("🔍 [agents-sync-evolution] Buscando API key da organização...");
@@ -123,187 +404,117 @@ serve(async (req) => {
       );
     }
 
-    // Payload para configurar OpenAI na Evolution (estrutura correta da API)
-    // Tentar diferentes formatos de payload para compatibilidade
-    const payloadVariants = [
-      // Formato 1: Flat (mais comum)
-      {
-        openai_enabled: true,
-        openai_api_key: openaiKey,
-        openai_assistant_id: agent.openai_assistant_id,
-        openai_organization_id: agent.organization_id,
-      },
-      // Formato 2: Aninhado em settings
-      {
-        settings: {
-          openai_enabled: true,
-          openai_api_key: openaiKey,
-          openai_assistant_id: agent.openai_assistant_id,
-          openai_organization_id: agent.organization_id,
-        }
-      },
-      // Formato 3: Aninhado em openai
-      {
-        openai: {
-          enabled: true,
-          api_key: openaiKey,
-          assistant_id: agent.openai_assistant_id,
-          organization_id: agent.organization_id,
-        }
-      },
-    ];
+    console.log("🔍 [agents-sync-evolution] Coletando integrações atuais da instância...");
+    const snapshot = await fetchInstanceSnapshot(baseUrl, config);
+    const existingIntegrations = extractIntegrations(snapshot.normalized);
+    console.log(
+      "📦 [agents-sync-evolution] Chaves atuais de integrações:",
+      existingIntegrations ? Object.keys(existingIntegrations) : "nenhuma"
+    );
 
-    console.log("📦 [agents-sync-evolution] Variantes de payload preparadas:", payloadVariants.length);
+    const assistantEntry = buildAssistantEntry(agent);
+    const { openaiIntegration, updatedIntegrations } = mergeOpenAIIntegrations(
+      existingIntegrations,
+      assistantEntry,
+      openaiKey,
+      agent
+    );
 
-    // Lista de endpoints possíveis (diferentes versões da Evolution API)
-    // Baseado na documentação da Evolution API v2
-    const possibleEndpoints = [
-      `${baseUrl}/instance/settings/${config.instance_name}`, // Endpoint mais comum
-      `${baseUrl}/settings/set/${config.instance_name}`, // Alternativa
-      `${baseUrl}/instance/${config.instance_name}/settings`, // Formato alternativo
-      `${baseUrl}/instance/update/${config.instance_name}`, // Update endpoint
-      `${baseUrl}/instance/${config.instance_name}`, // Direto na instância
-      `${baseUrl}/settings/${config.instance_name}`, // Formato simplificado
-    ];
+    const basePayload = {
+      instanceName: config.instance_name,
+      syncedAt: assistantEntry.updated_at,
+      openai: openaiIntegration,
+      openAI: openaiIntegration,
+      integrations: updatedIntegrations,
+      assistant: assistantEntry,
+      agent: assistantEntry,
+    };
 
-    console.log("🌐 [agents-sync-evolution] URL base normalizada:", baseUrl);
-    console.log("🎯 [agents-sync-evolution] Tentando endpoints:", possibleEndpoints);
+    const candidatePaths = buildCandidatePaths(config.instance_name, config.sync_path);
+    const methodCandidates = buildMethodCandidates(config.sync_method);
 
-    let evolutionResponse: Response | null = null;
+    console.log("🎯 [agents-sync-evolution] Endpoints candidatos:", candidatePaths);
+    console.log("🎯 [agents-sync-evolution] Métodos candidatos:", methodCandidates);
+
+    let successEndpoint = "";
     let evolutionResult: any = null;
     let lastError = "";
-    let successEndpoint = "";
 
-    // Tentar cada combinação de endpoint + payload até encontrar uma que funcione
-    endpointLoop: for (const endpoint of possibleEndpoints) {
-      for (let payloadIndex = 0; payloadIndex < payloadVariants.length; payloadIndex++) {
-        const evolutionPayload = payloadVariants[payloadIndex];
-        console.log(`🚀 [agents-sync-evolution] Tentando endpoint: ${endpoint} com payload formato ${payloadIndex + 1}`);
-        console.log(`📦 [agents-sync-evolution] Payload:`, {
-          ...evolutionPayload,
-          openai_api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***",
-          settings: evolutionPayload.settings ? {
-            ...evolutionPayload.settings,
-            openai_api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***"
-          } : undefined,
-          openai: evolutionPayload.openai ? {
-            ...evolutionPayload.openai,
-            api_key: openaiKey ? "***PRESENTE***" : "***AUSENTE***"
-          } : undefined,
-        });
-        
+    outerLoop: for (const rawPath of candidatePaths) {
+      const endpoint = buildFullUrl(baseUrl, rawPath, config.instance_name);
+      const payloadForPath = buildPayloadForPath(rawPath, basePayload);
+      const maskedPayload = maskSecrets(payloadForPath, openaiKey);
+
+      for (const method of methodCandidates) {
+        console.log(`🚀 [agents-sync-evolution] Tentando ${method} ${endpoint}`);
+        console.log("📦 [agents-sync-evolution] Payload enviado:", JSON.stringify(maskedPayload, null, 2));
+
         try {
-          evolutionResponse = await fetch(endpoint, {
-            method: "POST",
+          const response = await fetch(endpoint, {
+            method,
             headers: {
               "Content-Type": "application/json",
-              "apikey": evolutionConfig.api_key || "",
+              apikey: config.api_key || "",
             },
-            body: JSON.stringify(evolutionPayload),
+            body: JSON.stringify(payloadForPath),
           });
 
-          console.log(`📡 [agents-sync-evolution] Status da resposta (${endpoint}):`, evolutionResponse.status);
-          console.log(`📡 [agents-sync-evolution] Status text:`, evolutionResponse.statusText);
+          const responseText = await response.text();
+          console.log(
+            `📡 [agents-sync-evolution] Resposta (${method} ${endpoint}):`,
+            response.status,
+            response.statusText
+          );
+          console.log(`📄 [agents-sync-evolution] Corpo da resposta:`, responseText);
 
-          const responseText = await evolutionResponse.text();
-          console.log(`📄 [agents-sync-evolution] Resposta completa (${endpoint}):`, responseText);
-          
-          if (evolutionResponse.ok) {
-            // Tentar parsear JSON da resposta
-            let responseData: any;
-            try {
-              responseData = JSON.parse(responseText);
-              console.log(`📊 [agents-sync-evolution] Resposta JSON:`, JSON.stringify(responseData, null, 2));
-            } catch (e) {
-              console.warn(`⚠️ [agents-sync-evolution] Resposta não é JSON válido:`, responseText);
-              responseData = { raw: responseText };
-            }
-            
-            // Verificar se a resposta realmente indica sucesso
-            // Algumas APIs retornam 200 mas com erro no corpo
-            if (responseData && typeof responseData === 'object') {
-              if (responseData.error || responseData.message?.toLowerCase().includes('error')) {
-                console.error(`❌ [agents-sync-evolution] Resposta indica erro:`, responseData);
-                lastError = responseData.error || responseData.message || 'Erro na resposta da Evolution';
-                continue;
-              }
-            }
-            
-            successEndpoint = `${endpoint} (payload formato ${payloadIndex + 1})`;
-            evolutionResult = responseData;
-            console.log(`✅ [agents-sync-evolution] Endpoint funcionou: ${endpoint} com payload formato ${payloadIndex + 1}`);
-            console.log(`📊 [agents-sync-evolution] Dados da resposta:`, responseData);
-            break endpointLoop; // Sair dos dois loops
-          } else {
-            lastError = responseText || `HTTP ${evolutionResponse.status}`;
-            console.warn(`⚠️ [agents-sync-evolution] Endpoint ${endpoint} falhou com ${evolutionResponse.status}: ${responseText}`);
+          if (!response.ok) {
+            lastError = responseText || `HTTP ${response.status}`;
+            continue;
           }
+
+          try {
+            evolutionResult = responseText ? JSON.parse(responseText) : {};
+          } catch {
+            evolutionResult = { raw: responseText };
+          }
+
+          if (evolutionResult?.error) {
+            lastError =
+              typeof evolutionResult.error === "string"
+                ? evolutionResult.error
+                : JSON.stringify(evolutionResult.error);
+            console.warn("⚠️ [agents-sync-evolution] Resposta indica erro lógico:", evolutionResult);
+            continue;
+          }
+
+          successEndpoint = `${method} ${endpoint}`;
+          console.log(`✅ [agents-sync-evolution] Integração atualizada via ${successEndpoint}`);
+          break outerLoop;
         } catch (fetchError) {
-          console.error(`❌ [agents-sync-evolution] Erro ao chamar ${endpoint}:`, fetchError);
+          console.error(`❌ [agents-sync-evolution] Erro ao chamar ${method} ${endpoint}:`, fetchError);
           lastError = fetchError instanceof Error ? fetchError.message : String(fetchError);
         }
       }
     }
 
-    if (!evolutionResponse || !evolutionResponse.ok || !evolutionResult) {
-      console.error("❌❌❌ [agents-sync-evolution] Todos os endpoints falharam!");
-      console.error("📋 [agents-sync-evolution] Último erro:", lastError);
+    if (!successEndpoint) {
+      console.error("❌❌❌ [agents-sync-evolution] Nenhum endpoint aceitou a atualização.");
       throw new Error(
-        `Falha ao configurar OpenAI na Evolution. Tentamos ${possibleEndpoints.length} endpoints diferentes. Último erro: ${lastError}`
+        `Falha ao configurar OpenAI na Evolution. Último erro conhecido: ${lastError || "sem detalhes"}`
       );
     }
-    console.log(`✅✅✅ [agents-sync-evolution] Sucesso com endpoint: ${successEndpoint}`);
-    console.log("✅✅✅ [agents-sync-evolution] Evolution API response:", evolutionResult);
-    console.log("📊 [agents-sync-evolution] Response completo:", JSON.stringify(evolutionResult, null, 2));
 
-    // Verificar se realmente configurou fazendo uma chamada GET para confirmar
-    console.log("🔍 [agents-sync-evolution] Verificando se configuração foi aplicada...");
-    const verifyEndpoints = [
-      `${baseUrl}/instance/fetchInstances`,
-      `${baseUrl}/instance/${config.instance_name}`,
-      `${baseUrl}/instance/${config.instance_name}/settings`,
-    ];
-    
-    let verified = false;
-    for (const verifyEndpoint of verifyEndpoints) {
-      try {
-        console.log(`🔍 [agents-sync-evolution] Verificando em: ${verifyEndpoint}`);
-        const verifyResponse = await fetch(verifyEndpoint, {
-          headers: {
-            "apikey": evolutionConfig.api_key || "",
-          },
-        });
-        
-        if (verifyResponse.ok) {
-          const verifyData = await verifyResponse.json();
-          console.log(`📊 [agents-sync-evolution] Dados da verificação:`, JSON.stringify(verifyData, null, 2));
-          
-          // Tentar encontrar a configuração OpenAI nos dados retornados
-          const instanceData = Array.isArray(verifyData) 
-            ? verifyData.find((i: any) => i.instance?.instanceName === config.instance_name || i.instanceName === config.instance_name)
-            : verifyData;
-          
-          if (instanceData) {
-            const hasOpenAI = instanceData.openai_enabled || 
-                             instanceData.settings?.openai_enabled ||
-                             instanceData.instance?.openai_enabled;
-            
-            if (hasOpenAI) {
-              console.log(`✅✅✅ [agents-sync-evolution] CONFIRMADO: OpenAI está habilitado na instância!`);
-              verified = true;
-              break;
-            } else {
-              console.warn(`⚠️ [agents-sync-evolution] OpenAI não encontrado habilitado na resposta de verificação`);
-            }
-          }
-        }
-      } catch (verifyError) {
-        console.warn(`⚠️ [agents-sync-evolution] Erro ao verificar:`, verifyError);
-      }
-    }
-    
-    if (!verified) {
-      console.warn(`⚠️⚠️⚠️ [agents-sync-evolution] ATENÇÃO: Não foi possível confirmar se a configuração foi aplicada. Mas continuando...`);
+    // Verificar se realmente configurou fazendo uma nova leitura
+    console.log("🔍 [agents-sync-evolution] Verificando integrações após atualização...");
+    const verifySnapshot = await fetchInstanceSnapshot(baseUrl, config);
+    const verifyIntegrations = extractIntegrations(verifySnapshot.normalized);
+    const verifyOpenAI =
+      verifyIntegrations.openai || verifyIntegrations.openAI || (verifyIntegrations as any)?.openAi;
+
+    if (verifyOpenAI) {
+      console.log("✅✅✅ [agents-sync-evolution] Integrações OpenAI encontradas após atualização!");
+    } else {
+      console.warn("⚠️⚠️⚠️ [agents-sync-evolution] Não foi possível confirmar a integração OpenAI na verificação.");
     }
 
     // Atualizar agente no banco

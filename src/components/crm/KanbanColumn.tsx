@@ -16,6 +16,7 @@ interface KanbanColumnProps {
   onToggleAllInStage?: (stageId: string, leadIds: string[]) => void;
   onLeadClick: (lead: Lead) => void;
   allStages: PipelineStage[];
+  stagesLoading?: boolean;
   onStageChange: (leadId: string, newStageId: string) => void;
   instanceMap?: Map<string, string>;
   onDeleteLead?: (leadId: string) => void;
@@ -24,7 +25,7 @@ interface KanbanColumnProps {
   compact?: boolean;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, compact = false }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, compact = false }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
@@ -105,6 +106,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                     lead={lead} 
                     onClick={() => onLeadClick(lead)}
                     stages={allStages}
+                    stagesLoading={stagesLoading}
                     onStageChange={onStageChange}
                     isSelected={selectedLeadIds?.has(lead.id) || false}
                     onToggleSelection={onToggleSelection ? () => onToggleSelection(lead.id) : undefined}

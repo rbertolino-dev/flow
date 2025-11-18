@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { EventCard } from "./EventCard";
 import { CreateEventDialog } from "./CreateEventDialog";
 
 export function CalendarView() {
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -84,8 +86,11 @@ export function CalendarView() {
   };
 
   const handleCreateEvent = (date?: Date) => {
-    setCreateDialogDate(date || selectedDate);
+    const targetDate = date || selectedDate;
+    console.log("handleCreateEvent called", { date, selectedDate, targetDate });
+    setCreateDialogDate(targetDate);
     setShowCreateDialog(true);
+    console.log("showCreateDialog set to true, state should update");
   };
 
   const navigateMonth = (direction: "prev" | "next") => {
@@ -155,7 +160,15 @@ export function CalendarView() {
             <List className="h-4 w-4 mr-2" />
             Lista
           </Button>
-          <Button onClick={() => handleCreateEvent()}>
+          <Button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log("Novo Evento button clicked");
+              handleCreateEvent();
+            }}
+            type="button"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Novo Evento
           </Button>
@@ -280,10 +293,14 @@ export function CalendarView() {
 
       <CreateEventDialog
         open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={(open) => {
+          console.log("CreateEventDialog onOpenChange called", open);
+          setShowCreateDialog(open);
+        }}
         defaultDate={createDialogDate}
         onEventCreated={() => {
           // Os eventos serão atualizados automaticamente pelo hook
+          queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
         }}
       />
     </div>

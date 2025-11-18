@@ -410,6 +410,7 @@ const Index = () => {
                 filterReturnDateStart={filterReturnDateStart}
                 filterReturnDateEnd={filterReturnDateEnd}
                 filterInCallQueue={filterInCallQueue}
+                callQueue={callQueue}
                 filterTags={selectedTags}
               />
             ) : viewMode === 'list' ? (

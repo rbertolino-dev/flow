@@ -1,15 +1,16 @@
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Lead, LeadStatus } from "@/types/lead";
+import { Lead, LeadStatus, CallQueueItem } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { KanbanSettings } from "./KanbanSettings";
+import { SalesReportDialog } from "./SalesReportDialog";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
-import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2 } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3 } from "lucide-react";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -32,14 +33,16 @@ interface KanbanBoardProps {
   filterReturnDateEnd?: string;
   filterInCallQueue?: boolean;
   filterTags?: string[];
+  callQueue?: CallQueueItem[];
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [] }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [leadsInCallQueue, setLeadsInCallQueue] = useState<Set<string>>(new Set());
+  const [reportsOpen, setReportsOpen] = useState(false);
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
@@ -445,19 +448,40 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
           </Select>
         </div>
         
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2 text-xs sm:text-sm">
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Importar em Massa</span>
-              <span className="sm:hidden">Importar</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[95vw] sm:w-[600px] max-h-[80vh] overflow-y-auto p-0" align="end">
-            <BulkImportPanel onImportComplete={onRefetch} showStageSelector={true} />
-          </PopoverContent>
-        </Popover>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReportsOpen(true)}
+            className="gap-2 text-xs sm:text-sm"
+          >
+            <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Relatórios</span>
+            <span className="sm:hidden">Relatórios</span>
+          </Button>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 text-xs sm:text-sm">
+                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Importar em Massa</span>
+                <span className="sm:hidden">Importar</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[95vw] sm:w-[600px] max-h-[80vh] overflow-y-auto p-0" align="end">
+              <BulkImportPanel onImportComplete={onRefetch} showStageSelector={true} />
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
+
+      <SalesReportDialog
+        open={reportsOpen}
+        onOpenChange={setReportsOpen}
+        leads={leads}
+        stages={stages}
+        callQueue={callQueue}
+      />
 
       <DndContext 
         sensors={sensors}
@@ -504,6 +528,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   onToggleAllInStage={toggleAllInStage}
                   onLeadClick={setSelectedLead}
                   allStages={stages}
+                  stagesLoading={stagesLoading}
                   onStageChange={onLeadUpdate}
                   instanceMap={instanceMap}
                   columnWidth={columnWidth}
@@ -556,6 +581,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
               lead={activeLead} 
               onClick={() => {}}
               stages={stages}
+              stagesLoading={stagesLoading}
               onStageChange={() => {}}
               isSelected={false}
               onToggleSelection={() => {}}

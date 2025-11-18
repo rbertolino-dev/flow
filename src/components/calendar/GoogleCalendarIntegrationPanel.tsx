@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
 import { useSyncGoogleCalendar } from "@/hooks/useSyncGoogleCalendar";
 import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
+import { SyncCalendarDialog } from "./SyncCalendarDialog";
 import { Calendar, Plus, RefreshCw, Trash2, Loader2, ExternalLink, LogIn } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,6 +29,7 @@ export function GoogleCalendarIntegrationPanel() {
   const { sync, isSyncing } = useSyncGoogleCalendar();
   const { initiateOAuth, isLoading: isOAuthLoading } = useGoogleCalendarOAuth();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [syncDialogConfig, setSyncDialogConfig] = useState<{ id: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     account_name: "",
     client_id: "",
@@ -79,8 +81,8 @@ export function GoogleCalendarIntegrationPanel() {
     createConfig(formData);
   };
 
-  const handleSync = (configId: string) => {
-    sync({ google_calendar_config_id: configId });
+  const handleSync = (configId: string, accountName: string) => {
+    setSyncDialogConfig({ id: configId, name: accountName });
   };
 
   const handleToggleActive = (config: any) => {
@@ -176,14 +178,10 @@ export function GoogleCalendarIntegrationPanel() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleSync(config.id)}
+                          onClick={() => handleSync(config.id, config.account_name)}
                           disabled={isSyncing || !config.is_active}
                         >
-                          {isSyncing ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
+                          <RefreshCw className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"
@@ -348,6 +346,15 @@ export function GoogleCalendarIntegrationPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {syncDialogConfig && (
+        <SyncCalendarDialog
+          open={!!syncDialogConfig}
+          onOpenChange={(open) => !open && setSyncDialogConfig(null)}
+          configId={syncDialogConfig.id}
+          accountName={syncDialogConfig.name}
+        />
+      )}
     </div>
   );
 }

@@ -120,8 +120,11 @@ serve(async (req) => {
     // Formato: https://[project-ref].supabase.co/functions/v1/google-calendar-oauth-callback
     const redirectUri = `${projectUrl}/functions/v1/google-calendar-oauth-callback`;
     
-    // Escopos necessários para Google Calendar
+    // Escopos necessários para Google Calendar + dados básicos do perfil
     const scopes = [
+      'openid',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/calendar.events',
     ].join(' ');

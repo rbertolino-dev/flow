@@ -60,4 +60,5 @@ export interface CallQueueItem {
   assignedToUserId?: string;
   assignedToUserName?: string;
   assignedToUserEmail?: string;
+  leadCreatedAt?: Date;
 }

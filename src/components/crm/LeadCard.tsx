@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall } from "lucide-react";
+import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect } from "react";
@@ -10,11 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
 
 interface LeadCardProps {
   lead: Lead;
   onClick: () => void;
   stages: PipelineStage[];
+  stagesLoading?: boolean;
   onStageChange: (leadId: string, newStageId: string) => void;
   isSelected?: boolean;
   onToggleSelection?: () => void;
@@ -24,23 +26,25 @@ interface LeadCardProps {
   compact?: boolean;
 }
 
-export function LeadCard({ 
-  lead, 
-  onClick, 
-  stages, 
-  onStageChange, 
-  isSelected = false, 
-  onToggleSelection, 
-  instanceName, 
-  onDelete, 
-  onRefetch, 
-  compact = false 
+export function LeadCard({
+  lead,
+  onClick,
+  stages,
+  stagesLoading = false,
+  onStageChange,
+  isSelected = false,
+  onToggleSelection,
+  instanceName,
+  onDelete,
+  onRefetch,
+  compact = false
 }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
 
   const [isInCallQueue, setIsInCallQueue] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
 
   useEffect(() => {
     const checkCallQueue = async () => {
@@ -107,6 +111,11 @@ export function LeadCard({
     }
   };
 
+  const handleTransferClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTransferDialogOpen(true);
+  };
+
   // Versão compacta do card
   if (compact) {
     return (
@@ -160,7 +169,32 @@ export function LeadCard({
 
           {lead.createdAt && (
             <div className="text-[10px] text-muted-foreground/70">
-              Criado: {new Date(lead.createdAt).toLocaleDateString('pt-BR')}
+              Criado: {new Date(lead.createdAt).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          )}
+
+          {lead.tags && lead.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {lead.tags.map((tag) => (
+                <Badge
+                  key={tag.id}
+                  variant="outline"
+                  style={{
+                    backgroundColor: `${tag.color}20`,
+                    borderColor: tag.color,
+                    color: tag.color,
+                  }}
+                  className="text-[10px] px-1 py-0"
+                >
+                  {tag.name}
+                </Badge>
+              ))}
             </div>
           )}
 
@@ -203,6 +237,16 @@ export function LeadCard({
               </>
             )}
             
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2"
+              onClick={handleTransferClick}
+              title="Transferir para outra etapa"
+            >
+              <ArrowRightCircle className="h-3 w-3" />
+            </Button>
+            
             {onDelete && (
               <Button
                 size="sm"
@@ -215,6 +259,19 @@ export function LeadCard({
             )}
           </div>
         </div>
+
+        <TransferLeadToStageDialog
+          lead={lead}
+          stages={stages}
+          stagesLoading={stagesLoading}
+          open={transferDialogOpen}
+          onOpenChange={setTransferDialogOpen}
+          onTransferred={() => {
+            onRefetch?.();
+            setTransferDialogOpen(false);
+          }}
+          onStageChange={onStageChange}
+        />
       </Card>
     );
   }
@@ -268,11 +325,32 @@ export function LeadCard({
 
         {lead.createdAt && (
           <div className="text-xs text-muted-foreground/70">
-            Criado em: {new Date(lead.createdAt).toLocaleDateString('pt-BR', { 
+            Criado em: {new Date(lead.createdAt).toLocaleString('pt-BR', { 
               day: '2-digit', 
               month: '2-digit', 
-              year: 'numeric' 
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
             })}
+          </div>
+        )}
+
+        {lead.tags && lead.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {lead.tags.map((tag) => (
+              <Badge
+                key={tag.id}
+                variant="outline"
+                style={{
+                  backgroundColor: `${tag.color}20`,
+                  borderColor: tag.color,
+                  color: tag.color,
+                }}
+                className="text-xs"
+              >
+                {tag.name}
+              </Badge>
+            ))}
           </div>
         )}
 
@@ -313,6 +391,17 @@ export function LeadCard({
             </>
           )}
           
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={handleTransferClick}
+            title="Transferir para outra etapa"
+          >
+            <ArrowRightCircle className="h-4 w-4 mr-2" />
+            Transferir
+          </Button>
+          
           {onDelete && (
             <Button
               size="sm"
@@ -325,6 +414,19 @@ export function LeadCard({
           )}
         </div>
       </div>
+
+      <TransferLeadToStageDialog
+        lead={lead}
+        stages={stages}
+        stagesLoading={stagesLoading}
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        onTransferred={() => {
+          onRefetch?.();
+          setTransferDialogOpen(false);
+        }}
+        onStageChange={onStageChange}
+      />
     </Card>
   );
 }

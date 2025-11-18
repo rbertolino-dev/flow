@@ -13,6 +13,8 @@ interface CreateEventPayload {
   durationMinutes?: number;
   description?: string;
   location?: string;
+  colorId?: string;
+  addGoogleMeet?: boolean;
 }
 
 serve(async (req) => {
@@ -27,7 +29,9 @@ serve(async (req) => {
       startDateTime, 
       durationMinutes = 60, 
       description,
-      location 
+      location,
+      colorId,
+      addGoogleMeet = false
     } = await req.json() as CreateEventPayload;
 
     // Validar parâmetros
@@ -113,17 +117,38 @@ serve(async (req) => {
       event.location = location;
     }
 
-    const calendarResponse = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.calendar_id)}/events`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+    if (colorId) {
+      event.colorId = colorId;
+    }
+
+    // Adicionar Google Meet se solicitado
+    if (addGoogleMeet) {
+      event.conferenceData = {
+        createRequest: {
+          requestId: `meet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
         },
-        body: JSON.stringify(event),
-      }
-    );
+      };
+    }
+
+    // Preparar query params para Google Meet
+    const queryParams = new URLSearchParams();
+    if (addGoogleMeet) {
+      queryParams.append('conferenceDataVersion', '1');
+    }
+
+    const calendarUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.calendar_id)}/events${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+
+    const calendarResponse = await fetch(calendarUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(event),
+    });
 
     if (!calendarResponse.ok) {
       const errorText = await calendarResponse.text();
@@ -136,6 +161,33 @@ serve(async (req) => {
 
     const eventData = await calendarResponse.json();
     console.log('Evento criado:', eventData.id);
+
+    const eventStart = eventData.start?.dateTime || eventData.start?.date || startDate.toISOString();
+    const eventEnd = eventData.end?.dateTime || eventData.end?.date || endDate.toISOString();
+
+    // Atualizar cache local na tabela calendar_events
+    const { error: upsertError } = await supabase
+      .from('calendar_events')
+      .upsert(
+        {
+          organization_id: config.organization_id,
+          google_calendar_config_id: config.id,
+          google_event_id: eventData.id,
+          summary: eventData.summary || summary,
+          description: eventData.description || description || null,
+          start_datetime: new Date(eventStart).toISOString(),
+          end_datetime: new Date(eventEnd).toISOString(),
+          location: eventData.location || location || null,
+          html_link: eventData.htmlLink || null,
+        },
+        {
+          onConflict: 'google_calendar_config_id,google_event_id',
+        }
+      );
+
+    if (upsertError) {
+      console.error('Erro ao salvar evento local:', upsertError);
+    }
 
     return new Response(
       JSON.stringify({ 

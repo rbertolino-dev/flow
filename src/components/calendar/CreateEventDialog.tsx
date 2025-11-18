@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -20,9 +21,10 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, Loader2 } from "lucide-react";
+import { Calendar, Loader2, Video } from "lucide-react";
 import { format } from "date-fns";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
+import { Switch } from "@/components/ui/switch";
 
 interface CreateEventDialogProps {
   open: boolean;
@@ -38,8 +40,14 @@ export function CreateEventDialog({
   onEventCreated,
 }: CreateEventDialogProps) {
   const { toast } = useToast();
-  const { configs } = useGoogleCalendarConfigs();
+  const { configs, isLoading: configsLoading } = useGoogleCalendarConfigs();
+  const queryClient = useQueryClient();
   const activeConfigs = configs.filter((c) => c.is_active);
+  
+  // Debug logs
+  React.useEffect(() => {
+    console.log("CreateEventDialog state:", { open, defaultDate, activeConfigsCount: activeConfigs.length, configsLoading });
+  }, [open, defaultDate, activeConfigs.length, configsLoading]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     google_calendar_config_id: "",
@@ -49,7 +57,24 @@ export function CreateEventDialog({
     duration: "60",
     description: "",
     location: "",
+    colorId: "",
+    addGoogleMeet: false,
   });
+
+  // Cores disponíveis do Google Calendar (1-11)
+  const calendarColors = [
+    { id: "1", name: "Lavanda", hex: "#7986CB" },
+    { id: "2", name: "Sage", hex: "#33B679" },
+    { id: "3", name: "Grape", hex: "#8E24AA" },
+    { id: "4", name: "Flamingo", hex: "#E67C73" },
+    { id: "5", name: "Banana", hex: "#F6BF26" },
+    { id: "6", name: "Tangerine", hex: "#F4511E" },
+    { id: "7", name: "Peacock", hex: "#039BE5" },
+    { id: "8", name: "Graphite", hex: "#616161" },
+    { id: "9", name: "Blueberry", hex: "#3F51B5" },
+    { id: "10", name: "Basil", hex: "#0B8043" },
+    { id: "11", name: "Tomato", hex: "#D50000" },
+  ];
 
   useEffect(() => {
     if (defaultDate) {
@@ -100,6 +125,8 @@ export function CreateEventDialog({
           durationMinutes: parseInt(formData.duration),
           description: formData.description || undefined,
           location: formData.location || undefined,
+          colorId: formData.colorId || undefined,
+          addGoogleMeet: formData.addGoogleMeet || false,
         },
       });
 
@@ -114,6 +141,8 @@ export function CreateEventDialog({
         description: "O evento foi adicionado ao Google Calendar.",
       });
 
+      await queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+
       onOpenChange(false);
       setFormData({
         google_calendar_config_id: activeConfigs[0]?.id || "",
@@ -123,6 +152,8 @@ export function CreateEventDialog({
         duration: "60",
         description: "",
         location: "",
+        colorId: "",
+        addGoogleMeet: false,
       });
 
       if (onEventCreated) {
@@ -262,6 +293,44 @@ export function CreateEventDialog({
               placeholder="Detalhes do evento..."
               rows={3}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="color">Cor do Evento</Label>
+            <Select
+              value={formData.colorId}
+              onValueChange={(value) => setFormData({ ...formData, colorId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Cor padrão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Cor padrão</SelectItem>
+                {calendarColors.map((color) => (
+                  <SelectItem key={color.id} value={color.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-4 h-4 rounded-full border border-gray-300"
+                        style={{ backgroundColor: color.hex }}
+                      />
+                      <span>{color.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="add-google-meet"
+              checked={formData.addGoogleMeet}
+              onCheckedChange={(checked) => setFormData({ ...formData, addGoogleMeet: checked })}
+            />
+            <Label htmlFor="add-google-meet" className="flex items-center gap-2 cursor-pointer">
+              <Video className="h-4 w-4" />
+              Adicionar link do Google Meet
+            </Label>
           </div>
         </div>
 

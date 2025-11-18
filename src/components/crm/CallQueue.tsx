@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2, MessageCircle } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2, MessageCircle, ArrowRightCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +17,7 @@ import { RescheduleCallDialog } from "./RescheduleCallDialog";
 import { CallQueueTagManager } from "./CallQueueTagManager";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { ConvertCallToLeadDialog } from "./ConvertCallToLeadDialog";
+import { TransferCallToStageDialog } from "./TransferCallToStageDialog";
 import { CallQueueStats } from "./CallQueueStats";
 import { CallQueueHistory } from "./CallQueueHistory";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -65,6 +66,10 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     currentTags: [],
   });
   const [convertDialog, setConvertDialog] = useState<{ open: boolean; callItem: CallQueueItem | null }>({
+    open: false,
+    callItem: null,
+  });
+  const [transferDialog, setTransferDialog] = useState<{ open: boolean; callItem: CallQueueItem | null }>({
     open: false,
     callItem: null,
   });
@@ -785,6 +790,18 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           <TrendingUp className="h-3 w-3 mr-2" />
                           Enviar ao Funil
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTransferDialog({ 
+                            open: true, 
+                            callItem: call 
+                          })}
+                          className="w-full mt-2"
+                        >
+                          <ArrowRightCircle className="h-3 w-3 mr-2" />
+                          Transferir para Etapa
+                        </Button>
                         {call.scheduledFor && (
                           <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
                             <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -797,6 +814,11 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           <p className="text-sm text-muted-foreground mt-2 p-2 bg-muted rounded">
                             <strong>Notas do lead:</strong> {call.notes}
                           </p>
+                        )}
+                        {call.leadCreatedAt && (
+                          <div className="text-xs text-muted-foreground/70 mt-2">
+                            Criado em: {format(call.leadCreatedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </div>
                         )}
                         <div className="flex items-center gap-2 text-sm mt-2">
                           <PhoneCall className="h-4 w-4 text-muted-foreground" />
@@ -958,6 +980,11 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                             <p className="mt-2 p-2 bg-muted rounded">{call.notes}</p>
                           </details>
                         )}
+                        {call.leadCreatedAt && (
+                          <div className="text-xs text-muted-foreground/70 mt-2">
+                            Criado em: {format(call.leadCreatedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 mt-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div className="flex items-center gap-2 flex-1">
@@ -992,6 +1019,18 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                         >
                           <CheckCircle2 className="h-4 w-4 mr-2" />
                           Concluir
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTransferDialog({ 
+                            open: true, 
+                            callItem: call 
+                          })}
+                          className="flex-1 lg:flex-none whitespace-nowrap"
+                        >
+                          <ArrowRightCircle className="h-3 w-3 mr-2" />
+                          Transferir
                         </Button>
                         <Button
                           variant="outline"
@@ -1132,6 +1171,19 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           toast({
             title: "Sucesso",
             description: "Contato adicionado ao funil de vendas",
+          });
+        }}
+      />
+
+      <TransferCallToStageDialog
+        callItem={transferDialog.callItem}
+        open={transferDialog.open}
+        onOpenChange={(open) => setTransferDialog({ ...transferDialog, open })}
+        onTransferred={() => {
+          onRefetch();
+          toast({
+            title: "Sucesso",
+            description: "Lead transferido para a etapa selecionada",
           });
         }}
       />

@@ -126,7 +126,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           sidebarOpen ? "w-64" : "w-16"
         )}
       >
-        <div className="p-4 border-b border-sidebar-border flex items-center justify-between gap-2">
+        <div className={cn(
+          "border-b border-sidebar-border flex items-center gap-2",
+          sidebarOpen ? "p-4 justify-between" : "p-2 justify-center flex-col gap-2"
+        )}>
           <button
             onClick={() => navigate('/')}
             className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0"
@@ -143,7 +146,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0 z-10"
+            className={cn(
+              "text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0",
+              !sidebarOpen && "w-full"
+            )}
             title={sidebarOpen ? "Recolher menu" : "Expandir menu"}
           >
             <Menu className="h-5 w-5" />
@@ -350,7 +356,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden flex flex-col pt-14 md:pt-0">
-        <div className="hidden md:flex border-b border-border px-4 lg:px-6 py-3 bg-background items-center justify-end gap-2">
+        <div className="hidden md:flex border-b border-border px-4 lg:px-6 py-3 bg-background items-center justify-end gap-2 flex-shrink-0">
           <RealtimeStatusIndicator />
           {syncInfo && (
             <SyncIndicator 
@@ -361,7 +367,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           )}
         </div>
         
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </div>
       </main>
