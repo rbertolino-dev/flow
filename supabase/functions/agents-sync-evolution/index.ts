@@ -266,8 +266,8 @@ async function syncAgentToEvolution(
     keepOpen: agent.keep_open !== false,
     debounceTime: agent.debounce_time || 10,
     ignoreJids: agent.ignore_jids || [],
-    ...(agent.response_format && { responseFormat: agent.response_format }),
-    ...(agent.split_messages && { splitMessages: agent.split_messages }),
+    ...(agent.response_format != null && agent.response_format !== '' && { responseFormat: agent.response_format }),
+    ...(agent.split_messages != null && typeof agent.split_messages === 'number' && { splitMessages: agent.split_messages }),
     ...(agent.function_url && { functionUrl: agent.function_url }),
   };
 

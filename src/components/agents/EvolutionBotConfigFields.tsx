@@ -155,8 +155,8 @@ export function EvolutionBotConfigFields({ values, onChange }: EvolutionBotConfi
           <div className="space-y-2">
             <Label htmlFor="response_format">Response Format</Label>
             <Select
-              value={values.response_format || 'text'}
-              onValueChange={(value) => onChange('response_format', value)}
+              value={(values.response_format && values.response_format !== '') ? values.response_format : 'text'}
+              onValueChange={(value) => onChange('response_format', value || 'text')}
             >
               <SelectTrigger id="response_format">
                 <SelectValue />
@@ -174,8 +174,16 @@ export function EvolutionBotConfigFields({ values, onChange }: EvolutionBotConfi
             <Input
               id="split_messages"
               type="number"
-              value={values.split_messages || ''}
-              onChange={(e) => onChange('split_messages', parseInt(e.target.value) || undefined)}
+              value={values.split_messages ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === '' || value === null || value === undefined) {
+                  onChange('split_messages', undefined);
+                } else {
+                  const numValue = parseInt(value, 10);
+                  onChange('split_messages', isNaN(numValue) ? undefined : numValue);
+                }
+              }}
               placeholder="Ex: 1000"
               min={0}
             />

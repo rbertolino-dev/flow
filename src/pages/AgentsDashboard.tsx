@@ -155,6 +155,21 @@ const AgentsDashboard = () => {
     try {
       const agentData = { ...formValues };
       
+      // Normalizar response_format - sempre deve ter um valor válido
+      if (!agentData.response_format || agentData.response_format === '') {
+        agentData.response_format = 'text';
+      }
+      
+      // Normalizar split_messages - deve ser número ou undefined/null
+      if (agentData.split_messages !== undefined && agentData.split_messages !== null) {
+        const numValue = typeof agentData.split_messages === 'number' 
+          ? agentData.split_messages 
+          : parseInt(String(agentData.split_messages), 10);
+        agentData.split_messages = isNaN(numValue) || numValue <= 0 ? undefined : numValue;
+      } else {
+        agentData.split_messages = undefined;
+      }
+      
       // Se houver arquivos, adicionar ao metadata
       if (uploadedFiles.length > 0) {
         agentData.metadata = {
@@ -212,8 +227,8 @@ const AgentsDashboard = () => {
       keep_open: agent.keep_open ?? true,
       debounce_time: agent.debounce_time || 10,
       ignore_jids: agent.ignore_jids || [],
-      response_format: agent.response_format || "text",
-      split_messages: agent.split_messages || undefined,
+      response_format: (agent.response_format && agent.response_format !== '') ? agent.response_format : "text",
+      split_messages: (agent.split_messages != null && typeof agent.split_messages === 'number') ? agent.split_messages : undefined,
       function_url: agent.function_url || "",
     });
     setIsDialogOpen(true);
