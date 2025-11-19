@@ -173,38 +173,47 @@ export function LeadCard({
               </div>
             )}
             
-            <div className="flex-1 min-w-0 flex items-center gap-1">
-              {isEditingName ? (
-                <div className="flex items-center gap-1 flex-1">
-                  <Input 
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-6 text-sm flex-1"
-                    autoFocus
-                  />
-                  <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveName}>
-                    ✓
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleCancelEdit}>
-                    ✕
-                  </Button>
+            <div className="flex-1 min-w-0">
+              {lead.call_count > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
+                  <PhoneCall className="h-2.5 w-2.5" />
+                  <span>{lead.call_count} ligaç{lead.call_count === 1 ? 'ão' : 'ões'}</span>
                 </div>
-              ) : (
-                <>
-                  <h3 className="font-semibold text-sm text-foreground line-clamp-1">{lead.name}</h3>
-                  {onEditName && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={handleEditNameClick}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                  )}
-                </>
               )}
+              
+              <div className="flex items-center gap-1">
+                {isEditingName ? (
+                  <div className="flex items-center gap-1 flex-1">
+                    <Input 
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-6 text-sm flex-1"
+                      autoFocus
+                    />
+                    <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveName}>
+                      ✓
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleCancelEdit}>
+                      ✕
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="font-semibold text-sm text-foreground line-clamp-1">{lead.name}</h3>
+                    {onEditName && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-4 w-4 p-0 opacity-70 hover:opacity-100 transition-opacity"
+                        onClick={handleEditNameClick}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {isInCallQueue && (
@@ -221,17 +230,31 @@ export function LeadCard({
             </div>
           )}
 
-          {lead.createdAt && (
-            <div className="text-[10px] text-muted-foreground/70">
-              Criado: {new Date(lead.createdAt).toLocaleString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-          )}
+          <div className="space-y-0.5">
+            {lead.createdAt && (
+              <div className="text-[10px] text-muted-foreground/70">
+                Criado: {new Date(lead.createdAt).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
+            )}
+            
+            {lead.returnDate && (
+              <div className="text-[10px] text-muted-foreground/70">
+                Retorno: {new Date(lead.returnDate).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
+            )}
+          </div>
 
           {lead.tags && lead.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
@@ -361,13 +384,22 @@ export function LeadCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-lg text-foreground line-clamp-1">{lead.name}</h3>
-          {isInCallQueue && (
-            <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600">
-              <PhoneCall className="h-3.5 w-3.5" />
-            </Badge>
+        <div className="space-y-1">
+          {lead.call_count > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <PhoneCall className="h-3 w-3" />
+              <span>{lead.call_count} ligaç{lead.call_count === 1 ? 'ão' : 'ões'} realizada{lead.call_count === 1 ? '' : 's'}</span>
+            </div>
           )}
+          
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-lg text-foreground line-clamp-1">{lead.name}</h3>
+            {isInCallQueue && (
+              <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600">
+                <PhoneCall className="h-3.5 w-3.5" />
+              </Badge>
+            )}
+          </div>
         </div>
 
         {lead.phone && (
@@ -377,17 +409,31 @@ export function LeadCard({
           </div>
         )}
 
-        {lead.createdAt && (
-          <div className="text-xs text-muted-foreground/70">
-            Criado em: {new Date(lead.createdAt).toLocaleString('pt-BR', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </div>
-        )}
+        <div className="space-y-1">
+          {lead.createdAt && (
+            <div className="text-xs text-muted-foreground/70">
+              Criado em: {new Date(lead.createdAt).toLocaleString('pt-BR', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          )}
+          
+          {lead.returnDate && (
+            <div className="text-xs text-muted-foreground/70">
+              Retorno em: {new Date(lead.returnDate).toLocaleString('pt-BR', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          )}
+        </div>
 
         {lead.tags && lead.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
