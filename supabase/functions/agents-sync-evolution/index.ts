@@ -85,7 +85,22 @@ serve(async (req) => {
     }
 
     console.log("✅ [agents-sync-evolution] Agente encontrado:", agent.name);
-    console.log("📋 [agents-sync-evolution] Campos do agente:", {
+    console.log("📋 [agents-sync-evolution] Campos do agente (ANTES da validação):", {
+      response_format: agent.response_format,
+      split_messages: agent.split_messages,
+      function_url: agent.function_url,
+      tipo_response_format: typeof agent.response_format,
+    });
+    
+    // VALIDAÇÃO OBRIGATÓRIA: Garantir que response_format sempre tenha valor válido
+    if (!agent.response_format || 
+        agent.response_format === '' || 
+        (agent.response_format !== 'text' && agent.response_format !== 'json')) {
+      console.log("⚠️ [agents-sync-evolution] response_format inválido, definindo como 'text'");
+      agent.response_format = 'text';
+    }
+    
+    console.log("✅ [agents-sync-evolution] Campos do agente (DEPOIS da validação):", {
       response_format: agent.response_format,
       split_messages: agent.split_messages,
       function_url: agent.function_url,
@@ -266,8 +281,10 @@ async function syncAgentToEvolution(
     keepOpen: agent.keep_open !== false,
     debounceTime: agent.debounce_time || 10,
     ignoreJids: agent.ignore_jids || [],
-    ...(agent.response_format != null && agent.response_format !== '' && { responseFormat: agent.response_format }),
-    ...(agent.split_messages != null && typeof agent.split_messages === 'number' && { splitMessages: agent.split_messages }),
+    // SEMPRE incluir responseFormat (já validado acima)
+    responseFormat: agent.response_format || 'text',
+    // Incluir splitMessages apenas se for número válido
+    ...(agent.split_messages != null && typeof agent.split_messages === 'number' && agent.split_messages > 0 && { splitMessages: agent.split_messages }),
     ...(agent.function_url && { functionUrl: agent.function_url }),
   };
 
@@ -295,6 +312,20 @@ async function syncAgentToEvolution(
 
   const botData = await botResponse.json();
   console.log(`✅ [agents-sync-evolution] Bot criado com sucesso!`, botData);
+  
+  // VERIFICAÇÃO PÓS-INTEGRAÇÃO: Confirmar que responseFormat foi enviado corretamente
+  console.log("🔍 [agents-sync-evolution] VERIFICAÇÃO PÓS-INTEGRAÇÃO:");
+  console.log("  - responseFormat enviado no payload:", botPayload.responseFormat);
+  console.log("  - responseFormat esperado:", agent.response_format || 'text');
+  console.log("  - splitMessages enviado no payload:", botPayload.splitMessages);
+  
+  if (botPayload.responseFormat !== (agent.response_format || 'text')) {
+    console.error("❌ [agents-sync-evolution] ERRO: responseFormat não corresponde ao esperado!");
+    console.error("  - Esperado:", agent.response_format || 'text');
+    console.error("  - Enviado:", botPayload.responseFormat);
+  } else {
+    console.log("✅ [agents-sync-evolution] CONFIRMADO: responseFormat enviado corretamente!");
+  }
 
   // 5. Verificar se o bot foi criado corretamente
   console.log(`🔍 [agents-sync-evolution] Aguardando 2 segundos antes de verificar...`);

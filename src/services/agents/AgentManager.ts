@@ -127,20 +127,36 @@ export const AgentManager = {
   },
 
   async createAgent(payload: CreateAgentPayload): Promise<Agent> {
-    const insertPayload: any = {
+    // VALIDAÇÃO OBRIGATÓRIA: Garantir que response_format sempre tenha valor válido
+    const validatedPayload = {
       ...payload,
+      response_format: payload.response_format && (payload.response_format === 'text' || payload.response_format === 'json')
+        ? payload.response_format
+        : 'text', // Sempre garantir valor padrão
       metadata: payload.metadata ? JSON.parse(JSON.stringify(payload.metadata)) : null,
     };
     
+    console.log("💾 [AgentManager.createAgent] Payload validado:", {
+      response_format: validatedPayload.response_format,
+      split_messages: validatedPayload.split_messages,
+    });
+    
     const { data, error } = await (supabase as any)
       .from("agents")
-      .insert(insertPayload)
+      .insert(validatedPayload)
       .select()
       .single();
 
     if (error) {
+      console.error("❌ [AgentManager.createAgent] Erro ao inserir:", error);
       throw new Error(error.message);
     }
+
+    console.log("✅ [AgentManager.createAgent] Agente inserido com sucesso:", {
+      id: data.id,
+      response_format: data.response_format,
+      split_messages: data.split_messages,
+    });
 
     await this.saveVersionSnapshot(data.id, 1, "Criação inicial");
 
@@ -148,21 +164,38 @@ export const AgentManager = {
   },
 
   async updateAgent(agentId: string, payload: UpdateAgentPayload) {
-    const updatePayload: any = {
+    // VALIDAÇÃO OBRIGATÓRIA: Garantir que response_format sempre tenha valor válido
+    const validatedPayload: any = {
       ...payload,
+      response_format: payload.response_format && (payload.response_format === 'text' || payload.response_format === 'json')
+        ? payload.response_format
+        : 'text', // Sempre garantir valor padrão
       metadata: payload.metadata ? JSON.parse(JSON.stringify(payload.metadata)) : undefined,
     };
     
+    console.log("💾 [AgentManager.updateAgent] Payload validado:", {
+      agentId,
+      response_format: validatedPayload.response_format,
+      split_messages: validatedPayload.split_messages,
+    });
+    
     const { data, error } = await (supabase as any)
       .from("agents")
-      .update(updatePayload)
+      .update(validatedPayload)
       .eq("id", agentId)
       .select()
       .single();
 
     if (error) {
+      console.error("❌ [AgentManager.updateAgent] Erro ao atualizar:", error);
       throw new Error(error.message);
     }
+
+    console.log("✅ [AgentManager.updateAgent] Agente atualizado com sucesso:", {
+      id: data.id,
+      response_format: data.response_format,
+      split_messages: data.split_messages,
+    });
 
     if (payload.version) {
       await this.saveVersionSnapshot(

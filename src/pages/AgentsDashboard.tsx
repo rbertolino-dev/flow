@@ -155,10 +155,21 @@ const AgentsDashboard = () => {
     try {
       const agentData = { ...formValues };
       
-      // Normalizar response_format - sempre deve ter um valor válido
-      if (!agentData.response_format || agentData.response_format === '') {
+      // VALIDAÇÃO E NORMALIZAÇÃO OBRIGATÓRIA DE response_format
+      console.log("🔍 [handleCreateAgent] response_format ANTES da normalização:", agentData.response_format);
+      console.log("🔍 [handleCreateAgent] Tipo do valor:", typeof agentData.response_format);
+      
+      // Garantir que response_format sempre seja "text" ou "json", nunca vazio/null/undefined
+      if (!agentData.response_format || 
+          agentData.response_format === '' || 
+          agentData.response_format === null || 
+          agentData.response_format === undefined ||
+          (agentData.response_format !== 'text' && agentData.response_format !== 'json')) {
+        console.log("⚠️ [handleCreateAgent] response_format inválido, definindo como 'text'");
         agentData.response_format = 'text';
       }
+      
+      console.log("✅ [handleCreateAgent] response_format DEPOIS da normalização:", agentData.response_format);
       
       // Normalizar split_messages - deve ser número ou undefined/null
       if (agentData.split_messages !== undefined && agentData.split_messages !== null) {
@@ -169,6 +180,12 @@ const AgentsDashboard = () => {
       } else {
         agentData.split_messages = undefined;
       }
+      
+      console.log("📦 [handleCreateAgent] Dados finais antes de salvar:", {
+        response_format: agentData.response_format,
+        split_messages: agentData.split_messages,
+        name: agentData.name,
+      });
       
       // Se houver arquivos, adicionar ao metadata
       if (uploadedFiles.length > 0) {
@@ -182,20 +199,52 @@ const AgentsDashboard = () => {
         };
       }
       
+      let savedAgent: Agent;
       if (editingAgent) {
-        await updateAgent(editingAgent.id, agentData);
+        console.log("💾 [handleCreateAgent] Atualizando agente:", editingAgent.id);
+        savedAgent = await updateAgent(editingAgent.id, agentData);
+        console.log("✅ [handleCreateAgent] Agente atualizado:", savedAgent);
+      } else {
+        console.log("💾 [handleCreateAgent] Criando novo agente");
+        savedAgent = await createAgent(agentData);
+        console.log("✅ [handleCreateAgent] Agente criado:", savedAgent);
+      }
+      
+      // VERIFICAÇÃO PÓS-SALVAMENTO - Confirmar que response_format foi salvo corretamente
+      console.log("🔍 [handleCreateAgent] VERIFICAÇÃO PÓS-SALVAMENTO:");
+      console.log("  - response_format salvo no banco:", savedAgent.response_format);
+      console.log("  - response_format esperado:", agentData.response_format);
+      
+      if (savedAgent.response_format !== agentData.response_format) {
+        console.error("❌ [handleCreateAgent] ERRO: response_format não foi salvo corretamente!");
+        console.error("  - Esperado:", agentData.response_format);
+        console.error("  - Recebido:", savedAgent.response_format);
         toast({
-          title: "Agente atualizado",
-          description: "As alterações foram salvas com sucesso.",
+          title: "⚠️ Aviso",
+          description: `response_format pode não ter sido salvo corretamente. Esperado: ${agentData.response_format}, Salvo: ${savedAgent.response_format}`,
+          variant: "destructive",
         });
       } else {
-        await createAgent(agentData);
+        console.log("✅ [handleCreateAgent] CONFIRMADO: response_format salvo corretamente!");
       }
+      
+      toast({
+        title: editingAgent ? "Agente atualizado" : "Agente criado",
+        description: `Agente salvo com response_format: ${savedAgent.response_format || 'text'}`,
+      });
       
       setFormValues(defaultForm);
       setUploadedFiles([]);
       setEditingAgent(null);
       setIsDialogOpen(false);
+    } catch (error) {
+      console.error("❌ [handleCreateAgent] Erro ao salvar agente:", error);
+      toast({
+        title: "Erro ao salvar agente",
+        description: error instanceof Error ? error.message : "Falha inesperada",
+        variant: "destructive",
+      });
+      throw error;
     } finally {
       setIsSubmitting(false);
     }
@@ -227,8 +276,13 @@ const AgentsDashboard = () => {
       keep_open: agent.keep_open ?? true,
       debounce_time: agent.debounce_time || 10,
       ignore_jids: agent.ignore_jids || [],
-      response_format: (agent.response_format && agent.response_format !== '') ? agent.response_format : "text",
-      split_messages: (agent.split_messages != null && typeof agent.split_messages === 'number') ? agent.split_messages : undefined,
+      // VALIDAÇÃO OBRIGATÓRIA: Garantir que response_format sempre seja 'text' ou 'json'
+      response_format: (agent.response_format === 'text' || agent.response_format === 'json') 
+        ? agent.response_format 
+        : "text",
+      split_messages: (agent.split_messages != null && typeof agent.split_messages === 'number' && agent.split_messages > 0) 
+        ? agent.split_messages 
+        : undefined,
       function_url: agent.function_url || "",
     });
     setIsDialogOpen(true);

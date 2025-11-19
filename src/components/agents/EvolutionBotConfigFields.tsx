@@ -155,8 +155,15 @@ export function EvolutionBotConfigFields({ values, onChange }: EvolutionBotConfi
           <div className="space-y-2">
             <Label htmlFor="response_format">Response Format</Label>
             <Select
-              value={(values.response_format && values.response_format !== '') ? values.response_format : 'text'}
-              onValueChange={(value) => onChange('response_format', value || 'text')}
+              value={(values.response_format === 'text' || values.response_format === 'json') 
+                ? values.response_format 
+                : 'text'}
+              onValueChange={(value) => {
+                // Garantir que sempre seja 'text' ou 'json'
+                const validValue = (value === 'text' || value === 'json') ? value : 'text';
+                console.log("🔄 [EvolutionBotConfigFields] response_format alterado:", validValue);
+                onChange('response_format', validValue);
+              }}
             >
               <SelectTrigger id="response_format">
                 <SelectValue />
