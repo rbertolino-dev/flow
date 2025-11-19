@@ -19,13 +19,13 @@ serve(async (req) => {
 
   try {
     console.log("📋 [agents-sync-openai] Lendo body da requisição...");
-    const { agentId } = await req.json();
-    console.log("📋 [agents-sync-openai] AgentId recebido:", agentId);
+    const { agent_id } = await req.json();
+    console.log("📋 [agents-sync-openai] AgentId recebido:", agent_id);
 
-    if (!agentId) {
-      console.error("❌ [agents-sync-openai] agentId não fornecido!");
+    if (!agent_id) {
+      console.error("❌ [agents-sync-openai] agent_id não fornecido!");
       return new Response(
-        JSON.stringify({ error: "agentId é obrigatório" }),
+        JSON.stringify({ error: "agent_id é obrigatório" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -49,7 +49,7 @@ serve(async (req) => {
     const { data: agent, error: agentError } = await supabase
       .from("agents")
       .select("*")
-      .eq("id", agentId)
+      .eq("id", agent_id)
       .single();
 
     console.log("📦 [agents-sync-openai] Resultado da busca:", { agent: agent ? "encontrado" : "não encontrado", agentError });
@@ -211,7 +211,7 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
         openai_assistant_id: result.id,
         status: agent.status === "draft" ? "active" : agent.status,
       })
-      .eq("id", agentId);
+      .eq("id", agent_id);
 
     if (updateError) {
       throw updateError;
