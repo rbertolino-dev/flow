@@ -128,10 +128,15 @@ serve(async (req) => {
       ? `EXEMPLOS DE BOAS RESPOSTAS:\n${agent.few_shot_examples}`
       : null;
 
-    // Instruções para Response Format JSON - APENAS se response_format for "json"
-    const responseFormat = agent.response_format === 'json' ? 'json' : 'text';
-    console.log("📋 [agents-sync-openai] response_format validado:", responseFormat);
+    // VALIDAÇÃO E MAPEAMENTO DO response_format
+    // OpenAI usa: { type: "json_object" } para JSON, ou null/omitido para texto
+    const responseFormat = (agent.response_format === 'text' || agent.response_format === 'json') 
+      ? agent.response_format 
+      : 'text'; // Padrão sempre 'text'
     
+    console.log("🔍 [agents-sync-openai] response_format mapeado:", responseFormat);
+    
+    // Instruções para Response Format JSON - APENAS se response_format for "json"
     const jsonFormatInstructions = responseFormat === 'json' ? `
 IMPORTANTE: Responda SEMPRE em JSON válido com esta estrutura:
 {
@@ -163,14 +168,6 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
     const truncatedDescription = agent.description 
       ? agent.description.substring(0, 512)
       : undefined;
-
-    // VALIDAÇÃO E MAPEAMENTO DO response_format
-    // OpenAI usa: { type: "json_object" } para JSON, ou null/omitido para texto
-    const responseFormat = (agent.response_format === 'text' || agent.response_format === 'json') 
-      ? agent.response_format 
-      : 'text'; // Padrão sempre 'text'
-    
-    console.log("🔍 [agents-sync-openai] response_format mapeado:", responseFormat);
     
     const assistantPayload: any = {
       name: agent.name,
