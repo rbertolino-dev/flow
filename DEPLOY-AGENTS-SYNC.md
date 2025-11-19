@@ -9,7 +9,37 @@ As seguintes funções foram corrigidas e precisam ser atualizadas no Supabase:
 
 ---
 
-## 📋 Método: Via Supabase Dashboard (Recomendado)
+## 📋 Método 1: Via Lovable Cloud (Recomendado para Lovable)
+
+### 🎯 Como fazer deploy no Lovable Cloud:
+
+1. **No Lovable Cloud:**
+   - Procure por **"Edge Functions"** ou **"Supabase Functions"** no menu
+   - Ou vá em **Settings** → **Supabase** → **Edge Functions**
+   - Ou procure por **"Functions"** na barra lateral
+
+2. **Encontre ou crie a função `agents-sync-openai`:**
+   - Se a função já existe, clique nela para editar
+   - Se não existe, clique em **"Create Function"** ou **"New Function"**
+   - Nome da função: `agents-sync-openai`
+
+3. **Copiar o código atualizado:**
+   - Abra o arquivo: `supabase/functions/agents-sync-openai/index.ts`
+   - **Copie TODO o conteúdo** (Ctrl+A, Ctrl+C)
+
+4. **Colar no editor do Lovable:**
+   - Cole o código no editor da função
+   - Substitua todo o conteúdo antigo
+
+5. **Salvar/Deploy:**
+   - Clique em **"Save"** ou **"Deploy"** ou **"Update"**
+   - Aguarde a confirmação
+
+6. **Repetir para `agents-sync-evolution`** (se necessário)
+
+---
+
+## 📋 Método 2: Via Supabase Dashboard (Se tiver acesso)
 
 ### 1️⃣ Deploy da função `agents-sync-openai`
 
