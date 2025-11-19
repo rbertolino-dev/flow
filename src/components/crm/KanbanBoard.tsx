@@ -26,6 +26,7 @@ interface KanbanBoardProps {
   onLeadUpdate: (leadId: string, newStatus: string) => void;
   searchQuery?: string;
   onRefetch: () => void;
+  onEditLeadName?: (leadId: string, newName: string) => Promise<void>;
   filterInstance?: string;
   filterCreatedDateStart?: string;
   filterCreatedDateEnd?: string;
@@ -36,7 +37,7 @@ interface KanbanBoardProps {
   callQueue?: CallQueueItem[];
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
@@ -533,6 +534,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   instanceMap={instanceMap}
                   columnWidth={columnWidth}
                   onRefetch={onRefetch}
+                  onEditLeadName={onEditLeadName}
                   compact={cardSize === 'compact'}
                   onDeleteLead={async (leadId) => {
                     await supabase

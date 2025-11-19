@@ -2,12 +2,13 @@ import { Lead } from "@/types/lead";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle } from "lucide-react";
+import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
@@ -23,6 +24,7 @@ interface LeadCardProps {
   instanceName?: string;
   onDelete?: (leadId: string) => void;
   onRefetch?: () => void;
+  onEditName?: (leadId: string, newName: string) => Promise<void>;
   compact?: boolean;
 }
 
@@ -37,6 +39,7 @@ export function LeadCard({
   instanceName,
   onDelete,
   onRefetch,
+  onEditName,
   compact = false
 }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -45,6 +48,8 @@ export function LeadCard({
 
   const [isInCallQueue, setIsInCallQueue] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(lead.name);
 
   useEffect(() => {
     const checkCallQueue = async () => {
@@ -116,6 +121,25 @@ export function LeadCard({
     setTransferDialogOpen(true);
   };
 
+  const handleEditNameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (editedName.trim() && editedName !== lead.name && onEditName) {
+      await onEditName(lead.id, editedName.trim());
+      setIsEditingName(false);
+    }
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditedName(lead.name);
+    setIsEditingName(false);
+  };
+
   // Versão compacta do card
   if (compact) {
     return (
@@ -124,7 +148,7 @@ export function LeadCard({
         style={style}
         {...attributes}
         {...listeners}
-        className={`p-2 transition-all duration-200 bg-card border ${
+        className={`p-2 transition-all duration-200 bg-card border group ${
           isDragging 
             ? 'border-primary shadow-lg scale-105' 
             : isSelected
@@ -149,8 +173,38 @@ export function LeadCard({
               </div>
             )}
             
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm text-foreground line-clamp-1">{lead.name}</h3>
+            <div className="flex-1 min-w-0 flex items-center gap-1">
+              {isEditingName ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <Input 
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-6 text-sm flex-1"
+                    autoFocus
+                  />
+                  <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveName}>
+                    ✓
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleCancelEdit}>
+                    ✕
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <h3 className="font-semibold text-sm text-foreground line-clamp-1">{lead.name}</h3>
+                  {onEditName && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={handleEditNameClick}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </>
+              )}
             </div>
 
             {isInCallQueue && (
