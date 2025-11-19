@@ -155,9 +155,14 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
     const toolsValue = (metadata as { tools?: unknown }).tools;
     const tools = Array.isArray(toolsValue) ? toolsValue : [];
 
+    // OpenAI has a 512 character limit for description
+    const truncatedDescription = agent.description 
+      ? agent.description.substring(0, 512)
+      : undefined;
+
     const assistantPayload = {
       name: agent.name,
-      description: agent.description || undefined,
+      description: truncatedDescription,
       model: agent.model || "gpt-4o-mini",
       temperature: agent.temperature ?? 0.6,
       instructions: baseInstructions || undefined,
