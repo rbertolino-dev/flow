@@ -40,6 +40,7 @@ export interface Lead {
   has_unread_messages?: boolean;
   last_message_at?: string;
   unread_message_count?: number;
+  call_count?: number;
 }
 
 export interface CallQueueItem {
