@@ -172,6 +172,8 @@ export type Database = {
           persona: Json | null
           policies: Json | null
           prompt_instructions: string | null
+          response_format: string | null
+          split_messages: number | null
           status: string | null
           stop_bot_from_me: boolean | null
           temperature: number | null
@@ -210,6 +212,8 @@ export type Database = {
           persona?: Json | null
           policies?: Json | null
           prompt_instructions?: string | null
+          response_format?: string | null
+          split_messages?: number | null
           status?: string | null
           stop_bot_from_me?: boolean | null
           temperature?: number | null
@@ -248,6 +252,8 @@ export type Database = {
           persona?: Json | null
           policies?: Json | null
           prompt_instructions?: string | null
+          response_format?: string | null
+          split_messages?: number | null
           status?: string | null
           stop_bot_from_me?: boolean | null
           temperature?: number | null
