@@ -24,6 +24,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -59,6 +61,7 @@ const Index = () => {
   const { tags } = useTags();
   const { viewMode, toggleView } = useViewPreference();
   const { configs } = useEvolutionConfigs();
+  const { toast } = useToast();
   
   // Health check periódico das instâncias (verifica a cada 30s)
   useInstanceHealthCheck({
@@ -80,6 +83,30 @@ const Index = () => {
 
   const handleCallReschedule = (callId: string, newDate: Date) => {
     rescheduleCall(callId, newDate);
+  };
+
+  const handleEditLeadName = async (leadId: string, newName: string) => {
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ name: newName })
+        .eq("id", leadId);
+
+      if (error) throw error;
+
+      await refetchLeads();
+      
+      toast({
+        title: "Nome atualizado",
+        description: "O nome do contato foi atualizado com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar nome",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleLeadSelect = (leadId: string) => {
@@ -404,6 +431,7 @@ const Index = () => {
                 onLeadUpdate={handleLeadUpdate} 
                 searchQuery={searchQuery} 
                 onRefetch={refetchLeads}
+                onEditLeadName={handleEditLeadName}
                 filterInstance={filterInstance}
                 filterCreatedDateStart={filterCreatedDateStart}
                 filterCreatedDateEnd={filterCreatedDateEnd}
@@ -418,6 +446,7 @@ const Index = () => {
                 leads={leads}
                 stages={stages}
                 onRefetch={refetchLeads}
+                onEditLeadName={handleEditLeadName}
                 selectedLeads={selectedLeads}
                 onLeadSelect={handleLeadSelect}
                 onSelectAll={handleSelectAll}

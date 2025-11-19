@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
@@ -83,6 +83,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     lead.returnDate ? format(new Date(lead.returnDate), "yyyy-MM-dd") : ""
   );
   const [liveStatus, setLiveStatus] = useState<Record<string, boolean | null>>({});
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(lead.name);
 
   // Sincronizar returnDate quando o lead mudar
   useEffect(() => {
@@ -435,6 +437,41 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     }
   };
 
+  const handleSaveName = async () => {
+    if (!editedName.trim() || editedName === lead.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ name: editedName.trim() })
+        .eq("id", lead.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Nome atualizado",
+        description: "O nome do contato foi atualizado com sucesso.",
+      });
+
+      setIsEditingName(false);
+      onUpdated?.();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar nome",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setEditedName(lead.name);
+    setIsEditingName(false);
+  };
+
   // Marcar mensagens como lidas quando o modal abre
   useEffect(() => {
     if (open && lead?.has_unread_messages) {
@@ -470,7 +507,34 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-xl sm:text-2xl mb-2 truncate">{lead.name}</DialogTitle>
+              {isEditingName ? (
+                <div className="flex items-center gap-2 mb-2">
+                  <Input 
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="text-lg font-semibold"
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={handleSaveName}>
+                    Salvar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleCancelEditName}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 mb-2">
+                  <DialogTitle className="text-xl sm:text-2xl truncate">{lead.name}</DialogTitle>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={() => setIsEditingName(true)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 <Badge variant="secondary" className="text-xs sm:text-sm">{lead.source}</Badge>
                 <Badge variant="outline" className="text-xs sm:text-sm">{lead.status}</Badge>

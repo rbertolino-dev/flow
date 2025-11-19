@@ -17,6 +17,7 @@ interface LeadsListViewProps {
   leads: Lead[];
   stages: PipelineStage[];
   onRefetch: () => void;
+  onEditLeadName?: (leadId: string, newName: string) => Promise<void>;
   selectedLeads: Set<string>;
   onLeadSelect: (leadId: string) => void;
   onSelectAll: (stageId: string, select: boolean) => void;
@@ -27,6 +28,7 @@ export function LeadsListView({
   leads,
   stages,
   onRefetch,
+  onEditLeadName,
   selectedLeads,
   onLeadSelect,
   onSelectAll,

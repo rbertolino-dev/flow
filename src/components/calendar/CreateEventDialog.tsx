@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Calendar, Loader2, Video, MessageSquare, Clock } from "lucide-react";
 import { format, addHours, parse } from "date-fns";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
-import { useCalendarMessageTemplates } from "@/hooks/useCalendarMessageTemplates";
+// Removed useCalendarMessageTemplates - table does not exist
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { extractContactFromEventTitle, applyMessageTemplate } from "@/lib/eventUtils";
 import { Switch } from "@/components/ui/switch";
@@ -48,7 +48,7 @@ export function CreateEventDialog({
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const { configs, isLoading: configsLoading } = useGoogleCalendarConfigs();
-  const { templates } = useCalendarMessageTemplates();
+  const templates: any[] = []; // Removed calendar templates feature
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const queryClient = useQueryClient();
   const activeConfigs = configs.filter((c) => c.is_active);
