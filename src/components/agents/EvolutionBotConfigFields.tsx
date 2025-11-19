@@ -19,6 +19,8 @@ interface EvolutionBotConfigFieldsProps {
     stop_bot_from_me?: boolean;
     keep_open?: boolean;
     debounce_time?: number;
+    response_format?: string;
+    split_messages?: number;
     function_url?: string;
   };
   onChange: (field: string, value: any) => void;
@@ -147,6 +149,37 @@ export function EvolutionBotConfigFields({ values, onChange }: EvolutionBotConfi
               placeholder="Mensagem quando o bot não entender"
               rows={2}
             />
+          </div>
+
+          {/* Response Format */}
+          <div className="space-y-2">
+            <Label htmlFor="response_format">Response Format</Label>
+            <Select
+              value={values.response_format || 'text'}
+              onValueChange={(value) => onChange('response_format', value)}
+            >
+              <SelectTrigger id="response_format">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">Texto</SelectItem>
+                <SelectItem value="json">JSON</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Split Messages */}
+          <div className="space-y-2">
+            <Label htmlFor="split_messages">Split Messages</Label>
+            <Input
+              id="split_messages"
+              type="number"
+              value={values.split_messages || ''}
+              onChange={(e) => onChange('split_messages', parseInt(e.target.value) || undefined)}
+              placeholder="Ex: 1000"
+              min={0}
+            />
+            <p className="text-xs text-muted-foreground">Número máximo de caracteres por mensagem</p>
           </div>
 
           {/* Function URL */}

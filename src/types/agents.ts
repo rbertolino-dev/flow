@@ -34,6 +34,8 @@ export interface Agent {
   keep_open?: boolean | null;
   debounce_time?: number | null;
   ignore_jids?: string[] | null;
+  response_format?: string | null;
+  split_messages?: number | null;
   function_url?: string | null;
   created_at: string;
   updated_at: string;
@@ -86,6 +88,8 @@ export interface AgentFormValues {
   keep_open?: boolean;
   debounce_time?: number;
   ignore_jids?: string[];
+  response_format?: string;
+  split_messages?: number;
   function_url?: string;
 }
 
