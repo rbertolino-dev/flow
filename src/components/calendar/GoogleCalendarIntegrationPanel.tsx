@@ -61,9 +61,11 @@ export function GoogleCalendarIntegrationPanel() {
   // Fechar dialog quando criação for bem-sucedida
   useEffect(() => {
     if (!isCreating && configs.length > 0 && showAddDialog) {
-      // Verificar se a última conta adicionada corresponde ao formData
-      const lastConfig = configs[0];
-      if (lastConfig.account_name === formData.account_name && formData.account_name !== "") {
+      // Verificar se existe uma conta com o mesmo nome que foi adicionada recentemente
+      const recentlyAdded = configs.find(
+        (config) => config.account_name === formData.account_name && formData.account_name !== ""
+      );
+      if (recentlyAdded) {
         setShowAddDialog(false);
         setFormData({
           account_name: "",
@@ -151,6 +153,11 @@ export function GoogleCalendarIntegrationPanel() {
             </Alert>
           ) : (
             <div className="space-y-4">
+              {configs.length > 0 && (
+                <p className="text-sm text-muted-foreground mb-2">
+                  {configs.length} conta{configs.length !== 1 ? "s" : ""} configurada{configs.length !== 1 ? "s" : ""}
+                </p>
+              )}
               {configs.map((config) => (
                 <Card key={config.id} className="border">
                   <CardContent className="pt-6">
@@ -164,6 +171,9 @@ export function GoogleCalendarIntegrationPanel() {
                         </div>
                         <p className="text-sm text-muted-foreground">
                           Calendário: {config.calendar_id}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ID: {config.id.substring(0, 8)}...
                         </p>
                         {config.last_sync_at && (
                           <p className="text-xs text-muted-foreground">

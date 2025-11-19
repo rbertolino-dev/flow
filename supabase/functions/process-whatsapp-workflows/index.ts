@@ -42,6 +42,8 @@ interface Workflow {
   message_template_id: string | null;
   message_body: string | null;
   is_active: boolean;
+  requires_approval: boolean;
+  approval_deadline_hours: number | null;
   next_run_at: string | null;
   created_by: string | null;
   list: {
@@ -168,40 +170,109 @@ serve(async (req) => {
             )
           : [];
 
+        // Determinar status de aprovação
+        const approvalStatus = workflow.requires_approval ? "pending" : "not_required";
+        
         // Se houver anexos por mês, enviar uma mensagem para cada mês/anexo
         if (contactSpecificAttachments.length > 0) {
           // Enviar todos os anexos correspondentes aos meses em aberto
           for (const attachment of contactSpecificAttachments) {
-            await supabase.from("scheduled_messages").insert({
+            const { data: scheduledMessage, error: insertError } = await supabase
+              .from("scheduled_messages")
+              .insert({
+                user_id: workflow.created_by,
+                organization_id: workflow.organization_id,
+                lead_id: contact.lead_id || null,
+                instance_id: instanceId,
+                phone: contact.phone,
+                message: personalizedMessage,
+                media_url: attachment.file_url,
+                media_type: attachment.file_type,
+                scheduled_for: scheduledFor.toISOString(),
+                status: "pending",
+                approval_status: approvalStatus,
+                workflow_id: workflow.id,
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error("Erro ao criar mensagem agendada:", insertError);
+              continue;
+            }
+
+            // Se requer aprovação, criar registro na fila de aprovação
+            if (workflow.requires_approval && scheduledMessage && contact.lead_id) {
+              const approvalDate = new Date(scheduledFor);
+              const deadlineHours = workflow.approval_deadline_hours || 24;
+              approvalDate.setHours(approvalDate.getHours() - deadlineHours);
+
+              await supabase.from("whatsapp_workflow_approvals").insert({
+                organization_id: workflow.organization_id,
+                workflow_id: workflow.id,
+                scheduled_message_id: scheduledMessage.id,
+                lead_id: contact.lead_id,
+                contact_phone: contact.phone,
+                contact_name: contact.name || null,
+                message_body: personalizedMessage,
+                attachment_url: attachment.file_url || null,
+                attachment_type: attachment.file_type || null,
+                attachment_name: null,
+                approval_date: approvalDate.toISOString(),
+                status: "pending",
+              });
+            }
+          }
+        } else {
+          // Se não houver anexos por mês, usar anexo geral (apenas um anexo, não um por contato)
+          // Se houver múltiplos anexos gerais, usar apenas o primeiro para evitar duplicação
+          const generalAttachment = generalAttachments[0] || null;
+          
+          const { data: scheduledMessage, error: insertError } = await supabase
+            .from("scheduled_messages")
+            .insert({
               user_id: workflow.created_by,
               organization_id: workflow.organization_id,
               lead_id: contact.lead_id || null,
               instance_id: instanceId,
               phone: contact.phone,
               message: personalizedMessage,
-              media_url: attachment.file_url,
-              media_type: attachment.file_type,
+              media_url: generalAttachment?.file_url ?? null,
+              media_type: generalAttachment?.file_type ?? null,
               scheduled_for: scheduledFor.toISOString(),
               status: "pending",
+              approval_status: approvalStatus,
               workflow_id: workflow.id,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Erro ao criar mensagem agendada:", insertError);
+            continue;
+          }
+
+          // Se requer aprovação, criar registro na fila de aprovação
+          if (workflow.requires_approval && scheduledMessage && contact.lead_id) {
+            const approvalDate = new Date(scheduledFor);
+            const deadlineHours = workflow.approval_deadline_hours || 24;
+            approvalDate.setHours(approvalDate.getHours() - deadlineHours);
+
+            await supabase.from("whatsapp_workflow_approvals").insert({
+              organization_id: workflow.organization_id,
+              workflow_id: workflow.id,
+              scheduled_message_id: scheduledMessage.id,
+              lead_id: contact.lead_id,
+              contact_phone: contact.phone,
+              contact_name: contact.name || null,
+              message_body: personalizedMessage,
+              attachment_url: generalAttachment?.file_url || null,
+              attachment_type: generalAttachment?.file_type || null,
+              attachment_name: null,
+              approval_date: approvalDate.toISOString(),
+              status: "pending",
             });
           }
-        } else {
-          // Se não houver anexos por mês, usar anexo geral ou primeiro anexo geral
-          const generalAttachment = generalAttachments[0] || null;
-          await supabase.from("scheduled_messages").insert({
-            user_id: workflow.created_by,
-            organization_id: workflow.organization_id,
-            lead_id: contact.lead_id || null,
-            instance_id: instanceId,
-            phone: contact.phone,
-            message: personalizedMessage,
-            media_url: generalAttachment?.file_url ?? null,
-            media_type: generalAttachment?.file_type ?? null,
-            scheduled_for: scheduledFor.toISOString(),
-            status: "pending",
-            workflow_id: workflow.id,
-          });
         }
       }
 
@@ -437,20 +508,34 @@ function findNextWeeklyRun(workflow: Workflow, reference: Date): Date | null {
 
 function findNextMonthlyRun(workflow: Workflow, reference: Date): Date | null {
   const timezone = workflow.timezone || DEFAULT_TZ;
-  const targetDay = workflow.day_of_month ?? parseInt(workflow.start_date.slice(-2));
+  // Extrair o dia do mês corretamente da data de início
+  const startDateParts = workflow.start_date.split('-');
+  const targetDay = workflow.day_of_month ?? (startDateParts.length === 3 ? parseInt(startDateParts[2]) : 1);
+  
   let localCandidate = toZonedTime(reference, timezone);
-  for (let i = 1; i <= 3; i++) {
+  
+  // Tentar até 12 meses à frente para encontrar a próxima data válida
+  for (let i = 1; i <= 12; i++) {
     localCandidate = addMonths(localCandidate, 1);
+    const maxDay = daysInMonth(localCandidate);
+    const dayToUse = Math.min(targetDay, maxDay);
+    
     const setDay = new Date(
       localCandidate.getFullYear(),
       localCandidate.getMonth(),
-      Math.min(targetDay, daysInMonth(localCandidate)),
+      dayToUse,
     );
+    
     const dateStr = formatInTimeZone(setDay, timezone, "yyyy-MM-dd");
-    return fromZonedTime(
+    const candidateDate = fromZonedTime(
       `${dateStr}T${normalizeSendTime(workflow.send_time)}`,
       timezone,
     );
+    
+    // Verificar se a data é no futuro (pelo menos 1 minuto à frente)
+    if (candidateDate > reference) {
+      return candidateDate;
+    }
   }
   return null;
 }

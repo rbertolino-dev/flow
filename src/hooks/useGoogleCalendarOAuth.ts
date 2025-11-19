@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -6,6 +7,7 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 export function useGoogleCalendarOAuth() {
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
 
   const initiateOAuth = async (accountName?: string) => {
@@ -77,10 +79,8 @@ export function useGoogleCalendarOAuth() {
             description: "Sua conta do Google Calendar foi conectada com sucesso.",
           });
 
-          // Recarregar a página para atualizar a lista de contas
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+          // Invalidar queries para atualizar a lista de contas
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
         }
       };
 

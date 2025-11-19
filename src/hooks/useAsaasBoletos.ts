@@ -192,6 +192,36 @@ export function useAsaasBoletos() {
     },
   });
 
+  // Sincronizar status dos boletos com Asaas
+  const syncBoletoStatus = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("asaas-sync-boleto-status", {
+        body: {},
+      });
+
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || "Erro ao sincronizar status");
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["asaas-boletos", activeOrgId] });
+      toast({
+        title: "Status sincronizado",
+        description: "Os status dos boletos foram atualizados com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao sincronizar",
+        description: error.message || "Não foi possível sincronizar os status dos boletos.",
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     boletos,
     isLoadingBoletos,
@@ -200,10 +230,12 @@ export function useAsaasBoletos() {
     createBoleto: createBoleto.mutateAsync,
     updateBoletoStatus: updateBoletoStatus.mutateAsync,
     deleteBoleto: deleteBoleto.mutateAsync,
+    syncBoletoStatus: syncBoletoStatus.mutateAsync,
     refetchBoletos,
     isCreatingBoleto: createBoleto.isPending,
     isUpdatingBoleto: updateBoletoStatus.isPending,
     isDeletingBoleto: deleteBoleto.isPending,
+    isSyncingStatus: syncBoletoStatus.isPending,
   };
 }
 

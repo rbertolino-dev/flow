@@ -47,6 +47,12 @@ import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager"
 import { Badge } from "@/components/ui/badge";
 import { Info, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAsaasConfig } from "@/hooks/useAsaasConfig";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 
 interface WorkflowFormDrawerProps {
   open: boolean;
@@ -130,6 +136,7 @@ export function WorkflowFormDrawer({
   ensureSingleList,
 }: WorkflowFormDrawerProps) {
   const { toast } = useToast();
+  const { config: asaasConfig, loading: loadingAsaas } = useAsaasConfig();
   const [values, setValues] = useState<WorkflowFormValues>(DEFAULT_FORM);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [attachmentsToRemove, setAttachmentsToRemove] = useState<string[]>([]);
@@ -358,6 +365,16 @@ export function WorkflowFormDrawer({
 
     // Validação de campos de boleto
     if (gerarBoleto && values.workflow_type === "cobranca") {
+      // Verificar se Asaas está configurado
+      if (!asaasConfig) {
+        toast({
+          title: "Integração Asaas necessária",
+          description: "Configure a integração Asaas na aba 'Integração Asaas' antes de gerar boletos automaticamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (!boletoValor || parseFloat(boletoValor) <= 0) {
         toast({
           title: "Valor do boleto obrigatório",
@@ -923,6 +940,18 @@ export function WorkflowFormDrawer({
             {/* Seção de Boletos para workflows de cobrança */}
             {values.workflow_type === "cobranca" && (
               <section className="space-y-3 border-t pt-4">
+                {/* Alerta se Asaas não estiver configurado */}
+                {!loadingAsaas && !asaasConfig && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Integração Asaas não configurada</AlertTitle>
+                    <AlertDescription>
+                      Para gerar boletos automaticamente, é necessário configurar a integração com o Asaas primeiro.
+                      Acesse a aba "Integração Asaas" na página de workflows para configurar sua API Key.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="text-sm font-semibold">Gerar Boleto Automaticamente</Label>
@@ -932,11 +961,32 @@ export function WorkflowFormDrawer({
                   </div>
                   <Switch
                     checked={gerarBoleto}
-                    onCheckedChange={setGerarBoleto}
+                    onCheckedChange={(checked) => {
+                      if (checked && !asaasConfig && !loadingAsaas) {
+                        toast({
+                          title: "Integração Asaas necessária",
+                          description: "Configure a integração Asaas antes de gerar boletos automaticamente.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setGerarBoleto(checked);
+                    }}
+                    disabled={!asaasConfig && !loadingAsaas}
                   />
                 </div>
 
-                {gerarBoleto && (
+                {gerarBoleto && !asaasConfig && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Configuração necessária</AlertTitle>
+                    <AlertDescription>
+                      A integração Asaas precisa estar configurada para gerar boletos. Configure na aba "Integração Asaas".
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {gerarBoleto && asaasConfig && (
                   <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 text-xs text-blue-800">
                       <Info className="h-4 w-4" />
@@ -1260,6 +1310,21 @@ export function WorkflowFormDrawer({
 }
 
 function transformWorkflowToForm(workflow: WorkflowEnvio): WorkflowFormValues {
+  // Garantir que as datas estão no formato correto (YYYY-MM-DD)
+  const formatDate = (dateStr: string | null | undefined): string | null => {
+    if (!dateStr) return null;
+    // Se já está no formato correto, retornar
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // Tentar converter de outros formatos
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      return date.toISOString().split('T')[0];
+    } catch {
+      return null;
+    }
+  };
+
   return {
     id: workflow.id,
     name: workflow.name,
@@ -1274,12 +1339,12 @@ function transformWorkflowToForm(workflow: WorkflowEnvio): WorkflowFormValues {
     day_of_month: workflow.day_of_month || undefined,
     custom_interval_unit: workflow.custom_interval_unit || null,
     custom_interval_value: workflow.custom_interval_value || null,
-    send_time: workflow.send_time,
-    timezone: workflow.timezone,
-    start_date: workflow.start_date,
-    end_date: workflow.end_date,
+    send_time: workflow.send_time || "09:00",
+    timezone: workflow.timezone || "America/Sao_Paulo",
+    start_date: formatDate(workflow.start_date) || new Date().toISOString().split("T")[0],
+    end_date: formatDate(workflow.end_date),
     trigger_type: workflow.trigger_type,
-    trigger_offset_days: workflow.trigger_offset_days,
+    trigger_offset_days: workflow.trigger_offset_days || 0,
     template_mode: workflow.template_mode,
     message_template_id: workflow.message_template_id || undefined,
     message_body: workflow.message_body || "",

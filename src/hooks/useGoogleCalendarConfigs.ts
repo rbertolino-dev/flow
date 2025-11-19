@@ -42,7 +42,16 @@ export function useGoogleCalendarConfigs() {
         .eq("organization_id", activeOrgId)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao buscar configurações do Google Calendar:", error);
+        throw error;
+      }
+      
+      console.log(`[useGoogleCalendarConfigs] Encontradas ${data?.length || 0} contas para organização ${activeOrgId}`);
+      if (data && data.length > 0) {
+        console.log("[useGoogleCalendarConfigs] Contas:", data.map(c => ({ id: c.id, email: c.account_name, created: c.created_at })));
+      }
+      
       return data as GoogleCalendarConfig[];
     },
     enabled: !!activeOrgId,

@@ -28,6 +28,8 @@ interface Agent {
   keep_open?: boolean;
   debounce_time?: number;
   ignore_jids?: string[];
+  response_format?: string;
+  split_messages?: number;
   function_url?: string;
 }
 
@@ -83,6 +85,11 @@ serve(async (req) => {
     }
 
     console.log("✅ [agents-sync-evolution] Agente encontrado:", agent.name);
+    console.log("📋 [agents-sync-evolution] Campos do agente:", {
+      response_format: agent.response_format,
+      split_messages: agent.split_messages,
+      function_url: agent.function_url,
+    });
 
     if (!agent.evolution_config_id) {
       throw new Error("Agente não possui configuração Evolution vinculada");
@@ -259,10 +266,17 @@ async function syncAgentToEvolution(
     keepOpen: agent.keep_open !== false,
     debounceTime: agent.debounce_time || 10,
     ignoreJids: agent.ignore_jids || [],
+    ...(agent.response_format && { responseFormat: agent.response_format }),
+    ...(agent.split_messages && { splitMessages: agent.split_messages }),
     ...(agent.function_url && { functionUrl: agent.function_url }),
   };
 
   console.log(`📦 [agents-sync-evolution] Payload do bot:`, JSON.stringify(botPayload, null, 2));
+  console.log(`📋 [agents-sync-evolution] Campos incluídos no payload:`, {
+    responseFormat: botPayload.responseFormat,
+    splitMessages: botPayload.splitMessages,
+    functionUrl: botPayload.functionUrl,
+  });
 
   const botResponse = await fetch(`${baseUrl}/openai/create/${instanceName}`, {
     method: 'POST',

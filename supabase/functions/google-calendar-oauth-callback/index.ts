@@ -181,17 +181,21 @@ serve(async (req) => {
       }
     }
 
-    // Verificar se já existe uma conta com o mesmo email nesta organização
-    const { data: existingConfig } = await supabase
+    // Verificar se já existe uma conta com o mesmo email E mesmo refresh_token nesta organização
+    // Se for o mesmo refresh_token, atualiza. Se for diferente, cria nova (permite múltiplas contas do mesmo email)
+    const { data: existingConfigs } = await supabase
       .from('google_calendar_configs')
-      .select('id, account_name')
+      .select('id, account_name, refresh_token')
       .eq('organization_id', organizationId)
-      .eq('account_name', userEmail)
-      .maybeSingle();
+      .eq('account_name', userEmail);
 
     let savedConfig;
-    if (existingConfig) {
-      // Atualizar configuração existente
+    
+    // Verificar se existe uma conta com o mesmo refresh_token (mesma sessão OAuth)
+    const existingWithSameToken = existingConfigs?.find(config => config.refresh_token === refreshToken);
+    
+    if (existingWithSameToken) {
+      // Atualizar configuração existente com o mesmo refresh_token
       const { data: updatedConfig, error: updateError } = await supabase
         .from('google_calendar_configs')
         .update({
@@ -201,7 +205,7 @@ serve(async (req) => {
           is_active: true,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', existingConfig.id)
+        .eq('id', existingWithSameToken.id)
         .select()
         .single();
 
@@ -211,7 +215,7 @@ serve(async (req) => {
       }
       savedConfig = updatedConfig;
     } else {
-      // Criar nova configuração
+      // Criar nova configuração (permite múltiplas contas com mesmo email se refresh_token for diferente)
       const { data: newConfig, error: insertError } = await supabase
         .from('google_calendar_configs')
         .insert({

@@ -189,11 +189,18 @@ serve(async (req) => {
       console.error('Erro ao salvar evento local:', upsertError);
     }
 
+    // Extrair link do Google Meet se disponível
+    const meetLink = eventData.conferenceData?.entryPoints?.[0]?.uri || 
+                     eventData.hangoutLink || 
+                     null;
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         eventId: eventData.id,
-        htmlLink: eventData.htmlLink 
+        htmlLink: eventData.htmlLink,
+        hangoutLink: meetLink,
+        conferenceData: eventData.conferenceData
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
