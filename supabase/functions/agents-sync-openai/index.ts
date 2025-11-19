@@ -181,23 +181,41 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
       "OpenAI-Beta": "assistants=v2",
     };
 
-    const url = agent.openai_assistant_id
+    let url = agent.openai_assistant_id
       ? `${OPENAI_API_URL}/${agent.openai_assistant_id}`
       : OPENAI_API_URL;
+    let method = agent.openai_assistant_id ? "POST" : "POST";
 
     console.log("🚀 [agents-sync-openai] Chamando OpenAI API...");
     console.log("📋 [agents-sync-openai] URL:", url);
-    console.log("📋 [agents-sync-openai] Método: POST");
+    console.log("📋 [agents-sync-openai] Método:", method);
+    console.log("📋 [agents-sync-openai] Assistant ID existente:", agent.openai_assistant_id || "nenhum");
     console.log("📋 [agents-sync-openai] Payload:", JSON.stringify(assistantPayload, null, 2));
 
-    const response = await fetch(url, {
-      method: agent.openai_assistant_id ? "POST" : "POST",
+    let response = await fetch(url, {
+      method,
       headers,
       body: JSON.stringify(assistantPayload),
     });
 
     console.log("📡 [agents-sync-openai] Status da resposta OpenAI:", response.status);
     console.log("📡 [agents-sync-openai] Status text:", response.statusText);
+
+    // Se o assistente não existe mais (404), criar um novo
+    if (!response.ok && response.status === 404 && agent.openai_assistant_id) {
+      console.log("⚠️ [agents-sync-openai] Assistente não encontrado (404), criando novo...");
+      
+      url = OPENAI_API_URL;
+      method = "POST";
+      
+      response = await fetch(url, {
+        method,
+        headers,
+        body: JSON.stringify(assistantPayload),
+      });
+      
+      console.log("📡 [agents-sync-openai] Nova tentativa - Status:", response.status);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
