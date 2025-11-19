@@ -130,8 +130,8 @@ const AgentsDashboard = () => {
   };
 
   const handleInputChange = (
-    field: keyof AgentFormValues,
-    value: string | number | boolean
+    field: keyof AgentFormValues | string,
+    value: string | number | boolean | undefined
   ) => {
     setFormValues((prev) => ({
       ...prev,
@@ -200,6 +200,21 @@ const AgentsDashboard = () => {
       test_mode: agent.test_mode ?? true,
       allow_fallback: agent.allow_fallback ?? false,
       evolution_config_id: agent.evolution_config_id || undefined,
+      trigger_type: agent.trigger_type || "keyword",
+      trigger_operator: agent.trigger_operator || "contains",
+      trigger_value: agent.trigger_value || "",
+      expire: agent.expire || 20,
+      keyword_finish: agent.keyword_finish || "#SAIR",
+      delay_message: agent.delay_message || 1000,
+      unknown_message: agent.unknown_message || "Desculpe, não entendi. Pode repetir?",
+      listening_from_me: agent.listening_from_me ?? false,
+      stop_bot_from_me: agent.stop_bot_from_me ?? false,
+      keep_open: agent.keep_open ?? true,
+      debounce_time: agent.debounce_time || 10,
+      ignore_jids: agent.ignore_jids || [],
+      response_format: agent.response_format || "text",
+      split_messages: agent.split_messages || undefined,
+      function_url: agent.function_url || "",
     });
     setIsDialogOpen(true);
   };
