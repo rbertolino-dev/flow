@@ -77,6 +77,8 @@ const defaultForm: AgentFormValues = {
   keep_open: true,
   debounce_time: 10,
   ignore_jids: [],
+  response_format: "text",
+  split_messages: undefined,
   function_url: "",
 };
 
