@@ -60,6 +60,7 @@ serve(async (req) => {
     }
 
     console.log("✅ [agents-sync-openai] Agente encontrado:", agent.name);
+    console.log("📋 [agents-sync-openai] response_format do agente:", agent.response_format);
     console.log("🔍 [agents-sync-openai] Buscando API key da organização...");
     
     // Buscar API key da tabela openai_configs
@@ -127,8 +128,11 @@ serve(async (req) => {
       ? `EXEMPLOS DE BOAS RESPOSTAS:\n${agent.few_shot_examples}`
       : null;
 
-    // Instruções para Response Format JSON
-    const jsonFormatInstructions = `
+    // Instruções para Response Format JSON - APENAS se response_format for "json"
+    const responseFormat = agent.response_format === 'json' ? 'json' : 'text';
+    console.log("📋 [agents-sync-openai] response_format validado:", responseFormat);
+    
+    const jsonFormatInstructions = responseFormat === 'json' ? `
 IMPORTANTE: Responda SEMPRE em JSON válido com esta estrutura:
 {
   "resposta": "sua resposta aqui",
@@ -137,7 +141,7 @@ IMPORTANTE: Responda SEMPRE em JSON válido com esta estrutura:
 }
 
 Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina "precisa_escalacao" como true.
-    `.trim();
+    `.trim() : null;
 
     const baseInstructions = [
       agent.prompt_instructions,
@@ -160,13 +164,20 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
       ? agent.description.substring(0, 512)
       : undefined;
 
-    const assistantPayload = {
+    // VALIDAÇÃO E MAPEAMENTO DO response_format
+    // OpenAI usa: { type: "json_object" } para JSON, ou null/omitido para texto
+    const responseFormat = (agent.response_format === 'text' || agent.response_format === 'json') 
+      ? agent.response_format 
+      : 'text'; // Padrão sempre 'text'
+    
+    console.log("🔍 [agents-sync-openai] response_format mapeado:", responseFormat);
+    
+    const assistantPayload: any = {
       name: agent.name,
       description: truncatedDescription,
       model: agent.model || "gpt-4o-mini",
       temperature: agent.temperature ?? 0.6,
       instructions: baseInstructions || undefined,
-      response_format: { type: "json_object" },
       metadata: {
         organization_id: String(agent.organization_id || ""),
         agent_id: String(agent.id || ""),
@@ -174,6 +185,23 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
       },
       tools,
     };
+    
+    // Incluir response_format APENAS se for JSON
+    // Se for 'text', definir como null para remover o formato JSON de assistentes existentes
+    if (responseFormat === 'json') {
+      assistantPayload.response_format = { type: "json_object" };
+      console.log("✅ [agents-sync-openai] response_format configurado como JSON");
+    } else {
+      // Se for 'text' e o assistente já existe, precisamos remover o response_format
+      // OpenAI requer explicitamente null para remover o formato JSON
+      if (agent.openai_assistant_id) {
+        assistantPayload.response_format = null;
+        console.log("✅ [agents-sync-openai] response_format configurado como TEXT (removendo JSON do assistente existente)");
+      } else {
+        // Para novos assistentes, simplesmente não incluir o campo (texto é o padrão)
+        console.log("✅ [agents-sync-openai] response_format configurado como TEXT (campo omitido para novo assistente)");
+      }
+    }
 
     const headers = {
       Authorization: `Bearer ${openaiKey}`,
@@ -184,6 +212,8 @@ Se "confianca" for menor que 70 ou você não tiver certeza da resposta, defina 
     let url = agent.openai_assistant_id
       ? `${OPENAI_API_URL}/${agent.openai_assistant_id}`
       : OPENAI_API_URL;
+    // Para atualizar assistente existente, usar POST (OpenAI usa POST para updates também)
+    // Mas vamos usar o método correto conforme a documentação
     let method = agent.openai_assistant_id ? "POST" : "POST";
 
     console.log("🚀 [agents-sync-openai] Chamando OpenAI API...");
