@@ -1,0 +1,39 @@
+{
+  "migrations": [
+    {
+      "file": "supabase/migrations/20251121000000_create_broadcast_time_windows.sql",
+      "description": "Cria tabela de janelas de horário para disparos em massa",
+      "priority": 1,
+      "required": true,
+      "dependencies": [
+        "organizations",
+        "get_user_organization()",
+        "has_role()",
+        "is_pubdigital_user()"
+      ]
+    },
+    {
+      "file": "supabase/migrations/20251121000001_create_instance_groups.sql",
+      "description": "Cria tabela de grupos de instâncias WhatsApp",
+      "priority": 2,
+      "required": true,
+      "dependencies": [
+        "organizations",
+        "get_user_organization()",
+        "has_role()",
+        "is_pubdigital_user()"
+      ]
+    }
+  ],
+  "instructions": {
+    "apply_order": "sequential",
+    "auto_apply": true,
+    "verify_after": true,
+    "rollback_on_error": false
+  },
+  "verification_queries": [
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'broadcast_time_windows';",
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'instance_groups';"
+  ]
+}
+

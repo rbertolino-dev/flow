@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -23,7 +23,18 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
+import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
+import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
+import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
+import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
+import { 
+  isTimeInWindow, 
+  calculateEstimatedTimeWithWindow, 
+  canStartCampaignNow,
+  getNextWindowTime,
+  TimeWindow 
+} from "@/lib/broadcastTimeWindow";
 import {
   Dialog,
   DialogContent,
@@ -69,12 +80,26 @@ export default function BroadcastCampaigns() {
   const [instances, setInstances] = useState<any[]>([]);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
   const [campaignTemplates, setCampaignTemplates] = useState<any[]>([]);
+  const [activeTimeWindow, setActiveTimeWindow] = useState<TimeWindow | null>(null);
+  const [instanceGroups, setInstanceGroups] = useState<any[]>([]);
+  const [timeWindowConflictDialog, setTimeWindowConflictDialog] = useState<{
+    open: boolean;
+    messagesOutOfWindow: number;
+    totalMessages: number;
+    firstOutOfWindowTime: Date;
+    nextWindowTime: Date | null;
+    campaignId: string;
+    queueItems: any[];
+    campaign: any;
+  } | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [pastedList, setPastedList] = useState("");
   const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const [logsInstanceFilter, setLogsInstanceFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [sentDateFilter, setSentDateFilter] = useState<Date | undefined>(undefined);
   const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
@@ -103,6 +128,7 @@ export default function BroadcastCampaigns() {
     name: "",
     instanceId: "",
     instanceIds: [] as string[], // Para múltiplas instâncias
+    selectedGroupId: "", // ID do grupo selecionado
     sendingMethod: "single" as "single" | "rotate" | "separate",
     templateId: "",
     customMessage: "",
@@ -121,6 +147,7 @@ export default function BroadcastCampaigns() {
       name: template.name,
       instanceId: template.instance_id || "",
       instanceIds: [],
+      selectedGroupId: "",
       sendingMethod: "single",
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
@@ -203,6 +230,7 @@ export default function BroadcastCampaigns() {
         name: `${campaignData.name} (Cópia)`,
         instanceId: sendingMethod === "single" ? campaign.instance_id : "",
         instanceIds: instanceIds,
+        selectedGroupId: "",
         sendingMethod: sendingMethod,
         templateId: campaignData.message_template_id || "",
         customMessage: campaignData.custom_message || "",
@@ -233,16 +261,85 @@ export default function BroadcastCampaigns() {
     }
   };
 
+  // Cache de dados para evitar queries desnecessárias
+  const dataCacheRef = useRef<{
+    campaigns?: Campaign[];
+    instances?: any[];
+    messageTemplates?: any[];
+    campaignTemplates?: any[];
+    activeTimeWindow?: TimeWindow | null;
+    instanceGroups?: any[];
+    lastFetch?: number;
+  }>({});
+  
+  const CACHE_DURATION = 30000; // 30 segundos de cache
+
+  // Debounce na busca para reduzir re-renders
   useEffect(() => {
-    if (activeOrgId) {
-      fetchCampaigns();
-      fetchInstances();
-      fetchMessageTemplates();
-      fetchCampaignTemplates();
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms de debounce
+    
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  const fetchInstanceGroups = useCallback(async () => {
+    if (!activeOrgId) {
+      setInstanceGroups([]);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("instance_groups")
+        .select("*")
+        .eq("organization_id", activeOrgId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      const groupsData = data || [];
+      setInstanceGroups(groupsData);
+      dataCacheRef.current.instanceGroups = groupsData;
+    } catch (error: any) {
+      console.error("Erro ao carregar grupos:", error);
+      setInstanceGroups([]);
     }
   }, [activeOrgId]);
 
-  const fetchCampaigns = async () => {
+  const fetchActiveTimeWindow = useCallback(async () => {
+    if (!activeOrgId) {
+      setActiveTimeWindow(null);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from("broadcast_time_windows")
+        .select("*")
+        .eq("organization_id", activeOrgId)
+        .eq("enabled", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      const windowData = data || null;
+      setActiveTimeWindow(windowData);
+      dataCacheRef.current.activeTimeWindow = windowData;
+    } catch (error: any) {
+      console.error("Erro ao carregar janela de horário:", error);
+      setActiveTimeWindow(null);
+      dataCacheRef.current.activeTimeWindow = null;
+    }
+  }, [activeOrgId]);
+
+  const fetchCampaigns = useCallback(async () => {
     try {
       if (!activeOrgId) {
         setCampaigns([]);
@@ -257,7 +354,9 @@ export default function BroadcastCampaigns() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setCampaigns(data || []);
+      const campaignsData = data || [];
+      setCampaigns(campaignsData);
+      dataCacheRef.current.campaigns = campaignsData;
     } catch (error: any) {
       toast({
         title: "Erro ao carregar campanhas",
@@ -267,34 +366,67 @@ export default function BroadcastCampaigns() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeOrgId, toast]);
 
-  const fetchInstances = async () => {
+  const fetchInstances = useCallback(async () => {
     if (!activeOrgId) {
       setInstances([]);
       return;
     }
     const { data } = await supabase.from("evolution_config").select("*").eq("organization_id", activeOrgId);
-    setInstances(data || []);
-  };
+    const instancesData = data || [];
+    setInstances(instancesData);
+    dataCacheRef.current.instances = instancesData;
+  }, [activeOrgId]);
 
-  const fetchMessageTemplates = async () => {
+  const fetchMessageTemplates = useCallback(async () => {
     if (!activeOrgId) {
       setMessageTemplates([]);
       return;
     }
     const { data } = await supabase.from("message_templates").select("*").eq("organization_id", activeOrgId);
-    setMessageTemplates(data || []);
-  };
+    const templatesData = data || [];
+    setMessageTemplates(templatesData);
+    dataCacheRef.current.messageTemplates = templatesData;
+  }, [activeOrgId]);
 
-  const fetchCampaignTemplates = async () => {
+  const fetchCampaignTemplates = useCallback(async () => {
     if (!activeOrgId) {
       setCampaignTemplates([]);
       return;
     }
     const { data } = await supabase.from("broadcast_campaign_templates").select("*").eq("organization_id", activeOrgId);
-    setCampaignTemplates(data || []);
-  };
+    const templatesData = data || [];
+    setCampaignTemplates(templatesData);
+    dataCacheRef.current.campaignTemplates = templatesData;
+  }, [activeOrgId]);
+
+  // Carregar dados quando activeOrgId mudar (DEPOIS das definições das funções)
+  useEffect(() => {
+    if (activeOrgId) {
+      const now = Date.now();
+      const cache = dataCacheRef.current;
+      
+      // Só buscar se não há cache ou cache expirou
+      if (!cache.lastFetch || (now - cache.lastFetch) > CACHE_DURATION) {
+        fetchCampaigns();
+        fetchInstances();
+        fetchMessageTemplates();
+        fetchCampaignTemplates();
+        fetchActiveTimeWindow();
+        fetchInstanceGroups();
+        cache.lastFetch = now;
+      } else {
+        // Usar cache
+        if (cache.campaigns) setCampaigns(cache.campaigns);
+        if (cache.instances) setInstances(cache.instances);
+        if (cache.messageTemplates) setMessageTemplates(cache.messageTemplates);
+        if (cache.campaignTemplates) setCampaignTemplates(cache.campaignTemplates);
+        if (cache.activeTimeWindow !== undefined) setActiveTimeWindow(cache.activeTimeWindow);
+        if (cache.instanceGroups) setInstanceGroups(cache.instanceGroups);
+      }
+    }
+  }, [activeOrgId, fetchCampaigns, fetchInstances, fetchMessageTemplates, fetchCampaignTemplates, fetchActiveTimeWindow, fetchInstanceGroups]);
 
   const parseCSV = (text: string): Array<{ phone: string; name?: string }> => {
     const lines = text.split("\n").filter((line) => line.trim());
@@ -573,6 +705,7 @@ export default function BroadcastCampaigns() {
         name: "",
         instanceId: "",
         instanceIds: [],
+        selectedGroupId: "",
         sendingMethod: "single",
         templateId: "",
         customMessage: "",
@@ -601,6 +734,19 @@ export default function BroadcastCampaigns() {
 
   const handleStartCampaign = async (campaignId: string) => {
     try {
+      // Validar horário se houver janela ativa
+      if (activeTimeWindow) {
+        const canStart = canStartCampaignNow(activeTimeWindow);
+        if (!canStart.canStart) {
+          toast({
+            title: "Horário não permitido",
+            description: canStart.reason || "Não é possível iniciar a campanha neste horário",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Buscar itens pendentes
       const { data: queueItems, error: fetchError } = await supabase
         .from("broadcast_queue")
@@ -625,25 +771,305 @@ export default function BroadcastCampaigns() {
 
       if (campaignError) throw campaignError;
 
-      // Agendar cada item com delay aleatório
-      const now = new Date();
-      const updates = queueItems.map((item, index) => {
-        const minDelay = campaign.min_delay_seconds * 1000;
-        const maxDelay = campaign.max_delay_seconds * 1000;
-        const randomDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+      // Verificar se há mensagens que ficarão fora da janela
+      if (activeTimeWindow) {
+        const now = new Date();
         
-        const scheduledTime = new Date(now.getTime() + (index * maxDelay) + randomDelay);
+        // Calcular delay uma vez (otimização)
+        const minDelay = campaign.min_delay_seconds;
+        const maxDelay = campaign.max_delay_seconds;
+        const avgDelay = (minDelay + maxDelay) / 2;
+        const avgDelayMs = avgDelay * 1000;
+        
+        // Verificar se é modo separate (otimizado - fazer uma vez)
+        const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
+        const isSeparate = uniqueInstances.size > 1;
+        
+        // Se é separate, verificar distribuição
+        let isSeparateMode = false;
+        if (isSeparate) {
+          const messagesPerInstance = new Map<string, number>();
+          queueItems.forEach(item => {
+            messagesPerInstance.set(item.instance_id, (messagesPerInstance.get(item.instance_id) || 0) + 1);
+          });
+          const counts = Array.from(messagesPerInstance.values());
+          isSeparateMode = counts.length > 0 && counts.every(count => count === counts[0]);
+        }
+        
+        let messagesOutOfWindow = 0;
+        let firstOutOfWindowTime: Date | null = null;
+        
+        if (isSeparateMode) {
+          // Modo separate: cada instância tem sua própria fila começando no mesmo tempo
+          const instancesMap = new Map<string, any[]>();
+          queueItems.forEach(item => {
+            if (!instancesMap.has(item.instance_id)) {
+              instancesMap.set(item.instance_id, []);
+            }
+            instancesMap.get(item.instance_id)!.push(item);
+          });
+          
+          // Verificar para cada instância (todas começam ao mesmo tempo)
+          instancesMap.forEach((itemsForInstance) => {
+            let instanceScheduledTime = new Date(now);
+            
+            itemsForInstance.forEach((item) => {
+              const scheduledTime = new Date(instanceScheduledTime.getTime() + avgDelayMs);
+              
+              if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
+                if (!firstOutOfWindowTime) {
+                  firstOutOfWindowTime = scheduledTime;
+                }
+                messagesOutOfWindow++;
+              }
+              
+              instanceScheduledTime = new Date(scheduledTime);
+            });
+          });
+        } else {
+          // Modo single ou rotate: fila sequencial
+          let currentScheduledTime = new Date(now);
+          
+          for (const item of queueItems) {
+            const scheduledTime = new Date(currentScheduledTime.getTime() + avgDelayMs);
+            
+            if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
+              if (!firstOutOfWindowTime) {
+                firstOutOfWindowTime = scheduledTime;
+              }
+              messagesOutOfWindow++;
+            }
+            
+            currentScheduledTime = new Date(scheduledTime);
+          }
+        }
 
-        return supabase
-          .from("broadcast_queue")
-          .update({
-            status: "scheduled",
-            scheduled_for: scheduledTime.toISOString(),
-          })
-          .eq("id", item.id);
+        // Se há mensagens fora da janela, mostrar diálogo
+        if (messagesOutOfWindow > 0 && firstOutOfWindowTime) {
+          const nextWindowTime = getNextWindowTime(activeTimeWindow, firstOutOfWindowTime);
+          setTimeWindowConflictDialog({
+            open: true,
+            messagesOutOfWindow,
+            totalMessages: queueItems.length,
+            firstOutOfWindowTime,
+            nextWindowTime,
+            campaignId,
+            queueItems,
+            campaign,
+          });
+          return; // Aguardar decisão do usuário
+        }
+      }
+
+      // Se não há conflito ou usuário já resolveu, prosseguir com agendamento
+      await scheduleCampaignMessages(campaignId, queueItems, campaign, "reschedule");
+
+    } catch (error: any) {
+      toast({
+        title: "Erro ao iniciar campanha",
+        description: error.message,
+        variant: "destructive",
       });
+    }
+  };
 
-      await Promise.all(updates);
+  const scheduleCampaignMessages = async (
+    campaignId: string,
+    queueItems: any[],
+    campaign: any,
+    action: "edit" | "exception" | "reschedule",
+    newMinDelay?: number,
+    newMaxDelay?: number
+  ) => {
+    try {
+      // Atualizar delay se foi editado
+      if (action === "edit" && newMinDelay && newMaxDelay) {
+        await supabase
+          .from("broadcast_campaigns")
+          .update({
+            min_delay_seconds: newMinDelay,
+            max_delay_seconds: newMaxDelay,
+          })
+          .eq("id", campaignId);
+        
+        campaign.min_delay_seconds = newMinDelay;
+        campaign.max_delay_seconds = newMaxDelay;
+      }
+
+      const now = new Date();
+      
+      // Verificar se é modo "separate" - nesse caso, cada instância deve ter sua própria fila independente
+      // No modo separate, cada instância tem TODOS os contatos, então:
+      // - Múltiplas instâncias
+      // - Cada instância tem o mesmo número de mensagens (todos os contatos)
+      const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
+      
+      // Verificar se realmente é separate: cada instância deve ter o mesmo número de mensagens
+      const messagesPerInstance = new Map<string, number>();
+      queueItems.forEach(item => {
+        messagesPerInstance.set(item.instance_id, (messagesPerInstance.get(item.instance_id) || 0) + 1);
+      });
+      const counts = Array.from(messagesPerInstance.values());
+      const allSameCount = counts.length > 0 && counts.every(count => count === counts[0]);
+      // Se todas as instâncias têm o mesmo número de mensagens e há múltiplas instâncias, é modo separate
+      const isSeparate = allSameCount && uniqueInstances.size > 1;
+      
+      let updates: Promise<any>[] = [];
+      
+      if (isSeparate) {
+        // Modo SEPARATE: Cada instância começa ao mesmo tempo, com sua própria fila independente
+        const instancesMap = new Map<string, any[]>();
+        
+        // Agrupar mensagens por instância
+        queueItems.forEach(item => {
+          if (!instancesMap.has(item.instance_id)) {
+            instancesMap.set(item.instance_id, []);
+          }
+          instancesMap.get(item.instance_id)!.push(item);
+        });
+        
+        // Calcular delay uma vez (otimização)
+        const minDelay = campaign.min_delay_seconds;
+        const maxDelay = campaign.max_delay_seconds;
+        const avgDelay = (minDelay + maxDelay) / 2;
+        const avgDelayMs = avgDelay * 1000;
+        
+        // Preparar updates em batch para reduzir queries
+        const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
+        
+        // Para cada instância, criar fila independente começando no mesmo horário
+        instancesMap.forEach((itemsForInstance) => {
+          let instanceScheduledTime = new Date(now); // Todas começam ao mesmo tempo
+          
+          itemsForInstance.forEach((item) => {
+            // Calcular horário baseado no delay médio (independente para cada instância)
+            let scheduledTime = new Date(instanceScheduledTime.getTime() + avgDelayMs);
+            
+            // Se há janela ativa e ação não é exceção
+            if (activeTimeWindow && action !== "exception") {
+              // Verificar se o horário calculado está na janela
+              if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
+                // Buscar próximo horário permitido
+                const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
+                if (nextWindowTime) {
+                  // Ajustar para o início do próximo período permitido
+                  scheduledTime = nextWindowTime;
+                  instanceScheduledTime = new Date(scheduledTime);
+                }
+              } else {
+                instanceScheduledTime = new Date(scheduledTime);
+              }
+            } else {
+              // Sem janela ou exceção: continuar normalmente
+              instanceScheduledTime = new Date(scheduledTime);
+            }
+
+            batchUpdates.push({
+              id: item.id,
+              scheduled_for: scheduledTime.toISOString(),
+              ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
+            });
+          });
+        });
+        
+        // Executar updates em batch (mais eficiente)
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < batchUpdates.length; i += BATCH_SIZE) {
+          const batch = batchUpdates.slice(i, i + BATCH_SIZE);
+          const batchPromises = batch.map(update =>
+            supabase
+              .from("broadcast_queue")
+              .update({
+                status: "scheduled",
+                scheduled_for: update.scheduled_for,
+                ...(update.error_message && { error_message: update.error_message }),
+              })
+              .eq("id", update.id)
+          );
+          updates.push(...batchPromises);
+        }
+      } else {
+        // Modo SINGLE ou ROTATE: Fila sequencial normal
+        // Calcular delay uma vez (otimização)
+        const minDelay = campaign.min_delay_seconds;
+        const maxDelay = campaign.max_delay_seconds;
+        const avgDelay = (minDelay + maxDelay) / 2;
+        const avgDelayMs = avgDelay * 1000;
+        
+        let currentScheduledTime = new Date(now);
+        
+        // Preparar updates em batch
+        const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
+        
+        for (const item of queueItems) {
+          // Calcular horário baseado no delay médio
+          let scheduledTime = new Date(currentScheduledTime.getTime() + avgDelayMs);
+          
+          // Se há janela ativa e ação não é exceção
+          if (activeTimeWindow && action !== "exception") {
+            // Verificar se o horário calculado está na janela
+            if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
+              // Buscar próximo horário permitido
+              const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
+              if (nextWindowTime) {
+                // Ajustar para o início do próximo período permitido
+                scheduledTime = nextWindowTime;
+                currentScheduledTime = new Date(scheduledTime);
+              }
+            } else {
+              currentScheduledTime = new Date(scheduledTime);
+            }
+          } else {
+            // Sem janela ou exceção: continuar normalmente
+            currentScheduledTime = new Date(scheduledTime);
+          }
+
+          batchUpdates.push({
+            id: item.id,
+            scheduled_for: scheduledTime.toISOString(),
+            ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
+          });
+        }
+        
+        // Executar updates em batch
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < batchUpdates.length; i += BATCH_SIZE) {
+          const batch = batchUpdates.slice(i, i + BATCH_SIZE);
+          const batchPromises = batch.map(update =>
+            supabase
+              .from("broadcast_queue")
+              .update({
+                status: "scheduled",
+                scheduled_for: update.scheduled_for,
+                ...(update.error_message && { error_message: update.error_message }),
+              })
+              .eq("id", update.id)
+          );
+          updates.push(...batchPromises);
+        }
+      }
+
+      // Executar todas as atualizações em lotes para reduzir carga
+      const BATCH_SIZE = 20; // Processar 20 updates por vez
+      const allResults: any[] = [];
+      
+      for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+        const batch = updates.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(batch);
+        allResults.push(...batchResults);
+        
+        // Pequeno delay entre lotes para não sobrecarregar
+        if (i + BATCH_SIZE < updates.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+      
+      // Verificar se houve erros
+      const errors = allResults.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error("Erros ao agendar mensagens:", errors);
+        throw new Error(`Falha ao agendar ${errors.length} mensagens`);
+      }
 
       // Atualizar status da campanha
       await supabase
@@ -654,18 +1080,48 @@ export default function BroadcastCampaigns() {
         })
         .eq("id", campaignId);
 
+      const actionMessages = {
+        edit: "Campanha iniciada com novo delay!",
+        exception: "Campanha iniciada com exceção à janela de horário!",
+        reschedule: "Campanha iniciada! Mensagens fora do horário foram reagendadas.",
+      };
+
       toast({
-        title: "Campanha iniciada!",
+        title: actionMessages[action] || "Campanha iniciada!",
         description: `${queueItems.length} mensagens agendadas`,
       });
 
       fetchCampaigns();
     } catch (error: any) {
       toast({
-        title: "Erro ao iniciar campanha",
+        title: "Erro ao agendar mensagens",
         description: error.message,
         variant: "destructive",
       });
+      throw error;
+    }
+  };
+
+  const handleTimeWindowConflictResolve = async (
+    action: "edit" | "exception" | "reschedule",
+    newMinDelay?: number,
+    newMaxDelay?: number
+  ) => {
+    if (!timeWindowConflictDialog) return;
+
+    try {
+      await scheduleCampaignMessages(
+        timeWindowConflictDialog.campaignId,
+        timeWindowConflictDialog.queueItems,
+        timeWindowConflictDialog.campaign,
+        action,
+        newMinDelay,
+        newMaxDelay
+      );
+
+      setTimeWindowConflictDialog(null);
+    } catch (error) {
+      // Erro já tratado em scheduleCampaignMessages
     }
   };
 
@@ -797,24 +1253,29 @@ export default function BroadcastCampaigns() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const filteredCampaigns = campaigns.filter((campaign) => {
-    const matchesSearch = !searchQuery || campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
+  // Memoizar filtros para evitar recálculos desnecessários
+  const filteredCampaigns = useMemo(() => {
+    if (!campaigns.length) return [];
     
-    let matchesDate = true;
-    if (dateFilterType === "created" && dateFilter) {
-      matchesDate = new Date(campaign.created_at).toDateString() === dateFilter.toDateString();
-    } else if (dateFilterType === "sent" && sentDateFilter) {
-      if (campaign.started_at) {
-        matchesDate = new Date(campaign.started_at).toDateString() === sentDateFilter.toDateString();
-      } else {
-        matchesDate = false;
+    return campaigns.filter((campaign) => {
+      const matchesSearch = !debouncedSearchQuery || campaign.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+      
+      let matchesDate = true;
+      if (dateFilterType === "created" && dateFilter) {
+        matchesDate = new Date(campaign.created_at).toDateString() === dateFilter.toDateString();
+      } else if (dateFilterType === "sent" && sentDateFilter) {
+        if (campaign.started_at) {
+          matchesDate = new Date(campaign.started_at).toDateString() === sentDateFilter.toDateString();
+        } else {
+          matchesDate = false;
+        }
       }
-    }
-    
-    const matchesInstance = instanceFilter === "all" || campaign.instance_id === instanceFilter;
-    
-    return matchesSearch && matchesDate && matchesInstance;
-  });
+      
+      const matchesInstance = instanceFilter === "all" || campaign.instance_id === instanceFilter;
+      
+      return matchesSearch && matchesDate && matchesInstance;
+    });
+  }, [campaigns, debouncedSearchQuery, dateFilter, sentDateFilter, dateFilterType, instanceFilter]);
 
   if (loading && campaigns.length === 0) {
     return <div className="p-6">Carregando...</div>;
@@ -825,19 +1286,35 @@ export default function BroadcastCampaigns() {
       <CRMLayout activeView="broadcast" onViewChange={handleViewChange}>
         <div className="h-full overflow-y-auto">
           <div className="p-4 md:p-6 pb-20 md:pb-6">
+          {/* Quadro de Status das Instâncias */}
+          <InstanceStatusPanel 
+            instances={instances} 
+            onRefresh={fetchInstances}
+          />
+          
           <Tabs defaultValue="campaigns" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
-              <TabsTrigger value="templates">
-                <FileText className="h-4 w-4 mr-2" />
+            <TabsList className="mb-4 h-12 w-full justify-start gap-2 overflow-x-auto">
+              <TabsTrigger value="campaigns" className="text-base font-semibold px-6 py-2.5 h-10">
+                Campanhas
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="text-base font-semibold px-6 py-2.5 h-10">
+                <FileText className="h-5 w-5 mr-2" />
                 Templates
               </TabsTrigger>
-              <TabsTrigger value="reports">
-                <BarChart3 className="h-4 w-4 mr-2" />
+              <TabsTrigger value="timeWindows" className="text-base font-semibold px-6 py-2.5 h-10">
+                <Clock className="h-5 w-5 mr-2" />
+                Janelas de Horário
+              </TabsTrigger>
+              <TabsTrigger value="instanceGroups" className="text-base font-semibold px-6 py-2.5 h-10">
+                <Users className="h-5 w-5 mr-2" />
+                Grupos de Instâncias
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="text-base font-semibold px-6 py-2.5 h-10">
+                <BarChart3 className="h-5 w-5 mr-2" />
                 Performance
               </TabsTrigger>
-              <TabsTrigger value="export">
-                <Download className="h-4 w-4 mr-2" />
+              <TabsTrigger value="export" className="text-base font-semibold px-6 py-2.5 h-10">
+                <Download className="h-5 w-5 mr-2" />
                 Exportar
               </TabsTrigger>
             </TabsList>
@@ -848,6 +1325,32 @@ export default function BroadcastCampaigns() {
                 instances={instances}
                 messageTemplates={messageTemplates}
                 onTemplateSelect={handleTemplateSelectFromManager}
+              />
+            </TabsContent>
+
+            <TabsContent value="timeWindows">
+              <BroadcastTimeWindowManager
+                organizationId={activeOrgId!}
+              />
+            </TabsContent>
+
+            <TabsContent value="instanceGroups">
+              <InstanceGroupManager
+                organizationId={activeOrgId!}
+                instances={instances}
+                onGroupSelect={(group) => {
+                  setNewCampaign({
+                    ...newCampaign,
+                    selectedGroupId: group.id,
+                    instanceIds: group.instance_ids,
+                    sendingMethod: "separate",
+                  });
+                  setCreateDialogOpen(true);
+                  toast({
+                    title: "Grupo selecionado!",
+                    description: `Grupo "${group.name}" com ${group.instance_ids.length} instância(s) carregado`,
+                  });
+                }}
               />
             </TabsContent>
 
@@ -871,6 +1374,23 @@ export default function BroadcastCampaigns() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Aviso sobre Janela de Horário Ativa */}
+                {activeTimeWindow && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                          Janela de Horário Ativa: {activeTimeWindow.name}
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                          A campanha só será iniciada dentro dos horários permitidos. 
+                          Mensagens fora do horário serão agendadas para o próximo período disponível.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Indicador de Template Selecionado */}
                 {(selectedCampaignTemplate || newCampaign.fromTemplate) && (
                   <div className="space-y-2 p-4 bg-accent/20 border border-accent rounded-lg">
@@ -945,7 +1465,7 @@ export default function BroadcastCampaigns() {
                     {/* Opção 1: Usar uma única instância */}
                     <button
                       type="button"
-                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "single", instanceIds: [] })}
+                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "single", instanceIds: [], selectedGroupId: "" })}
                       className={`relative p-4 border-2 rounded-lg text-left transition-all hover:border-primary/50 ${
                         newCampaign.sendingMethod === "single" 
                           ? "border-primary bg-primary/5 shadow-sm" 
@@ -971,7 +1491,7 @@ export default function BroadcastCampaigns() {
                     {/* Opção 2: Rotacionar entre instâncias */}
                     <button
                       type="button"
-                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "rotate", instanceId: "" })}
+                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "rotate", instanceId: "", selectedGroupId: "" })}
                       className={`relative p-4 border-2 rounded-lg text-left transition-all hover:border-primary/50 ${
                         newCampaign.sendingMethod === "rotate" 
                           ? "border-primary bg-primary/5 shadow-sm" 
@@ -1002,7 +1522,7 @@ export default function BroadcastCampaigns() {
                     {/* Opção 3: Disparar separadamente */}
                     <button
                       type="button"
-                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "separate", instanceId: "" })}
+                      onClick={() => setNewCampaign({ ...newCampaign, sendingMethod: "separate", instanceId: "", selectedGroupId: "" })}
                       className={`relative p-4 border-2 rounded-lg text-left transition-all hover:border-primary/50 ${
                         newCampaign.sendingMethod === "separate" 
                           ? "border-primary bg-primary/5 shadow-sm" 
@@ -1055,41 +1575,84 @@ export default function BroadcastCampaigns() {
                     </Select>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <Label>Selecione as Instâncias *</Label>
-                    <div className="grid gap-2 p-3 border rounded-lg bg-muted/5 max-h-48 overflow-y-auto">
-                      {instances.map((instance) => (
-                        <label
-                          key={instance.id}
-                          className="flex items-center gap-3 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
+                  <div className="space-y-3">
+                    {/* Seletor de Grupo (apenas para modo separate) */}
+                    {newCampaign.sendingMethod === "separate" && instanceGroups.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Ou selecione um Grupo de Instâncias</Label>
+                        <Select
+                          value={newCampaign.selectedGroupId}
+                          onValueChange={(groupId) => {
+                            const group = instanceGroups.find(g => g.id === groupId);
+                            if (group) {
+                              setNewCampaign({
+                                ...newCampaign,
+                                selectedGroupId: group.id,
+                                instanceIds: group.instance_ids,
+                              });
+                              toast({
+                                title: "Grupo selecionado!",
+                                description: `Grupo "${group.name}" com ${group.instance_ids.length} instância(s)`,
+                              });
+                            }
+                          }}
                         >
-                          <input
-                            type="checkbox"
-                            checked={newCampaign.instanceIds.includes(instance.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setNewCampaign({
-                                  ...newCampaign,
-                                  instanceIds: [...newCampaign.instanceIds, instance.id]
-                                });
-                              } else {
-                                setNewCampaign({
-                                  ...newCampaign,
-                                  instanceIds: newCampaign.instanceIds.filter(id => id !== instance.id)
-                                });
-                              }
-                            }}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm">{instance.instance_name}</span>
-                        </label>
-                      ))}
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um grupo (opcional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Nenhum grupo</SelectItem>
+                            {instanceGroups.map((group) => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.name} ({group.instance_ids.length} instâncias)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Selecione um grupo salvo ou escolha instâncias individualmente abaixo
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Selecione as Instâncias *</Label>
+                      <div className="grid gap-2 p-3 border rounded-lg bg-muted/5 max-h-48 overflow-y-auto">
+                        {instances.map((instance) => (
+                          <label
+                            key={instance.id}
+                            className="flex items-center gap-3 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={newCampaign.instanceIds.includes(instance.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNewCampaign({
+                                    ...newCampaign,
+                                    instanceIds: [...newCampaign.instanceIds, instance.id],
+                                    selectedGroupId: "", // Limpar grupo se selecionar manualmente
+                                  });
+                                } else {
+                                  setNewCampaign({
+                                    ...newCampaign,
+                                    instanceIds: newCampaign.instanceIds.filter(id => id !== instance.id),
+                                    selectedGroupId: "", // Limpar grupo se desmarcar
+                                  });
+                                }
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm">{instance.instance_name}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {newCampaign.instanceIds.length === 0 
+                          ? "Selecione pelo menos uma instância" 
+                          : `${newCampaign.instanceIds.length} instância(s) selecionada(s)`}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {newCampaign.instanceIds.length === 0 
-                        ? "Selecione pelo menos uma instância" 
-                        : `${newCampaign.instanceIds.length} instância(s) selecionada(s)`}
-                    </p>
                   </div>
                 )}
 
@@ -1851,6 +2414,26 @@ export default function BroadcastCampaigns() {
         </DialogContent>
       </Dialog>
 
+        {/* Dialog de Conflito com Janela de Horário */}
+        {timeWindowConflictDialog && activeTimeWindow && (
+          <TimeWindowConflictDialog
+            open={timeWindowConflictDialog.open}
+            onOpenChange={(open) => {
+              if (!open) {
+                setTimeWindowConflictDialog(null);
+              }
+            }}
+            timeWindow={activeTimeWindow}
+            messagesOutOfWindow={timeWindowConflictDialog.messagesOutOfWindow}
+            totalMessages={timeWindowConflictDialog.totalMessages}
+            firstOutOfWindowTime={timeWindowConflictDialog.firstOutOfWindowTime}
+            nextWindowTime={timeWindowConflictDialog.nextWindowTime}
+            currentMinDelay={timeWindowConflictDialog.campaign.min_delay_seconds}
+            currentMaxDelay={timeWindowConflictDialog.campaign.max_delay_seconds}
+            onResolve={handleTimeWindowConflictResolve}
+          />
+        )}
+
         {/* Dialog de Simulação de Envio */}
         <Dialog open={simulationDialogOpen} onOpenChange={setSimulationDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1990,28 +2573,61 @@ export default function BroadcastCampaigns() {
                         <span className="text-muted-foreground">Delay entre mensagens:</span>
                         <span className="font-medium">{newCampaign.minDelay}s - {newCampaign.maxDelay}s</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tempo estimado total:</span>
-                        <span className="font-medium">
-                          {(() => {
-                            const totalMessages = newCampaign.sendingMethod === "separate" 
-                              ? validationResult.whatsappValid * newCampaign.instanceIds.length
-                              : validationResult.whatsappValid;
-                            const avgDelay = (newCampaign.minDelay + newCampaign.maxDelay) / 2;
-                            const totalSeconds = totalMessages * avgDelay;
-                            const hours = Math.floor(totalSeconds / 3600);
-                            const minutes = Math.floor((totalSeconds % 3600) / 60);
-                            
-                            if (hours > 0) {
-                              return `~${hours}h ${minutes}min`;
-                            } else if (minutes > 0) {
-                              return `~${minutes} minutos`;
-                            } else {
-                              return `~${Math.ceil(totalSeconds)} segundos`;
-                            }
-                          })()}
-                        </span>
-                      </div>
+                      {(() => {
+                        const totalMessages = newCampaign.sendingMethod === "separate" 
+                          ? validationResult.whatsappValid * newCampaign.instanceIds.length
+                          : validationResult.whatsappValid;
+                        const avgDelay = (newCampaign.minDelay + newCampaign.maxDelay) / 2;
+                        
+                        // Calcular estimativa considerando janela de horário
+                        const startTime = newCampaign.scheduledStart || new Date();
+                        const estimate = calculateEstimatedTimeWithWindow(
+                          totalMessages,
+                          newCampaign.minDelay,
+                          newCampaign.maxDelay,
+                          activeTimeWindow,
+                          startTime
+                        );
+                        
+                        const hours = Math.floor(estimate.estimatedDuration / 3600);
+                        const minutes = Math.floor((estimate.estimatedDuration % 3600) / 60);
+                        
+                        let timeDisplay = "";
+                        if (hours > 0) {
+                          timeDisplay = `~${hours}h ${minutes}min`;
+                        } else if (minutes > 0) {
+                          timeDisplay = `~${minutes} minutos`;
+                        } else {
+                          timeDisplay = `~${Math.ceil(estimate.estimatedDuration)} segundos`;
+                        }
+                        
+                        return (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Tempo estimado total:</span>
+                              <span className="font-medium">{timeDisplay}</span>
+                            </div>
+                            {activeTimeWindow && (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Mensagens no horário:</span>
+                                  <span className="font-medium text-green-600 dark:text-green-400">
+                                    {estimate.messagesInWindow} de {totalMessages}
+                                  </span>
+                                </div>
+                                {estimate.willExceedWindow && (
+                                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs">
+                                    ⚠️ Algumas mensagens serão enviadas fora do horário permitido
+                                  </div>
+                                )}
+                                <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs">
+                                  ℹ️ Janela ativa: <strong>{activeTimeWindow.name}</strong>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </>
