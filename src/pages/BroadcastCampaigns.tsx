@@ -1603,7 +1603,6 @@ export default function BroadcastCampaigns() {
                             <SelectValue placeholder="Selecione um grupo (opcional)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Nenhum grupo</SelectItem>
                             {instanceGroups.map((group) => (
                               <SelectItem key={group.id} value={group.id}>
                                 {group.name} ({group.instance_ids.length} instâncias)
