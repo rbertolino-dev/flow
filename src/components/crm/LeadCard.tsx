@@ -392,8 +392,40 @@ export function LeadCard({
             </div>
           )}
           
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-lg text-foreground line-clamp-1">{lead.name}</h3>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0 group/name">
+              {isEditingName ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <Input 
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-8 text-lg font-bold flex-1"
+                    autoFocus
+                  />
+                  <Button size="sm" variant="ghost" className="h-8 px-3" onClick={handleSaveName}>
+                    ✓
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-8 px-3" onClick={handleCancelEdit}>
+                    ✕
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <h3 className="font-bold text-lg text-foreground line-clamp-1 flex-1">{lead.name}</h3>
+                  {onEditName && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 opacity-0 group-hover/name:opacity-70 hover:!opacity-100 transition-opacity"
+                      onClick={handleEditNameClick}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
             {isInCallQueue && (
               <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600">
                 <PhoneCall className="h-3.5 w-3.5" />
