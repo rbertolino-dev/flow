@@ -51,6 +51,14 @@ export function LeadCard({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
 
+  // Debug: verificar dados recebidos
+  console.log('LeadCard Debug:', {
+    leadName: lead.name,
+    callCount: lead.call_count,
+    hasOnEditName: !!onEditName,
+    compact
+  });
+
   useEffect(() => {
     const checkCallQueue = async () => {
       const { data } = await supabase
