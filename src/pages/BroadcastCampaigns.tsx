@@ -986,7 +986,8 @@ export default function BroadcastCampaigns() {
               })
               .eq("id", update.id)
           );
-          updates.push(...batchPromises);
+          const results = await Promise.all(batchPromises);
+          updates.push(...results.map(r => Promise.resolve(r)));
         }
       } else {
         // Modo SINGLE ou ROTATE: Fila sequencial normal
@@ -1045,7 +1046,8 @@ export default function BroadcastCampaigns() {
               })
               .eq("id", update.id)
           );
-          updates.push(...batchPromises);
+          const results = await Promise.all(batchPromises);
+          updates.push(...results.map(r => Promise.resolve(r)));
         }
       }
 
@@ -1576,8 +1578,8 @@ export default function BroadcastCampaigns() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* Seletor de Grupo (apenas para modo separate) */}
-                    {newCampaign.sendingMethod === "separate" && instanceGroups.length > 0 && (
+                    {/* Seletor de Grupo (para modo rotate e separate) */}
+                    {(newCampaign.sendingMethod === "rotate" || newCampaign.sendingMethod === "separate") && instanceGroups.length > 0 && (
                       <div className="space-y-2">
                         <Label>Ou selecione um Grupo de Instâncias</Label>
                         <Select
