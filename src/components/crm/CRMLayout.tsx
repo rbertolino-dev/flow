@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar";
-  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar") => void;
+  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm";
+  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -53,6 +53,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   };
 
   const baseMenuItems = [
+    { id: "crm" as const, label: "CRM", icon: Users },
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "phonebook" as const, label: "Lista Telefônica", icon: PhoneCall },
@@ -159,7 +160,9 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
             const handleClick = () => {
-              if (item.id === 'superadmin') {
+              if (item.id === 'crm') {
+                navigate('/crm');
+              } else if (item.id === 'superadmin') {
                 navigate('/superadmin');
               } else if (item.id === 'phonebook') {
                 navigate('/lista-telefonica');
@@ -281,7 +284,9 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
                     {menuItems.map((item) => {
                       const handleClick = () => {
-                        if (item.id === 'superadmin') {
+                        if (item.id === 'crm') {
+                          navigate('/crm');
+                        } else if (item.id === 'superadmin') {
                           navigate('/superadmin');
                         } else if (item.id === 'phonebook') {
                           navigate('/lista-telefonica');
