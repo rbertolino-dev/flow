@@ -309,7 +309,36 @@ export function BroadcastTimeWindowManager({ organizationId }: BroadcastTimeWind
                 </div>
 
                 <div className="space-y-4">
-                  <Label className="text-base font-semibold">Horários por Dia da Semana</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Horários por Dia da Semana</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          monday_start: "09:00",
+                          monday_end: "18:00",
+                          tuesday_start: "09:00",
+                          tuesday_end: "18:00",
+                          wednesday_start: "09:00",
+                          wednesday_end: "18:00",
+                          thursday_start: "09:00",
+                          thursday_end: "18:00",
+                          friday_start: "09:00",
+                          friday_end: "18:00",
+                          saturday_start: "",
+                          saturday_end: "",
+                          sunday_start: "",
+                          sunday_end: "",
+                        });
+                      }}
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Horário Comercial Padrão
+                    </Button>
+                  </div>
                   {DAYS.map((day) => (
                     <div key={day.key} className="grid grid-cols-3 gap-3 items-center p-3 border rounded-lg">
                       <Label className="font-medium">{day.label}</Label>
