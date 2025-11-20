@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useLeads } from "@/hooks/useLeads";
@@ -6,9 +6,10 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useTags } from "@/hooks/useTags";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail } from "lucide-react";
+import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,15 +30,31 @@ export default function CRM() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         lead.phone.includes(searchQuery);
-    const matchesStage = selectedStage === "all" || lead.stageId === selectedStage;
-    const matchesTag = selectedTag === "all" || lead.tags?.some(tag => tag.id === selectedTag);
-    
-    return matchesSearch && matchesStage && matchesTag;
-  });
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      const matchesSearch = lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           lead.phone.includes(searchQuery);
+      const matchesStage = selectedStage === "all" || lead.stageId === selectedStage;
+      const matchesTag = selectedTag === "all" || lead.tags?.some(tag => tag.id === selectedTag);
+      
+      return matchesSearch && matchesStage && matchesTag;
+    });
+  }, [leads, searchQuery, selectedStage, selectedTag]);
+
+  // Paginação
+  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredLeads.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredLeads, currentPage, itemsPerPage]);
+
+  // Reset página ao filtrar
+  const handleFilterChange = () => {
+    setCurrentPage(1);
+  };
 
   const getStage = (stageId?: string) => stages.find(s => s.id === stageId);
 
@@ -84,12 +101,18 @@ export default function CRM() {
                     <Input
                       placeholder="Buscar por nome ou telefone..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        handleFilterChange();
+                      }}
                       className="pl-10"
                     />
                   </div>
                   
-                  <Select value={selectedStage} onValueChange={setSelectedStage}>
+                  <Select value={selectedStage} onValueChange={(value) => {
+                    setSelectedStage(value);
+                    handleFilterChange();
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todas as etapas" />
                     </SelectTrigger>
@@ -103,7 +126,10 @@ export default function CRM() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={selectedTag} onValueChange={setSelectedTag}>
+                  <Select value={selectedTag} onValueChange={(value) => {
+                    setSelectedTag(value);
+                    handleFilterChange();
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todas as tags" />
                     </SelectTrigger>
@@ -168,6 +194,7 @@ export default function CRM() {
                 <CardTitle>Lista de Leads</CardTitle>
                 <CardDescription>
                   {filteredLeads.length} {filteredLeads.length === 1 ? 'lead encontrado' : 'leads encontrados'}
+                  {totalPages > 1 && ` - Página ${currentPage} de ${totalPages}`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -195,7 +222,7 @@ export default function CRM() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredLeads.map(lead => {
+                        {paginatedLeads.map(lead => {
                           const stage = getStage(lead.stageId);
                           return (
                             <TableRow 
@@ -301,6 +328,66 @@ export default function CRM() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+
+                {/* Paginação */}
+                {!loading && filteredLeads.length > 0 && totalPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredLeads.length)} de {filteredLeads.length} leads
+                    </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                            Anterior
+                          </Button>
+                        </PaginationItem>
+                        
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink
+                                onClick={() => setCurrentPage(pageNum)}
+                                isActive={currentPage === pageNum}
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        })}
+                        
+                        <PaginationItem>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                          >
+                            Próxima
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
                 )}
               </CardContent>
