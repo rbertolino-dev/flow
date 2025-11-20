@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -14,7 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Search, Filter, Phone, Mail, Building2, X, Download, Users, FileText, MessageSquare, Copy, ArrowUpDown, ArrowUp, ArrowDown, Layers, LayoutGrid, List } from "lucide-react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Loader2, Search, Filter, Phone, Mail, Building2, X, Download, Users, FileText, MessageSquare, Copy, ArrowUpDown, ArrowUp, ArrowDown, Layers, LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +57,11 @@ export default function NovaFuncao() {
   
   // Estado de visualização
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  
+  // Estados de paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [groupPages, setGroupPages] = useState<Record<string, number>>({});
+  const itemsPerPage = 25;
 
   const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook") => {
     if (view === "users") {
@@ -127,10 +133,22 @@ export default function NovaFuncao() {
   // Agrupar contatos
   const groupedContacts = useMemo(() => {
     if (groupBy === "none") {
-      return [{ key: "all", label: "Todos os Contatos", contacts: sortedContacts }];
+      const totalPages = Math.ceil(sortedContacts.length / itemsPerPage);
+      const currentGroupPage = groupPages['all'] || 1;
+      const startIndex = (currentGroupPage - 1) * itemsPerPage;
+      const paginatedContacts = sortedContacts.slice(startIndex, startIndex + itemsPerPage);
+      
+      return [{ 
+        key: "all", 
+        label: "Todos os Contatos", 
+        contacts: paginatedContacts,
+        totalContacts: sortedContacts.length,
+        totalPages,
+        currentPage: currentGroupPage
+      }];
     }
 
-    const groups: Record<string, { label: string; contacts: typeof sortedContacts }> = {};
+    const groups: Record<string, { label: string; contacts: typeof sortedContacts; totalContacts: number }> = {};
 
     sortedContacts.forEach((contact) => {
       let groupKey = "";
@@ -162,17 +180,31 @@ export default function NovaFuncao() {
       }
 
       if (!groups[groupKey]) {
-        groups[groupKey] = { label: groupLabel, contacts: [] };
+        groups[groupKey] = { label: groupLabel, contacts: [], totalContacts: 0 };
       }
       groups[groupKey].contacts.push(contact);
     });
 
-    return Object.entries(groups).map(([key, value]) => ({
-      key,
-      label: value.label,
-      contacts: value.contacts,
-    }));
-  }, [sortedContacts, groupBy]);
+    return Object.entries(groups).map(([key, value]) => {
+      const totalPages = Math.ceil(value.contacts.length / itemsPerPage);
+      const currentGroupPage = groupPages[key] || 1;
+      const startIndex = (currentGroupPage - 1) * itemsPerPage;
+      const paginatedContacts = value.contacts.slice(startIndex, startIndex + itemsPerPage);
+      
+      return {
+        key,
+        label: value.label,
+        contacts: paginatedContacts,
+        totalContacts: value.contacts.length,
+        totalPages,
+        currentPage: currentGroupPage
+      };
+    });
+  }, [sortedContacts, groupBy, groupPages, itemsPerPage]);
+
+  const setGroupPage = useCallback((groupKey: string, page: number) => {
+    setGroupPages(prev => ({ ...prev, [groupKey]: page }));
+  }, []);
 
   const toggleGroupCollapse = (groupKey: string) => {
     setCollapsedGroups(prev => {
@@ -765,7 +797,8 @@ export default function NovaFuncao() {
                                 {group.label}
                               </h3>
                               <Badge variant="secondary" className="ml-2">
-                                {group.contacts.length} {group.contacts.length === 1 ? 'contato' : 'contatos'}
+                                {group.totalContacts} {group.totalContacts === 1 ? 'contato' : 'contatos'}
+                                {group.totalPages > 1 && ` - Página ${group.currentPage} de ${group.totalPages}`}
                               </Badge>
                             </div>
                           </div>
@@ -894,6 +927,64 @@ export default function NovaFuncao() {
                             </Card>
                           ))}
                         </div>
+                        
+                        {/* Paginação do Grupo - Grid */}
+                        {!isCollapsed && group.totalPages > 1 && (
+                          <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                            <div className="text-sm text-muted-foreground">
+                              Mostrando {((group.currentPage - 1) * itemsPerPage) + 1} a {Math.min(group.currentPage * itemsPerPage, group.totalContacts)} de {group.totalContacts} contatos
+                            </div>
+                            <Pagination>
+                              <PaginationContent>
+                                <PaginationItem>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setGroupPage(group.key, Math.max(1, group.currentPage - 1))}
+                                    disabled={group.currentPage === 1}
+                                  >
+                                    <ChevronLeft className="h-4 w-4" />
+                                  </Button>
+                                </PaginationItem>
+                                
+                                {Array.from({ length: Math.min(5, group.totalPages) }, (_, i) => {
+                                  let pageNum;
+                                  if (group.totalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (group.currentPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (group.currentPage >= group.totalPages - 2) {
+                                    pageNum = group.totalPages - 4 + i;
+                                  } else {
+                                    pageNum = group.currentPage - 2 + i;
+                                  }
+                                  
+                                  return (
+                                    <PaginationItem key={pageNum}>
+                                      <PaginationLink
+                                        onClick={() => setGroupPage(group.key, pageNum)}
+                                        isActive={group.currentPage === pageNum}
+                                      >
+                                        {pageNum}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  );
+                                })}
+                                
+                                <PaginationItem>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setGroupPage(group.key, Math.min(group.totalPages, group.currentPage + 1))}
+                                    disabled={group.currentPage === group.totalPages}
+                                  >
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Button>
+                                </PaginationItem>
+                              </PaginationContent>
+                            </Pagination>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -925,7 +1016,8 @@ export default function NovaFuncao() {
                                 {group.label}
                               </h3>
                               <Badge variant="secondary" className="ml-2">
-                                {group.contacts.length} {group.contacts.length === 1 ? 'contato' : 'contatos'}
+                                {group.totalContacts} {group.totalContacts === 1 ? 'contato' : 'contatos'}
+                                {group.totalPages > 1 && ` - Página ${group.currentPage} de ${group.totalPages}`}
                               </Badge>
                             </div>
                           </div>
@@ -1085,6 +1177,64 @@ export default function NovaFuncao() {
                             </TableBody>
                           </Table>
                         </div>
+                        
+                        {/* Paginação do Grupo */}
+                        {!isCollapsed && group.totalPages > 1 && (
+                          <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                            <div className="text-sm text-muted-foreground">
+                              Mostrando {((group.currentPage - 1) * itemsPerPage) + 1} a {Math.min(group.currentPage * itemsPerPage, group.totalContacts)} de {group.totalContacts} contatos
+                            </div>
+                            <Pagination>
+                              <PaginationContent>
+                                <PaginationItem>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setGroupPage(group.key, Math.max(1, group.currentPage - 1))}
+                                    disabled={group.currentPage === 1}
+                                  >
+                                    <ChevronLeft className="h-4 w-4" />
+                                  </Button>
+                                </PaginationItem>
+                                
+                                {Array.from({ length: Math.min(5, group.totalPages) }, (_, i) => {
+                                  let pageNum;
+                                  if (group.totalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (group.currentPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (group.currentPage >= group.totalPages - 2) {
+                                    pageNum = group.totalPages - 4 + i;
+                                  } else {
+                                    pageNum = group.currentPage - 2 + i;
+                                  }
+                                  
+                                  return (
+                                    <PaginationItem key={pageNum}>
+                                      <PaginationLink
+                                        onClick={() => setGroupPage(group.key, pageNum)}
+                                        isActive={group.currentPage === pageNum}
+                                      >
+                                        {pageNum}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  );
+                                })}
+                                
+                                <PaginationItem>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setGroupPage(group.key, Math.min(group.totalPages, group.currentPage + 1))}
+                                    disabled={group.currentPage === group.totalPages}
+                                  >
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Button>
+                                </PaginationItem>
+                              </PaginationContent>
+                            </Pagination>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
