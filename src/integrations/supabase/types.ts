@@ -556,6 +556,83 @@ export type Database = {
           },
         ]
       }
+      broadcast_time_windows: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          friday_end: string | null
+          friday_start: string | null
+          id: string
+          monday_end: string | null
+          monday_start: string | null
+          name: string
+          organization_id: string
+          saturday_end: string | null
+          saturday_start: string | null
+          sunday_end: string | null
+          sunday_start: string | null
+          thursday_end: string | null
+          thursday_start: string | null
+          tuesday_end: string | null
+          tuesday_start: string | null
+          updated_at: string
+          wednesday_end: string | null
+          wednesday_start: string | null
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          friday_end?: string | null
+          friday_start?: string | null
+          id?: string
+          monday_end?: string | null
+          monday_start?: string | null
+          name: string
+          organization_id: string
+          saturday_end?: string | null
+          saturday_start?: string | null
+          sunday_end?: string | null
+          sunday_start?: string | null
+          thursday_end?: string | null
+          thursday_start?: string | null
+          tuesday_end?: string | null
+          tuesday_start?: string | null
+          updated_at?: string
+          wednesday_end?: string | null
+          wednesday_start?: string | null
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          friday_end?: string | null
+          friday_start?: string | null
+          id?: string
+          monday_end?: string | null
+          monday_start?: string | null
+          name?: string
+          organization_id?: string
+          saturday_end?: string | null
+          saturday_start?: string | null
+          sunday_end?: string | null
+          sunday_start?: string | null
+          thursday_end?: string | null
+          thursday_start?: string | null
+          tuesday_end?: string | null
+          tuesday_start?: string | null
+          updated_at?: string
+          wednesday_end?: string | null
+          wednesday_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_time_windows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bubble_message_tracking: {
         Row: {
           created_at: string | null
@@ -1103,6 +1180,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "google_calendar_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instance_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          instance_ids: string[]
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          instance_ids?: string[]
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          instance_ids?: string[]
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instance_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
