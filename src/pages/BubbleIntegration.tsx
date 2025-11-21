@@ -401,20 +401,22 @@ export default function BubbleIntegration() {
                   </div>
 
                   {showFilters ? (
-                    <div className="space-y-3 p-4 border rounded-lg">
-                      <Alert className="bg-yellow-50 border-yellow-200">
-                        <Info className="h-4 w-4 text-yellow-600" />
-                        <AlertDescription className="text-xs text-yellow-800">
-                          <strong>⚠️ Filtros por empresa ou campos relacionados:</strong>
-                          <br />1. Não use o nome da empresa diretamente (ex: "pubdigital ADM")
-                          <br />2. Use o campo <code className="bg-yellow-100 px-1 rounded">_id</code> do objeto relacionado
-                          <br />3. Exemplo: Campo "empresa" → Valor "1234567890abcd" (ID da empresa)
-                          <br /><br />
-                          <strong>Como descobrir o ID:</strong>
-                          <br />• Consulte a tabela <code className="bg-yellow-100 px-1 rounded">empresa_principal</code> sem filtros
-                          <br />• Localize a empresa desejada na resposta
-                          <br />• Copie o valor do campo <code className="bg-yellow-100 px-1 rounded">_id</code>
-                          <br />• Use esse ID no filtro da outra tabela
+                    <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                      <Alert className="bg-destructive/10 border-destructive/30">
+                        <Info className="h-4 w-4 text-destructive" />
+                        <AlertDescription className="text-sm">
+                          <strong className="text-destructive">🚫 ATENÇÃO: NÃO use nomes de empresas como valores!</strong>
+                          <div className="mt-2 space-y-1 text-xs">
+                            <p><strong>❌ ERRADO:</strong> Campo "empresa" com valor "pubdigital ADM"</p>
+                            <p><strong>✅ CORRETO:</strong> Campo "empresa" com valor "67890abcdef123" (o _id da empresa)</p>
+                          </div>
+                          <div className="mt-3 p-2 bg-background rounded text-xs space-y-1">
+                            <p className="font-semibold">Como obter o ID correto:</p>
+                            <p>1. Consulte <code className="bg-muted px-1 rounded">empresa_principal</code> SEM filtros</p>
+                            <p>2. Encontre a empresa na lista de resultados</p>
+                            <p>3. Copie o valor do campo <code className="bg-muted px-1 rounded">_id</code></p>
+                            <p>4. Cole esse ID no filtro aqui</p>
+                          </div>
                         </AlertDescription>
                       </Alert>
 
