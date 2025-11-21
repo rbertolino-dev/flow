@@ -49,6 +49,11 @@ export default function BubbleIntegration() {
   // Filtros dinâmicos
   const [filters, setFilters] = useState<Array<{ key: string; operator: string; value: string }>>([]);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Filtros de data
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [dateField, setDateField] = useState("Created Date");
 
   // Exemplos pré-configurados - apenas nomes das tabelas
   const preConfiguredExamples = [
@@ -114,13 +119,32 @@ export default function BubbleIntegration() {
   };
 
   const buildConstraints = () => {
-    return filters
+    const builtFilters = filters
       .filter(f => f.key && f.value)
       .map(f => ({
         key: f.key,
         constraint_type: f.operator,
         value: f.value
       }));
+    
+    // Adicionar filtros de data se definidos
+    if (startDate) {
+      builtFilters.push({
+        key: dateField,
+        constraint_type: "greater than",
+        value: new Date(startDate).getTime().toString()
+      });
+    }
+    
+    if (endDate) {
+      builtFilters.push({
+        key: dateField,
+        constraint_type: "less than",
+        value: new Date(endDate + "T23:59:59").getTime().toString()
+      });
+    }
+    
+    return builtFilters;
   };
 
   const exportToCSV = () => {
@@ -473,32 +497,93 @@ export default function BubbleIntegration() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Filtros</Label>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowFilters(!showFilters)}
-                      disabled={!queryResult}
-                      title={!queryResult ? "Faça uma consulta sem filtros primeiro para descobrir os campos disponíveis" : ""}
-                    >
-                      <Filter className="w-4 h-4 mr-2" />
-                      {showFilters ? "Modo Manual" : "Filtros Avançados"}
-                    </Button>
+                <div className="space-y-4">
+                  {/* Filtros de Data */}
+                  <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <Label className="font-semibold">Filtrar por Data de Criação</Label>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Campo de Data</Label>
+                        <Input
+                          placeholder="Created Date"
+                          value={dateField}
+                          onChange={(e) => setDateField(e.target.value)}
+                          className="text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Padrão: "Created Date" (formato Bubble)
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-xs">Data Inicial</Label>
+                        <Input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="text-sm"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-xs">Data Final</Label>
+                        <Input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                    
+                    {(startDate || endDate) && (
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          {startDate && endDate ? (
+                            <>Buscando registros criados entre {new Date(startDate).toLocaleDateString('pt-BR')} e {new Date(endDate).toLocaleDateString('pt-BR')}</>
+                          ) : startDate ? (
+                            <>Buscando registros criados a partir de {new Date(startDate).toLocaleDateString('pt-BR')}</>
+                          ) : (
+                            <>Buscando registros criados até {new Date(endDate).toLocaleDateString('pt-BR')}</>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
-                  
-                  {!queryResult && (
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-sm text-blue-800">
-                        <strong>⚠️ PRIMEIRO PASSO OBRIGATÓRIO:</strong>
-                        <br />Clique em "Consultar" abaixo SEM adicionar filtros.
-                        <br />Isso mostrará os campos disponíveis nesta tabela.
-                        <br />Depois você poderá adicionar filtros usando os campos reais.
-                      </AlertDescription>
-                    </Alert>
-                  )}
+
+                  {/* Filtros Avançados */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Filtros Adicionais</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowFilters(!showFilters)}
+                        disabled={!queryResult}
+                        title={!queryResult ? "Faça uma consulta sem filtros primeiro para descobrir os campos disponíveis" : ""}
+                      >
+                        <Filter className="w-4 h-4 mr-2" />
+                        {showFilters ? "Modo Manual" : "Filtros Avançados"}
+                      </Button>
+                    </div>
+                    
+                    {!queryResult && (
+                      <Alert className="bg-blue-50 border-blue-200">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <AlertDescription className="text-sm text-blue-800">
+                          <strong>⚠️ PRIMEIRO PASSO OBRIGATÓRIO:</strong>
+                          <br />Clique em "Consultar" abaixo SEM adicionar filtros.
+                          <br />Isso mostrará os campos disponíveis nesta tabela.
+                          <br />Depois você poderá adicionar filtros usando os campos reais.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
 
                   {showFilters ? (
                     <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
