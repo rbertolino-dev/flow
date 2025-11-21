@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles, Download, Filter, X, BarChart } from "lucide-react";
+import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles, Download, Filter, X, BarChart, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BubbleUsageReport } from "@/components/bubble/BubbleUsageReport";
+import { BubbleClientAnalysis } from "@/components/bubble/BubbleClientAnalysis";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -219,6 +220,10 @@ export default function BubbleIntegration() {
             <TabsTrigger value="reports" disabled={!config || !queryHistory || queryHistory.length === 0}>
               <BarChart className="w-4 h-4 mr-2" />
               Relatórios de Uso
+            </TabsTrigger>
+            <TabsTrigger value="analysis" disabled={!config}>
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Análise de Clientes
             </TabsTrigger>
           </TabsList>
 
@@ -820,6 +825,13 @@ export default function BubbleIntegration() {
           <TabsContent value="reports" className="space-y-4">
             <BubbleUsageReport 
               queries={queryHistory || []} 
+            />
+          </TabsContent>
+
+          <TabsContent value="analysis" className="space-y-4">
+            <BubbleClientAnalysis 
+              onExecuteQuery={executeQuery}
+              isExecuting={isExecuting}
             />
           </TabsContent>
         </Tabs>
