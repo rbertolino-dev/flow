@@ -382,12 +382,25 @@ export default function BubbleIntegration() {
 
                   {showFilters ? (
                     <div className="space-y-3 p-4 border rounded-lg">
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          <strong>⚠️ Importante:</strong> Certifique-se de usar campos que existem na tabela <code className="bg-muted px-1 rounded">{endpoint || "selecionada"}</code>.
+                          <br />Campos inválidos causarão erro 404 do Bubble.io.
+                          <br /><br />
+                          <strong>Exemplos de campos comuns:</strong>
+                          <br />• Empresas: <code className="bg-muted px-1 rounded">nome</code>, <code className="bg-muted px-1 rounded">cnpj</code>
+                          <br />• Vendas: <code className="bg-muted px-1 rounded">valor</code>, <code className="bg-muted px-1 rounded">data</code>, <code className="bg-muted px-1 rounded">status</code>
+                          <br />• Lançamentos: <code className="bg-muted px-1 rounded">valor</code>, <code className="bg-muted px-1 rounded">tipo</code>, <code className="bg-muted px-1 rounded">categoria</code>
+                        </AlertDescription>
+                      </Alert>
+
                       {filters.map((filter, index) => (
                         <div key={index} className="grid grid-cols-12 gap-2 items-end">
                           <div className="col-span-4 space-y-1">
-                            <Label className="text-xs">Campo</Label>
+                            <Label className="text-xs">Campo da Tabela</Label>
                             <Input
-                              placeholder="Ex: nome_empresa"
+                              placeholder="Ex: nome, valor, status"
                               value={filter.key}
                               onChange={(e) => updateFilter(index, "key", e.target.value)}
                             />
@@ -441,21 +454,19 @@ export default function BubbleIntegration() {
                       >
                         + Adicionar Filtro
                       </Button>
-                      <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription className="text-xs">
-                          <strong>Exemplo comum:</strong> Para filtrar por empresa específica, use:
-                          <br />• Campo: <code className="bg-muted px-1 rounded">nome_empresa</code>
-                          <br />• Operador: "Contém" ou "Igual a"
-                          <br />• Valor: nome da empresa desejada
-                        </AlertDescription>
-                      </Alert>
+                      
                     </div>
                   ) : (
                     <>
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          Use JSON para filtros. Certifique-se de usar campos que existem na tabela <code className="bg-muted px-1 rounded">{endpoint || "selecionada"}</code>.
+                        </AlertDescription>
+                      </Alert>
                       <Textarea
                         id="constraints"
-                        placeholder='Ex: [{"key": "nome_empresa", "constraint_type": "text contains", "value": "PubDigital"}]'
+                        placeholder='Ex: [{"key": "nome", "constraint_type": "text contains", "value": "PubDigital"}]'
                         value={constraints}
                         onChange={(e) => setConstraints(e.target.value)}
                         rows={3}
