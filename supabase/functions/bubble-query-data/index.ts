@@ -127,7 +127,6 @@ serve(async (req) => {
     console.log('🔄 Consultando Bubble.io API...');
     
     // Construir URL corretamente baseado na estrutura do Bubble
-    // Se a api_url já termina com /wf ou /api/1.1/wf, apenas adicionar o endpoint
     let bubbleUrl = bubbleConfig.api_url;
     
     // Remover barra final se existir
@@ -149,12 +148,100 @@ serve(async (req) => {
         c.constraint_type === 'greater than' || c.constraint_type === 'less than'
       );
       
-      // Se NÃO houver filtro de data, limitar a 100 registros
-      if (!hasDateFilter) {
+      if (hasDateFilter) {
+        console.log('📅 Filtro de data detectado - buscando todos os registros com paginação');
+        
+        // Buscar todos os registros usando paginação
+        let allResults: any[] = [];
+        let cursor = 0;
+        let hasMore = true;
+        let pageCount = 0;
+        
+        while (hasMore) {
+          pageCount++;
+          const pageParams = new URLSearchParams(params);
+          if (cursor > 0) {
+            pageParams.append('cursor', cursor.toString());
+          }
+          
+          const pageUrl = `${bubbleUrl}?${pageParams.toString()}`;
+          console.log(`📄 Buscando página ${pageCount} (cursor: ${cursor})...`);
+          
+          const pageResponse = await fetch(pageUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${bubbleConfig.api_key}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!pageResponse.ok) {
+            const errorText = await pageResponse.text();
+            console.error('❌ Resposta de erro:', errorText);
+            throw new Error(`Erro Bubble API: ${pageResponse.status} - ${errorText}`);
+          }
+          
+          const pageData = await pageResponse.json();
+          
+          if (pageData.response?.results) {
+            allResults = allResults.concat(pageData.response.results);
+            console.log(`✅ Página ${pageCount}: ${pageData.response.results.length} registros (total: ${allResults.length})`);
+          }
+          
+          // Verificar se há mais páginas
+          // O Bubble retorna remaining se houver mais dados
+          if (pageData.response?.remaining > 0) {
+            cursor = pageData.response.cursor || (cursor + 100);
+          } else {
+            hasMore = false;
+          }
+          
+          // Segurança: limitar a 50 páginas (5000 registros)
+          if (pageCount >= 50) {
+            console.log('⚠️ Limite de 50 páginas atingido');
+            hasMore = false;
+          }
+        }
+        
+        console.log(`✅ Total de ${allResults.length} registros obtidos em ${pageCount} página(s)`);
+        
+        const bubbleData = {
+          response: {
+            cursor: 0,
+            results: allResults,
+            count: allResults.length,
+            remaining: 0
+          }
+        };
+        
+        // Salvar no histórico para cache - apenas se não skipCache
+        if (!skipCache) {
+          await supabase
+            .from('bubble_query_history')
+            .insert({
+              organization_id: organizationId,
+              query_type,
+              query_params: { endpoint, constraints },
+              response_data: bubbleData,
+            });
+          console.log('✅ Dados consultados e salvos no cache');
+        } else {
+          console.log('⚡ Dados consultados (sem armazenamento)');
+        }
+        
+        return new Response(
+          JSON.stringify({
+            data: bubbleData,
+            cached: false,
+            skipCache,
+            message: skipCache ? `Dados consultados do Bubble.io - ${allResults.length} registros (sem cache)` : `Dados consultados do Bubble.io - ${allResults.length} registros`
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        // Sem filtro de data, limitar a 100
         params.append('limit', '100');
         console.log('⚠️ Limitando a 100 registros (sem filtro de data)');
-      } else {
-        console.log('📅 Filtro de data detectado - sem limitação de registros');
       }
     } else {
       // Sem constraints, limitar a 100
