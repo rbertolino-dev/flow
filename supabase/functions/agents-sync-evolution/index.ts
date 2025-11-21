@@ -48,19 +48,24 @@ serve(async (req) => {
   try {
     console.log("🚀 [agents-sync-evolution] Recebeu requisição");
     
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    
-    // Criar cliente Supabase com a chave anon para validar o JWT
     const authHeader = req.headers.get("authorization");
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: { Authorization: authHeader! },
-      },
-    });
-
-    // Validar usuário autenticado
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log("🔑 [agents-sync-evolution] Auth header presente?", !!authHeader);
+    
+    if (!authHeader) {
+      throw new Error("Header de autorização não fornecido");
+    }
+    
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Usar service role para operações do banco, mas validar o JWT do usuário
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Extrair token
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Validar usuário com o token JWT
+    const { data: { user }, error: userError } = await supabaseService.auth.getUser(token);
     
     if (userError || !user) {
       console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
@@ -76,8 +81,8 @@ serve(async (req) => {
       throw new Error("agent_id é obrigatório");
     }
 
-    // Buscar dados do agente
-    const { data: agent, error: agentError } = await supabase
+    // Buscar dados do agente usando service role
+    const { data: agent, error: agentError } = await supabaseService
       .from("agents")
       .select("*")
       .eq("id", agent_id)
@@ -114,8 +119,8 @@ serve(async (req) => {
       throw new Error("Agente não possui configuração Evolution vinculada");
     }
 
-    // Buscar configuração Evolution
-    const { data: config, error: configError } = await supabase
+    // Buscar configuração Evolution usando service role
+    const { data: config, error: configError } = await supabaseService
       .from("evolution_config")
       .select("*")
       .eq("id", agent.evolution_config_id)
@@ -129,7 +134,7 @@ serve(async (req) => {
     console.log("✅ [agents-sync-evolution] Config Evolution encontrada:", config.instance_name);
 
     // Sincronizar o agente
-    await syncAgentToEvolution(agent, config, supabase);
+    await syncAgentToEvolution(agent, config, supabaseService);
 
     return new Response(
       JSON.stringify({
