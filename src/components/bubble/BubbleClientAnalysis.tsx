@@ -49,7 +49,12 @@ export function BubbleClientAnalysis() {
       },
     });
 
-    if (response.error) throw response.error;
+    if (response.error) {
+      console.error("Erro na query:", response.error);
+      throw new Error(response.error.message || "Erro ao consultar Bubble");
+    }
+
+    console.log("Response completa:", response.data);
     return response.data;
   };
 
@@ -66,32 +71,39 @@ export function BubbleClientAnalysis() {
       // 1. Buscar empresas
       const companiesResp = await executeQuery(companiesEndpoint, companiesEndpoint);
       
-      if (!companiesResp?.response?.results) {
-        throw new Error("Nenhuma empresa encontrada");
+      console.log("Resposta empresas:", companiesResp);
+      
+      // Acessar os dados corretamente - a edge function retorna { response: { results: [...] } }
+      const empresasResults = companiesResp?.response?.results;
+      
+      if (!empresasResults || empresasResults.length === 0) {
+        throw new Error(`Nenhuma empresa encontrada no endpoint "${companiesEndpoint}". Verifique se o nome está correto.`);
       }
 
       toast({
         title: "Empresas encontradas",
-        description: `${companiesResp.response.results.length} empresas carregadas. Buscando vendas...`,
+        description: `${empresasResults.length} empresas carregadas. Buscando vendas...`,
       });
 
       // 2. Buscar vendas
       const salesResp = await executeQuery(salesEndpoint, salesEndpoint);
+      const salesResults = salesResp?.response?.results || [];
 
-      let ordersResp = null;
+      let ordersResults = [];
       if (ordersEndpoint && ordersEndpoint.trim()) {
         toast({
           title: "Buscando ordens...",
           description: "Consultando ordens de serviço",
         });
-        ordersResp = await executeQuery(ordersEndpoint, ordersEndpoint);
+        const ordersResp = await executeQuery(ordersEndpoint, ordersEndpoint);
+        ordersResults = ordersResp?.response?.results || [];
       }
 
       // 3. Processar dados
       const companyMap = new Map<string, CompanyData>();
 
       // Processar empresas
-      companiesResp.response.results.forEach((company: any) => {
+      empresasResults.forEach((company: any) => {
         const companyName = company[companyNameField] || 
                           company.Nome || 
                           company.name || 
@@ -107,9 +119,11 @@ export function BubbleClientAnalysis() {
         });
       });
 
+      console.log("Mapa de empresas criado:", companyMap.size, "empresas");
+
       // Contar vendas por empresa
-      if (salesResp?.response?.results) {
-        salesResp.response.results.forEach((sale: any) => {
+      if (salesResults.length > 0) {
+        salesResults.forEach((sale: any) => {
           const companyId = sale.empresa?._id || sale.empresa;
           if (companyId && companyMap.has(companyId)) {
             const company = companyMap.get(companyId)!;
@@ -117,11 +131,12 @@ export function BubbleClientAnalysis() {
             company.totalActivity++;
           }
         });
+        console.log("Vendas processadas:", salesResults.length);
       }
 
       // Contar ordens por empresa
-      if (ordersResp?.response?.results) {
-        ordersResp.response.results.forEach((order: any) => {
+      if (ordersResults.length > 0) {
+        ordersResults.forEach((order: any) => {
           const companyId = order.empresa?._id || order.empresa;
           if (companyId && companyMap.has(companyId)) {
             const company = companyMap.get(companyId)!;
@@ -129,6 +144,7 @@ export function BubbleClientAnalysis() {
             company.totalActivity++;
           }
         });
+        console.log("Ordens processadas:", ordersResults.length);
       }
 
       // Converter para array e ordenar
@@ -141,7 +157,7 @@ export function BubbleClientAnalysis() {
 
       toast({
         title: "Análise concluída!",
-        description: `${sortedCompanies.length} empresas ativas encontradas`,
+        description: `${sortedCompanies.length} empresas com atividade encontradas`,
       });
 
     } catch (error: any) {
