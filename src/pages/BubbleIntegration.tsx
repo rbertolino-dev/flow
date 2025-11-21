@@ -43,16 +43,22 @@ export default function BubbleIntegration() {
   const [constraints, setConstraints] = useState("");
   const [queryResult, setQueryResult] = useState<any>(null);
 
-  // Exemplos pré-configurados baseados em PubDigital
+  // Exemplos pré-configurados baseados nos Data Types do Bubble.io do usuário
   const preConfiguredExamples = [
     { name: "Categorias Financeiras", type: "categorias", endpoint: "fin_categoria" },
-    { name: "Lançamentos", type: "lancamentos", endpoint: "fim_lançamento" },
-    { name: "Empresas", type: "empresas", endpoint: "fin_empresas" },
-    { name: "Pessoas", type: "pessoas", endpoint: "fim_pessoa" },
-    { name: "Tipos de Lançamento", type: "tipos_lancamento", endpoint: "fin_tipos_lancamento" },
-    { name: "Contas", type: "contas", endpoint: "fim_contas" },
-    { name: "Credores/Devedores", type: "credores_devedores", endpoint: "fim_credores_devedores" },
-    { name: "Subcategorias", type: "subcategorias", endpoint: "fim_subcategoria" },
+    { name: "Lançamentos Financeiros", type: "lancamentos", endpoint: "fim_lançamento" },
+    { name: "Empresa Principal", type: "empresas", endpoint: "empresa_principal" },
+    { name: "Contas Financeiras", type: "contas", endpoint: "fin_contas" },
+    { name: "Parcelamentos", type: "parcelamentos", endpoint: "fin_parcelamento" },
+    { name: "Ordens de Serviço", type: "ordens", endpoint: "ordem_servico" },
+    { name: "Vendas", type: "vendas", endpoint: "vendas" },
+    { name: "Caixa Diário", type: "caixa", endpoint: "caixa_dia" },
+    { name: "Carrinho/Comanda", type: "carrinho", endpoint: "carrinho/comanda" },
+    { name: "Cenário Imposto", type: "impostos", endpoint: "cenário imposto" },
+    { name: "Comentários de Contato", type: "comentarios", endpoint: "comentário_contato" },
+    { name: "Comunicações", type: "comunicacoes", endpoint: "comunicações" },
+    { name: "Credenciais Uazap", type: "credenciais", endpoint: "credenciais uazap" },
+    { name: "Descontos/Acréscimos", type: "descontos", endpoint: "desconto_acrescimo" },
   ];
 
   const handleSelectExample = (value: string) => {
