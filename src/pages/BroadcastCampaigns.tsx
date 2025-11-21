@@ -92,6 +92,11 @@ export default function BroadcastCampaigns() {
     queueItems: any[];
     campaign: any;
   } | null>(null);
+  const [outOfWindowConfirmDialog, setOutOfWindowConfirmDialog] = useState<{
+    open: boolean;
+    nextWindowTime: Date | null;
+    onConfirm: () => void;
+  } | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [pastedList, setPastedList] = useState("");
   const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
@@ -735,21 +740,8 @@ export default function BroadcastCampaigns() {
     }
   };
 
-  const handleStartCampaign = async (campaignId: string) => {
+  const proceedWithCampaignStart = async (campaignId: string, scheduleForNextWindow: boolean) => {
     try {
-      // Validar horário se houver janela ativa
-      if (activeTimeWindow) {
-        const canStart = canStartCampaignNow(activeTimeWindow);
-        if (!canStart.canStart) {
-          toast({
-            title: "Horário não permitido",
-            description: canStart.reason || "Não é possível iniciar a campanha neste horário",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
       // Buscar itens pendentes
       const { data: queueItems, error: fetchError } = await supabase
         .from("broadcast_queue")
@@ -774,21 +766,33 @@ export default function BroadcastCampaigns() {
 
       if (campaignError) throw campaignError;
 
-      // Verificar se há mensagens que ficarão fora da janela
-      if (activeTimeWindow) {
+      // Se deve agendar para próxima janela, fazer isso
+      if (scheduleForNextWindow && activeTimeWindow) {
+        const nextWindowTime = getNextWindowTime(activeTimeWindow, new Date());
+        if (nextWindowTime) {
+          // Agendar todas as mensagens a partir do próximo horário disponível
+          await scheduleCampaignMessages(campaignId, queueItems, campaign, "reschedule");
+          
+          toast({
+            title: "Campanha agendada!",
+            description: `Mensagens agendadas para ${formatDate(nextWindowTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+          });
+          fetchCampaigns();
+          return;
+        }
+      }
+
+      // Verificar se há mensagens que ficarão fora da janela (continua do código original)
+      if (activeTimeWindow && !scheduleForNextWindow) {
         const now = new Date();
-        
-        // Calcular delay uma vez (otimização)
         const minDelay = campaign.min_delay_seconds;
         const maxDelay = campaign.max_delay_seconds;
         const avgDelay = (minDelay + maxDelay) / 2;
         const avgDelayMs = avgDelay * 1000;
         
-        // Verificar se é modo separate (otimizado - fazer uma vez)
         const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
         const isSeparate = uniqueInstances.size > 1;
         
-        // Se é separate, verificar distribuição
         let isSeparateMode = false;
         if (isSeparate) {
           const messagesPerInstance = new Map<string, number>();
@@ -803,7 +807,6 @@ export default function BroadcastCampaigns() {
         let firstOutOfWindowTime: Date | null = null;
         
         if (isSeparateMode) {
-          // Modo separate: cada instância tem sua própria fila começando no mesmo tempo
           const instancesMap = new Map<string, any[]>();
           queueItems.forEach(item => {
             if (!instancesMap.has(item.instance_id)) {
@@ -812,7 +815,6 @@ export default function BroadcastCampaigns() {
             instancesMap.get(item.instance_id)!.push(item);
           });
           
-          // Verificar para cada instância (todas começam ao mesmo tempo)
           instancesMap.forEach((itemsForInstance) => {
             let instanceScheduledTime = new Date(now);
             
@@ -830,7 +832,6 @@ export default function BroadcastCampaigns() {
             });
           });
         } else {
-          // Modo single ou rotate: fila sequencial
           let currentScheduledTime = new Date(now);
           
           for (const item of queueItems) {
@@ -847,7 +848,6 @@ export default function BroadcastCampaigns() {
           }
         }
 
-        // Se há mensagens fora da janela, mostrar diálogo
         if (messagesOutOfWindow > 0 && firstOutOfWindowTime) {
           const nextWindowTime = getNextWindowTime(activeTimeWindow, firstOutOfWindowTime);
           setTimeWindowConflictDialog({
@@ -860,12 +860,47 @@ export default function BroadcastCampaigns() {
             queueItems,
             campaign,
           });
-          return; // Aguardar decisão do usuário
+          return;
         }
       }
 
-      // Se não há conflito ou usuário já resolveu, prosseguir com agendamento
       await scheduleCampaignMessages(campaignId, queueItems, campaign, "reschedule");
+
+    } catch (error: any) {
+      toast({
+        title: "Erro ao iniciar campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartCampaign = async (campaignId: string) => {
+    try {
+      // Validar horário se houver janela ativa
+      if (activeTimeWindow) {
+        const canStart = canStartCampaignNow(activeTimeWindow);
+        if (!canStart.canStart) {
+          // Calcular próximo horário disponível
+          const nextWindowTime = getNextWindowTime(activeTimeWindow, new Date());
+          
+          // Mostrar dialog de confirmação
+          setOutOfWindowConfirmDialog({
+            open: true,
+            nextWindowTime,
+            onConfirm: async () => {
+              setOutOfWindowConfirmDialog(null);
+              // Se confirmou, prosseguir com agendamento automático
+              await proceedWithCampaignStart(campaignId, true);
+            },
+          });
+          return;
+        }
+      }
+
+      // Se está dentro da janela, prosseguir normalmente
+      await proceedWithCampaignStart(campaignId, false);
+
 
     } catch (error: any) {
       toast({
@@ -2436,6 +2471,52 @@ export default function BroadcastCampaigns() {
             currentMaxDelay={timeWindowConflictDialog.campaign.max_delay_seconds}
             onResolve={handleTimeWindowConflictResolve}
           />
+        )}
+
+        {/* Dialog de Confirmação - Fora do Horário Permitido */}
+        {outOfWindowConfirmDialog && (
+          <Dialog open={outOfWindowConfirmDialog.open} onOpenChange={(open) => {
+            if (!open) setOutOfWindowConfirmDialog(null);
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Campanha Fora do Horário Permitido</DialogTitle>
+                <DialogDescription>
+                  Você está tentando iniciar uma campanha fora da janela de horário configurada.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Horário atual:</strong> Fora da janela permitida (9h - 18h seg-sex)
+                  </p>
+                  {outOfWindowConfirmDialog.nextWindowTime && (
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-2">
+                      <strong>Próximo horário disponível:</strong>{" "}
+                      {formatDate(outOfWindowConfirmDialog.nextWindowTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </p>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Deseja agendar automaticamente a campanha para o próximo horário disponível?
+                </p>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setOutOfWindowConfirmDialog(null)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={outOfWindowConfirmDialog.onConfirm}
+                  className="bg-primary"
+                >
+                  Agendar Automaticamente
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Dialog de Simulação de Envio */}
