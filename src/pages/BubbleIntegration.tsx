@@ -441,14 +441,15 @@ export default function BubbleIntegration() {
                           <strong className="text-destructive">🚫 ATENÇÃO: NÃO use nomes de empresas como valores!</strong>
                           <div className="mt-2 space-y-1 text-xs">
                             <p><strong>❌ ERRADO:</strong> Campo "empresa" com valor "pubdigital ADM"</p>
-                            <p><strong>✅ CORRETO:</strong> Campo "empresa" com valor "67890abcdef123" (o _id da empresa)</p>
+                            <p><strong>✅ CORRETO:</strong> Campo "empresa" com valor "1667190288736x968847483630780400" (formato de _id do Bubble)</p>
                           </div>
                           <div className="mt-3 p-2 bg-background rounded text-xs space-y-1">
                             <p className="font-semibold">Como obter o ID correto:</p>
                             <p>1. Consulte <code className="bg-muted px-1 rounded">empresa_principal</code> SEM filtros</p>
                             <p>2. Encontre a empresa na lista de resultados</p>
-                            <p>3. Copie o valor do campo <code className="bg-muted px-1 rounded">_id</code></p>
+                            <p>3. Copie o valor EXATO do campo <code className="bg-muted px-1 rounded">_id</code></p>
                             <p>4. Cole esse ID no filtro aqui</p>
+                            <p className="text-muted-foreground mt-2">💡 Se receber erro "object does not exist", o ID está correto no formato mas não existe no banco - verifique se copiou o _id certo!</p>
                           </div>
                         </AlertDescription>
                       </Alert>
