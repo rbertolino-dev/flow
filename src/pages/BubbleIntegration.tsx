@@ -394,11 +394,25 @@ export default function BubbleIntegration() {
                       variant="outline"
                       size="sm"
                       onClick={() => setShowFilters(!showFilters)}
+                      disabled={!queryResult}
+                      title={!queryResult ? "Faça uma consulta sem filtros primeiro para descobrir os campos disponíveis" : ""}
                     >
                       <Filter className="w-4 h-4 mr-2" />
                       {showFilters ? "Modo Manual" : "Filtros Avançados"}
                     </Button>
                   </div>
+                  
+                  {!queryResult && (
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <Info className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-sm text-blue-800">
+                        <strong>⚠️ PRIMEIRO PASSO OBRIGATÓRIO:</strong>
+                        <br />Clique em "Consultar" abaixo SEM adicionar filtros.
+                        <br />Isso mostrará os campos disponíveis nesta tabela.
+                        <br />Depois você poderá adicionar filtros usando os campos reais.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   {showFilters ? (
                     <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
