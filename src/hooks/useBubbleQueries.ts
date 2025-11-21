@@ -7,6 +7,7 @@ interface BubbleQueryParams {
   query_type: string;
   endpoint: string;
   constraints?: any;
+  skipCache?: boolean;
 }
 
 interface BubbleQueryHistory {
