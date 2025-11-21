@@ -48,22 +48,26 @@ serve(async (req) => {
   try {
     console.log("🚀 [agents-sync-evolution] Recebeu requisição");
     
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      throw new Error("Sem autorização");
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    // Criar cliente Supabase com a chave anon para validar o JWT
+    const authHeader = req.headers.get("authorization");
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader! },
+      },
+    });
 
-    const { data: userData, error: userError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-
-    if (userError || !userData?.user) {
+    // Validar usuário autenticado
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
       throw new Error("Usuário não autenticado");
     }
+
+    console.log("✅ [agents-sync-evolution] Usuário autenticado:", user.id);
 
     const { agent_id } = await req.json();
     console.log("📋 [agents-sync-evolution] Agent ID recebido:", agent_id);
@@ -169,7 +173,14 @@ async function syncAgentToEvolution(
   
   // 1. Buscar OpenAI API Key da organização
   console.log(`🔑 [agents-sync-evolution] Buscando OpenAI API Key da organização ${agent.organization_id}...`);
-  const { data: openaiConfig, error: openaiError } = await supabase
+  
+  // Usar service role para buscar API key
+  const supabaseServiceRole = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  
+  const { data: openaiConfig, error: openaiError } = await supabaseServiceRole
     .from('openai_configs')
     .select('api_key')
     .eq('organization_id', agent.organization_id)

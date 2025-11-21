@@ -53,3 +53,12 @@ verify_jwt = false
 
 [functions.bubble-check-status]
 verify_jwt = false
+
+[functions.agents-sync-evolution]
+verify_jwt = true
+
+[functions.agents-sync-openai]
+verify_jwt = true
+
+[functions.openai-list-models]
+verify_jwt = true
