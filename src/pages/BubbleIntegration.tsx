@@ -47,132 +47,23 @@ export default function BubbleIntegration() {
   const [filters, setFilters] = useState<Array<{ key: string; operator: string; value: string }>>([]);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Configuração completa de cada Data Type com seus campos reais
-  const dataTypeFields: Record<string, { name: string; fields: string[]; commonFilters: Array<{ label: string; field: string; operator: string }> }> = {
-    "fin_categoria": {
-      name: "Categorias Financeiras",
-      fields: ["nome", "tipo", "ativo", "Created Date", "Modified Date"],
-      commonFilters: [
-        { label: "Apenas ativas", field: "ativo", operator: "equals" },
-        { label: "Por tipo", field: "tipo", operator: "equals" },
-      ]
-    },
-    "fim_lançamento": {
-      name: "Lançamentos Financeiros",
-      fields: ["valor", "data", "tipo", "categoria", "descricao", "status", "Created Date"],
-      commonFilters: [
-        { label: "Por data (maior que)", field: "data", operator: "greater than" },
-        { label: "Por tipo", field: "tipo", operator: "equals" },
-        { label: "Por status", field: "status", operator: "equals" },
-      ]
-    },
-    "empresa_principal": {
-      name: "Empresa Principal",
-      fields: ["nome", "cnpj", "razao_social", "ativo", "Created Date"],
-      commonFilters: [
-        { label: "Por nome", field: "nome", operator: "text contains" },
-        { label: "Apenas ativas", field: "ativo", operator: "equals" },
-      ]
-    },
-    "fin_contas": {
-      name: "Contas Financeiras",
-      fields: ["nome", "banco", "agencia", "conta", "saldo", "ativo", "Created Date"],
-      commonFilters: [
-        { label: "Apenas ativas", field: "ativo", operator: "equals" },
-        { label: "Por banco", field: "banco", operator: "text contains" },
-      ]
-    },
-    "fin_parcelamento": {
-      name: "Parcelamentos",
-      fields: ["valor_total", "num_parcelas", "status", "data_inicio", "Created Date"],
-      commonFilters: [
-        { label: "Por status", field: "status", operator: "equals" },
-        { label: "Parcelas (maior que)", field: "num_parcelas", operator: "greater than" },
-      ]
-    },
-    "ordem_servico": {
-      name: "Ordens de Serviço",
-      fields: ["numero", "cliente", "status", "data_abertura", "valor", "Created Date"],
-      commonFilters: [
-        { label: "Por status", field: "status", operator: "equals" },
-        { label: "Por cliente", field: "cliente", operator: "text contains" },
-        { label: "Data abertura (maior que)", field: "data_abertura", operator: "greater than" },
-      ]
-    },
-    "vendas": {
-      name: "Vendas",
-      fields: ["valor", "data", "cliente", "status", "produto", "quantidade", "Created Date"],
-      commonFilters: [
-        { label: "Por status", field: "status", operator: "equals" },
-        { label: "Por cliente", field: "cliente", operator: "text contains" },
-        { label: "Valor (maior que)", field: "valor", operator: "greater than" },
-      ]
-    },
-    "caixa_dia": {
-      name: "Caixa Diário",
-      fields: ["data", "saldo_inicial", "saldo_final", "status", "Created Date"],
-      commonFilters: [
-        { label: "Por data (maior que)", field: "data", operator: "greater than" },
-        { label: "Por status", field: "status", operator: "equals" },
-      ]
-    },
-    "carrinho/comanda": {
-      name: "Carrinho/Comanda",
-      fields: ["numero", "cliente", "total", "status", "data", "Created Date"],
-      commonFilters: [
-        { label: "Por status", field: "status", operator: "equals" },
-        { label: "Por data (maior que)", field: "data", operator: "greater than" },
-      ]
-    },
-    "cenário imposto": {
-      name: "Cenário Imposto",
-      fields: ["nome", "aliquota", "tipo", "ativo", "Created Date"],
-      commonFilters: [
-        { label: "Apenas ativos", field: "ativo", operator: "equals" },
-        { label: "Por tipo", field: "tipo", operator: "equals" },
-      ]
-    },
-    "comentário_contato": {
-      name: "Comentários de Contato",
-      fields: ["contato", "comentario", "data", "usuario", "Created Date"],
-      commonFilters: [
-        { label: "Por contato", field: "contato", operator: "text contains" },
-        { label: "Por data (maior que)", field: "data", operator: "greater than" },
-      ]
-    },
-    "comunicações": {
-      name: "Comunicações",
-      fields: ["tipo", "destinatario", "assunto", "status", "data", "Created Date"],
-      commonFilters: [
-        { label: "Por status", field: "status", operator: "equals" },
-        { label: "Por tipo", field: "tipo", operator: "equals" },
-      ]
-    },
-    "credenciais uazap": {
-      name: "Credenciais Uazap",
-      fields: ["nome", "token", "ativo", "Created Date"],
-      commonFilters: [
-        { label: "Apenas ativas", field: "ativo", operator: "equals" },
-      ]
-    },
-    "desconto_acrescimo": {
-      name: "Descontos/Acréscimos",
-      fields: ["nome", "tipo", "valor", "percentual", "ativo", "Created Date"],
-      commonFilters: [
-        { label: "Por tipo", field: "tipo", operator: "equals" },
-        { label: "Apenas ativos", field: "ativo", operator: "equals" },
-      ]
-    },
-  };
-
-  // Exemplos pré-configurados baseados nos Data Types do Bubble.io do usuário
-  const preConfiguredExamples = Object.entries(dataTypeFields).map(([endpoint, config]) => ({
-    name: config.name,
-    type: endpoint.replace(/[\/\s]/g, '_'),
-    endpoint: endpoint,
-    fields: config.fields,
-    commonFilters: config.commonFilters,
-  }));
+  // Exemplos pré-configurados - apenas nomes das tabelas
+  const preConfiguredExamples = [
+    { name: "Categorias Financeiras", type: "categorias", endpoint: "fin_categoria" },
+    { name: "Lançamentos Financeiros", type: "lancamentos", endpoint: "fim_lançamento" },
+    { name: "Empresa Principal", type: "empresas", endpoint: "empresa_principal" },
+    { name: "Contas Financeiras", type: "contas", endpoint: "fin_contas" },
+    { name: "Parcelamentos", type: "parcelamentos", endpoint: "fin_parcelamento" },
+    { name: "Ordens de Serviço", type: "ordens", endpoint: "ordem_servico" },
+    { name: "Vendas", type: "vendas", endpoint: "vendas" },
+    { name: "Caixa Diário", type: "caixa", endpoint: "caixa_dia" },
+    { name: "Carrinho/Comanda", type: "carrinho", endpoint: "carrinho/comanda" },
+    { name: "Cenário Imposto", type: "impostos", endpoint: "cenário imposto" },
+    { name: "Comentários de Contato", type: "comentarios", endpoint: "comentário_contato" },
+    { name: "Comunicações", type: "comunicacoes", endpoint: "comunicações" },
+    { name: "Credenciais Uazap", type: "credenciais", endpoint: "credenciais uazap" },
+    { name: "Descontos/Acréscimos", type: "descontos", endpoint: "desconto_acrescimo" },
+  ];
 
   const handleSelectExample = (value: string) => {
     const example = preConfiguredExamples.find(ex => ex.endpoint === value);
@@ -184,11 +75,6 @@ export default function BubbleIntegration() {
       setShowFilters(false);
       setQueryResult(null);
     }
-  };
-
-  const applyQuickFilter = (field: string, operator: string) => {
-    setShowFilters(true);
-    setFilters([{ key: field, operator: operator, value: "" }]);
   };
 
   const addFilter = () => {
@@ -246,6 +132,12 @@ export default function BubbleIntegration() {
     a.download = `bubble_${endpoint}_${new Date().toISOString()}.json`;
     a.click();
   };
+
+  const getAvailableFields = () => {
+    if (!queryResult?.data?.response?.results?.[0]) return [];
+    return Object.keys(queryResult.data.response.results[0]);
+  };
+
 
   const handleSave = () => {
     if (!apiUrl.trim() || !apiKey.trim()) return;
@@ -439,16 +331,16 @@ export default function BubbleIntegration() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="example-select">Consultas Pré-Configuradas</Label>
+                  <Label htmlFor="example-select">Selecione a Tabela</Label>
                   <Select onValueChange={handleSelectExample} value={endpoint}>
                     <SelectTrigger id="example-select">
-                      <SelectValue placeholder="Selecione uma tabela..." />
+                      <SelectValue placeholder="Escolha uma tabela do Bubble.io..." />
                     </SelectTrigger>
                     <SelectContent>
                       {preConfiguredExamples.map((example) => (
                         <SelectItem key={example.endpoint} value={example.endpoint}>
                           <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4" />
+                            <Database className="w-4 h-4" />
                             {example.name}
                           </div>
                         </SelectItem>
@@ -456,35 +348,12 @@ export default function BubbleIntegration() {
                     </SelectContent>
                   </Select>
                   
-                  {endpoint && dataTypeFields[endpoint] && (
-                    <div className="p-3 bg-muted rounded-lg space-y-2">
-                      <p className="text-sm font-medium">Campos disponíveis nesta tabela:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {dataTypeFields[endpoint].fields.map((field) => (
-                          <Badge key={field} variant="secondary" className="text-xs">
-                            {field}
-                          </Badge>
-                        ))}
-                      </div>
-                      {dataTypeFields[endpoint].commonFilters.length > 0 && (
-                        <>
-                          <p className="text-sm font-medium mt-3">Filtros rápidos:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {dataTypeFields[endpoint].commonFilters.map((filter) => (
-                              <Button
-                                key={filter.label}
-                                variant="outline"
-                                size="sm"
-                                onClick={() => applyQuickFilter(filter.field, filter.operator)}
-                              >
-                                {filter.label}
-                              </Button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      <strong>💡 Importante:</strong> Faça primeiro uma consulta <strong>SEM filtros</strong> para ver quais campos existem nesta tabela. Depois use esses campos nos filtros.
+                    </AlertDescription>
+                  </Alert>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -524,17 +393,19 @@ export default function BubbleIntegration() {
 
                   {showFilters ? (
                     <div className="space-y-3 p-4 border rounded-lg">
-                      {endpoint && dataTypeFields[endpoint] && (
+                      {getAvailableFields().length > 0 && (
                         <Alert>
                           <Info className="h-4 w-4" />
                           <AlertDescription className="text-xs">
-                            <strong>Campos válidos para "{dataTypeFields[endpoint].name}":</strong>
-                            <br />
-                            {dataTypeFields[endpoint].fields.map((field, idx) => (
-                              <code key={idx} className="bg-background px-1 rounded mr-1">
-                                {field}
-                              </code>
-                            ))}
+                            <strong>✅ Campos encontrados na última consulta:</strong>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {getAvailableFields().map((field) => (
+                                <Badge key={field} variant="secondary" className="text-xs">
+                                  {field}
+                                </Badge>
+                              ))}
+                            </div>
+                            <p className="mt-2">Use esses nomes exatos nos filtros abaixo.</p>
                           </AlertDescription>
                         </Alert>
                       )}
@@ -543,16 +414,16 @@ export default function BubbleIntegration() {
                         <div key={index} className="grid grid-cols-12 gap-2 items-end">
                           <div className="col-span-4 space-y-1">
                             <Label className="text-xs">Campo da Tabela</Label>
-                            {endpoint && dataTypeFields[endpoint] ? (
+                            {getAvailableFields().length > 0 ? (
                               <Select
                                 value={filter.key}
                                 onValueChange={(v) => updateFilter(index, "key", v)}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Selecione..." />
+                                  <SelectValue placeholder="Selecione o campo..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {dataTypeFields[endpoint].fields.map((field) => (
+                                  {getAvailableFields().map((field) => (
                                     <SelectItem key={field} value={field}>
                                       {field}
                                     </SelectItem>
@@ -561,10 +432,9 @@ export default function BubbleIntegration() {
                               </Select>
                             ) : (
                               <Input
-                                placeholder="Selecione uma tabela primeiro"
+                                placeholder="Digite o nome do campo"
                                 value={filter.key}
                                 onChange={(e) => updateFilter(index, "key", e.target.value)}
-                                disabled
                               />
                             )}
                           </div>
