@@ -36,6 +36,7 @@ export default function BubbleIntegration() {
   
   const [apiUrl, setApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   
   // Query form
   const [queryType, setQueryType] = useState("");
@@ -255,57 +256,98 @@ export default function BubbleIntegration() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="api-key">API Key</Label>
-                  <Input
-                    id="api-key"
-                    type="password"
-                    placeholder="Digite sua API Key do Bubble"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    disabled={isLoading}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="api-key">API Key (Segura)</Label>
+                    {config && (
+                      <Badge variant="secondary" className="text-xs">
+                        Conectada e Protegida
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="api-key"
+                      type={showApiKey ? "text" : "password"}
+                      placeholder={config ? "••••••••••••••••" : "Digite sua API Key do Bubble"}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      disabled={isLoading}
+                    />
+                    {(apiKey || config) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                      >
+                        {showApiKey ? "Ocultar" : "Mostrar"}
+                      </Button>
+                    )}
+                  </div>
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-xs text-blue-800">
+                      🔒 Sua API Key é armazenada de forma segura e protegida por criptografia. 
+                      Apenas você e membros da sua organização têm acesso.
+                    </AlertDescription>
+                  </Alert>
                   <p className="text-sm text-muted-foreground">
-                    Encontre sua API Key nas configurações do Bubble.io
+                    Encontre sua API Key nas configurações do Bubble.io → Settings → API
                   </p>
                 </div>
 
                 {config && (
                   <div className="rounded-lg bg-muted p-4 space-y-2">
-                    <p className="text-sm font-medium">Configuração Atual</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Configuração Atual</p>
+                      <Badge variant="outline" className="text-xs">Ativa</Badge>
+                    </div>
                     <div className="space-y-1 text-sm text-muted-foreground">
-                      <p>URL: {config.api_url}</p>
-                      <p>Última atualização: {new Date(config.updated_at).toLocaleString('pt-BR')}</p>
+                      <p><strong>URL:</strong> {config.api_url}</p>
+                      <p><strong>API Key:</strong> ••••••••••••••••</p>
+                      <p><strong>Última atualização:</strong> {new Date(config.updated_at).toLocaleString('pt-BR')}</p>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button 
                     onClick={handleSave} 
                     disabled={!apiUrl.trim() || !apiKey.trim() || isSaving || isLoading}
                   >
-                    {isSaving ? "Salvando..." : config ? "Atualizar Configuração" : "Salvar Configuração"}
+                    {isSaving ? "Salvando..." : config ? "Atualizar Configuração" : "Conectar API Bubble"}
                   </Button>
 
                   {config && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={isDeleting || isLoading}>
+                        <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground" disabled={isDeleting || isLoading}>
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Remover
+                          Desconectar API
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Remover configuração?</AlertDialogTitle>
+                          <AlertDialogTitle>Desconectar API Bubble.io?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Isso irá remover permanentemente a configuração da API Bubble.io.
+                            Esta ação irá remover permanentemente a configuração da API Bubble.io. 
+                            <br /><br />
+                            <strong>Consequências:</strong>
+                            <br />• Todas as consultas salvas permanecerão, mas não poderá fazer novas
+                            <br />• Você precisará reconectar a API para fazer novas consultas
+                            <br />• Seus dados no Bubble.io não serão afetados
+                            <br /><br />
+                            Esta ação não pode ser desfeita.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDelete}>
-                            Confirmar
+                          <AlertDialogAction 
+                            onClick={handleDelete}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Confirmar Desconexão
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -321,19 +363,32 @@ export default function BubbleIntegration() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
+                  <h3 className="font-medium mb-2">🔒 Segurança da API</h3>
+                  <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
+                    <li><strong>Proteção de Dados:</strong> Sua API Key é armazenada criptografada no banco de dados</li>
+                    <li><strong>Acesso Restrito:</strong> Apenas membros da sua organização podem visualizar/usar</li>
+                    <li><strong>Isolamento:</strong> Cada organização tem suas próprias credenciais separadas</li>
+                    <li><strong>Controle Total:</strong> Você pode desconectar a API a qualquer momento</li>
+                    <li><strong>Cache Inteligente:</strong> Consultas são armazenadas por 24h para reduzir chamadas</li>
+                  </ul>
+                </div>
+
+                <div>
                   <h3 className="font-medium mb-2">Como usar esta integração:</h3>
                   <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                     <li>Configure sua API URL e API Key acima</li>
                     <li>Acesse a aba "Consultas" para fazer requisições controladas</li>
                     <li>Todas as consultas são registradas para controle de uso</li>
                     <li>Utilize os relatórios para análise dos dados obtidos</li>
+                    <li>Para desconectar, use o botão "Desconectar API" acima</li>
                   </ol>
                 </div>
 
                 <Alert>
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    As consultas são armazenadas localmente para evitar gastos excessivos com a API do Bubble.io
+                    <strong>Cache automático:</strong> As consultas são armazenadas localmente por 24 horas 
+                    para evitar gastos excessivos com a API do Bubble.io e melhorar a performance.
                   </AlertDescription>
                 </Alert>
               </CardContent>
