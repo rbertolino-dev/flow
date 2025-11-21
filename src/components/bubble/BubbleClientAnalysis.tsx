@@ -21,7 +21,7 @@ interface BubbleClientAnalysisProps {
   queryHistory: any[];
 }
 
-export function BubbleClientAnalysis({ queryHistory }: BubbleClientAnalysisProps) {
+export function BubbleClientAnalysis({ queryHistory = [] }: BubbleClientAnalysisProps) {
   const { toast } = useToast();
   const [companies, setCompanies] = useState<CompanyData[]>([]);
   const [loading, setLoading] = useState(false);
