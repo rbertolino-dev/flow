@@ -48,8 +48,8 @@ export function BubbleClientAnalysis({ queryHistory = [] }: BubbleClientAnalysis
 
       // Buscar dados do histórico
       const companiesData = queryHistory.find(q => q.id === selectedCompaniesQuery);
-      const salesData = selectedSalesQuery ? queryHistory.find(q => q.id === selectedSalesQuery) : null;
-      const ordersData = selectedOrdersQuery ? queryHistory.find(q => q.id === selectedOrdersQuery) : null;
+      const salesData = selectedSalesQuery && selectedSalesQuery !== "none" ? queryHistory.find(q => q.id === selectedSalesQuery) : null;
+      const ordersData = selectedOrdersQuery && selectedOrdersQuery !== "none" ? queryHistory.find(q => q.id === selectedOrdersQuery) : null;
 
       const empresasResults = companiesData?.response_data?.response?.results || [];
       const salesResults = salesData?.response_data?.response?.results || [];
@@ -217,7 +217,7 @@ export function BubbleClientAnalysis({ queryHistory = [] }: BubbleClientAnalysis
                   <SelectValue placeholder="Selecione a consulta de vendas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {availableQueries.map((query) => (
                     <SelectItem key={query.id} value={query.id}>
                       {query.query_type} ({query.response_data.response.results.length} registros) - {new Date(query.created_at).toLocaleString()}
@@ -236,7 +236,7 @@ export function BubbleClientAnalysis({ queryHistory = [] }: BubbleClientAnalysis
                   <SelectValue placeholder="Selecione a consulta de ordens (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {availableQueries.map((query) => (
                     <SelectItem key={query.id} value={query.id}>
                       {query.query_type} ({query.response_data.response.results.length} registros) - {new Date(query.created_at).toLocaleString()}
