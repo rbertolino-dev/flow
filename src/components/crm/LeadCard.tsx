@@ -59,6 +59,8 @@ export function LeadCard({
     compact
   });
 
+  // ✅ OTIMIZAÇÃO: Remover subscrição individual por card
+  // A fila de chamadas é gerenciada no KanbanBoard
   useEffect(() => {
     const checkCallQueue = async () => {
       const { data } = await supabase
@@ -72,24 +74,6 @@ export function LeadCard({
     };
 
     checkCallQueue();
-
-    const channel = supabase
-      .channel(`call-queue-lead-${lead.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'call_queue',
-          filter: `lead_id=eq.${lead.id}`
-        },
-        () => checkCallQueue()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [lead.id]);
 
   const style = {

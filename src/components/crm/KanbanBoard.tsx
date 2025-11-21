@@ -83,7 +83,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     fetchCallQueueLeads();
 
-    // Realtime para atualizar quando a fila mudar
+    // ✅ OTIMIZAÇÃO: Manter apenas realtime da call_queue (useLeads já gerencia leads)
     const channel = supabase
       .channel('call-queue-changes')
       .on(

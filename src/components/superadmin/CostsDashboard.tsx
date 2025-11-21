@@ -125,16 +125,7 @@ export function CostsDashboard() {
         .select('*', { count: 'exact', head: true })
         .is('deleted_at', null);
 
-      // 4. Mensagens WhatsApp totais
-      const { count: messagesCount } = await supabase
-        .from('whatsapp_messages')
-        .select('*', { count: 'exact', head: true });
-
-      // 5. Mensagens recebidas (incoming)
-      const { count: incomingCount } = await supabase
-        .from('whatsapp_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('direction', 'incoming');
+      // ✅ OTIMIZAÇÃO: Remover counts de whatsapp_messages (funcionalidade desabilitada)
 
       // 6. Campanhas de broadcast
       const { count: broadcastsCount } = await supabase
@@ -156,11 +147,11 @@ export function CostsDashboard() {
         totalOrganizations: orgsCount || 0,
         totalUsers: uniqueUsers.size,
         totalLeads: leadsCount || 0,
-        totalMessages: messagesCount || 0,
+        totalMessages: 0, // WhatsApp messages desabilitado
         totalBroadcasts: broadcastsCount || 0,
         totalScheduledMessages: scheduledCount || 0,
-        totalEdgeFunctionCalls: 0, // Não rastreável facilmente
-        incomingMessages: incomingCount || 0,
+        totalEdgeFunctionCalls: 0,
+        incomingMessages: 0, // WhatsApp messages desabilitado
         broadcastMessages: broadcastSentCount || 0,
         scheduledMessagesSent: 0,
       });
