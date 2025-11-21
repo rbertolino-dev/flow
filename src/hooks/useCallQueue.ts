@@ -14,9 +14,9 @@ export function useCallQueue() {
   useEffect(() => {
     fetchCallQueue();
 
-    // Real-time subscription para call_queue
-    const queueChannel = supabase
-      .channel('call-queue-changes')
+    // OTIMIZAÇÃO: Canal único consolidado para reduzir conexões realtime
+    const channel = supabase
+      .channel('call-queue-all-changes')
       .on(
         'postgres_changes',
         {
@@ -29,11 +29,6 @@ export function useCallQueue() {
           fetchCallQueue();
         }
       )
-      .subscribe();
-
-    // Real-time subscription para leads (para pegar mudanças nas tags)
-    const leadsChannel = supabase
-      .channel('leads-changes')
       .on(
         'postgres_changes',
         {
@@ -49,8 +44,7 @@ export function useCallQueue() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(queueChannel);
-      supabase.removeChannel(leadsChannel);
+      supabase.removeChannel(channel);
     };
   }, []);
 
