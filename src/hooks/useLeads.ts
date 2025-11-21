@@ -12,7 +12,7 @@ export function useLeads() {
   useEffect(() => {
     fetchLeads();
 
-    // Realtime: subscribe to changes
+    // ✅ OTIMIZAÇÃO: Realtime com updates otimistas
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -25,6 +25,7 @@ export function useLeads() {
             title: 'Novo contato adicionado!',
             description: `${newLead.name || newLead.phone} foi adicionado ao funil`,
           });
+          // Refetch apenas quando há novo lead
           fetchLeads();
         }
       )
@@ -33,15 +34,41 @@ export function useLeads() {
         { event: 'UPDATE', schema: 'public', table: 'leads' },
         (payload) => {
           console.log('🔄 Lead atualizado (realtime):', payload.new);
-          fetchLeads();
+          // ✅ Update otimista: atualizar apenas o lead modificado sem refetch completo
+          setLeads((prev) => {
+            const updated = payload.new as any;
+            return prev.map((l) => {
+              if (l.id === updated.id) {
+                return {
+                  ...l,
+                  name: updated.name,
+                  phone: updated.phone,
+                  email: updated.email,
+                  company: updated.company,
+                  value: updated.value,
+                  status: updated.status as LeadStatus,
+                  assignedTo: updated.assigned_to || 'Não atribuído',
+                  lastContact: new Date(updated.last_contact || updated.updated_at),
+                  returnDate: updated.return_date ? new Date(updated.return_date) : undefined,
+                  notes: updated.notes,
+                  stageId: updated.stage_id,
+                };
+              }
+              return l;
+            });
+          });
         }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'leads' },
-        () => {
-          console.log('🗑️ Lead excluído (realtime)');
-          fetchLeads();
+        (payload) => {
+          console.log('🗑️ Lead excluído (realtime):', payload.old);
+          // ✅ Update otimista: remover lead deletado sem refetch completo
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setLeads((prev) => prev.filter((l) => l.id !== deletedId));
+          }
         }
       )
       .subscribe((status) => {
@@ -52,7 +79,7 @@ export function useLeads() {
       console.log('🔌 Desconectando realtime...');
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [toast]);
 
   const fetchLeads = async () => {
     try {
@@ -82,50 +109,69 @@ export function useLeads() {
 
       if (leadsError) throw leadsError;
 
-      // Fetch activities and tags for each lead
-      const leadsWithActivities = await Promise.all(
-        (leadsData || []).map(async (lead) => {
-          const { data: activities } = await (supabase as any)
-            .from('activities')
-            .select('*')
-            .eq('lead_id', lead.id)
-            .order('created_at', { ascending: false });
+      // ✅ OTIMIZAÇÃO: Buscar activities e tags em batch (evita N+1 queries)
+      const leadIds = (leadsData || []).map(l => l.id);
+      
+      // Batch fetch activities
+      const { data: allActivities } = await (supabase as any)
+        .from('activities')
+        .select('*')
+        .in('lead_id', leadIds)
+        .order('created_at', { ascending: false });
 
-          const { data: leadTags } = await (supabase as any)
-            .from('lead_tags')
-            .select('tag_id, tags(id, name, color)')
-            .eq('lead_id', lead.id);
+      // Batch fetch tags
+      const { data: allLeadTags } = await (supabase as any)
+        .from('lead_tags')
+        .select('lead_id, tag_id, tags(id, name, color)')
+        .in('lead_id', leadIds);
 
-          const statusRaw = (lead.status || '').toLowerCase();
-          const statusMap: Record<string, LeadStatus> = { new: 'novo' };
-          const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
-          return {
-            id: lead.id,
-            name: lead.name,
-            phone: lead.phone,
-            email: lead.email || undefined,
-            company: lead.company || undefined,
-            value: lead.value || undefined,
-            status: mappedStatus,
-            source: lead.source || 'WhatsApp',
-            assignedTo: lead.assigned_to || 'Não atribuído',
-            lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
-            createdAt: new Date(lead.created_at!),
-            returnDate: lead.return_date ? new Date(lead.return_date) : undefined,
-            sourceInstanceId: lead.source_instance_id || undefined,
-            notes: lead.notes || undefined,
-            stageId: lead.stage_id || undefined,
-            activities: (activities || []).map((a) => ({
-              id: a.id,
-              type: a.type as Activity['type'],
-              content: a.content,
-              timestamp: new Date(a.created_at!),
-              user: a.user_name || 'Sistema',
-            })),
-            tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
-          } as Lead;
-        })
-      );
+      // Group by lead_id for fast lookup
+      const activitiesByLead = (allActivities || []).reduce((acc, act) => {
+        if (!acc[act.lead_id]) acc[act.lead_id] = [];
+        acc[act.lead_id].push(act);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      const tagsByLead = (allLeadTags || []).reduce((acc, lt) => {
+        if (!acc[lt.lead_id]) acc[lt.lead_id] = [];
+        acc[lt.lead_id].push(lt);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Map leads with their activities and tags
+      const leadsWithActivities = (leadsData || []).map((lead) => {
+        const activities = activitiesByLead[lead.id] || [];
+        const leadTags = tagsByLead[lead.id] || [];
+
+        const statusRaw = (lead.status || '').toLowerCase();
+        const statusMap: Record<string, LeadStatus> = { new: 'novo' };
+        const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
+        return {
+          id: lead.id,
+          name: lead.name,
+          phone: lead.phone,
+          email: lead.email || undefined,
+          company: lead.company || undefined,
+          value: lead.value || undefined,
+          status: mappedStatus,
+          source: lead.source || 'WhatsApp',
+          assignedTo: lead.assigned_to || 'Não atribuído',
+          lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
+          createdAt: new Date(lead.created_at!),
+          returnDate: lead.return_date ? new Date(lead.return_date) : undefined,
+          sourceInstanceId: lead.source_instance_id || undefined,
+          notes: lead.notes || undefined,
+          stageId: lead.stage_id || undefined,
+          activities: (activities || []).map((a) => ({
+            id: a.id,
+            type: a.type as Activity['type'],
+            content: a.content,
+            timestamp: new Date(a.created_at!),
+            user: a.user_name || 'Sistema',
+          })),
+          tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
+        } as Lead;
+      });
 
       setLeads(leadsWithActivities);
     } catch (error: any) {
