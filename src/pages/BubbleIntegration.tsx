@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles, Download, Filter, X } from "lucide-react";
+import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles, Download, Filter, X, BarChart } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BubbleUsageReport } from "@/components/bubble/BubbleUsageReport";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -214,6 +215,10 @@ export default function BubbleIntegration() {
             <TabsTrigger value="queries" disabled={!config}>
               <Database className="w-4 h-4 mr-2" />
               Consultas
+            </TabsTrigger>
+            <TabsTrigger value="reports" disabled={!config || !queryHistory || queryHistory.length === 0}>
+              <BarChart className="w-4 h-4 mr-2" />
+              Relatórios de Uso
             </TabsTrigger>
           </TabsList>
 
@@ -810,6 +815,12 @@ export default function BubbleIntegration() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="reports" className="space-y-4">
+            <BubbleUsageReport 
+              queries={queryHistory || []} 
+            />
           </TabsContent>
         </Tabs>
       </div>
