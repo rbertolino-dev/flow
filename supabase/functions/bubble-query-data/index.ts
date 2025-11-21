@@ -31,17 +31,22 @@ serve(async (req) => {
     }
 
     // Buscar organização do usuário
-    const { data: orgMember } = await supabase
+    const { data: orgMembers, error: orgError } = await supabase
       .from('organization_members')
       .select('organization_id')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', user.id);
 
-    if (!orgMember) {
-      throw new Error('Organização não encontrada');
+    if (orgError) {
+      console.error('Erro ao buscar organização:', orgError);
+      throw new Error('Erro ao buscar organização do usuário');
     }
 
-    const organizationId = orgMember.organization_id;
+    if (!orgMembers || orgMembers.length === 0) {
+      throw new Error('Usuário não pertence a nenhuma organização');
+    }
+
+    // Usar a primeira organização encontrada
+    const organizationId = orgMembers[0].organization_id;
 
     // Buscar configuração Bubble
     const { data: bubbleConfig, error: configError } = await supabase
