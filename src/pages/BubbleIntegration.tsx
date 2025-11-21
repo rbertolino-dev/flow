@@ -90,6 +90,25 @@ export default function BubbleIntegration() {
     newFilters[index] = { ...newFilters[index], [field]: value };
     setFilters(newFilters);
   };
+  
+  // Detecta se um valor parece ser um nome (texto com espaços) ao invés de um ID
+  const looksLikeName = (value: string): boolean => {
+    if (!value) return false;
+    // IDs do Bubble geralmente são sequências longas sem espaços
+    // Nomes geralmente têm espaços ou são muito curtos e descritivos
+    return value.includes(' ') || (value.length < 20 && /[a-zA-Z]/.test(value) && !/^[0-9a-f]{10,}$/i.test(value));
+  };
+  
+  // Verifica se há filtros com valores suspeitos
+  const hasInvalidFilters = (): boolean => {
+    return filters.some(f => {
+      if (!f.key || !f.value) return false;
+      // Campos que geralmente requerem IDs relacionados
+      const relatedFields = ['empresa', 'cliente', 'usuario', 'user', 'company', 'customer'];
+      const isRelatedField = relatedFields.some(rf => f.key.toLowerCase().includes(rf));
+      return isRelatedField && looksLikeName(f.value);
+    });
+  };
 
   const buildConstraints = () => {
     return filters
@@ -502,12 +521,28 @@ export default function BubbleIntegration() {
                           </div>
                           <div className="col-span-4 space-y-1">
                             <Label className="text-xs">Valor</Label>
-                            <Input
-                              placeholder="Digite o valor"
-                              value={filter.value}
-                              onChange={(e) => updateFilter(index, "value", e.target.value)}
-                              disabled={filter.operator === "is_empty" || filter.operator === "is_not_empty"}
-                            />
+                            <div className="space-y-1">
+                              <Input
+                                placeholder="Digite o valor"
+                                value={filter.value}
+                                onChange={(e) => updateFilter(index, "value", e.target.value)}
+                                disabled={filter.operator === "is_empty" || filter.operator === "is_not_empty"}
+                                className={
+                                  filter.key && 
+                                  ['empresa', 'cliente', 'usuario', 'user', 'company', 'customer'].some(rf => filter.key.toLowerCase().includes(rf)) &&
+                                  looksLikeName(filter.value)
+                                    ? "border-destructive focus-visible:ring-destructive"
+                                    : ""
+                                }
+                              />
+                              {filter.key && 
+                               ['empresa', 'cliente', 'usuario', 'user', 'company', 'customer'].some(rf => filter.key.toLowerCase().includes(rf)) &&
+                               looksLikeName(filter.value) && (
+                                <p className="text-xs text-destructive font-medium">
+                                  ⚠️ Este parece ser um nome! Use o _id do objeto relacionado
+                                </p>
+                              )}
+                            </div>
                           </div>
                           <div className="col-span-1">
                             <Button
@@ -552,23 +587,42 @@ export default function BubbleIntegration() {
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleQuery}
-                    disabled={!endpoint.trim() || isExecuting}
-                  >
-                    <Search className="w-4 h-4 mr-2" />
-                    {isExecuting ? "Consultando..." : "Consultar"}
-                  </Button>
+                <div className="flex gap-2 flex-col">
+                  {hasInvalidFilters() && (
+                    <Alert className="bg-destructive/10 border-destructive">
+                      <Info className="h-4 w-4 text-destructive" />
+                      <AlertDescription className="text-sm text-destructive">
+                        <strong>❌ FILTRO INVÁLIDO DETECTADO</strong>
+                        <br />Você está tentando usar NOMES ao invés de IDs em campos relacionados.
+                        <br />Bubble.io requer o <strong>_id</strong> do objeto, não o nome!
+                        <br /><br />
+                        <strong>Corrija antes de consultar:</strong>
+                        <br />1. Consulte a tabela relacionada (ex: empresa_principal) SEM filtros
+                        <br />2. Copie o <strong>_id</strong> do registro que você quer
+                        <br />3. Cole esse ID no filtro
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleQuery}
+                      disabled={!endpoint.trim() || isExecuting || hasInvalidFilters()}
+                      title={hasInvalidFilters() ? "Corrija os filtros inválidos antes de consultar" : ""}
+                    >
+                      <Search className="w-4 h-4 mr-2" />
+                      {isExecuting ? "Consultando..." : "Consultar"}
+                    </Button>
 
-                  <Button
-                    variant="outline"
-                    onClick={() => clearOldCache(7)}
-                    disabled={isClearing}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Limpar Cache Antigo
-                  </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => clearOldCache(7)}
+                      disabled={isClearing}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Limpar Cache Antigo
+                    </Button>
+                  </div>
                 </div>
 
                 {queryResult && (
