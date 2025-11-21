@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles } from "lucide-react";
+import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles, Download, Filter, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -42,6 +42,10 @@ export default function BubbleIntegration() {
   const [endpoint, setEndpoint] = useState("");
   const [constraints, setConstraints] = useState("");
   const [queryResult, setQueryResult] = useState<any>(null);
+  
+  // Filtros dinâmicos
+  const [filters, setFilters] = useState<Array<{ key: string; operator: string; value: string }>>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Exemplos pré-configurados baseados nos Data Types do Bubble.io do usuário
   const preConfiguredExamples = [
@@ -67,7 +71,65 @@ export default function BubbleIntegration() {
       setQueryType(example.type);
       setEndpoint(example.endpoint);
       setConstraints("");
+      setFilters([]);
+      setShowFilters(false);
     }
+  };
+
+  const addFilter = () => {
+    setFilters([...filters, { key: "", operator: "equals", value: "" }]);
+  };
+
+  const removeFilter = (index: number) => {
+    setFilters(filters.filter((_, i) => i !== index));
+  };
+
+  const updateFilter = (index: number, field: string, value: string) => {
+    const newFilters = [...filters];
+    newFilters[index] = { ...newFilters[index], [field]: value };
+    setFilters(newFilters);
+  };
+
+  const buildConstraints = () => {
+    return filters
+      .filter(f => f.key && f.value)
+      .map(f => ({
+        key: f.key,
+        constraint_type: f.operator,
+        value: f.value
+      }));
+  };
+
+  const exportToCSV = () => {
+    if (!queryResult?.data?.response?.results) return;
+    
+    const results = queryResult.data.response.results;
+    if (results.length === 0) return;
+
+    const headers = Object.keys(results[0]).join(",");
+    const rows = results.map((row: any) => 
+      Object.values(row).map(v => JSON.stringify(v)).join(",")
+    ).join("\n");
+    
+    const csv = `${headers}\n${rows}`;
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bubble_${endpoint}_${new Date().toISOString()}.csv`;
+    a.click();
+  };
+
+  const exportToJSON = () => {
+    if (!queryResult?.data) return;
+    
+    const json = JSON.stringify(queryResult.data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bubble_${endpoint}_${new Date().toISOString()}.json`;
+    a.click();
   };
 
   const handleSave = () => {
@@ -81,7 +143,11 @@ export default function BubbleIntegration() {
       endpoint: endpoint.trim(),
     };
 
-    if (constraints.trim()) {
+    // Usar filtros dinâmicos se disponíveis
+    const builtConstraints = buildConstraints();
+    if (builtConstraints.length > 0) {
+      params.constraints = builtConstraints;
+    } else if (constraints.trim()) {
       try {
         params.constraints = JSON.parse(constraints);
       } catch (e) {
@@ -302,17 +368,103 @@ export default function BubbleIntegration() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="constraints">Filtros (JSON opcional)</Label>
-                  <Textarea
-                    id="constraints"
-                    placeholder='Ex: [{"key": "status", "constraint_type": "equals", "value": "ativo"}]'
-                    value={constraints}
-                    onChange={(e) => setConstraints(e.target.value)}
-                    rows={3}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Deixe vazio para trazer todos os registros
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <Label>Filtros</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFilters(!showFilters)}
+                    >
+                      <Filter className="w-4 h-4 mr-2" />
+                      {showFilters ? "Modo Manual" : "Filtros Avançados"}
+                    </Button>
+                  </div>
+
+                  {showFilters ? (
+                    <div className="space-y-3 p-4 border rounded-lg">
+                      {filters.map((filter, index) => (
+                        <div key={index} className="grid grid-cols-12 gap-2 items-end">
+                          <div className="col-span-4 space-y-1">
+                            <Label className="text-xs">Campo</Label>
+                            <Input
+                              placeholder="Ex: nome_empresa"
+                              value={filter.key}
+                              onChange={(e) => updateFilter(index, "key", e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-xs">Operador</Label>
+                            <Select
+                              value={filter.operator}
+                              onValueChange={(v) => updateFilter(index, "operator", v)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="equals">Igual a</SelectItem>
+                                <SelectItem value="not equal">Diferente de</SelectItem>
+                                <SelectItem value="is_empty">Vazio</SelectItem>
+                                <SelectItem value="is_not_empty">Não vazio</SelectItem>
+                                <SelectItem value="text contains">Contém</SelectItem>
+                                <SelectItem value="not text contains">Não contém</SelectItem>
+                                <SelectItem value="greater than">Maior que</SelectItem>
+                                <SelectItem value="less than">Menor que</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-4 space-y-1">
+                            <Label className="text-xs">Valor</Label>
+                            <Input
+                              placeholder="Digite o valor"
+                              value={filter.value}
+                              onChange={(e) => updateFilter(index, "value", e.target.value)}
+                              disabled={filter.operator === "is_empty" || filter.operator === "is_not_empty"}
+                            />
+                          </div>
+                          <div className="col-span-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeFilter(index)}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addFilter}
+                        className="w-full"
+                      >
+                        + Adicionar Filtro
+                      </Button>
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          <strong>Exemplo comum:</strong> Para filtrar por empresa específica, use:
+                          <br />• Campo: <code className="bg-muted px-1 rounded">nome_empresa</code>
+                          <br />• Operador: "Contém" ou "Igual a"
+                          <br />• Valor: nome da empresa desejada
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  ) : (
+                    <>
+                      <Textarea
+                        id="constraints"
+                        placeholder='Ex: [{"key": "nome_empresa", "constraint_type": "text contains", "value": "PubDigital"}]'
+                        value={constraints}
+                        onChange={(e) => setConstraints(e.target.value)}
+                        rows={3}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Deixe vazio para trazer todos os registros ou use os Filtros Avançados
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
@@ -335,19 +487,79 @@ export default function BubbleIntegration() {
                 </div>
 
                 {queryResult && (
-                  <div className="mt-4 p-4 bg-muted rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium">Resultado</h3>
-                      {queryResult.cached && (
-                        <Badge variant="secondary">
-                          <Clock className="w-3 h-3 mr-1" />
-                          Cache
-                        </Badge>
-                      )}
+                  <div className="mt-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">Resultado da Consulta</h3>
+                        {queryResult.cached && (
+                          <Badge variant="secondary">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Cache
+                          </Badge>
+                        )}
+                        {queryResult.data?.response?.results && (
+                          <Badge variant="outline">
+                            {queryResult.data.response.results.length} registros
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={exportToCSV}
+                          disabled={!queryResult.data?.response?.results}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          CSV
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={exportToJSON}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          JSON
+                        </Button>
+                      </div>
                     </div>
-                    <pre className="text-sm overflow-auto max-h-96">
-                      {JSON.stringify(queryResult.data, null, 2)}
-                    </pre>
+
+                    {queryResult.data?.response?.results && queryResult.data.response.results.length > 0 ? (
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto max-h-96">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                {Object.keys(queryResult.data.response.results[0]).map((key) => (
+                                  <TableHead key={key} className="whitespace-nowrap">
+                                    {key}
+                                  </TableHead>
+                                ))}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {queryResult.data.response.results.map((row: any, idx: number) => (
+                                <TableRow key={idx}>
+                                  {Object.values(row).map((value: any, colIdx: number) => (
+                                    <TableCell key={colIdx} className="whitespace-nowrap">
+                                      {typeof value === 'object' 
+                                        ? JSON.stringify(value) 
+                                        : String(value || '-')}
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-muted rounded-lg">
+                        <pre className="text-sm overflow-auto max-h-96">
+                          {JSON.stringify(queryResult.data, null, 2)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
