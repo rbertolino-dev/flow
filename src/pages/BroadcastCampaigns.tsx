@@ -534,9 +534,12 @@ export default function BroadcastCampaigns() {
   };
 
   const handleCreateCampaign = async () => {
-    const hasInstance = newCampaign.sendingMethod === "single" ? newCampaign.instanceId : newCampaign.instanceIds.length > 0;
+    // Verificar se há instâncias selecionadas baseado no método de envio
+    const hasInstance = newCampaign.sendingMethod === "single" 
+      ? !!newCampaign.instanceId 
+      : newCampaign.instanceIds.length > 0;
     
-    if (!newCampaign.name || !hasInstance) {
+    if (!newCampaign.name.trim() || !hasInstance) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha nome e selecione a(s) instância(s)",
