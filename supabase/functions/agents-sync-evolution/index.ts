@@ -48,41 +48,14 @@ serve(async (req) => {
   try {
     console.log("🚀 [agents-sync-evolution] Recebeu requisição");
     
-    const authHeader = req.headers.get("authorization");
-    console.log("🔑 [agents-sync-evolution] Auth header presente?", !!authHeader);
-    
-    if (!authHeader) {
-      throw new Error("Header de autorização não fornecido");
-    }
-    
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
-    // Criar cliente com service role para validar JWT e operações do banco
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
-      global: {
-        headers: { Authorization: authHeader },
-      },
-    });
+    // Criar cliente com service role key para operações do banco
+    // O JWT já foi validado pelo Supabase (verify_jwt = true no config.toml)
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Validar o JWT do usuário usando o método correto
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    
-    if (userError || !user) {
-      console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
-      throw new Error("Usuário não autenticado");
-    }
-
-    console.log("✅ [agents-sync-evolution] Usuário autenticado:", user.id);
-    
-    if (userError || !user) {
-      console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
-      throw new Error("Usuário não autenticado");
-    }
-
-    console.log("✅ [agents-sync-evolution] Usuário autenticado:", user.id);
+    console.log("✅ [agents-sync-evolution] Autenticação validada pelo Supabase");
 
     const { agent_id } = await req.json();
     console.log("📋 [agents-sync-evolution] Agent ID recebido:", agent_id);
