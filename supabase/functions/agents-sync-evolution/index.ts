@@ -263,7 +263,7 @@ async function syncAgentToEvolution(
 
   // 4. Criar bot assistente
   console.log(`📤 [agents-sync-evolution] Criando bot/assistente OpenAI...`);
-  const botPayload = {
+  const botPayload: any = {
     enabled: true,
     openaiCredsId: openaiCredsId,
     botType: 'assistant',
@@ -280,12 +280,11 @@ async function syncAgentToEvolution(
     keepOpen: agent.keep_open !== false,
     debounceTime: agent.debounce_time || 10,
     ignoreJids: agent.ignore_jids || [],
-    // SEMPRE incluir responseFormat (já validado acima)
-    responseFormat: agent.response_format || 'text',
-    // Incluir splitMessages apenas se for número válido
-    ...(agent.split_messages != null && typeof agent.split_messages === 'number' && agent.split_messages > 0 && { splitMessages: agent.split_messages }),
-    ...(agent.function_url && { functionUrl: agent.function_url }),
   };
+
+  // Não incluir responseFormat e splitMessages - campos não suportados pela Evolution API
+  // Estes campos estão causando erro 500 na API
+  console.log(`⚠️ [agents-sync-evolution] Campos response_format e split_messages não serão enviados (não suportados pela Evolution API)`);
 
   console.log(`📦 [agents-sync-evolution] Payload do bot:`, JSON.stringify(botPayload, null, 2));
   console.log(`📋 [agents-sync-evolution] Campos incluídos no payload:`, {
