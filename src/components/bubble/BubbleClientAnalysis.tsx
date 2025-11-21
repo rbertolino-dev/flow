@@ -1,15 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, TrendingUp, Package, FileText, Building2, AlertCircle, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
-import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CompanyData {
   id: string;
@@ -19,96 +17,64 @@ interface CompanyData {
   totalActivity: number;
 }
 
-export function BubbleClientAnalysis() {
+interface BubbleClientAnalysisProps {
+  queryHistory: any[];
+}
+
+export function BubbleClientAnalysis({ queryHistory }: BubbleClientAnalysisProps) {
   const { toast } = useToast();
-  const { activeOrgId } = useActiveOrganization();
   const [companies, setCompanies] = useState<CompanyData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'config' | 'analyzing' | 'results'>('config');
   
-  // Configurações de endpoints
-  const [salesEndpoint, setSalesEndpoint] = useState("vendas");
-  const [ordersEndpoint, setOrdersEndpoint] = useState("");
-  const [companiesEndpoint, setCompaniesEndpoint] = useState("empresa_principal");
-  
-  // Campo que contém o nome da empresa
+  // Seleção de consultas existentes
+  const [selectedCompaniesQuery, setSelectedCompaniesQuery] = useState("");
+  const [selectedSalesQuery, setSelectedSalesQuery] = useState("");
+  const [selectedOrdersQuery, setSelectedOrdersQuery] = useState("");
   const [companyNameField, setCompanyNameField] = useState("nome_text");
 
-  const executeQuery = async (queryType: string, endpoint: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Não autenticado");
-
-    const response = await supabase.functions.invoke('bubble-query-data', {
-      body: {
-        query_type: queryType,
-        endpoint: endpoint,
-        constraints: []
-      },
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    });
-
-    if (response.error) {
-      console.error("Erro na query:", response.error);
-      throw new Error(response.error.message || "Erro ao consultar Bubble");
-    }
-
-    console.log("Response completa:", response.data);
-    return response.data;
-  };
+  // Filtrar consultas por tipo
+  const availableQueries = queryHistory.filter(q => 
+    q.response_data?.response?.results && 
+    q.response_data.response.results.length > 0
+  );
 
   const analyzeClients = async () => {
     setLoading(true);
-    setStep('analyzing');
     
     try {
-      toast({
-        title: "Analisando clientes...",
-        description: "Buscando dados das empresas",
-      });
+      if (!selectedCompaniesQuery) {
+        throw new Error("Selecione uma consulta de empresas");
+      }
 
-      // 1. Buscar empresas
-      const companiesResp = await executeQuery(companiesEndpoint, companiesEndpoint);
-      
-      console.log("Resposta empresas:", companiesResp);
-      
-      // Acessar os dados corretamente - a edge function retorna { response: { results: [...] } }
-      const empresasResults = companiesResp?.response?.results;
-      
-      if (!empresasResults || empresasResults.length === 0) {
-        throw new Error(`Nenhuma empresa encontrada no endpoint "${companiesEndpoint}". Verifique se o nome está correto.`);
+      // Buscar dados do histórico
+      const companiesData = queryHistory.find(q => q.id === selectedCompaniesQuery);
+      const salesData = selectedSalesQuery ? queryHistory.find(q => q.id === selectedSalesQuery) : null;
+      const ordersData = selectedOrdersQuery ? queryHistory.find(q => q.id === selectedOrdersQuery) : null;
+
+      const empresasResults = companiesData?.response_data?.response?.results || [];
+      const salesResults = salesData?.response_data?.response?.results || [];
+      const ordersResults = ordersData?.response_data?.response?.results || [];
+
+      if (empresasResults.length === 0) {
+        throw new Error("Nenhuma empresa encontrada na consulta selecionada");
       }
 
       toast({
-        title: "Empresas encontradas",
-        description: `${empresasResults.length} empresas carregadas. Buscando vendas...`,
+        title: "Processando dados...",
+        description: `${empresasResults.length} empresas, ${salesResults.length} vendas, ${ordersResults.length} ordens`,
       });
 
-      // 2. Buscar vendas
-      const salesResp = await executeQuery(salesEndpoint, salesEndpoint);
-      const salesResults = salesResp?.response?.results || [];
-
-      let ordersResults = [];
-      if (ordersEndpoint && ordersEndpoint.trim()) {
-        toast({
-          title: "Buscando ordens...",
-          description: "Consultando ordens de serviço",
-        });
-        const ordersResp = await executeQuery(ordersEndpoint, ordersEndpoint);
-        ordersResults = ordersResp?.response?.results || [];
-      }
-
-      // 3. Processar dados
+      // Processar dados
       const companyMap = new Map<string, CompanyData>();
 
       // Processar empresas
       empresasResults.forEach((company: any) => {
         const companyName = company[companyNameField] || 
+                          company.nome_da_empresa ||
                           company.Nome || 
                           company.name || 
                           company.nome || 
-                          `Empresa ${company._id.substring(0, 8)}`;
+                          `Empresa ${company._id?.substring(0, 8) || 'sem ID'}`;
         
         companyMap.set(company._id, {
           id: company._id,
@@ -118,8 +84,6 @@ export function BubbleClientAnalysis() {
           totalActivity: 0,
         });
       });
-
-      console.log("Mapa de empresas criado:", companyMap.size, "empresas");
 
       // Contar vendas por empresa
       if (salesResults.length > 0) {
@@ -131,7 +95,6 @@ export function BubbleClientAnalysis() {
             company.totalActivity++;
           }
         });
-        console.log("Vendas processadas:", salesResults.length);
       }
 
       // Contar ordens por empresa
@@ -144,33 +107,36 @@ export function BubbleClientAnalysis() {
             company.totalActivity++;
           }
         });
-        console.log("Ordens processadas:", ordersResults.length);
       }
 
       // Converter para array e ordenar
       const sortedCompanies = Array.from(companyMap.values())
-        .filter(c => c.totalActivity > 0) // Apenas empresas com atividade
         .sort((a, b) => b.totalActivity - a.totalActivity);
 
       setCompanies(sortedCompanies);
-      setStep('results');
 
       toast({
         title: "Análise concluída!",
-        description: `${sortedCompanies.length} empresas com atividade encontradas`,
+        description: `${sortedCompanies.filter(c => c.totalActivity > 0).length} empresas com atividade`,
       });
 
     } catch (error: any) {
       console.error("Erro na análise:", error);
       toast({
         title: "Erro ao analisar",
-        description: error.message || "Verifique os nomes dos endpoints",
+        description: error.message,
         variant: "destructive",
       });
-      setStep('config');
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetAnalysis = () => {
+    setCompanies([]);
+    setSelectedCompaniesQuery("");
+    setSelectedSalesQuery("");
+    setSelectedOrdersQuery("");
   };
 
   const getRankBadge = (index: number) => {
@@ -180,97 +146,110 @@ export function BubbleClientAnalysis() {
     return <Badge variant="outline">{index + 1}º</Badge>;
   };
 
-  const resetAnalysis = () => {
-    setStep('config');
-    setCompanies([]);
-  };
+  if (availableQueries.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            Nenhuma Consulta Disponível
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Você precisa fazer consultas primeiro na aba "Consultas" para ter dados disponíveis para análise.
+              Faça consultas de empresas, vendas e ordens de serviço antes de usar esta funcionalidade.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  if (step === 'config') {
+  if (companies.length === 0) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
-            Configurar Análise de Clientes
+            Análise de Clientes
           </CardTitle>
           <CardDescription>
-            Configure os endpoints corretos do Bubble para analisar suas empresas
+            Use dados já consultados para analisar suas empresas
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Esta análise busca empresas e conta vendas/ordens por empresa para criar um ranking.
-              Certifique-se de usar os nomes corretos dos endpoints da sua API Bubble.
+              Esta análise usa consultas que você já fez, evitando novas requisições à API do Bubble.
+              Selecione as consultas abaixo para gerar o ranking de empresas.
             </AlertDescription>
           </Alert>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="companiesEndpoint">
-                Endpoint de Empresas <span className="text-destructive">*</span>
+              <Label htmlFor="companiesQuery">
+                Consulta de Empresas <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="companiesEndpoint"
-                value={companiesEndpoint}
-                onChange={(e) => setCompaniesEndpoint(e.target.value)}
-                placeholder="empresa_principal"
-              />
-              <p className="text-xs text-muted-foreground">
-                Nome do tipo/tabela que contém as empresas no Bubble
-              </p>
+              <Select value={selectedCompaniesQuery} onValueChange={setSelectedCompaniesQuery}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a consulta de empresas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableQueries.map((query) => (
+                    <SelectItem key={query.id} value={query.id}>
+                      {query.query_type} ({query.response_data.response.results.length} registros) - {new Date(query.created_at).toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="companyNameField">
-                Campo do Nome da Empresa <span className="text-destructive">*</span>
+              <Label htmlFor="salesQuery">
+                Consulta de Vendas <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="companyNameField"
-                value={companyNameField}
-                onChange={(e) => setCompanyNameField(e.target.value)}
-                placeholder="nome_text"
-              />
-              <p className="text-xs text-muted-foreground">
-                Nome do campo que contém o nome da empresa (ex: nome_text, Nome, name)
-              </p>
+              <Select value={selectedSalesQuery} onValueChange={setSelectedSalesQuery}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a consulta de vendas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhuma</SelectItem>
+                  {availableQueries.map((query) => (
+                    <SelectItem key={query.id} value={query.id}>
+                      {query.query_type} ({query.response_data.response.results.length} registros) - {new Date(query.created_at).toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="salesEndpoint">
-                Endpoint de Vendas <span className="text-destructive">*</span>
+              <Label htmlFor="ordersQuery">
+                Consulta de Ordens de Serviço (opcional)
               </Label>
-              <Input
-                id="salesEndpoint"
-                value={salesEndpoint}
-                onChange={(e) => setSalesEndpoint(e.target.value)}
-                placeholder="vendas"
-              />
-              <p className="text-xs text-muted-foreground">
-                Nome do tipo/tabela de vendas (deve ter referência para empresa)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ordersEndpoint">
-                Endpoint de Ordens de Serviço (opcional)
-              </Label>
-              <Input
-                id="ordersEndpoint"
-                value={ordersEndpoint}
-                onChange={(e) => setOrdersEndpoint(e.target.value)}
-                placeholder="ordens_servico"
-              />
-              <p className="text-xs text-muted-foreground">
-                Deixe vazio se não tiver ordens de serviço separadas
-              </p>
+              <Select value={selectedOrdersQuery} onValueChange={setSelectedOrdersQuery}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a consulta de ordens (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhuma</SelectItem>
+                  {availableQueries.map((query) => (
+                    <SelectItem key={query.id} value={query.id}>
+                      {query.query_type} ({query.response_data.response.results.length} registros) - {new Date(query.created_at).toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <Button
             onClick={analyzeClients}
-            disabled={loading || !companiesEndpoint || !salesEndpoint || !companyNameField}
+            disabled={loading || !selectedCompaniesQuery}
             className="w-full"
           >
             {loading ? (
@@ -281,26 +260,10 @@ export function BubbleClientAnalysis() {
             ) : (
               <>
                 <TrendingUp className="mr-2 h-4 w-4" />
-                Iniciar Análise
+                Gerar Análise
               </>
             )}
           </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (step === 'analyzing') {
-    return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-lg font-medium">Processando dados...</p>
-            <p className="text-sm text-muted-foreground">
-              Buscando empresas, vendas e ordens de serviço
-            </p>
-          </div>
         </CardContent>
       </Card>
     );
@@ -367,7 +330,7 @@ export function BubbleClientAnalysis() {
               {companies.reduce((sum, c) => sum + c.ordersCount, 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {ordersEndpoint ? "Ordens de serviço" : "Não configurado"}
+              {selectedOrdersQuery ? "Ordens de serviço" : "Não selecionado"}
             </p>
           </CardContent>
         </Card>
@@ -378,7 +341,7 @@ export function BubbleClientAnalysis() {
         <CardHeader>
           <CardTitle>Ranking de Empresas por Atividade</CardTitle>
           <CardDescription>
-            Ordenado por total de vendas {ordersEndpoint ? "+ ordens de serviço" : ""}
+            Ordenado por total de vendas {selectedOrdersQuery ? "+ ordens de serviço" : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -396,7 +359,7 @@ export function BubbleClientAnalysis() {
                   <TableHead className="w-[80px]">Posição</TableHead>
                   <TableHead>Empresa</TableHead>
                   <TableHead className="text-right">Vendas</TableHead>
-                  {ordersEndpoint && (
+                  {selectedOrdersQuery && (
                     <TableHead className="text-right">Ordens</TableHead>
                   )}
                   <TableHead className="text-right">Total</TableHead>
@@ -412,7 +375,7 @@ export function BubbleClientAnalysis() {
                     <TableCell className="text-right">
                       <Badge variant="secondary">{company.salesCount}</Badge>
                     </TableCell>
-                    {ordersEndpoint && (
+                    {selectedOrdersQuery && (
                       <TableCell className="text-right">
                         <Badge variant="secondary">{company.ordersCount}</Badge>
                       </TableCell>

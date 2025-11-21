@@ -829,7 +829,7 @@ export default function BubbleIntegration() {
           </TabsContent>
 
           <TabsContent value="analysis" className="space-y-4">
-            <BubbleClientAnalysis />
+            <BubbleClientAnalysis queryHistory={queryHistory} />
           </TabsContent>
         </Tabs>
       </div>
