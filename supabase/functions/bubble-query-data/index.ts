@@ -121,14 +121,30 @@ serve(async (req) => {
 
     // Fazer consulta real ao Bubble
     console.log('🔄 Consultando Bubble.io API...');
-    const bubbleUrl = `${bubbleConfig.api_url}/obj/${endpoint}`;
+    
+    // Construir URL corretamente baseado na estrutura do Bubble
+    // Se a api_url já termina com /wf ou /api/1.1/wf, apenas adicionar o endpoint
+    let bubbleUrl = bubbleConfig.api_url;
+    
+    // Remover barra final se existir
+    if (bubbleUrl.endsWith('/')) {
+      bubbleUrl = bubbleUrl.slice(0, -1);
+    }
+    
+    // Adicionar o endpoint
+    bubbleUrl = `${bubbleUrl}/${endpoint}`;
+    
+    console.log('📍 URL completa:', bubbleUrl);
     
     const params = new URLSearchParams();
-    if (constraints) {
+    if (constraints && Array.isArray(constraints) && constraints.length > 0) {
       params.append('constraints', JSON.stringify(constraints));
     }
 
-    const bubbleResponse = await fetch(`${bubbleUrl}?${params.toString()}`, {
+    const fullUrl = params.toString() ? `${bubbleUrl}?${params.toString()}` : bubbleUrl;
+    console.log('🌐 Chamando:', fullUrl);
+
+    const bubbleResponse = await fetch(fullUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${bubbleConfig.api_key}`,
@@ -136,8 +152,12 @@ serve(async (req) => {
       },
     });
 
+    console.log('📡 Status da resposta:', bubbleResponse.status);
+
     if (!bubbleResponse.ok) {
-      throw new Error(`Erro Bubble API: ${bubbleResponse.status}`);
+      const errorText = await bubbleResponse.text();
+      console.error('❌ Resposta de erro:', errorText);
+      throw new Error(`Erro Bubble API: ${bubbleResponse.status} - ${errorText}`);
     }
 
     const bubbleData = await bubbleResponse.json();
