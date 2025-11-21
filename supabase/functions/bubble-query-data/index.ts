@@ -143,10 +143,17 @@ serve(async (req) => {
     if (constraints && Array.isArray(constraints) && constraints.length > 0) {
       params.append('constraints', JSON.stringify(constraints));
       
-      // Verificar se há filtros de data
+      // Verificar se há filtros de data (aceita vários formatos)
       const hasDateFilter = constraints.some((c: any) => 
-        c.constraint_type === 'greater than' || c.constraint_type === 'less than'
+        c.constraint_type === 'greater than' || 
+        c.constraint_type === 'less than' ||
+        c.constraint_type === 'greater_than' ||
+        c.constraint_type === 'less_than' ||
+        (c.key && (c.key.includes('Created Date') || c.key.includes('data') || c.key.includes('date')))
       );
+      
+      console.log('🔍 Constraints recebidos:', JSON.stringify(constraints));
+      console.log('📅 Tem filtro de data?', hasDateFilter);
       
       if (hasDateFilter) {
         console.log('📅 Filtro de data detectado - buscando todos os registros com paginação');
