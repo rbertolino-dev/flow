@@ -370,15 +370,17 @@ export default function BubbleIntegration() {
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-sm">
-                      <strong>💡 Fluxo Recomendado:</strong>
+                      <strong>💡 Fluxo Recomendado para Filtrar por Empresa:</strong>
                       <ol className="list-decimal ml-4 mt-2 space-y-1">
-                        <li>Primeiro: Consulte <strong>SEM filtros</strong> para ver os campos disponíveis</li>
-                        <li>Para filtrar por empresa: Consulte a tabela <code className="bg-background px-1 rounded">empresa_principal</code> primeiro</li>
-                        <li>Copie o <strong>_id</strong> da empresa desejada</li>
-                        <li>Use esse _id no filtro da tabela relacionada (vendas, lançamentos, etc)</li>
+                        <li><strong>PASSO 1:</strong> Selecione a tabela <code className="bg-background px-1 rounded">empresa_principal</code></li>
+                        <li><strong>PASSO 2:</strong> Clique em "Consultar" SEM adicionar filtros</li>
+                        <li><strong>PASSO 3:</strong> Na tabela de resultados abaixo, localize a empresa desejada</li>
+                        <li><strong>PASSO 4:</strong> Copie EXATAMENTE o valor do campo <code className="bg-background px-1 rounded">_id</code> (ex: 1667190288736x968847483630780400)</li>
+                        <li><strong>PASSO 5:</strong> Volte e selecione a tabela desejada (vendas, lançamentos, etc)</li>
+                        <li><strong>PASSO 6:</strong> Adicione filtro no campo "empresa" com o _id copiado</li>
                       </ol>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        ⚠️ Campos relacionados no Bubble.io requerem o ID único (_id), não o nome
+                        ⚠️ Campos relacionados no Bubble.io requerem o _id EXATO. Se receber erro "object does not exist", verifique se copiou o _id correto da empresa certa!
                       </p>
                     </AlertDescription>
                   </Alert>
