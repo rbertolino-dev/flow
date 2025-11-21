@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { useBubbleQueries } from "@/hooks/useBubbleQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Settings, Database, Trash2, Info } from "lucide-react";
+import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -21,12 +25,41 @@ import {
 
 export default function BubbleIntegration() {
   const { config, isLoading, saveConfig, isSaving, deleteConfig, isDeleting } = useBubbleConfig();
+  const { queryHistory, isLoadingHistory, executeQuery, isExecuting, clearOldCache, isClearing } = useBubbleQueries();
+  
   const [apiUrl, setApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  
+  // Query form
+  const [queryType, setQueryType] = useState("clientes");
+  const [endpoint, setEndpoint] = useState("cliente");
+  const [constraints, setConstraints] = useState("");
+  const [queryResult, setQueryResult] = useState<any>(null);
 
   const handleSave = () => {
     if (!apiUrl.trim() || !apiKey.trim()) return;
     saveConfig({ api_url: apiUrl.trim(), api_key: apiKey.trim() });
+  };
+
+  const handleQuery = () => {
+    const params: any = {
+      query_type: queryType,
+      endpoint: endpoint.trim(),
+    };
+
+    if (constraints.trim()) {
+      try {
+        params.constraints = JSON.parse(constraints);
+      } catch (e) {
+        return;
+      }
+    }
+
+    executeQuery(params, {
+      onSuccess: (data) => {
+        setQueryResult(data);
+      },
+    });
   };
 
   const handleDelete = () => {
@@ -178,15 +211,132 @@ export default function BubbleIntegration() {
           <TabsContent value="queries" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Consultas Bubble.io</CardTitle>
+                <CardTitle>Nova Consulta</CardTitle>
                 <CardDescription>
-                  Em breve: faça consultas controladas e visualize relatórios
+                  Consulte dados do Bubble.io com cache automático de 24h para economia
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="query-type">Tipo de Consulta</Label>
+                    <Input
+                      id="query-type"
+                      placeholder="Ex: clientes, vendas, orcamentos"
+                      value={queryType}
+                      onChange={(e) => setQueryType(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endpoint">Endpoint (nome da tabela)</Label>
+                    <Input
+                      id="endpoint"
+                      placeholder="Ex: cliente, venda"
+                      value={endpoint}
+                      onChange={(e) => setEndpoint(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="constraints">Filtros (JSON opcional)</Label>
+                  <Textarea
+                    id="constraints"
+                    placeholder='Ex: [{"key": "status", "constraint_type": "equals", "value": "ativo"}]'
+                    value={constraints}
+                    onChange={(e) => setConstraints(e.target.value)}
+                    rows={3}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Deixe vazio para trazer todos os registros
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleQuery}
+                    disabled={!endpoint.trim() || isExecuting}
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    {isExecuting ? "Consultando..." : "Consultar"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => clearOldCache(7)}
+                    disabled={isClearing}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Limpar Cache Antigo
+                  </Button>
+                </div>
+
+                {queryResult && (
+                  <div className="mt-4 p-4 bg-muted rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium">Resultado</h3>
+                      {queryResult.cached && (
+                        <Badge variant="secondary">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Cache
+                        </Badge>
+                      )}
+                    </div>
+                    <pre className="text-sm overflow-auto max-h-96">
+                      {JSON.stringify(queryResult.data, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico de Consultas</CardTitle>
+                <CardDescription>
+                  Últimas 50 consultas realizadas (com cache de 24h)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">
-                  Funcionalidade de consultas em desenvolvimento...
-                </p>
+                {isLoadingHistory ? (
+                  <p className="text-muted-foreground">Carregando...</p>
+                ) : queryHistory && queryHistory.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Endpoint</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {queryHistory.map((query) => (
+                        <TableRow key={query.id}>
+                          <TableCell className="font-medium">{query.query_type}</TableCell>
+                          <TableCell>{query.query_params?.endpoint || "-"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(query.created_at).toLocaleString('pt-BR')}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setQueryResult({ data: query.response_data, cached: true })}
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Nenhuma consulta realizada ainda
+                  </p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
