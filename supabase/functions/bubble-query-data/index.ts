@@ -88,35 +88,39 @@ serve(async (req) => {
 
     console.log('✅ Configuração Bubble encontrada');
 
-    const { query_type, endpoint, constraints } = await req.json();
+    const { query_type, endpoint, constraints, skipCache = false } = await req.json();
 
-    // Verificar cache recente (últimas 24h)
-    const oneDayAgo = new Date();
-    oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+    // Verificar cache recente (últimas 24h) - apenas se não skipCache
+    if (!skipCache) {
+      const oneDayAgo = new Date();
+      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
 
-    const { data: cachedQuery } = await supabase
-      .from('bubble_query_history')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .eq('query_type', query_type)
-      .eq('query_params', JSON.stringify({ endpoint, constraints }))
-      .gte('created_at', oneDayAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      const { data: cachedQuery } = await supabase
+        .from('bubble_query_history')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('query_type', query_type)
+        .eq('query_params', JSON.stringify({ endpoint, constraints }))
+        .gte('created_at', oneDayAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    // Se existe cache recente, retornar do cache
-    if (cachedQuery) {
-      console.log('✅ Retornando dados do cache');
-      return new Response(
-        JSON.stringify({
-          data: cachedQuery.response_data,
-          cached: true,
-          cached_at: cachedQuery.created_at,
-          message: 'Dados do cache (últimas 24h)'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Se existe cache recente, retornar do cache
+      if (cachedQuery) {
+        console.log('✅ Retornando dados do cache');
+        return new Response(
+          JSON.stringify({
+            data: cachedQuery.response_data,
+            cached: true,
+            cached_at: cachedQuery.created_at,
+            message: 'Dados do cache (últimas 24h)'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      console.log('⚡ Modo sem cache ativado - consultando direto');
     }
 
     // Fazer consulta real ao Bubble
@@ -162,23 +166,27 @@ serve(async (req) => {
 
     const bubbleData = await bubbleResponse.json();
 
-    // Salvar no histórico para cache
-    await supabase
-      .from('bubble_query_history')
-      .insert({
-        organization_id: organizationId,
-        query_type,
-        query_params: { endpoint, constraints },
-        response_data: bubbleData,
-      });
-
-    console.log('✅ Dados consultados e salvos no cache');
+    // Salvar no histórico para cache - apenas se não skipCache
+    if (!skipCache) {
+      await supabase
+        .from('bubble_query_history')
+        .insert({
+          organization_id: organizationId,
+          query_type,
+          query_params: { endpoint, constraints },
+          response_data: bubbleData,
+        });
+      console.log('✅ Dados consultados e salvos no cache');
+    } else {
+      console.log('⚡ Dados consultados (sem armazenamento)');
+    }
 
     return new Response(
       JSON.stringify({
         data: bubbleData,
         cached: false,
-        message: 'Dados consultados do Bubble.io'
+        skipCache,
+        message: skipCache ? 'Dados consultados do Bubble.io (sem cache)' : 'Dados consultados do Bubble.io'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

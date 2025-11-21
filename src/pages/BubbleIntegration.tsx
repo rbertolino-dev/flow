@@ -38,6 +38,7 @@ export default function BubbleIntegration() {
   
   const [apiUrl, setApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [skipCache, setSkipCache] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   
   // Query form
@@ -194,6 +195,7 @@ export default function BubbleIntegration() {
     const params: any = {
       query_type: queryType,
       endpoint: endpoint.trim(),
+      skipCache,
     };
 
     // Usar filtros dinâmicos se disponíveis
@@ -757,6 +759,22 @@ export default function BubbleIntegration() {
                     </Alert>
                   )}
                   
+                  <div className="flex items-center space-x-2 p-3 bg-muted/30 rounded-lg border">
+                    <input
+                      type="checkbox"
+                      id="skipCache"
+                      checked={skipCache}
+                      onChange={(e) => setSkipCache(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <label htmlFor="skipCache" className="text-sm cursor-pointer flex-1">
+                      <span className="font-medium">⚡ Consulta direta (sem cache)</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Economiza armazenamento Lovable, mas sempre consome 1 WU do Bubble
+                      </p>
+                    </label>
+                  </div>
+                  
                   <div className="flex gap-2">
                     <Button 
                       onClick={handleQuery}
@@ -764,7 +782,7 @@ export default function BubbleIntegration() {
                       title={hasInvalidFilters() ? "Corrija os filtros inválidos antes de consultar" : ""}
                     >
                       <Search className="w-4 h-4 mr-2" />
-                      {isExecuting ? "Consultando..." : "Consultar"}
+                      {isExecuting ? "Consultando..." : skipCache ? "Consultar (Sem Cache)" : "Consultar"}
                     </Button>
 
                     <Button
