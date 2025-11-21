@@ -143,6 +143,23 @@ serve(async (req) => {
     const params = new URLSearchParams();
     if (constraints && Array.isArray(constraints) && constraints.length > 0) {
       params.append('constraints', JSON.stringify(constraints));
+      
+      // Verificar se há filtros de data
+      const hasDateFilter = constraints.some((c: any) => 
+        c.constraint_type === 'greater than' || c.constraint_type === 'less than'
+      );
+      
+      // Se NÃO houver filtro de data, limitar a 100 registros
+      if (!hasDateFilter) {
+        params.append('limit', '100');
+        console.log('⚠️ Limitando a 100 registros (sem filtro de data)');
+      } else {
+        console.log('📅 Filtro de data detectado - sem limitação de registros');
+      }
+    } else {
+      // Sem constraints, limitar a 100
+      params.append('limit', '100');
+      console.log('⚠️ Limitando a 100 registros (sem filtros)');
     }
 
     const fullUrl = params.toString() ? `${bubbleUrl}?${params.toString()}` : bubbleUrl;
