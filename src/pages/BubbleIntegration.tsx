@@ -829,10 +829,7 @@ export default function BubbleIntegration() {
           </TabsContent>
 
           <TabsContent value="analysis" className="space-y-4">
-            <BubbleClientAnalysis 
-              onExecuteQuery={executeQuery}
-              isExecuting={isExecuting}
-            />
+            <BubbleClientAnalysis />
           </TabsContent>
         </Tabs>
       </div>
