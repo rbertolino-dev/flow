@@ -48,6 +48,11 @@ serve(async (req) => {
   try {
     console.log("🚀 [agents-sync-evolution] Recebeu requisição");
     
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Criar cliente com anon key para validar o JWT do usuário
     const authHeader = req.headers.get("authorization");
     console.log("🔑 [agents-sync-evolution] Auth header presente?", !!authHeader);
     
@@ -55,17 +60,24 @@ serve(async (req) => {
       throw new Error("Header de autorização não fornecido");
     }
     
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    });
     
-    // Usar service role para operações do banco, mas validar o JWT do usuário
+    // Validar usuário autenticado
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    
+    if (userError || !user) {
+      console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
+      throw new Error("Usuário não autenticado");
+    }
+
+    console.log("✅ [agents-sync-evolution] Usuário autenticado:", user.id);
+    
+    // Criar cliente com service role para operações do banco
     const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Extrair token
-    const token = authHeader.replace("Bearer ", "");
-    
-    // Validar usuário com o token JWT
-    const { data: { user }, error: userError } = await supabaseService.auth.getUser(token);
     
     if (userError || !user) {
       console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
