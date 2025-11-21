@@ -16,48 +16,77 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    console.log('🔐 Verificando autenticação...');
+    
     // Verificar autenticação
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ Header Authorization ausente');
       throw new Error('Não autenticado');
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    const token = authHeader.replace('Bearer ', '');
+    console.log('📝 Token recebido:', token.substring(0, 20) + '...');
 
-    if (authError || !user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError) {
+      console.error('❌ Erro de autenticação:', authError);
+      throw new Error('Erro de autenticação: ' + authError.message);
+    }
+
+    if (!user) {
+      console.error('❌ Usuário não encontrado');
       throw new Error('Usuário não autenticado');
     }
 
-    // Buscar organização do usuário
+    console.log('✅ Usuário autenticado:', user.id, user.email);
+
+    // Buscar organização do usuário usando Service Role para bypassar RLS
+    console.log('🔍 Buscando organizações do usuário...');
+    
     const { data: orgMembers, error: orgError } = await supabase
       .from('organization_members')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('user_id', user.id);
 
+    console.log('📊 Resultado da query:', { orgMembers, orgError });
+
     if (orgError) {
-      console.error('Erro ao buscar organização:', orgError);
-      throw new Error('Erro ao buscar organização do usuário');
+      console.error('❌ Erro ao buscar organização:', orgError);
+      throw new Error('Erro ao buscar organização: ' + orgError.message);
     }
 
     if (!orgMembers || orgMembers.length === 0) {
-      throw new Error('Usuário não pertence a nenhuma organização');
+      console.error('❌ Usuário não pertence a nenhuma organização. User ID:', user.id);
+      throw new Error('Usuário não pertence a nenhuma organização. Verifique se está associado a uma organização.');
     }
 
-    // Usar a primeira organização encontrada
     const organizationId = orgMembers[0].organization_id;
+    console.log('✅ Organização encontrada:', organizationId, 'Role:', orgMembers[0].role);
 
     // Buscar configuração Bubble
+    console.log('🔍 Buscando configuração Bubble para org:', organizationId);
+    
     const { data: bubbleConfig, error: configError } = await supabase
       .from('bubble_configs')
       .select('*')
       .eq('organization_id', organizationId)
-      .single();
+      .maybeSingle();
 
-    if (configError || !bubbleConfig) {
-      throw new Error('Configuração Bubble.io não encontrada');
+    console.log('📊 Config Bubble:', { bubbleConfig, configError });
+
+    if (configError) {
+      console.error('❌ Erro ao buscar config Bubble:', configError);
+      throw new Error('Erro ao buscar configuração Bubble: ' + configError.message);
     }
+
+    if (!bubbleConfig) {
+      console.error('❌ Configuração Bubble não encontrada para org:', organizationId);
+      throw new Error('Configure a API Bubble.io primeiro na aba Configuração');
+    }
+
+    console.log('✅ Configuração Bubble encontrada');
 
     const { query_type, endpoint, constraints } = await req.json();
 
