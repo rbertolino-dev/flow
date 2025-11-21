@@ -633,6 +633,41 @@ export type Database = {
           },
         ]
       }
+      bubble_configs: {
+        Row: {
+          api_key: string
+          api_url: string
+          created_at: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          api_url: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          api_url?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bubble_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bubble_message_tracking: {
         Row: {
           created_at: string | null
@@ -676,6 +711,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bubble_message_tracking_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bubble_query_history: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          query_params: Json | null
+          query_type: string
+          response_data: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          query_params?: Json | null
+          query_type: string
+          response_data?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          query_params?: Json | null
+          query_type?: string
+          response_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bubble_query_history_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

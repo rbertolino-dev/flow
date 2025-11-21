@@ -18,6 +18,7 @@ import SuperAdminCosts from "./pages/SuperAdminCosts";
 import AgentsDashboard from "./pages/AgentsDashboard";
 import RLSDiagnostics from "./pages/RLSDiagnostics";
 import NovaFuncao from "./pages/NovaFuncao";
+import BubbleIntegration from "./pages/BubbleIntegration";
 import Calendar from "./pages/Calendar";
 import CRM from "./pages/CRM";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,7 @@ const App = () => (
           <Route path="/superadmin/costs" element={<SuperAdminCosts />} />
           <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
           <Route path="/lista-telefonica" element={<NovaFuncao />} />
+          <Route path="/bubble" element={<BubbleIntegration />} />
           <Route path="/agents" element={<AgentsDashboard />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/crm" element={<CRM />} />
