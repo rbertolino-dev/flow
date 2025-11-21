@@ -351,7 +351,16 @@ export default function BubbleIntegration() {
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-sm">
-                      <strong>💡 Importante:</strong> Faça primeiro uma consulta <strong>SEM filtros</strong> para ver quais campos existem nesta tabela. Depois use esses campos nos filtros.
+                      <strong>💡 Fluxo Recomendado:</strong>
+                      <ol className="list-decimal ml-4 mt-2 space-y-1">
+                        <li>Primeiro: Consulte <strong>SEM filtros</strong> para ver os campos disponíveis</li>
+                        <li>Para filtrar por empresa: Consulte a tabela <code className="bg-background px-1 rounded">empresa_principal</code> primeiro</li>
+                        <li>Copie o <strong>_id</strong> da empresa desejada</li>
+                        <li>Use esse _id no filtro da tabela relacionada (vendas, lançamentos, etc)</li>
+                      </ol>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        ⚠️ Campos relacionados no Bubble.io requerem o ID único (_id), não o nome
+                      </p>
                     </AlertDescription>
                   </Alert>
                 </div>
@@ -393,6 +402,22 @@ export default function BubbleIntegration() {
 
                   {showFilters ? (
                     <div className="space-y-3 p-4 border rounded-lg">
+                      <Alert className="bg-yellow-50 border-yellow-200">
+                        <Info className="h-4 w-4 text-yellow-600" />
+                        <AlertDescription className="text-xs text-yellow-800">
+                          <strong>⚠️ Filtros por empresa ou campos relacionados:</strong>
+                          <br />1. Não use o nome da empresa diretamente (ex: "pubdigital ADM")
+                          <br />2. Use o campo <code className="bg-yellow-100 px-1 rounded">_id</code> do objeto relacionado
+                          <br />3. Exemplo: Campo "empresa" → Valor "1234567890abcd" (ID da empresa)
+                          <br /><br />
+                          <strong>Como descobrir o ID:</strong>
+                          <br />• Consulte a tabela <code className="bg-yellow-100 px-1 rounded">empresa_principal</code> sem filtros
+                          <br />• Localize a empresa desejada na resposta
+                          <br />• Copie o valor do campo <code className="bg-yellow-100 px-1 rounded">_id</code>
+                          <br />• Use esse ID no filtro da outra tabela
+                        </AlertDescription>
+                      </Alert>
+
                       {getAvailableFields().length > 0 && (
                         <Alert>
                           <Info className="h-4 w-4" />
