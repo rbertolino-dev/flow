@@ -145,9 +145,15 @@ export default function BubbleIntegration() {
                     onChange={(e) => setApiUrl(e.target.value)}
                     disabled={isLoading}
                   />
-                  <p className="text-sm text-muted-foreground">
-                    Exemplo: https://your-app.bubbleapps.io/api/1.1
-                  </p>
+                  <div className="text-sm space-y-1">
+                    <p className="text-muted-foreground font-medium">Escolha o tipo de API:</p>
+                    <p className="text-muted-foreground">
+                      • <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">/api/1.1/obj</span> - Para consultar dados de tabelas
+                    </p>
+                    <p className="text-muted-foreground">
+                      • <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">/api/1.1/wf</span> - Para executar workflows
+                    </p>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
