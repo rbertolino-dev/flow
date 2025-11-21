@@ -52,6 +52,7 @@ export interface TimeWindow {
 
 /**
  * Verifica se um horário está dentro da janela permitida
+ * IMPORTANTE: Usa horário de Brasília (America/Sao_Paulo)
  */
 export function isTimeInWindow(window: TimeWindow | null, checkTime: Date): boolean {
   if (!window || !window.enabled) {
@@ -70,8 +71,10 @@ export function isTimeInWindow(window: TimeWindow | null, checkTime: Date): bool
     return cached.result;
   }
 
-  const dayOfWeek = checkTime.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
-  const timeOnly = `${String(checkTime.getHours()).padStart(2, '0')}:${String(checkTime.getMinutes()).padStart(2, '0')}:00`;
+  // Converter para horário de Brasília
+  const brasiliaTime = new Date(checkTime.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const dayOfWeek = brasiliaTime.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+  const timeOnly = `${String(brasiliaTime.getHours()).padStart(2, '0')}:${String(brasiliaTime.getMinutes()).padStart(2, '0')}:00`;
 
   let startTime: string | null = null;
   let endTime: string | null = null;
@@ -214,6 +217,7 @@ export function calculateEstimatedTimeWithWindow(
 
 /**
  * Obtém o próximo horário permitido na janela
+ * IMPORTANTE: Usa horário de Brasília (America/Sao_Paulo)
  */
 export function getNextWindowTime(window: TimeWindow, fromTime: Date): Date | null {
   const checkTime = new Date(fromTime);
@@ -223,7 +227,9 @@ export function getNextWindowTime(window: TimeWindow, fromTime: Date): Date | nu
     const checkDate = new Date(checkTime);
     checkDate.setDate(checkDate.getDate() + dayOffset);
     
-    const dayOfWeek = checkDate.getDay();
+    // Converter para horário de Brasília
+    const brasiliaDate = new Date(checkDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const dayOfWeek = brasiliaDate.getDay();
     let startTime: string | null = null;
 
     switch (dayOfWeek) {
