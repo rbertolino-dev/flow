@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw } from "lucide-react";
+import { Settings, Database, Trash2, Info, Search, Clock, RefreshCw, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -22,6 +22,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function BubbleIntegration() {
   const { config, isLoading, saveConfig, isSaving, deleteConfig, isDeleting } = useBubbleConfig();
@@ -31,10 +38,31 @@ export default function BubbleIntegration() {
   const [apiKey, setApiKey] = useState("");
   
   // Query form
-  const [queryType, setQueryType] = useState("clientes");
-  const [endpoint, setEndpoint] = useState("cliente");
+  const [queryType, setQueryType] = useState("");
+  const [endpoint, setEndpoint] = useState("");
   const [constraints, setConstraints] = useState("");
   const [queryResult, setQueryResult] = useState<any>(null);
+
+  // Exemplos pré-configurados baseados em PubDigital
+  const preConfiguredExamples = [
+    { name: "Categorias Financeiras", type: "categorias", endpoint: "fin_categoria" },
+    { name: "Lançamentos", type: "lancamentos", endpoint: "fim_lançamento" },
+    { name: "Empresas", type: "empresas", endpoint: "fin_empresas" },
+    { name: "Pessoas", type: "pessoas", endpoint: "fim_pessoa" },
+    { name: "Tipos de Lançamento", type: "tipos_lancamento", endpoint: "fin_tipos_lancamento" },
+    { name: "Contas", type: "contas", endpoint: "fim_contas" },
+    { name: "Credores/Devedores", type: "credores_devedores", endpoint: "fim_credores_devedores" },
+    { name: "Subcategorias", type: "subcategorias", endpoint: "fim_subcategoria" },
+  ];
+
+  const handleSelectExample = (value: string) => {
+    const example = preConfiguredExamples.find(ex => ex.endpoint === value);
+    if (example) {
+      setQueryType(example.type);
+      setEndpoint(example.endpoint);
+      setConstraints("");
+    }
+  };
 
   const handleSave = () => {
     if (!apiUrl.trim() || !apiKey.trim()) return;
@@ -217,6 +245,28 @@ export default function BubbleIntegration() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="example-select">Consultas Pré-Configuradas</Label>
+                  <Select onValueChange={handleSelectExample}>
+                    <SelectTrigger id="example-select">
+                      <SelectValue placeholder="Selecione um exemplo rápido..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {preConfiguredExamples.map((example) => (
+                        <SelectItem key={example.endpoint} value={example.endpoint}>
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            {example.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    Selecione um exemplo para preencher automaticamente
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="query-type">Tipo de Consulta</Label>
