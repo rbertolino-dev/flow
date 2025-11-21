@@ -48,11 +48,6 @@ serve(async (req) => {
   try {
     console.log("🚀 [agents-sync-evolution] Recebeu requisição");
     
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    // Criar cliente com anon key para validar o JWT do usuário
     const authHeader = req.headers.get("authorization");
     console.log("🔑 [agents-sync-evolution] Auth header presente?", !!authHeader);
     
@@ -60,14 +55,20 @@ serve(async (req) => {
       throw new Error("Header de autorização não fornecido");
     }
     
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Criar cliente com service role para validar JWT e operações do banco
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
       global: {
         headers: { Authorization: authHeader },
       },
     });
     
-    // Validar usuário autenticado
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    // Validar o JWT do usuário usando o método correto
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
     
     if (userError || !user) {
       console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
@@ -75,9 +76,6 @@ serve(async (req) => {
     }
 
     console.log("✅ [agents-sync-evolution] Usuário autenticado:", user.id);
-    
-    // Criar cliente com service role para operações do banco
-    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
     
     if (userError || !user) {
       console.error("❌ [agents-sync-evolution] Erro de autenticação:", userError);
@@ -93,8 +91,8 @@ serve(async (req) => {
       throw new Error("agent_id é obrigatório");
     }
 
-    // Buscar dados do agente usando service role
-    const { data: agent, error: agentError } = await supabaseService
+    // Buscar dados do agente
+    const { data: agent, error: agentError } = await supabaseClient
       .from("agents")
       .select("*")
       .eq("id", agent_id)
@@ -131,8 +129,8 @@ serve(async (req) => {
       throw new Error("Agente não possui configuração Evolution vinculada");
     }
 
-    // Buscar configuração Evolution usando service role
-    const { data: config, error: configError } = await supabaseService
+    // Buscar configuração Evolution
+    const { data: config, error: configError } = await supabaseClient
       .from("evolution_config")
       .select("*")
       .eq("id", agent.evolution_config_id)
@@ -146,7 +144,7 @@ serve(async (req) => {
     console.log("✅ [agents-sync-evolution] Config Evolution encontrada:", config.instance_name);
 
     // Sincronizar o agente
-    await syncAgentToEvolution(agent, config, supabaseService);
+    await syncAgentToEvolution(agent, config, supabaseClient);
 
     return new Response(
       JSON.stringify({
