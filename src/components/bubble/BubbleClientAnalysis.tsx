@@ -209,6 +209,24 @@ export function BubbleClientAnalysis({ queryHistory = [] }: BubbleClientAnalysis
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="companyNameField">
+                Campo do Nome da Empresa
+              </Label>
+              <Select value={companyNameField} onValueChange={setCompanyNameField}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o campo do nome" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nome_text">nome_text</SelectItem>
+                  <SelectItem value="nome_da_empresa">nome_da_empresa</SelectItem>
+                  <SelectItem value="Nome">Nome</SelectItem>
+                  <SelectItem value="name">name</SelectItem>
+                  <SelectItem value="nome">nome</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="salesQuery">
                 Consulta de Vendas <span className="text-destructive">*</span>
               </Label>
