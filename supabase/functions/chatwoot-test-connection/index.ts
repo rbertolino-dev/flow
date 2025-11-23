@@ -17,19 +17,16 @@ Deno.serve(async (req) => {
       throw new Error('Campos obrigatórios faltando');
     }
 
-    // First, get an inbox identifier to test with the Public API
-    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
+    // Chatwoot API usando query parameter (Nginx remove headers com underscore)
+    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes?api_access_token=${encodeURIComponent(apiToken)}`;
     
-    console.log('🧪 Testando conexão (listando inboxes):', inboxesUrl);
+    console.log('🧪 Testando conexão (listando inboxes):', baseUrl);
 
     const response = await fetch(inboxesUrl, {
       method: 'GET',
       headers: {
-        'api_access_token': apiToken,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
       },
     });
 
