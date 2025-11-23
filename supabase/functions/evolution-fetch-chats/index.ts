@@ -19,19 +19,34 @@ serve(async (req) => {
 
     const { instanceId } = await req.json();
 
+    console.log('📨 Requisição recebida:', { instanceId });
+
     if (!instanceId) {
       throw new Error('instanceId é obrigatório');
     }
 
     // Buscar config da instância
+    console.log(`🔍 Buscando instância com ID: ${instanceId}`);
+    
     const { data: config, error: configError } = await supabase
       .from('evolution_config')
       .select('*')
       .eq('id', instanceId)
       .maybeSingle();
 
-    if (configError) throw configError;
-    if (!config) throw new Error('Instância não encontrada');
+    console.log('📋 Resultado da busca:', { config, configError });
+
+    if (configError) {
+      console.error('❌ Erro na query:', configError);
+      throw configError;
+    }
+    
+    if (!config) {
+      console.error('❌ Nenhuma configuração encontrada para instanceId:', instanceId);
+      throw new Error('Instância não encontrada');
+    }
+
+    console.log('✅ Instância encontrada:', config.instance_name);
 
     // Buscar chats da Evolution API
     const evolutionUrl = `${config.api_url}/chat/findChats/${config.instance_name}`;
