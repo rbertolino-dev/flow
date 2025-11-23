@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
-import { MessageSquare, Inbox, CheckCircle2, XCircle } from "lucide-react";
+import { MessageSquare, Inbox, CheckCircle2, XCircle, Search } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useChatwootChats } from "@/hooks/useChatwootChats";
 import { useChatwootConversations } from "@/hooks/useChatwootConversations";
 import { useChatwootConfig } from "@/hooks/useChatwootConfig";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -30,11 +32,31 @@ export default function ChatwootMessages() {
     contactIdentifier: string;
     contactName: string;
   } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { data: conversations, isLoading: conversationsLoading } = useChatwootConversations(
     activeOrgId,
     selectedInbox?.id || null
   );
   const isMobile = useIsMobile();
+
+  // Filtrar conversas pela busca
+  const filteredConversations = useMemo(() => {
+    if (!conversations || !Array.isArray(conversations)) return [];
+    if (!searchQuery.trim()) return conversations;
+
+    const query = searchQuery.toLowerCase();
+    return conversations.filter((conv: any) => {
+      const name = conv.meta?.sender?.name?.toLowerCase() || '';
+      const phone = conv.meta?.sender?.phone_number?.toLowerCase() || '';
+      const identifier = conv.meta?.sender?.identifier?.toLowerCase() || '';
+      const lastMessage = conv.messages?.[0]?.content?.toLowerCase() || '';
+      
+      return name.includes(query) || 
+             phone.includes(query) || 
+             identifier.includes(query) ||
+             lastMessage.includes(query);
+    });
+  }, [conversations, searchQuery]);
 
   const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
     if (view === "users") {
@@ -190,13 +212,26 @@ export default function ChatwootMessages() {
                   onBack={() => setSelectedConversation(null)}
                 />
               ) : selectedInbox ? (
-                <div className="flex-1 flex flex-col">
+                <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Header da Conversa */}
-                  <div className="p-4 border-b border-border">
+                  <div className="p-4 border-b border-border flex-shrink-0">
                     <h2 className="text-lg font-semibold">{selectedInbox.name}</h2>
                     <p className="text-xs text-muted-foreground">
                       {selectedInbox.channel_type} • ID: {selectedInbox.id}
                     </p>
+                  </div>
+
+                  {/* Campo de Busca */}
+                  <div className="p-4 border-b border-border flex-shrink-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar contato, telefone ou mensagem..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
                   </div>
 
                   {/* Lista de Conversas */}
@@ -204,10 +239,10 @@ export default function ChatwootMessages() {
                     <div className="flex-1 flex items-center justify-center">
                       <p className="text-muted-foreground">Carregando conversas...</p>
                     </div>
-                  ) : conversations && conversations.length > 0 ? (
+                  ) : filteredConversations.length > 0 ? (
                     <ScrollArea className="flex-1">
                       <div className="p-4 space-y-2">
-                        {conversations.map((conv: any) => (
+                        {filteredConversations.map((conv: any) => (
                           <div
                             key={conv.id}
                             onClick={() => handleSelectConversation(conv)}
@@ -246,7 +281,21 @@ export default function ChatwootMessages() {
                     <div className="flex-1 flex items-center justify-center">
                       <div className="text-center text-muted-foreground">
                         <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                        <p>Nenhuma conversa encontrada</p>
+                        <p>
+                          {searchQuery.trim() 
+                            ? "Nenhuma conversa encontrada com esse termo" 
+                            : "Nenhuma conversa encontrada"}
+                        </p>
+                        {searchQuery.trim() && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSearchQuery("")}
+                            className="mt-2"
+                          >
+                            Limpar busca
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
