@@ -17,12 +17,12 @@ Deno.serve(async (req) => {
       throw new Error('Campos obrigatórios faltando');
     }
 
-    // Testar conexão usando endpoint de inboxes (mais confiável que account)
-    const chatwootUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
+    // First, get an inbox identifier to test with the Public API
+    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
     
-    console.log('🧪 Testando conexão:', chatwootUrl);
+    console.log('🧪 Testando conexão (listando inboxes):', inboxesUrl);
 
-    const response = await fetch(chatwootUrl, {
+    const response = await fetch(inboxesUrl, {
       method: 'GET',
       headers: {
         'api_access_token': apiToken,
@@ -32,14 +32,17 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       const errorData = await response.text();
+      console.error('❌ Erro na resposta:', errorData);
       throw new Error(`Falha na conexão: ${response.status} - ${errorData}`);
     }
 
-    const inboxes = await response.json();
+    const data = await response.json();
+
+    console.log('✅ Conexão bem-sucedida');
 
     return new Response(JSON.stringify({ 
       success: true, 
-      inboxCount: inboxes?.payload?.length || 0,
+      inboxCount: data?.payload?.length || data?.length || 0,
       message: 'Conexão estabelecida com sucesso'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
