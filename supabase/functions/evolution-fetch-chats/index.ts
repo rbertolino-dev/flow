@@ -79,24 +79,44 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    console.log('📦 Resposta da API:', JSON.stringify(result).substring(0, 200));
+    console.log('📦 Tipo da resposta:', typeof result);
+    console.log('📦 É array?', Array.isArray(result));
+    console.log('📦 Chaves do objeto:', result ? Object.keys(result).join(', ') : 'null');
+    console.log('📦 Resposta completa:', JSON.stringify(result, null, 2).substring(0, 500));
     
-    // Garantir que temos um array de mensagens
-    let messages = [];
+    // Garantir que temos um array de mensagens - tratar todos os casos
+    let messages: any[] = [];
+    
     if (Array.isArray(result)) {
+      // Resposta é um array direto
       messages = result;
-    } else if (result && Array.isArray(result.messages)) {
-      messages = result.messages;
+      console.log('✅ Array direto com', messages.length, 'itens');
     } else if (result && typeof result === 'object') {
-      // Tentar encontrar array em propriedades comuns
-      messages = result.data || result.items || [];
+      // Resposta é um objeto, tentar várias propriedades
+      if (Array.isArray(result.messages)) {
+        messages = result.messages;
+        console.log('✅ Array em result.messages com', messages.length, 'itens');
+      } else if (Array.isArray(result.data)) {
+        messages = result.data;
+        console.log('✅ Array em result.data com', messages.length, 'itens');
+      } else if (Array.isArray(result.items)) {
+        messages = result.items;
+        console.log('✅ Array em result.items com', messages.length, 'itens');
+      } else if (Array.isArray(result.records)) {
+        messages = result.records;
+        console.log('✅ Array em result.records com', messages.length, 'itens');
+      } else {
+        console.log('⚠️ Nenhum array encontrado na resposta');
+      }
     }
     
-    console.log(`📨 ${messages.length} mensagens encontradas`);
+    console.log(`📨 Total de ${messages.length} mensagens para processar`);
     
     // Agrupar mensagens por remoteJid para criar lista de chats
     const chatsMap = new Map();
-    if (Array.isArray(messages)) {
+    
+    // Garantir que messages é array antes de iterar
+    if (Array.isArray(messages) && messages.length > 0) {
       messages.forEach((msg: any) => {
         const jid = msg.key?.remoteJid;
         if (!jid) return;
