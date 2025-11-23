@@ -1003,6 +1003,53 @@ export type Database = {
           },
         ]
       }
+      chatwoot_configs: {
+        Row: {
+          chatwoot_account_id: number
+          chatwoot_api_access_token: string
+          chatwoot_base_url: string
+          created_at: string | null
+          default_inbox_id: number | null
+          default_inbox_identifier: string | null
+          enabled: boolean | null
+          id: string
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          chatwoot_account_id: number
+          chatwoot_api_access_token: string
+          chatwoot_base_url?: string
+          created_at?: string | null
+          default_inbox_id?: number | null
+          default_inbox_identifier?: string | null
+          enabled?: boolean | null
+          id?: string
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          chatwoot_account_id?: number
+          chatwoot_api_access_token?: string
+          chatwoot_base_url?: string
+          created_at?: string | null
+          default_inbox_id?: number | null
+          default_inbox_identifier?: string | null
+          enabled?: boolean | null
+          id?: string
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatwoot_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cloud_cost_config: {
         Row: {
           cost_per_auth_user: number | null
