@@ -170,7 +170,7 @@ export function ChatwootChatWindow({
                 message={{
                   id: msg.id.toString(),
                   messageText: msg.content,
-                  direction: msg.message_type,
+                  direction: msg.message_type === 'incoming' || msg.message_type === 0 ? 'incoming' : 'outgoing',
                   timestamp: new Date(msg.created_at),
                   messageType: 'text',
                   readStatus: false,
