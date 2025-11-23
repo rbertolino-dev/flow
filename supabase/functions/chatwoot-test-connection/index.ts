@@ -17,21 +17,22 @@ Deno.serve(async (req) => {
       throw new Error('Campos obrigatórios faltando');
     }
 
-    // Testar conexão usando Authorization Bearer (user access token)
-    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
+    // Testar múltiplas formas de autenticação
+    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes?api_access_token=${encodeURIComponent(apiToken)}`;
     
     console.log('🧪 Testando conexão:', {
-      url: inboxesUrl,
+      url: `${baseUrl}/api/v1/accounts/${accountId}/inboxes`,
       accountId,
       tokenLength: apiToken?.length || 0,
-      tokenPrefix: apiToken?.substring(0, 10) + '...'
     });
 
     const response = await fetch(inboxesUrl, {
       method: 'GET',
       headers: {
+        'api_access_token': apiToken,
         'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     });
 
