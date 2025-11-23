@@ -28,7 +28,7 @@ serve(async (req) => {
       .from('evolution_config')
       .select('*')
       .eq('id', instanceId)
-      .single();
+      .maybeSingle();
 
     if (configError) throw configError;
     if (!config) throw new Error('Instância não encontrada');
