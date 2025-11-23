@@ -13,6 +13,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ChatwootChatWindow } from "@/components/whatsapp/ChatwootChatWindow";
 
 export default function ChatwootMessages() {
   const navigate = useNavigate();
@@ -21,6 +22,11 @@ export default function ChatwootMessages() {
   const { data, isLoading } = useChatwootChats(activeOrgId);
   const inboxes = Array.isArray(data) ? data : [];
   const [selectedInbox, setSelectedInbox] = useState<any>(null);
+  const [selectedConversation, setSelectedConversation] = useState<{
+    id: string;
+    contactIdentifier: string;
+    contactName: string;
+  } | null>(null);
   const { data: conversations, isLoading: conversationsLoading } = useChatwootConversations(
     activeOrgId,
     selectedInbox?.id || null
@@ -39,6 +45,14 @@ export default function ChatwootMessages() {
     } else {
       navigate('/');
     }
+  };
+
+  const handleSelectConversation = (conv: any) => {
+    setSelectedConversation({
+      id: conv.id?.toString() || '',
+      contactIdentifier: conv.meta?.sender?.identifier || '',
+      contactName: conv.meta?.sender?.name || 'Contato',
+    });
   };
 
   return (
@@ -102,7 +116,10 @@ export default function ChatwootMessages() {
                     {inboxes.map((inbox: any) => (
                       <div
                         key={inbox.id}
-                        onClick={() => setSelectedInbox(inbox)}
+                        onClick={() => {
+                          setSelectedInbox(inbox);
+                          setSelectedConversation(null);
+                        }}
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors mb-1",
                           selectedInbox?.id === inbox.id
@@ -137,7 +154,16 @@ export default function ChatwootMessages() {
 
             {/* Área de mensagens */}
             <div className={`${isMobile ? (selectedInbox ? 'w-full' : 'hidden') : 'flex-1'} flex flex-col bg-background`}>
-              {selectedInbox ? (
+              {selectedConversation && selectedInbox ? (
+                <ChatwootChatWindow
+                  organizationId={activeOrgId!}
+                  inboxIdentifier={selectedInbox.inbox_identifier || selectedInbox.id.toString()}
+                  contactIdentifier={selectedConversation.contactIdentifier}
+                  conversationId={selectedConversation.id}
+                  contactName={selectedConversation.contactName}
+                  onBack={() => setSelectedConversation(null)}
+                />
+              ) : selectedInbox ? (
                 <div className="flex-1 flex flex-col">
                   {/* Header da Conversa */}
                   <div className="p-4 border-b border-border">
@@ -158,6 +184,7 @@ export default function ChatwootMessages() {
                         {conversations.map((conv: any) => (
                           <div
                             key={conv.id}
+                            onClick={() => handleSelectConversation(conv)}
                             className="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
                           >
                             <div className="flex items-start gap-3">
