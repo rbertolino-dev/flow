@@ -67,7 +67,7 @@ export const ChatwootPrivateNotesPanel = ({
         </Button>
       </div>
 
-      <ScrollArea className="h-32">
+      <ScrollArea className="max-h-48">
         <div className="space-y-2">
           {notes.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma nota adicionada</p>

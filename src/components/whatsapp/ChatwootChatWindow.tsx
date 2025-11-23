@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Send, Paperclip, Mic, X, StopCircle } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Mic, X, StopCircle, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useChatwootMessages } from '@/hooks/useChatwootMessages';
+import { useChatwootCannedResponses } from '@/hooks/useChatwootCannedResponses';
 import { MessageBubble } from './MessageBubble';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface ChatwootChatWindowProps {
   organizationId: string;
@@ -26,6 +28,7 @@ export function ChatwootChatWindow({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [showCannedResponses, setShowCannedResponses] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -34,6 +37,8 @@ export function ChatwootChatWindow({
     organizationId,
     conversationId
   );
+
+  const { cannedResponses } = useChatwootCannedResponses(organizationId);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -213,6 +218,46 @@ export function ChatwootChatWindow({
         )}
 
         <div className="flex gap-2">
+          {/* Botão de Respostas Prontas */}
+          <Popover open={showCannedResponses} onOpenChange={setShowCannedResponses}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={sending || isRecording}
+                className="h-[60px] w-[60px]"
+              >
+                <MessageSquare className="h-5 w-5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side="top" className="w-80 p-2">
+              <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                <div className="font-medium text-sm mb-2 px-2">Respostas Prontas</div>
+                {cannedResponses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-2 py-4 text-center">
+                    Nenhuma resposta criada
+                  </p>
+                ) : (
+                  cannedResponses.map((response: any) => (
+                    <button
+                      key={response.id}
+                      className="w-full text-left p-2 rounded hover:bg-muted transition-colors"
+                      onClick={() => {
+                        setMessage(response.content);
+                        setShowCannedResponses(false);
+                      }}
+                    >
+                      <div className="font-medium text-sm">{response.short_code}</div>
+                      <div className="text-xs text-muted-foreground line-clamp-2">
+                        {response.content}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           {/* Botão de Anexo */}
           <input
             ref={fileInputRef}
