@@ -17,8 +17,13 @@ import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ChatwootChatWindow } from "@/components/whatsapp/ChatwootChatWindow";
 import { ChatwootWebhookSetup } from "@/components/crm/ChatwootWebhookSetup";
+import { ChatwootLabelsPanel } from "@/components/whatsapp/ChatwootLabelsPanel";
+import { ChatwootCannedResponsesPanel } from "@/components/whatsapp/ChatwootCannedResponsesPanel";
+import { ChatwootPrivateNotesPanel } from "@/components/whatsapp/ChatwootPrivateNotesPanel";
+import { ChatwootMacrosPanel } from "@/components/whatsapp/ChatwootMacrosPanel";
+import { ChatwootMergeContactsPanel } from "@/components/whatsapp/ChatwootMergeContactsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings } from "lucide-react";
+import { Settings, Wrench } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 
 export default function ChatwootMessages() {
@@ -37,7 +42,9 @@ export default function ChatwootMessages() {
   const [showInboxHeader, setShowInboxHeader] = useState(true);
   const [showConversationList, setShowConversationList] = useState(true);
   const [conversationPage, setConversationPage] = useState(1);
-  const CONVERSATIONS_PER_PAGE = 35; // ✅ OTIMIZAÇÃO 5: Pagination
+  const CONVERSATIONS_PER_PAGE = 35;
+  const [selectedConversations, setSelectedConversations] = useState<number[]>([]);
+  const [currentMessage, setCurrentMessage] = useState('');
   
   const { data: conversations, isLoading: conversationsLoading } = useChatwootConversations(
     activeOrgId,
@@ -158,6 +165,10 @@ export default function ChatwootMessages() {
                     <Settings className="h-4 w-4" />
                     Webhook
                   </TabsTrigger>
+                  <TabsTrigger value="tools" className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4" />
+                    Ferramentas
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="messages" className="flex-1 mt-0">
@@ -176,6 +187,31 @@ export default function ChatwootMessages() {
                   <ScrollArea className="h-[calc(100vh-16rem)]">
                     <div className="p-4">
                       {activeOrgId && <ChatwootWebhookSetup organizationId={activeOrgId} />}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="tools" className="flex-1 mt-0">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    <div className="p-4 space-y-4">
+                      <ChatwootLabelsPanel 
+                        organizationId={activeOrgId} 
+                        conversationId={selectedConversation?.id ? parseInt(selectedConversation.id) : null}
+                      />
+                      <ChatwootCannedResponsesPanel 
+                        organizationId={activeOrgId}
+                        onSelectResponse={(content) => setCurrentMessage(content)}
+                      />
+                      <ChatwootPrivateNotesPanel 
+                        organizationId={activeOrgId}
+                        conversationId={selectedConversation?.id ? parseInt(selectedConversation.id) : null}
+                      />
+                      <ChatwootMacrosPanel 
+                        organizationId={activeOrgId}
+                        selectedConversations={selectedConversations}
+                        onMacroComplete={() => setSelectedConversations([])}
+                      />
+                      <ChatwootMergeContactsPanel organizationId={activeOrgId} />
                     </div>
                   </ScrollArea>
                 </TabsContent>
