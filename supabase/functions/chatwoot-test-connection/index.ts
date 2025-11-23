@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const response = await fetch(chatwootUrl, {
       method: 'GET',
       headers: {
-        'api_access_token': apiToken,
+        'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
       },
     });
