@@ -26,8 +26,8 @@ export const useChatwootChats = (organizationId: string | null) => {
           return [];
         }
         
-        // Garantir que retornamos um array
-        const inboxesList = data?.inboxes || [];
+        // Garantir que retornamos um array - a API retorna { inboxes: { payload: [...] } }
+        const inboxesList = data?.inboxes?.payload || data?.inboxes || [];
         console.log('📋 Inboxes processadas:', inboxesList);
         
         return Array.isArray(inboxesList) ? inboxesList : [];
