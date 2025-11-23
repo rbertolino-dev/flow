@@ -19,17 +19,32 @@ export function useEvolutionChats(instanceId: string | null) {
   const { activeOrgId } = useActiveOrganization();
 
   const fetchChats = async () => {
-    if (!instanceId || !activeOrgId) return;
+    if (!instanceId || !activeOrgId) {
+      console.log('⏸️ Aguardando instanceId e activeOrgId...');
+      setChats([]);
+      return;
+    }
 
     try {
       setLoading(true);
+      
+      console.log(`📞 Buscando chats para instância: ${instanceId}`);
       
       // Chamar edge function que busca chats da Evolution API
       const { data, error } = await supabase.functions.invoke('evolution-fetch-chats', {
         body: { instanceId }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro da edge function:', error);
+        throw error;
+      }
+
+      if (!data || !data.chats) {
+        console.warn('Resposta sem chats:', data);
+        setChats([]);
+        return;
+      }
 
       const chatsList: EvolutionChat[] = (data.chats || []).map((chat: any) => ({
         remoteJid: chat.id,
@@ -42,6 +57,7 @@ export function useEvolutionChats(instanceId: string | null) {
         profilePicUrl: chat.profilePicUrl,
       }));
 
+      console.log(`✅ ${chatsList.length} conversas carregadas`);
       setChats(chatsList);
     } catch (error: any) {
       console.error('Error fetching Evolution chats:', error);
@@ -50,15 +66,22 @@ export function useEvolutionChats(instanceId: string | null) {
         description: error.message || "Não foi possível conectar à Evolution API",
         variant: "destructive",
       });
+      setChats([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (!instanceId || !activeOrgId) {
+      setChats([]);
+      setLoading(false);
+      return;
+    }
+
     fetchChats();
     
-    // Atualizar a cada 5 segundos
+    // Atualizar a cada 5 segundos apenas se tiver instância
     const interval = setInterval(fetchChats, 5000);
     
     return () => clearInterval(interval);

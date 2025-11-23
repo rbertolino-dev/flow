@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -25,14 +25,15 @@ export default function WhatsApp() {
   const isMobile = useIsMobile();
 
   // Auto-selecionar primeira instância conectada
-  useState(() => {
+  useEffect(() => {
     if (!selectedInstance && configs.length > 0) {
       const connectedInstance = configs.find(c => c.is_connected);
       if (connectedInstance) {
+        console.log('🔌 Auto-selecionando instância:', connectedInstance.instance_name);
         setSelectedInstance(connectedInstance.id);
       }
     }
-  });
+  }, [configs, selectedInstance]);
 
   const selectedChat = chats.find(c => c.remoteJid === selectedRemoteJid);
 
