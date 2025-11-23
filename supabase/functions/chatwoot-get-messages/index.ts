@@ -24,11 +24,7 @@ Deno.serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const url = new URL(req.url);
-    const organizationId = url.searchParams.get('organizationId');
-    const inboxIdentifier = url.searchParams.get('inboxIdentifier');
-    const contactIdentifier = url.searchParams.get('contactIdentifier');
-    const conversationId = url.searchParams.get('conversationId');
+    const { organizationId, inboxIdentifier, contactIdentifier, conversationId } = await req.json();
 
     if (!organizationId || !inboxIdentifier || !contactIdentifier || !conversationId) {
       throw new Error('Parâmetros obrigatórios faltando');
