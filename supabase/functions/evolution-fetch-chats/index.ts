@@ -55,17 +55,20 @@ serve(async (req) => {
 
     console.log('✅ Instância encontrada:', config.instance_name);
 
-    // Buscar chats da Evolution API
-    const evolutionUrl = `${config.api_url}/chat/findChats/${config.instance_name}`;
+    // Buscar chats da Evolution API usando POST
+    const evolutionUrl = `${config.api_url}/chat/findMessages/${config.instance_name}`;
     
     console.log(`📞 Buscando chats da Evolution API: ${evolutionUrl}`);
     
     const response = await fetch(evolutionUrl, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'apikey': config.api_key || '',
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        limit: 50
+      })
     });
 
     if (!response.ok) {
@@ -74,12 +77,36 @@ serve(async (req) => {
       throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
     }
 
-    const chats = await response.json();
+    const result = await response.json();
     
-    console.log(`✅ ${chats.length || 0} conversas recuperadas`);
+    // A API retorna mensagens, precisamos agrupar por contato
+    const messages = Array.isArray(result) ? result : (result.messages || []);
+    
+    // Agrupar mensagens por remoteJid para criar lista de chats
+    const chatsMap = new Map();
+    messages.forEach((msg: any) => {
+      const jid = msg.key?.remoteJid;
+      if (!jid) return;
+      
+      const existingChat = chatsMap.get(jid);
+      const msgTime = msg.messageTimestamp || 0;
+      
+      if (!existingChat || msgTime > (existingChat.lastMessage?.messageTimestamp || 0)) {
+        chatsMap.set(jid, {
+          id: jid,
+          name: jid.split('@')[0],
+          lastMessage: msg,
+          unreadCount: 0
+        });
+      }
+    });
+    
+    const chats = Array.from(chatsMap.values());
+    
+    console.log(`✅ ${chats.length} conversas recuperadas`);
 
     return new Response(
-      JSON.stringify({ chats: Array.isArray(chats) ? chats : [] }),
+      JSON.stringify({ chats }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200 
