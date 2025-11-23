@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     const response = await fetch(chatwootUrl, {
       method: 'GET',
       headers: {
-        'api_access_token': config.chatwoot_api_access_token,
+        'Authorization': `Bearer ${config.chatwoot_api_access_token}`,
         'Content-Type': 'application/json',
       },
     });
