@@ -140,10 +140,12 @@ export default function ChatwootMessages() {
 
                 </TabsContent>
 
-                <TabsContent value="webhook" className="flex-1 mt-0 overflow-auto">
-                  <div className="p-4">
-                    {activeOrgId && <ChatwootWebhookSetup organizationId={activeOrgId} />}
-                  </div>
+                <TabsContent value="webhook" className="flex-1 mt-0">
+                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                    <div className="p-4">
+                      {activeOrgId && <ChatwootWebhookSetup organizationId={activeOrgId} />}
+                    </div>
+                  </ScrollArea>
                 </TabsContent>
               </Tabs>
 
