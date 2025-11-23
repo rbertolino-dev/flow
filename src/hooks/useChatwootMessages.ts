@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface ChatwootMessage {
   id: number;
   content: string;
-  message_type: 'incoming' | 'outgoing';
+  message_type: number | 'incoming' | 'outgoing'; // 0 = incoming, 1 = outgoing
   created_at: string;
   sender?: {
     name: string;
