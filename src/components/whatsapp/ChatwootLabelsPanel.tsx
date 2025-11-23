@@ -82,7 +82,7 @@ export const ChatwootLabelsPanel = ({ organizationId, conversationId }: Chatwoot
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 p-2">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : labels.length === 0 ? (
@@ -92,7 +92,7 @@ export const ChatwootLabelsPanel = ({ organizationId, conversationId }: Chatwoot
             <Badge
               key={label.id}
               style={{ backgroundColor: label.color }}
-              className="cursor-pointer hover:opacity-80"
+              className="cursor-pointer hover:opacity-80 px-3 py-1"
               onClick={() => handleApplyLabel(label.id)}
             >
               {label.title}
