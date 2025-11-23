@@ -89,24 +89,23 @@ export function ChatwootChatWindow({
 
     setSending(true);
     try {
-      const formData = new FormData();
+      let content = message;
       
-      if (audioBlob) {
-        formData.append('attachments[]', audioBlob, 'audio.webm');
-        formData.append('content', message || 'Áudio');
-      } else if (selectedFile) {
-        formData.append('attachments[]', selectedFile);
-        formData.append('content', message || 'Arquivo');
-      } else {
-        formData.append('content', message);
+      // Por enquanto, apenas mensagens de texto são suportadas
+      // TODO: Implementar upload de anexos para o Chatwoot
+      if (selectedFile) {
+        content = message || `[Arquivo: ${selectedFile.name}]`;
+        toast.info('Upload de arquivos será implementado em breve');
+      } else if (audioBlob) {
+        content = message || '[Áudio gravado]';
+        toast.info('Upload de áudio será implementado em breve');
       }
 
       const { data, error } = await supabase.functions.invoke('chatwoot-send-message', {
         body: {
           organizationId,
           conversationId,
-          message: message || (audioBlob ? 'Áudio' : 'Arquivo'),
-          file: selectedFile || audioBlob,
+          content,
         },
       });
 

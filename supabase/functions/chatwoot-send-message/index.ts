@@ -24,9 +24,9 @@ Deno.serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const { organizationId, inboxIdentifier, contactIdentifier, conversationId, content } = await req.json();
+    const { organizationId, conversationId, content } = await req.json();
 
-    if (!organizationId || !inboxIdentifier || !contactIdentifier || !conversationId || !content) {
+    if (!organizationId || !conversationId || !content) {
       throw new Error('Campos obrigatórios faltando');
     }
 
@@ -41,8 +41,8 @@ Deno.serve(async (req) => {
       throw new Error('Configuração do Chatwoot inválida');
     }
 
-    // Enviar mensagem via Chatwoot
-    const chatwootUrl = `${config.chatwoot_base_url}/public/api/v1/inboxes/${inboxIdentifier}/contacts/${contactIdentifier}/conversations/${conversationId}/messages`;
+    // Enviar mensagem via Chatwoot usando a API autenticada
+    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations/${conversationId}/messages`;
     
     console.log('📞 Enviando mensagem:', { conversationId, content });
 
@@ -55,11 +55,13 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         content,
         message_type: 'outgoing',
+        private: false,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
+      console.error('Erro Chatwoot API:', response.status, errorData);
       throw new Error(`Erro ao enviar mensagem: ${response.status} - ${errorData}`);
     }
 
