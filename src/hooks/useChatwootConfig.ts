@@ -29,15 +29,13 @@ export const useChatwootConfig = (organizationId: string | null) => {
       accountId: number; 
       apiToken: string;
     }) => {
-      const response = await fetch(`${baseUrl}/api/v1/accounts/${accountId}`, {
-        headers: { 'api_access_token': apiToken },
+      const { data, error } = await supabase.functions.invoke('chatwoot-test-connection', {
+        body: { baseUrl, accountId, apiToken },
       });
 
-      if (!response.ok) {
-        throw new Error('Falha na conexão com Chatwoot');
-      }
-
-      return response.json();
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
     onSuccess: () => {
       toast({ title: "✅ Conexão com Chatwoot estabelecida com sucesso!" });
@@ -89,6 +87,7 @@ export const useChatwootConfig = (organizationId: string | null) => {
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return data.inboxes;
     },
   });
