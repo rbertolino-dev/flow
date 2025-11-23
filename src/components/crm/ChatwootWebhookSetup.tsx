@@ -1,46 +1,230 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, Info, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, Info, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 interface ChatwootWebhookSetupProps {
   organizationId: string;
 }
 
 export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupProps) => {
+  // Buscar configuração da Evolution API
+  const { data: evolutionConfigs, isLoading: loadingEvolution, refetch: refetchEvolution } = useQuery({
+    queryKey: ['evolution-configs', organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('evolution_config')
+        .select('*')
+        .eq('organization_id', organizationId);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!organizationId,
+  });
+
+  // Buscar configuração do Chatwoot
+  const { data: chatwootConfig, isLoading: loadingChatwoot, refetch: refetchChatwoot } = useQuery({
+    queryKey: ['chatwoot-config', organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('chatwoot_configs')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!organizationId,
+  });
+
+  const isLoading = loadingEvolution || loadingChatwoot;
+
+  // Análise do status
+  const hasEvolutionWithWebhook = evolutionConfigs?.some(config => config.webhook_enabled);
+  const hasChatwootEnabled = chatwootConfig?.enabled;
+  const evolutionApiUrl = evolutionConfigs?.[0]?.api_url;
+  const chatwootBaseUrl = chatwootConfig?.chatwoot_base_url;
+  
+  // Verificar se estão conectados
+  const areConnected = hasEvolutionWithWebhook && hasChatwootEnabled;
+
+  const handleRefresh = () => {
+    refetchEvolution();
+    refetchChatwoot();
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-primary/20">
+        <CardContent className="flex items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-primary/20">
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <Info className="h-5 w-5 text-primary" />
-          <CardTitle>Webhook e Tempo Real</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-primary" />
+            <CardTitle>Status da Integração</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Atualizar
+          </Button>
         </div>
         <CardDescription>
-          Entenda como funciona a integração em tempo real
+          Verificação automática da configuração Evolution + Chatwoot
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Explicação Principal */}
-        <Alert className="bg-green-500/10 border-green-500/20">
-          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-          <AlertDescription className="space-y-3">
-            <div>
-              <p className="font-semibold text-green-700 dark:text-green-300 mb-2">
-                ✓ Seu sistema já está configurado!
-              </p>
-              <p className="text-sm text-green-600/80 dark:text-green-400/80">
-                Como o Chatwoot está conectado à mesma Evolution API que você já configurou nas Configurações, 
-                o webhook da Evolution JÁ recebe todas as mensagens e cria os leads automaticamente no funil.
-              </p>
+        {/* Status Geral */}
+        {areConnected ? (
+          <Alert className="bg-green-500/10 border-green-500/20">
+            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <AlertDescription className="space-y-2">
+              <div>
+                <p className="font-semibold text-green-700 dark:text-green-300 mb-2">
+                  ✓ Sistema configurado corretamente!
+                </p>
+                <p className="text-sm text-green-600/80 dark:text-green-400/80">
+                  Evolution API com webhook ativo e Chatwoot habilitado. Mensagens em tempo real funcionando!
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertDescription className="space-y-2">
+              <div>
+                <p className="font-semibold mb-2">
+                  ⚠️ Configuração incompleta
+                </p>
+                <p className="text-sm">
+                  Verifique as configurações abaixo e corrija os itens pendentes.
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Checklist Detalhado */}
+        <div className="space-y-3">
+          <p className="text-sm font-semibold">Checklist de Configuração:</p>
+          
+          {/* Evolution API */}
+          <div className="flex items-start gap-3 p-3 rounded-lg border bg-card">
+            {hasEvolutionWithWebhook ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 space-y-1">
+              <p className="font-medium text-sm">Evolution API com Webhook</p>
+              {hasEvolutionWithWebhook ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {evolutionConfigs?.filter(c => c.webhook_enabled).length} instância(s) com webhook ativo
+                  </p>
+                  {evolutionApiUrl && (
+                    <code className="block text-xs bg-muted px-2 py-1 rounded mt-1">
+                      {evolutionApiUrl}
+                    </code>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Nenhuma instância Evolution com webhook habilitado. Configure em Configurações → WhatsApp
+                </p>
+              )}
             </div>
-          </AlertDescription>
-        </Alert>
+            {hasEvolutionWithWebhook && (
+              <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-300">
+                OK
+              </Badge>
+            )}
+          </div>
+
+          {/* Chatwoot */}
+          <div className="flex items-start gap-3 p-3 rounded-lg border bg-card">
+            {hasChatwootEnabled ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 space-y-1">
+              <p className="font-medium text-sm">Chatwoot Habilitado</p>
+              {hasChatwootEnabled ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Conta ID: {chatwootConfig?.chatwoot_account_id}
+                  </p>
+                  {chatwootBaseUrl && (
+                    <code className="block text-xs bg-muted px-2 py-1 rounded mt-1">
+                      {chatwootBaseUrl}
+                    </code>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Chatwoot não está habilitado. Configure em Configurações → Chatwoot
+                </p>
+              )}
+            </div>
+            {hasChatwootEnabled && (
+              <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-300">
+                OK
+              </Badge>
+            )}
+          </div>
+
+          {/* Conexão Evolution + Chatwoot */}
+          <div className="flex items-start gap-3 p-3 rounded-lg border bg-card">
+            {areConnected ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 space-y-1">
+              <p className="font-medium text-sm">Integração Ativa</p>
+              {areConnected ? (
+                <p className="text-xs text-muted-foreground">
+                  Evolution e Chatwoot estão conectados e funcionando em tempo real
+                </p>
+              ) : (
+                <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Ambos precisam estar habilitados para a integração funcionar
+                </p>
+              )}
+            </div>
+            {areConnected && (
+              <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-300">
+                OK
+              </Badge>
+            )}
+          </div>
+        </div>
 
         {/* Como Funciona */}
         <Alert className="bg-primary/5 border-primary/20">
           <AlertDescription className="text-sm space-y-3">
             <div>
               <p className="font-semibold mb-2 flex items-center gap-2">
-                📱 Fluxo Atual (já funcionando)
+                📱 Como Funciona
               </p>
               <div className="ml-4 space-y-2 text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -70,21 +254,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
           </AlertDescription>
         </Alert>
 
-        {/* Informação Adicional */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-sm space-y-2">
-            <p className="font-semibold">Observações importantes:</p>
-            <ul className="list-disc list-inside space-y-1 ml-2 text-muted-foreground">
-              <li>Todas as suas instâncias Evolution usam o mesmo webhook configurado</li>
-              <li>O Chatwoot não precisa de webhook separado pois está conectado à Evolution</li>
-              <li>As mensagens aparecem em tempo real tanto no Chatwoot quanto no funil</li>
-              <li>O custo é otimizado pois não há polling HTTP (WebSocket da Evolution)</li>
-            </ul>
-          </AlertDescription>
-        </Alert>
-
-        {/* Informação Técnica (para referência) */}
+        {/* Informação Técnica */}
         <div className="rounded-lg bg-muted/50 p-4 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Informações Técnicas</p>
           <div className="space-y-1 text-xs text-muted-foreground">
@@ -93,14 +263,14 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
               <code className="bg-background px-2 py-0.5 rounded">{organizationId}</code>
             </div>
             <div className="flex justify-between">
+              <span>Instâncias Evolution:</span>
+              <Badge variant="outline">{evolutionConfigs?.length || 0}</Badge>
+            </div>
+            <div className="flex justify-between">
               <span>Webhook Evolution:</span>
               <code className="bg-background px-2 py-0.5 rounded text-[10px]">
                 /functions/v1/evolution-webhook
               </code>
-            </div>
-            <div className="flex justify-between">
-              <span>Status:</span>
-              <span className="text-green-600 dark:text-green-400 font-semibold">Ativo ✓</span>
             </div>
           </div>
         </div>
