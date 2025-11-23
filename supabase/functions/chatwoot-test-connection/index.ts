@@ -20,7 +20,12 @@ Deno.serve(async (req) => {
     // Testar conexão usando Authorization Bearer (user access token)
     const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
     
-    console.log('🧪 Testando conexão:', inboxesUrl);
+    console.log('🧪 Testando conexão:', {
+      url: inboxesUrl,
+      accountId,
+      tokenLength: apiToken?.length || 0,
+      tokenPrefix: apiToken?.substring(0, 10) + '...'
+    });
 
     const response = await fetch(inboxesUrl, {
       method: 'GET',
@@ -30,9 +35,15 @@ Deno.serve(async (req) => {
       },
     });
 
+    console.log('📡 Status da resposta:', response.status);
+
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('❌ Erro na resposta:', errorData);
+      console.error('❌ Erro completo:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorData
+      });
       throw new Error(`Falha na conexão: ${response.status} - ${errorData}`);
     }
 

@@ -65,10 +65,16 @@ export const ChatwootConfigPanel = () => {
       <CardContent className="space-y-6">
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Importante:</strong> Use o Access Token de um usuário Administrator da conta (não SuperAdmin ou Platform App).
-            <br />
-            Acesse: Profile → Access Token no Chatwoot.
+          <AlertDescription className="text-sm space-y-2">
+            <p><strong>Como obter o token correto:</strong></p>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Acesse: <code className="bg-muted px-1 py-0.5 rounded">https://chat.atendimentoagilize.com</code></li>
+              <li>Faça login como <strong>usuário Administrator</strong> da conta {accountId || '(especifique o Account ID)'}</li>
+              <li>Clique no ícone do usuário → <strong>Profile Settings</strong></li>
+              <li>Vá em <strong>Access Token</strong></li>
+              <li>Copie o token que aparece e cole no campo abaixo</li>
+            </ol>
+            <p className="text-destructive font-medium mt-2">⚠️ NÃO use token de Platform App ou SuperAdmin</p>
           </AlertDescription>
         </Alert>
 
