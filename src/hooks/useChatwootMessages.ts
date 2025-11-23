@@ -17,8 +17,10 @@ export const useChatwootMessages = (
 ) => {
   const [messages, setMessages] = useState<ChatwootMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
-  const fetchMessages = async () => {
+  // ✅ OTIMIZAÇÃO 2: Lazy loading - carregar apenas últimas 50 mensagens
+  const fetchMessages = async (limit = 50) => {
     if (!organizationId || !conversationId) {
       setMessages([]);
       return;
@@ -30,6 +32,7 @@ export const useChatwootMessages = (
         body: {
           organizationId,
           conversationId,
+          limit, // Limitar quantidade de mensagens
         },
       });
 
@@ -41,15 +44,25 @@ export const useChatwootMessages = (
 
       if (data?.messages && Array.isArray(data.messages)) {
         setMessages(data.messages);
+        // Se retornar menos que o limite, não há mais mensagens
+        setHasMore(data.messages.length >= limit);
       } else {
         setMessages([]);
+        setHasMore(false);
       }
     } catch (err) {
       console.error('Erro ao buscar mensagens:', err);
       setMessages([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Função para carregar mais mensagens antigas
+  const loadMore = async () => {
+    if (!hasMore || loading) return;
+    await fetchMessages(100); // Carregar mais 50
   };
 
   useEffect(() => {
@@ -58,7 +71,7 @@ export const useChatwootMessages = (
 
     if (!organizationId || !conversationId) return;
 
-    // Conectar ao Realtime para receber mensagens instantaneamente
+    // Conectar ao Realtime para receber mensagens instantaneamente (SEM POLLING!)
     console.log('🔌 Conectando ao Realtime para conversa:', conversationId);
     
     const channel = supabase
@@ -87,15 +100,8 @@ export const useChatwootMessages = (
         console.log('📡 Status do Realtime:', status);
       });
 
-    // Polling como fallback (a cada 30s, apenas se aba ativa)
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        console.log('🔄 Polling fallback (30s)');
-        fetchMessages();
-      }
-    }, 30000);
-    
-    // Buscar quando a aba voltar a ficar ativa
+    // ✅ OTIMIZAÇÃO: Removido polling de 30s - apenas Realtime!
+    // Buscar quando a aba voltar a ficar ativa (apenas uma vez)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         console.log('👁️ Aba ativa - buscando mensagens');
@@ -107,11 +113,10 @@ export const useChatwootMessages = (
     
     return () => {
       console.log('🔌 Desconectando do Realtime');
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [organizationId, conversationId]);
 
-  return { messages, loading, refetch: fetchMessages };
+  return { messages, loading, refetch: fetchMessages, loadMore, hasMore };
 };

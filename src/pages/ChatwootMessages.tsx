@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -19,6 +19,7 @@ import { ChatwootChatWindow } from "@/components/whatsapp/ChatwootChatWindow";
 import { ChatwootWebhookSetup } from "@/components/crm/ChatwootWebhookSetup";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function ChatwootMessages() {
   const navigate = useNavigate();
@@ -35,18 +36,24 @@ export default function ChatwootMessages() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showInboxHeader, setShowInboxHeader] = useState(true);
   const [showConversationList, setShowConversationList] = useState(true);
+  const [conversationPage, setConversationPage] = useState(1);
+  const CONVERSATIONS_PER_PAGE = 20; // ✅ OTIMIZAÇÃO 5: Pagination
+  
   const { data: conversations, isLoading: conversationsLoading } = useChatwootConversations(
     activeOrgId,
     selectedInbox?.id || null
   );
   const isMobile = useIsMobile();
 
-  // Filtrar conversas pela busca
+  // ✅ OTIMIZAÇÃO 4: Debounce na busca (300ms)
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // Filtrar conversas pela busca com debounce
   const filteredConversations = useMemo(() => {
     if (!conversations || !Array.isArray(conversations)) return [];
-    if (!searchQuery.trim()) return conversations;
+    if (!debouncedSearch.trim()) return conversations;
 
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearch.toLowerCase();
     return conversations.filter((conv: any) => {
       const name = conv.meta?.sender?.name?.toLowerCase() || '';
       const phone = conv.meta?.sender?.phone_number?.toLowerCase() || '';
@@ -58,7 +65,30 @@ export default function ChatwootMessages() {
              identifier.includes(query) ||
              lastMessage.includes(query);
     });
-  }, [conversations, searchQuery]);
+  }, [conversations, debouncedSearch]);
+
+  // ✅ OTIMIZAÇÃO 5: Pagination - mostrar apenas conversas da página atual
+  const paginatedConversations = useMemo(() => {
+    const startIndex = (conversationPage - 1) * CONVERSATIONS_PER_PAGE;
+    const endIndex = startIndex + CONVERSATIONS_PER_PAGE;
+    return filteredConversations.slice(startIndex, endIndex);
+  }, [filteredConversations, conversationPage]);
+
+  const totalPages = Math.ceil(filteredConversations.length / CONVERSATIONS_PER_PAGE);
+  const hasNextPage = conversationPage < totalPages;
+  const hasPrevPage = conversationPage > 1;
+
+  const loadMoreConversations = useCallback(() => {
+    if (hasNextPage) {
+      setConversationPage(prev => prev + 1);
+    }
+  }, [hasNextPage]);
+
+  const loadPrevConversations = useCallback(() => {
+    if (hasPrevPage) {
+      setConversationPage(prev => prev - 1);
+    }
+  }, [hasPrevPage]);
 
   const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "users") {
@@ -280,44 +310,70 @@ export default function ChatwootMessages() {
                       <div className="flex-1 flex items-center justify-center">
                         <p className="text-muted-foreground">Carregando conversas...</p>
                       </div>
-                    ) : filteredConversations.length > 0 ? (
-                      <ScrollArea className="flex-1">
-                        <div className="p-4 space-y-2">
-                          {filteredConversations.map((conv: any) => (
-                            <div
-                              key={conv.id}
-                              onClick={() => handleSelectConversation(conv)}
-                              className="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
-                            >
-                              <div className="flex items-start gap-3">
-                                <Avatar className="h-10 w-10">
-                                  <div className="h-full w-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
-                                    {conv.meta?.sender?.name?.charAt(0) || '?'}
+                    ) : paginatedConversations.length > 0 ? (
+                      <div className="flex-1 flex flex-col">
+                        <ScrollArea className="flex-1">
+                          <div className="p-4 space-y-2">
+                            {paginatedConversations.map((conv: any) => (
+                              <div
+                                key={conv.id}
+                                onClick={() => handleSelectConversation(conv)}
+                                className="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <Avatar className="h-10 w-10">
+                                    <div className="h-full w-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
+                                      {conv.meta?.sender?.name?.charAt(0) || '?'}
+                                    </div>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-semibold truncate">
+                                        {conv.meta?.sender?.name || 'Sem nome'}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(conv.timestamp * 1000).toLocaleString('pt-BR')}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                      {conv.messages?.[0]?.content || 'Sem mensagens'}
+                                    </p>
+                                    {conv.unread_count > 0 && (
+                                      <Badge className="mt-2 bg-primary">
+                                        {conv.unread_count} não lidas
+                                      </Badge>
+                                    )}
                                   </div>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="font-semibold truncate">
-                                      {conv.meta?.sender?.name || 'Sem nome'}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {new Date(conv.timestamp * 1000).toLocaleString('pt-BR')}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {conv.messages?.[0]?.content || 'Sem mensagens'}
-                                  </p>
-                                  {conv.unread_count > 0 && (
-                                    <Badge className="mt-2 bg-primary">
-                                      {conv.unread_count} não lidas
-                                    </Badge>
-                                  )}
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                        {/* ✅ OTIMIZAÇÃO 5: Controles de paginação */}
+                        {totalPages > 1 && (
+                          <div className="p-4 border-t border-border flex items-center justify-between">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={loadPrevConversations}
+                              disabled={!hasPrevPage}
+                            >
+                              Anterior
+                            </Button>
+                            <span className="text-sm text-muted-foreground">
+                              Página {conversationPage} de {totalPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={loadMoreConversations}
+                              disabled={!hasNextPage}
+                            >
+                              Próxima
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex-1 flex items-center justify-center">
                         <div className="text-center text-muted-foreground">
