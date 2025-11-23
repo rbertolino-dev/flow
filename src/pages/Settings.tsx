@@ -23,6 +23,7 @@ import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
+import { ChatwootConfigPanel } from "@/components/crm/ChatwootConfigPanel";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -176,10 +177,14 @@ export default function Settings() {
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
         <Tabs defaultValue="evolution" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1">
             <TabsTrigger value="evolution" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Evolution API</span>
               <span className="sm:hidden">Evolution</span>
+            </TabsTrigger>
+            <TabsTrigger value="chatwoot" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Chatwoot</span>
+              <span className="sm:hidden">Chat</span>
             </TabsTrigger>
             <TabsTrigger value="pipeline" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Funil & Etiquetas</span>
@@ -252,6 +257,10 @@ export default function Settings() {
                 Quando desativado, mensagens recebidas naquela instância não serão processadas pelo CRM.
               </AlertDescription>
             </Alert>
+          </TabsContent>
+
+          <TabsContent value="chatwoot" className="space-y-6">
+            <ChatwootConfigPanel />
           </TabsContent>
 
           <TabsContent value="pipeline" className="space-y-6">
