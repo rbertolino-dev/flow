@@ -45,6 +45,14 @@ export function ChatwootChatWindow({
     scrollToBottom();
   }, [messages]);
 
+  // Scroll para última mensagem quando a conversa muda
+  useEffect(() => {
+    if (conversationId && messages.length > 0) {
+      // Pequeno delay para garantir que o DOM foi atualizado
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [conversationId]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
