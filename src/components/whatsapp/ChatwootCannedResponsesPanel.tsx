@@ -1,0 +1,99 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, MessageSquare } from "lucide-react";
+import { useChatwootCannedResponses } from "@/hooks/useChatwootCannedResponses";
+
+interface ChatwootCannedResponsesPanelProps {
+  organizationId: string | null;
+  onSelectResponse: (content: string) => void;
+}
+
+export const ChatwootCannedResponsesPanel = ({ 
+  organizationId, 
+  onSelectResponse 
+}: ChatwootCannedResponsesPanelProps) => {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newResponse, setNewResponse] = useState({ shortCode: '', content: '' });
+  
+  const { cannedResponses, isLoading, createCannedResponse } = useChatwootCannedResponses(organizationId);
+
+  const handleCreateResponse = () => {
+    if (!newResponse.shortCode.trim() || !newResponse.content.trim()) return;
+    createCannedResponse(newResponse);
+    setNewResponse({ shortCode: '', content: '' });
+    setShowCreateForm(false);
+  };
+
+  return (
+    <div className="space-y-4 p-4 border rounded-lg bg-background">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" />
+          <h3 className="font-medium">Respostas Prontas</h3>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowCreateForm(!showCreateForm)}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {showCreateForm && (
+        <div className="space-y-3 p-3 border rounded bg-muted/50">
+          <div>
+            <Label htmlFor="response-code">Código (ex: /ola)</Label>
+            <Input
+              id="response-code"
+              value={newResponse.shortCode}
+              onChange={(e) => setNewResponse({ ...newResponse, shortCode: e.target.value })}
+              placeholder="/ola"
+            />
+          </div>
+          <div>
+            <Label htmlFor="response-content">Mensagem</Label>
+            <Textarea
+              id="response-content"
+              value={newResponse.content}
+              onChange={(e) => setNewResponse({ ...newResponse, content: e.target.value })}
+              placeholder="Olá! Como posso ajudar?"
+              rows={3}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleCreateResponse} size="sm">Criar</Button>
+            <Button onClick={() => setShowCreateForm(false)} size="sm" variant="outline">
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ScrollArea className="h-48">
+        <div className="space-y-2">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : cannedResponses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma resposta criada</p>
+          ) : (
+            cannedResponses.map((response: any) => (
+              <div
+                key={response.id}
+                className="p-2 border rounded hover:bg-muted cursor-pointer"
+                onClick={() => onSelectResponse(response.content)}
+              >
+                <div className="font-medium text-sm">{response.short_code}</div>
+                <div className="text-xs text-muted-foreground truncate">{response.content}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+};
