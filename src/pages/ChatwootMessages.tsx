@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
-import { MessageSquare, Inbox, CheckCircle2, XCircle, Search } from "lucide-react";
+import { MessageSquare, Inbox, CheckCircle2, XCircle, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useChatwootChats } from "@/hooks/useChatwootChats";
 import { useChatwootConversations } from "@/hooks/useChatwootConversations";
@@ -33,6 +33,8 @@ export default function ChatwootMessages() {
     contactName: string;
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showInboxHeader, setShowInboxHeader] = useState(true);
+  const [showConversationList, setShowConversationList] = useState(true);
   const { data: conversations, isLoading: conversationsLoading } = useChatwootConversations(
     activeOrgId,
     selectedInbox?.id || null
@@ -215,91 +217,129 @@ export default function ChatwootMessages() {
                 />
               ) : selectedInbox ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  {/* Header da Conversa */}
-                  <div className="p-4 border-b border-border flex-shrink-0">
-                    <h2 className="text-lg font-semibold">{selectedInbox.name}</h2>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedInbox.channel_type} • ID: {selectedInbox.id}
-                    </p>
+                  {/* Header da Conversa com botão de recolher */}
+                  <div className="border-b border-border flex-shrink-0">
+                    <div className="flex items-center justify-between p-2">
+                      {!showConversationList && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowConversationList(true)}
+                          className="h-8 w-8"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowInboxHeader(!showInboxHeader)}
+                        className="h-8 w-8 ml-auto"
+                      >
+                        {showInboxHeader ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    {showInboxHeader && (
+                      <div className="px-4 pb-4">
+                        <h2 className="text-lg font-semibold">{selectedInbox.name}</h2>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedInbox.channel_type} • ID: {selectedInbox.id}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Campo de Busca */}
-                  <div className="p-4 border-b border-border flex-shrink-0">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar contato, telefone ou mensagem..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
+                  {/* Campo de Busca com botão de recolher */}
+                  {showConversationList && (
+                    <div className="border-b border-border flex-shrink-0">
+                      <div className="p-2 flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar contato, telefone ou mensagem..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowConversationList(false)}
+                          className="h-8 w-8 flex-shrink-0"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Lista de Conversas */}
-                  {conversationsLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <p className="text-muted-foreground">Carregando conversas...</p>
-                    </div>
-                  ) : filteredConversations.length > 0 ? (
-                    <ScrollArea className="flex-1">
-                      <div className="p-4 space-y-2">
-                        {filteredConversations.map((conv: any) => (
-                          <div
-                            key={conv.id}
-                            onClick={() => handleSelectConversation(conv)}
-                            className="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-start gap-3">
-                              <Avatar className="h-10 w-10">
-                                <div className="h-full w-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
-                                  {conv.meta?.sender?.name?.charAt(0) || '?'}
+                  {/* Lista de Conversas - apenas se showConversationList estiver true */}
+                  {showConversationList && (
+                    conversationsLoading ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <p className="text-muted-foreground">Carregando conversas...</p>
+                      </div>
+                    ) : filteredConversations.length > 0 ? (
+                      <ScrollArea className="flex-1">
+                        <div className="p-4 space-y-2">
+                          {filteredConversations.map((conv: any) => (
+                            <div
+                              key={conv.id}
+                              onClick={() => handleSelectConversation(conv)}
+                              className="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-start gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <div className="h-full w-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
+                                    {conv.meta?.sender?.name?.charAt(0) || '?'}
+                                  </div>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-semibold truncate">
+                                      {conv.meta?.sender?.name || 'Sem nome'}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {new Date(conv.timestamp * 1000).toLocaleString('pt-BR')}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {conv.messages?.[0]?.content || 'Sem mensagens'}
+                                  </p>
+                                  {conv.unread_count > 0 && (
+                                    <Badge className="mt-2 bg-primary">
+                                      {conv.unread_count} não lidas
+                                    </Badge>
+                                  )}
                                 </div>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="font-semibold truncate">
-                                    {conv.meta?.sender?.name || 'Sem nome'}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {new Date(conv.timestamp * 1000).toLocaleString('pt-BR')}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                  {conv.messages?.[0]?.content || 'Sem mensagens'}
-                                </p>
-                                {conv.unread_count > 0 && (
-                                  <Badge className="mt-2 bg-primary">
-                                    {conv.unread_count} não lidas
-                                  </Badge>
-                                )}
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center text-muted-foreground">
+                          <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                          <p>
+                            {searchQuery.trim() 
+                              ? "Nenhuma conversa encontrada com esse termo" 
+                              : "Nenhuma conversa encontrada"}
+                          </p>
+                          {searchQuery.trim() && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSearchQuery("")}
+                              className="mt-2"
+                            >
+                              Limpar busca
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </ScrollArea>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className="text-center text-muted-foreground">
-                        <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                        <p>
-                          {searchQuery.trim() 
-                            ? "Nenhuma conversa encontrada com esse termo" 
-                            : "Nenhuma conversa encontrada"}
-                        </p>
-                        {searchQuery.trim() && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSearchQuery("")}
-                            className="mt-2"
-                          >
-                            Limpar busca
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                    )
                   )}
                 </div>
               ) : (
