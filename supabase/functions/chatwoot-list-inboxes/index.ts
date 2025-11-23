@@ -24,8 +24,7 @@ Deno.serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const url = new URL(req.url);
-    const organizationId = url.searchParams.get('organizationId');
+    const { organizationId } = await req.json();
 
     if (!organizationId) {
       throw new Error('organizationId é obrigatório');
