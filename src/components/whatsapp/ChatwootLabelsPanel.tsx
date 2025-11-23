@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Tag } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Tag, ChevronDown } from "lucide-react";
 import { useChatwootLabels } from "@/hooks/useChatwootLabels";
 
 interface ChatwootLabelsPanelProps {
@@ -15,6 +16,7 @@ interface ChatwootLabelsPanelProps {
 export const ChatwootLabelsPanel = ({ organizationId, conversationId }: ChatwootLabelsPanelProps) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newLabel, setNewLabel] = useState({ title: '', color: '#3b82f6' });
+  const [isOpen, setIsOpen] = useState(true);
   
   const { labels, isLoading, createLabel, applyLabel } = useChatwootLabels(organizationId);
 
@@ -31,12 +33,13 @@ export const ChatwootLabelsPanel = ({ organizationId, conversationId }: Chatwoot
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-background">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4 p-4 border rounded-lg bg-background">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80">
           <Tag className="h-4 w-4" />
           <h3 className="font-medium">Labels</h3>
-        </div>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
         <Button
           size="sm"
           variant="outline"
@@ -45,6 +48,8 @@ export const ChatwootLabelsPanel = ({ organizationId, conversationId }: Chatwoot
           <Plus className="h-4 w-4" />
         </Button>
       </div>
+
+      <CollapsibleContent className="space-y-4">
 
       {showCreateForm && (
         <div className="space-y-3 p-3 border rounded bg-muted/50">
@@ -105,6 +110,7 @@ export const ChatwootLabelsPanel = ({ organizationId, conversationId }: Chatwoot
           </div>
         </ScrollArea>
       </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };

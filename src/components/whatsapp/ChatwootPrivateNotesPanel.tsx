@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Lock } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Lock, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,6 +18,7 @@ export const ChatwootPrivateNotesPanel = ({
 }: ChatwootPrivateNotesPanelProps) => {
   const [note, setNote] = useState('');
   const [notes, setNotes] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(true);
   const { toast } = useToast();
 
   const handleAddNote = async () => {
@@ -44,11 +46,14 @@ export const ChatwootPrivateNotesPanel = ({
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-background">
-      <div className="flex items-center gap-2">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4 p-4 border rounded-lg bg-background">
+      <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80">
         <Lock className="h-4 w-4" />
         <h3 className="font-medium">Notas Privadas</h3>
-      </div>
+        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </CollapsibleTrigger>
+
+      <CollapsibleContent className="space-y-4">
 
       <div className="space-y-2">
         <Textarea
@@ -82,6 +87,7 @@ export const ChatwootPrivateNotesPanel = ({
           </div>
         </ScrollArea>
       </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };

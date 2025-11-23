@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MessageSquare } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, MessageSquare, ChevronDown } from "lucide-react";
 import { useChatwootCannedResponses } from "@/hooks/useChatwootCannedResponses";
 
 interface ChatwootCannedResponsesPanelProps {
@@ -18,6 +19,7 @@ export const ChatwootCannedResponsesPanel = ({
 }: ChatwootCannedResponsesPanelProps) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newResponse, setNewResponse] = useState({ shortCode: '', content: '' });
+  const [isOpen, setIsOpen] = useState(true);
   
   const { cannedResponses, isLoading, createCannedResponse } = useChatwootCannedResponses(organizationId);
 
@@ -29,12 +31,13 @@ export const ChatwootCannedResponsesPanel = ({
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-background overflow-hidden">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-4 p-4 border rounded-lg bg-background overflow-hidden">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80">
           <MessageSquare className="h-4 w-4" />
           <h3 className="font-medium">Respostas Prontas</h3>
-        </div>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
         <Button
           size="sm"
           variant="outline"
@@ -43,6 +46,8 @@ export const ChatwootCannedResponsesPanel = ({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
+
+      <CollapsibleContent className="space-y-4">
 
       {showCreateForm && (
         <div className="space-y-3 p-3 border rounded bg-muted/50">
@@ -98,6 +103,7 @@ export const ChatwootCannedResponsesPanel = ({
           </div>
         </ScrollArea>
       </div>
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
