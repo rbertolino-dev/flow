@@ -53,12 +53,14 @@ export const useChatwootConfig = (organizationId: string | null) => {
     mutationFn: async (configData: any) => {
       if (!organizationId) throw new Error('Organization ID não encontrado');
 
+      // Se já existe config, incluir o ID para fazer update ao invés de insert
+      const payload = config?.id 
+        ? { ...configData, id: config.id, organization_id: organizationId }
+        : { ...configData, organization_id: organizationId };
+
       const { data, error } = await supabase
         .from('chatwoot_configs')
-        .upsert({
-          ...configData,
-          organization_id: organizationId,
-        })
+        .upsert(payload)
         .select()
         .single();
 
