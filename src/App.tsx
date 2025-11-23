@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
 import WhatsApp from "./pages/WhatsApp";
+import ChatwootMessages from "./pages/ChatwootMessages";
 import PeriodicWorkflows from "./pages/PeriodicWorkflows";
 import AuthLogs from "./pages/AuthLogs";
 import Diagnostics from "./pages/Diagnostics";
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />
           <Route path="/whatsapp" element={<WhatsApp />} />
+          <Route path="/chatwoot" element={<ChatwootMessages />} />
           <Route path="/workflows" element={<PeriodicWorkflows />} />
           <Route path="/auth-logs" element={<AuthLogs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
