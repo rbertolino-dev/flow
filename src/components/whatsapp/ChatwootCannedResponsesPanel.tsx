@@ -74,21 +74,23 @@ export const ChatwootCannedResponsesPanel = ({
         </div>
       )}
 
-      <ScrollArea className="max-h-64">
-        <div className="space-y-2">
+      <ScrollArea className="max-h-64 pr-4">
+        <div className="space-y-2 pr-2">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
+            <p className="text-sm text-muted-foreground p-2">Carregando...</p>
           ) : cannedResponses.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma resposta criada</p>
+            <p className="text-sm text-muted-foreground p-2">Nenhuma resposta criada</p>
           ) : (
             cannedResponses.map((response: any) => (
               <div
                 key={response.id}
-                className="p-2 border rounded hover:bg-muted cursor-pointer transition-colors"
+                className="p-3 border rounded hover:bg-muted cursor-pointer transition-colors"
                 onClick={() => onSelectResponse(response.content)}
               >
-                <div className="font-medium text-sm">{response.short_code}</div>
-                <div className="text-xs text-muted-foreground truncate">{response.content}</div>
+                <div className="font-medium text-sm mb-1 break-words">{response.short_code}</div>
+                <div className="text-xs text-muted-foreground break-words whitespace-normal">
+                  {response.content}
+                </div>
               </div>
             ))
           )}

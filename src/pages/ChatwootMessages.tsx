@@ -193,7 +193,7 @@ export default function ChatwootMessages() {
                 
                 <TabsContent value="tools" className="flex-1 mt-0 overflow-hidden">
                   <ScrollArea className="h-[calc(100vh-12rem)]">
-                    <div className="p-4 space-y-4">
+                    <div className="p-4 pr-6 space-y-6">
                       <ChatwootLabelsPanel 
                         organizationId={activeOrgId} 
                         conversationId={selectedConversation?.id ? parseInt(selectedConversation.id) : null}

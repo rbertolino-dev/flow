@@ -67,13 +67,13 @@ export const ChatwootPrivateNotesPanel = ({
         </Button>
       </div>
 
-      <ScrollArea className="max-h-48">
-        <div className="space-y-2">
+      <ScrollArea className="max-h-48 pr-4">
+        <div className="space-y-2 pr-2">
           {notes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma nota adicionada</p>
+            <p className="text-sm text-muted-foreground p-2">Nenhuma nota adicionada</p>
           ) : (
             notes.map((n: any, idx: number) => (
-              <div key={idx} className="p-2 border rounded bg-muted/50 text-sm">
+              <div key={idx} className="p-3 border rounded bg-muted/50 text-sm break-words whitespace-normal">
                 {n.content}
               </div>
             ))
