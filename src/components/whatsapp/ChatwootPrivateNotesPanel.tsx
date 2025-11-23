@@ -67,19 +67,21 @@ export const ChatwootPrivateNotesPanel = ({
         </Button>
       </div>
 
-      <ScrollArea className="max-h-48 pr-4">
-        <div className="space-y-2 pr-2">
-          {notes.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-2">Nenhuma nota adicionada</p>
-          ) : (
-            notes.map((n: any, idx: number) => (
-              <div key={idx} className="p-3 border rounded bg-muted/50 text-sm break-words whitespace-normal">
-                {n.content}
-              </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      <div className="border rounded-lg overflow-hidden">
+        <ScrollArea className="h-[200px]">
+          <div className="space-y-2 p-3">
+            {notes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma nota adicionada</p>
+            ) : (
+              notes.map((n: any, idx: number) => (
+                <div key={idx} className="p-3 border rounded bg-muted/50 text-sm break-words whitespace-pre-wrap">
+                  {n.content}
+                </div>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 };

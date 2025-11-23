@@ -230,31 +230,35 @@ export function ChatwootChatWindow({
                 <MessageSquare className="h-5 w-5" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="top" className="w-80 p-2 bg-popover">
-              <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2">
-                <div className="font-medium text-sm mb-2 px-2 sticky top-0 bg-popover">Respostas Prontas</div>
-                {cannedResponses.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-2 py-4 text-center">
-                    Nenhuma resposta criada
-                  </p>
-                ) : (
-                  cannedResponses.map((response: any) => (
-                    <button
-                      key={response.id}
-                      className="w-full text-left p-3 rounded hover:bg-muted transition-colors"
-                      onClick={() => {
-                        setMessage(response.content);
-                        setShowCannedResponses(false);
-                      }}
-                    >
-                      <div className="font-medium text-sm mb-1 break-words">{response.short_code}</div>
-                      <div className="text-xs text-muted-foreground break-words whitespace-normal">
-                        {response.content}
-                      </div>
-                    </button>
-                  ))
-                )}
+            <PopoverContent side="top" className="w-80 p-0 bg-popover border">
+              <div className="p-3 border-b bg-muted/30">
+                <div className="font-medium text-sm">Respostas Prontas</div>
               </div>
+              <ScrollArea className="h-[320px]">
+                <div className="space-y-1 p-2">
+                  {cannedResponses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground px-2 py-8 text-center">
+                      Nenhuma resposta criada
+                    </p>
+                  ) : (
+                    cannedResponses.map((response: any) => (
+                      <button
+                        key={response.id}
+                        className="w-full text-left p-3 rounded hover:bg-muted transition-colors"
+                        onClick={() => {
+                          setMessage(response.content);
+                          setShowCannedResponses(false);
+                        }}
+                      >
+                        <div className="font-medium text-sm mb-1 break-words">{response.short_code}</div>
+                        <div className="text-xs text-muted-foreground break-words whitespace-pre-wrap">
+                          {response.content}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </PopoverContent>
           </Popover>
 

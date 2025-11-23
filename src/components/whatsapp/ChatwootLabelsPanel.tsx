@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Tag } from "lucide-react";
 import { useChatwootLabels } from "@/hooks/useChatwootLabels";
 
@@ -82,23 +83,27 @@ export const ChatwootLabelsPanel = ({ organizationId, conversationId }: Chatwoot
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 p-2">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        ) : labels.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma label criada</p>
-        ) : (
-          labels.map((label: any) => (
-            <Badge
-              key={label.id}
-              style={{ backgroundColor: label.color }}
-              className="cursor-pointer hover:opacity-80 px-3 py-1"
-              onClick={() => handleApplyLabel(label.id)}
-            >
-              {label.title}
-            </Badge>
-          ))
-        )}
+      <div className="border rounded-lg overflow-hidden">
+        <ScrollArea className="h-[200px]">
+          <div className="flex flex-wrap gap-2 p-3">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : labels.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma label criada</p>
+            ) : (
+              labels.map((label: any) => (
+                <Badge
+                  key={label.id}
+                  style={{ backgroundColor: label.color }}
+                  className="cursor-pointer hover:opacity-80 px-3 py-1.5 text-xs"
+                  onClick={() => handleApplyLabel(label.id)}
+                >
+                  {label.title}
+                </Badge>
+              ))
+            )}
+          </div>
+        </ScrollArea>
       </div>
     </div>
   );

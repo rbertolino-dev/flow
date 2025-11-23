@@ -29,7 +29,7 @@ export const ChatwootCannedResponsesPanel = ({
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-background">
+    <div className="space-y-4 p-4 border rounded-lg bg-background overflow-hidden">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-4 w-4" />
@@ -74,28 +74,30 @@ export const ChatwootCannedResponsesPanel = ({
         </div>
       )}
 
-      <ScrollArea className="max-h-64 pr-4">
-        <div className="space-y-2 pr-2">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground p-2">Carregando...</p>
-          ) : cannedResponses.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-2">Nenhuma resposta criada</p>
-          ) : (
-            cannedResponses.map((response: any) => (
-              <div
-                key={response.id}
-                className="p-3 border rounded hover:bg-muted cursor-pointer transition-colors"
-                onClick={() => onSelectResponse(response.content)}
-              >
-                <div className="font-medium text-sm mb-1 break-words">{response.short_code}</div>
-                <div className="text-xs text-muted-foreground break-words whitespace-normal">
-                  {response.content}
+      <div className="border rounded-lg overflow-hidden">
+        <ScrollArea className="h-[280px]">
+          <div className="space-y-2 p-3">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground p-2">Carregando...</p>
+            ) : cannedResponses.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-2">Nenhuma resposta criada</p>
+            ) : (
+              cannedResponses.map((response: any) => (
+                <div
+                  key={response.id}
+                  className="p-3 border rounded hover:bg-muted cursor-pointer transition-colors"
+                  onClick={() => onSelectResponse(response.content)}
+                >
+                  <div className="font-medium text-sm mb-1 break-words">{response.short_code}</div>
+                  <div className="text-xs text-muted-foreground break-words whitespace-pre-wrap">
+                    {response.content}
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 };
