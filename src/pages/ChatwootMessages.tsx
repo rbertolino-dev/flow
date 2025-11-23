@@ -60,13 +60,13 @@ export default function ChatwootMessages() {
     });
   }, [conversations, searchQuery]);
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "whatsapp") {
-      navigate('/whatsapp');
+    } else if (view === "agilizechat") {
+      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else {
@@ -84,7 +84,7 @@ export default function ChatwootMessages() {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="whatsapp" onViewChange={handleViewChange}>
+      <CRMLayout activeView="agilizechat" onViewChange={handleViewChange}>
         <div className="h-screen flex flex-col bg-background">
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar de inboxes */}
@@ -94,7 +94,7 @@ export default function ChatwootMessages() {
                 <div className="flex items-center justify-between">
                   <h1 className="text-xl font-bold flex items-center gap-2">
                     <MessageSquare className="h-6 w-6 text-primary" />
-                    Chatwoot Mensagens
+                    Agilizechat
                   </h1>
                 </div>
 
@@ -346,7 +346,7 @@ export default function ChatwootMessages() {
                 <div className="flex-1 flex items-center justify-center text-center text-muted-foreground max-w-md px-4">
                   <div>
                     <MessageSquare className="h-24 w-24 mx-auto mb-4 opacity-20" />
-                    <h2 className="text-2xl font-semibold mb-2">Chatwoot Mensagens</h2>
+                    <h2 className="text-2xl font-semibold mb-2">Agilizechat</h2>
                     <p className="text-sm mb-4">
                       Selecione uma caixa de entrada para visualizar as conversas.
                     </p>

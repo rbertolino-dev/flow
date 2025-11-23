@@ -63,13 +63,13 @@ export default function NovaFuncao() {
   const [groupPages, setGroupPages] = useState<Record<string, number>>({});
   const itemsPerPage = 25;
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "phonebook") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "whatsapp") {
-      navigate('/whatsapp');
+    } else if (view === "agilizechat") {
+      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else {

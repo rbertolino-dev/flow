@@ -53,7 +53,7 @@ export default function PeriodicWorkflows() {
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowEnvio | null>(null);
 
   const handleViewChange = (
-    view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "phonebook" | "workflows",
+    view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "phonebook" | "workflows",
   ) => {
     switch (view) {
       case "users":
@@ -62,8 +62,8 @@ export default function PeriodicWorkflows() {
       case "broadcast":
         navigate("/broadcast");
         break;
-      case "whatsapp":
-        navigate("/whatsapp");
+      case "agilizechat":
+        navigate("/agilizechat");
         break;
       case "settings":
         navigate("/settings");
