@@ -55,10 +55,10 @@ serve(async (req) => {
 
     console.log('✅ Instância encontrada:', config.instance_name);
 
-    // Buscar chats da Evolution API usando POST
-    const evolutionUrl = `${config.api_url}/chat/findMessages/${config.instance_name}`;
+    // Buscar mensagens da Evolution API usando POST
+    const evolutionUrl = `${config.api_url}/message/find`;
     
-    console.log(`📞 Buscando chats da Evolution API: ${evolutionUrl}`);
+    console.log(`📞 Buscando mensagens da Evolution API: ${evolutionUrl}`);
     
     const response = await fetch(evolutionUrl, {
       method: 'POST',
@@ -67,6 +67,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        instance: config.instance_name,
         limit: 50
       })
     });
@@ -78,28 +79,41 @@ serve(async (req) => {
     }
 
     const result = await response.json();
+    console.log('📦 Resposta da API:', JSON.stringify(result).substring(0, 200));
     
-    // A API retorna mensagens, precisamos agrupar por contato
-    const messages = Array.isArray(result) ? result : (result.messages || []);
+    // Garantir que temos um array de mensagens
+    let messages = [];
+    if (Array.isArray(result)) {
+      messages = result;
+    } else if (result && Array.isArray(result.messages)) {
+      messages = result.messages;
+    } else if (result && typeof result === 'object') {
+      // Tentar encontrar array em propriedades comuns
+      messages = result.data || result.items || [];
+    }
+    
+    console.log(`📨 ${messages.length} mensagens encontradas`);
     
     // Agrupar mensagens por remoteJid para criar lista de chats
     const chatsMap = new Map();
-    messages.forEach((msg: any) => {
-      const jid = msg.key?.remoteJid;
-      if (!jid) return;
-      
-      const existingChat = chatsMap.get(jid);
-      const msgTime = msg.messageTimestamp || 0;
-      
-      if (!existingChat || msgTime > (existingChat.lastMessage?.messageTimestamp || 0)) {
-        chatsMap.set(jid, {
-          id: jid,
-          name: jid.split('@')[0],
-          lastMessage: msg,
-          unreadCount: 0
-        });
-      }
-    });
+    if (Array.isArray(messages)) {
+      messages.forEach((msg: any) => {
+        const jid = msg.key?.remoteJid;
+        if (!jid) return;
+        
+        const existingChat = chatsMap.get(jid);
+        const msgTime = msg.messageTimestamp || 0;
+        
+        if (!existingChat || msgTime > (existingChat.lastMessage?.messageTimestamp || 0)) {
+          chatsMap.set(jid, {
+            id: jid,
+            name: jid.split('@')[0],
+            lastMessage: msg,
+            unreadCount: 0
+          });
+        }
+      });
+    }
     
     const chats = Array.from(chatsMap.values());
     
