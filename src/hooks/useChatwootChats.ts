@@ -7,28 +7,34 @@ export const useChatwootChats = (organizationId: string | null) => {
     queryFn: async () => {
       if (!organizationId) return [];
       
-      console.log('📞 Chamando chatwoot-list-inboxes para org:', organizationId);
-      
-      const { data, error } = await supabase.functions.invoke('chatwoot-list-inboxes', {
-        body: { organizationId },
-      });
+      try {
+        console.log('📞 Chamando chatwoot-list-inboxes para org:', organizationId);
+        
+        const { data, error } = await supabase.functions.invoke('chatwoot-list-inboxes', {
+          body: { organizationId },
+        });
 
-      console.log('📦 Resposta do chatwoot-list-inboxes:', data);
+        console.log('📦 Resposta do chatwoot-list-inboxes:', data);
 
-      if (error) {
-        console.error('❌ Erro ao chamar edge function:', error);
-        throw error;
+        if (error) {
+          console.error('❌ Erro ao chamar edge function:', error);
+          return [];
+        }
+        
+        if (data?.error) {
+          console.error('❌ Erro retornado pela edge function:', data.error);
+          return [];
+        }
+        
+        // Garantir que retornamos um array
+        const inboxesList = data?.inboxes || [];
+        console.log('📋 Inboxes processadas:', inboxesList);
+        
+        return Array.isArray(inboxesList) ? inboxesList : [];
+      } catch (err) {
+        console.error('❌ Exceção ao buscar inboxes:', err);
+        return [];
       }
-      if (data?.error) {
-        console.error('❌ Erro retornado pela edge function:', data.error);
-        throw new Error(data.error);
-      }
-      
-      // Garantir que retornamos um array
-      const inboxesList = data?.inboxes || data?.payload || data || [];
-      console.log('📋 Inboxes processadas:', inboxesList);
-      
-      return Array.isArray(inboxesList) ? inboxesList : [];
     },
     enabled: !!organizationId,
   });
