@@ -16,7 +16,7 @@ export default function ChatwootMessages() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
   const { data, isLoading } = useChatwootChats(activeOrgId);
-  const inboxes = data || [];
+  const inboxes = Array.isArray(data) ? data : [];
   const [selectedInbox, setSelectedInbox] = useState<any>(null);
   const isMobile = useIsMobile();
 
