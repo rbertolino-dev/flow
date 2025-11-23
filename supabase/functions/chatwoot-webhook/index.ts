@@ -1,4 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { 
+  processLeadFromMessage, 
+  publishMessageUpdate,
+  logEvent 
+} from '../_shared/messaging-helpers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,43 +23,98 @@ Deno.serve(async (req) => {
 
     const payload = await req.json();
     
-    console.log('📨 Webhook recebido:', payload.event);
+    console.log('📨 Webhook Chatwoot recebido:', payload.event);
 
     // Verificar se é um evento de mensagem
     if (payload.event === 'message_created') {
-      const message = payload.message_type === 'incoming' ? payload : payload;
+      const message = payload;
       const conversationId = payload.conversation?.id || payload.conversation_id;
+      const isIncoming = payload.message_type === 'incoming' || payload.message_type === 0;
       
       // Extrair organization_id do payload ou de metadados
-      // O Chatwoot pode enviar custom_attributes na conversa
       const organizationId = payload.conversation?.custom_attributes?.organization_id;
+      const phoneNumber = payload.conversation?.meta?.sender?.phone_number || 
+                          payload.conversation?.meta?.sender?.identifier;
 
-      console.log('💬 Nova mensagem:', {
+      console.log('💬 Nova mensagem Chatwoot:', {
         conversationId,
         organizationId,
         messageType: payload.message_type,
+        phone: phoneNumber,
+        isIncoming,
       });
 
-      // Publicar no Realtime para todos os clientes conectados
-      const channel = supabase.channel('chatwoot-messages');
-      
-      await channel.send({
-        type: 'broadcast',
-        event: 'new_message',
-        payload: {
-          conversationId: conversationId?.toString(),
-          organizationId,
-          message: {
-            id: payload.id,
-            content: payload.content,
-            message_type: payload.message_type,
-            created_at: payload.created_at,
-            sender: payload.sender,
+      // Se tiver número de telefone e org, processar como lead
+      if (phoneNumber && organizationId) {
+        // Buscar config do Chatwoot para pegar user_id
+        const { data: config } = await supabase
+          .from('chatwoot_configs')
+          .select('organization_id')
+          .eq('organization_id', organizationId)
+          .eq('enabled', true)
+          .maybeSingle();
+
+        if (config) {
+          // Buscar primeiro usuário da org
+          const { data: orgMember } = await supabase
+            .from('organization_members')
+            .select('user_id')
+            .eq('organization_id', organizationId)
+            .limit(1)
+            .maybeSingle();
+
+          if (orgMember) {
+            // Processar lead usando helper compartilhado
+            const result = await processLeadFromMessage(
+              supabase,
+              {
+                source: 'chatwoot',
+                sourceInstanceId: `chatwoot_${organizationId}`,
+                sourceInstanceName: 'Chatwoot',
+                organizationId,
+                userId: orgMember.user_id,
+              },
+              {
+                phoneNumber: phoneNumber.replace(/\D/g, ''),
+                contactName: payload.sender?.name || payload.conversation?.meta?.sender?.name || 'Cliente',
+                messageContent: payload.content || '[Mensagem sem conteúdo]',
+                direction: isIncoming ? 'incoming' : 'outgoing',
+                isFromMe: !isIncoming,
+              }
+            );
+
+            console.log(`✅ Lead processado: ${result.action} (ID: ${result.leadId})`);
+
+            // Registrar log
+            await logEvent(supabase, {
+              userId: orgMember.user_id,
+              organizationId,
+              instance: 'chatwoot',
+              event: 'message_created',
+              level: 'info',
+              message: `Mensagem ${isIncoming ? 'recebida' : 'enviada'} via Chatwoot - Lead ${result.action}`,
+              payload: { phoneNumber, conversationId, leadId: result.leadId },
+            });
           }
         }
-      });
+      }
 
-      console.log('✅ Mensagem publicada no Realtime');
+      // Publicar no Realtime para atualização instantânea da UI
+      await publishMessageUpdate(
+        supabase,
+        organizationId,
+        conversationId?.toString(),
+        {
+          id: payload.id,
+          content: payload.content,
+          message_type: payload.message_type,
+          created_at: payload.created_at,
+          sender: payload.sender,
+        },
+        'chatwoot'
+      );
+
+      console.log('✅ Mensagem Chatwoot publicada no Realtime');
     }
 
     // Evento de conversa atualizada
@@ -82,7 +142,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ Erro no webhook:', error);
+    console.error('❌ Erro no webhook Chatwoot:', error);
     const message = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(
       JSON.stringify({ error: message }),
@@ -90,3 +150,4 @@ Deno.serve(async (req) => {
     );
   }
 });
+
