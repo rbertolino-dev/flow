@@ -53,19 +53,52 @@ export const useChatwootMessages = (
   };
 
   useEffect(() => {
+    // Buscar mensagens iniciais
     fetchMessages();
 
-    // Atualizar mensagens a cada 30 segundos (otimizado)
+    if (!organizationId || !conversationId) return;
+
+    // Conectar ao Realtime para receber mensagens instantaneamente
+    console.log('🔌 Conectando ao Realtime para conversa:', conversationId);
+    
+    const channel = supabase
+      .channel('chatwoot-messages')
+      .on(
+        'broadcast',
+        { event: 'new_message' },
+        (payload) => {
+          console.log('📨 Nova mensagem via Realtime:', payload);
+          
+          // Verificar se a mensagem é desta conversa
+          if (payload.payload.conversationId === conversationId) {
+            const newMessage = payload.payload.message;
+            
+            setMessages(prev => {
+              // Evitar duplicatas
+              const exists = prev.some(m => m.id === newMessage.id);
+              if (exists) return prev;
+              
+              return [...prev, newMessage];
+            });
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Status do Realtime:', status);
+      });
+
+    // Polling como fallback (a cada 30s, apenas se aba ativa)
     const interval = setInterval(() => {
-      // Só buscar se a aba estiver ativa
       if (!document.hidden) {
+        console.log('🔄 Polling fallback (30s)');
         fetchMessages();
       }
-    }, 30000); // 30 segundos
+    }, 30000);
     
     // Buscar quando a aba voltar a ficar ativa
     const handleVisibilityChange = () => {
       if (!document.hidden) {
+        console.log('👁️ Aba ativa - buscando mensagens');
         fetchMessages();
       }
     };
@@ -73,8 +106,10 @@ export const useChatwootMessages = (
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
+      console.log('🔌 Desconectando do Realtime');
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      supabase.removeChannel(channel);
     };
   }, [organizationId, conversationId]);
 
