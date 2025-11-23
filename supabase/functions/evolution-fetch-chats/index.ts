@@ -55,21 +55,16 @@ serve(async (req) => {
 
     console.log('✅ Instância encontrada:', config.instance_name);
 
-    // Buscar mensagens da Evolution API usando POST
-    const evolutionUrl = `${config.api_url}/message/find`;
+    // Buscar chats da Evolution API usando o endpoint correto (GET)
+    const evolutionUrl = `${config.api_url}/chat/findChats/${config.instance_name}`;
     
-    console.log(`📞 Buscando mensagens da Evolution API: ${evolutionUrl}`);
+    console.log(`📞 Buscando chats da Evolution API: ${evolutionUrl}`);
     
     const response = await fetch(evolutionUrl, {
-      method: 'POST',
+      method: 'GET',
       headers: {
         'apikey': config.api_key || '',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        instance: config.instance_name,
-        limit: 50
-      })
+      }
     });
 
     if (!response.ok) {
