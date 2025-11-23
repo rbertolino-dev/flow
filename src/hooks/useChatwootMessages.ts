@@ -20,6 +20,7 @@ export const useChatwootMessages = (
 
   const fetchMessages = async () => {
     if (!organizationId || !conversationId) {
+      setMessages([]);
       return;
     }
 
@@ -34,14 +35,18 @@ export const useChatwootMessages = (
 
       if (error) {
         console.error('Erro ao buscar mensagens:', error);
+        setMessages([]);
         return;
       }
 
-      if (data?.messages) {
+      if (data?.messages && Array.isArray(data.messages)) {
         setMessages(data.messages);
+      } else {
+        setMessages([]);
       }
     } catch (err) {
       console.error('Erro ao buscar mensagens:', err);
+      setMessages([]);
     } finally {
       setLoading(false);
     }

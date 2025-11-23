@@ -56,10 +56,14 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       const errorData = await response.text();
+      console.error('Erro Chatwoot API:', response.status, errorData);
       throw new Error(`Erro ao buscar mensagens: ${response.status} - ${errorData}`);
     }
 
-    const messages = await response.json();
+    const data = await response.json();
+    const messages = data?.payload || [];
+
+    console.log('✅ Mensagens encontradas:', messages.length);
 
     return new Response(JSON.stringify({ messages }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
