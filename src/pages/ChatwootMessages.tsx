@@ -15,7 +15,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export default function ChatwootMessages() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
-  const { data: inboxes = [], isLoading } = useChatwootChats(activeOrgId);
+  const { data, isLoading } = useChatwootChats(activeOrgId);
+  const inboxes = data || [];
   const [selectedInbox, setSelectedInbox] = useState<any>(null);
   const isMobile = useIsMobile();
 
