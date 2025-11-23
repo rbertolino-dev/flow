@@ -24,9 +24,9 @@ Deno.serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const { organizationId, inboxIdentifier, contactIdentifier, conversationId } = await req.json();
+    const { organizationId, conversationId } = await req.json();
 
-    if (!organizationId || !inboxIdentifier || !contactIdentifier || !conversationId) {
+    if (!organizationId || !conversationId) {
       throw new Error('Parâmetros obrigatórios faltando');
     }
 
@@ -41,10 +41,10 @@ Deno.serve(async (req) => {
       throw new Error('Configuração do Chatwoot inválida');
     }
 
-    // Buscar mensagens da conversa
-    const chatwootUrl = `${config.chatwoot_base_url}/public/api/v1/inboxes/${inboxIdentifier}/contacts/${contactIdentifier}/conversations/${conversationId}/messages`;
+    // Buscar mensagens da conversa usando a API autenticada
+    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations/${conversationId}/messages`;
     
-    console.log('📞 Buscando mensagens:', conversationId);
+    console.log('📞 Buscando mensagens da conversa:', conversationId);
 
     const response = await fetch(chatwootUrl, {
       method: 'GET',

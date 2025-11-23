@@ -10,8 +10,6 @@ import { MessageBubble } from './MessageBubble';
 
 interface ChatwootChatWindowProps {
   organizationId: string;
-  inboxIdentifier: string;
-  contactIdentifier: string;
   conversationId: string;
   contactName: string;
   onBack?: () => void;
@@ -19,8 +17,6 @@ interface ChatwootChatWindowProps {
 
 export function ChatwootChatWindow({
   organizationId,
-  inboxIdentifier,
-  contactIdentifier,
   conversationId,
   contactName,
   onBack,
@@ -31,8 +27,6 @@ export function ChatwootChatWindow({
   
   const { messages, loading, refetch } = useChatwootMessages(
     organizationId,
-    inboxIdentifier,
-    contactIdentifier,
     conversationId
   );
 
@@ -54,8 +48,6 @@ export function ChatwootChatWindow({
       const { data, error } = await supabase.functions.invoke('chatwoot-send-message', {
         body: {
           organizationId,
-          inboxIdentifier,
-          contactIdentifier,
           conversationId,
           content: message,
         },
