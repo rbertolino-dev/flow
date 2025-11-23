@@ -55,9 +55,27 @@ export const useChatwootMessages = (
   useEffect(() => {
     fetchMessages();
 
-    // Atualizar mensagens a cada 5 segundos
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
+    // Atualizar mensagens a cada 30 segundos (otimizado)
+    const interval = setInterval(() => {
+      // Só buscar se a aba estiver ativa
+      if (!document.hidden) {
+        fetchMessages();
+      }
+    }, 30000); // 30 segundos
+    
+    // Buscar quando a aba voltar a ficar ativa
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchMessages();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [organizationId, conversationId]);
 
   return { messages, loading, refetch: fetchMessages };
