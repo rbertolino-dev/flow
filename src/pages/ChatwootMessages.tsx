@@ -191,8 +191,8 @@ export default function ChatwootMessages() {
                   </ScrollArea>
                 </TabsContent>
                 
-                <TabsContent value="tools" className="flex-1 mt-0">
-                  <ScrollArea className="h-[calc(100vh-16rem)]">
+                <TabsContent value="tools" className="flex-1 mt-0 overflow-hidden">
+                  <ScrollArea className="h-[calc(100vh-12rem)]">
                     <div className="p-4 space-y-4">
                       <ChatwootLabelsPanel 
                         organizationId={activeOrgId} 

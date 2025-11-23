@@ -74,7 +74,7 @@ export const ChatwootCannedResponsesPanel = ({
         </div>
       )}
 
-      <ScrollArea className="h-48">
+      <ScrollArea className="max-h-64">
         <div className="space-y-2">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
@@ -84,7 +84,7 @@ export const ChatwootCannedResponsesPanel = ({
             cannedResponses.map((response: any) => (
               <div
                 key={response.id}
-                className="p-2 border rounded hover:bg-muted cursor-pointer"
+                className="p-2 border rounded hover:bg-muted cursor-pointer transition-colors"
                 onClick={() => onSelectResponse(response.content)}
               >
                 <div className="font-medium text-sm">{response.short_code}</div>
