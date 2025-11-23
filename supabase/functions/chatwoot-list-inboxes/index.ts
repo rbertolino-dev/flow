@@ -45,15 +45,14 @@ Deno.serve(async (req) => {
       throw new Error('Integração com Chatwoot não está ativada para esta organização');
     }
 
-    // Listar inboxes do Chatwoot
-    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/inboxes`;
+    // Usar token como query parameter para evitar problema de Nginx com headers underscore
+    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/inboxes?api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
     
-    console.log('📞 Listando inboxes para organização:', organizationId);
+    console.log('📞 Listando inboxes');
 
     const response = await fetch(chatwootUrl, {
       method: 'GET',
       headers: {
-        'api_access_token': config.chatwoot_api_access_token,
         'Content-Type': 'application/json',
       },
     });
