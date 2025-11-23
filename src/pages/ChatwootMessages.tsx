@@ -157,8 +157,6 @@ export default function ChatwootMessages() {
               {selectedConversation && selectedInbox ? (
                 <ChatwootChatWindow
                   organizationId={activeOrgId!}
-                  inboxIdentifier={selectedInbox.inbox_identifier || selectedInbox.id.toString()}
-                  contactIdentifier={selectedConversation.contactIdentifier}
                   conversationId={selectedConversation.id}
                   contactName={selectedConversation.contactName}
                   onBack={() => setSelectedConversation(null)}
