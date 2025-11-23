@@ -14,6 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ChatwootChatWindow } from "@/components/whatsapp/ChatwootChatWindow";
+import { ChatwootWebhookSetup } from "@/components/crm/ChatwootWebhookSetup";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings } from "lucide-react";
 
 export default function ChatwootMessages() {
   const navigate = useNavigate();
@@ -62,7 +65,7 @@ export default function ChatwootMessages() {
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar de inboxes */}
             <div className={`${isMobile ? (selectedInbox ? 'hidden' : 'w-full') : 'w-96'} border-r border-border bg-card flex flex-col`}>
-              {/* Header */}
+              {/* Header com Tabs */}
               <div className="p-4 border-b border-border space-y-3">
                 <div className="flex items-center justify-between">
                   <h1 className="text-xl font-bold flex items-center gap-2">
@@ -88,14 +91,39 @@ export default function ChatwootMessages() {
                     )}
                   </div>
                 )}
-
-                <Alert>
-                  <Inbox className="h-4 w-4" />
-                  <AlertDescription>
-                    Selecione uma caixa de entrada para visualizar conversas
-                  </AlertDescription>
-                </Alert>
               </div>
+
+              {/* Tabs */}
+              <Tabs defaultValue="messages" className="flex-1 flex flex-col">
+                <TabsList className="mx-4 mt-2 w-auto">
+                  <TabsTrigger value="messages" className="flex items-center gap-2">
+                    <Inbox className="h-4 w-4" />
+                    Mensagens
+                  </TabsTrigger>
+                  <TabsTrigger value="webhook" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Webhook
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="messages" className="flex-1 mt-0">
+                  <div className="p-2 pb-4">
+                    <Alert>
+                      <Inbox className="h-4 w-4" />
+                      <AlertDescription>
+                        Selecione uma caixa de entrada para visualizar conversas
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+
+                </TabsContent>
+
+                <TabsContent value="webhook" className="flex-1 mt-0 overflow-auto">
+                  <div className="p-4">
+                    {activeOrgId && <ChatwootWebhookSetup organizationId={activeOrgId} />}
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               {/* Lista de inboxes */}
               {isLoading ? (
