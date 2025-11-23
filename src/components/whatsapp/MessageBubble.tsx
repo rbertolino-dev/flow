@@ -15,8 +15,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       <div
         className={`max-w-[70%] rounded-lg px-3 py-2 shadow-sm ${
           isOutgoing
-            ? 'bg-[#005c4b] text-white rounded-br-none'
-            : 'bg-[#1e1e1e] text-foreground rounded-bl-none'
+            ? 'bg-primary text-primary-foreground rounded-br-none'
+            : 'bg-muted text-foreground rounded-bl-none'
         }`}
       >
         {message.messageType === 'audio' && message.mediaUrl ? (
@@ -33,7 +33,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </p>
         )}
         
-        <div className={`flex items-center gap-1 justify-end mt-1 ${isOutgoing ? 'text-white/60' : 'text-muted-foreground'}`}>
+        <div className={`flex items-center gap-1 justify-end mt-1 ${isOutgoing ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
           <span className="text-[11px]">
             {format(message.timestamp, "HH:mm", { locale: ptBR })}
           </span>
