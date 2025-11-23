@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
       headers: {
         'Authorization': `Bearer ${config.chatwoot_api_access_token}`,
         'Content-Type': 'application/json',
+        'User-Agent': 'Lovable-Chatwoot-Integration/1.0',
       },
     });
 

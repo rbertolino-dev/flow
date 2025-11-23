@@ -17,8 +17,8 @@ Deno.serve(async (req) => {
       throw new Error('Campos obrigatórios faltando');
     }
 
-    // Testar conexão com o Chatwoot
-    const chatwootUrl = `${baseUrl}/api/v1/accounts/${accountId}`;
+    // Testar conexão usando endpoint de inboxes (mais confiável que account)
+    const chatwootUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
     
     console.log('🧪 Testando conexão:', chatwootUrl);
 
@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
       headers: {
         'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
+        'User-Agent': 'Lovable-Chatwoot-Integration/1.0',
       },
     });
 
@@ -35,11 +36,12 @@ Deno.serve(async (req) => {
       throw new Error(`Falha na conexão: ${response.status} - ${errorData}`);
     }
 
-    const accountData = await response.json();
+    const inboxes = await response.json();
 
     return new Response(JSON.stringify({ 
       success: true, 
-      account: accountData 
+      inboxCount: inboxes?.payload?.length || 0,
+      message: 'Conexão estabelecida com sucesso'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
