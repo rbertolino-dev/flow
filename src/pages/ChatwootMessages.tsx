@@ -37,7 +37,7 @@ export default function ChatwootMessages() {
   const [showInboxHeader, setShowInboxHeader] = useState(true);
   const [showConversationList, setShowConversationList] = useState(true);
   const [conversationPage, setConversationPage] = useState(1);
-  const CONVERSATIONS_PER_PAGE = 20; // ✅ OTIMIZAÇÃO 5: Pagination
+  const CONVERSATIONS_PER_PAGE = 35; // ✅ OTIMIZAÇÃO 5: Pagination
   
   const { data: conversations, isLoading: conversationsLoading } = useChatwootConversations(
     activeOrgId,
