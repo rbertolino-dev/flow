@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm";
-  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm") => void;
+  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm";
+  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -58,7 +58,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "phonebook" as const, label: "Lista Telefônica", icon: PhoneCall },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
-    { id: "whatsapp" as const, label: "WhatsApp", icon: MessageSquare },
+    { id: "agilizechat" as const, label: "Agilizechat", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "agents" as const, label: "Agentes IA", icon: Bot },
@@ -172,8 +172,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/agents');
               } else if (item.id === 'calendar') {
                 navigate('/calendar');
-              } else if (item.id === 'whatsapp') {
-                navigate('/whatsapp');
+              } else if (item.id === 'agilizechat') {
+                navigate('/agilizechat');
               } else if (item.id === 'broadcast') {
                 navigate('/broadcast');
               } else if (item.id === 'users') {
@@ -296,8 +296,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/agents');
                         } else if (item.id === 'calendar') {
                           navigate('/calendar');
-                        } else if (item.id === 'whatsapp') {
-                          navigate('/whatsapp');
+                        } else if (item.id === 'agilizechat') {
+                          navigate('/agilizechat');
                         } else if (item.id === 'broadcast') {
                           navigate('/broadcast');
                         } else if (item.id === 'users') {

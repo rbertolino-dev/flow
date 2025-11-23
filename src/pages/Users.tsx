@@ -316,13 +316,13 @@ export default function Users() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "users") {
       // já estamos aqui
     } else if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "whatsapp") {
-      navigate('/whatsapp');
+    } else if (view === "agilizechat") {
+      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else {

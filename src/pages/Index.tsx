@@ -162,13 +162,13 @@ const Index = () => {
     );
   }
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "whatsapp") {
-      navigate('/whatsapp');
+    } else if (view === "agilizechat") {
+      navigate('/agilizechat');
     } else {
       setActiveView(view);
     }

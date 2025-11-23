@@ -3,10 +3,10 @@ import { CRMLayout } from "@/components/crm/CRMLayout";
 import { OrganizationSettings } from "@/components/crm/OrganizationSettings";
 
 export default function Organization() {
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "users") window.location.href = '/users';
     else if (view === "broadcast") window.location.href = '/broadcast';
-    else if (view === "whatsapp") window.location.href = '/whatsapp';
+    else if (view === "agilizechat") window.location.href = '/agilizechat';
     else if (view === "settings") window.location.href = '/settings';
     else window.location.href = '/';
   };
