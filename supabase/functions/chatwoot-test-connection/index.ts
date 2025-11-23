@@ -17,14 +17,15 @@ Deno.serve(async (req) => {
       throw new Error('Campos obrigatórios faltando');
     }
 
-    // Usar token como query parameter para evitar problema de Nginx com headers underscore
-    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes?api_access_token=${encodeURIComponent(apiToken)}`;
+    // Testar conexão usando Authorization Bearer (user access token)
+    const inboxesUrl = `${baseUrl}/api/v1/accounts/${accountId}/inboxes`;
     
-    console.log('🧪 Testando conexão:', baseUrl);
+    console.log('🧪 Testando conexão:', inboxesUrl);
 
     const response = await fetch(inboxesUrl, {
       method: 'GET',
       headers: {
+        'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
       },
     });

@@ -45,14 +45,15 @@ Deno.serve(async (req) => {
       throw new Error('Integração com Chatwoot não está ativada para esta organização');
     }
 
-    // Usar token como query parameter para evitar problema de Nginx com headers underscore
-    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/inboxes?api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
+    // Listar inboxes usando Authorization Bearer (user access token)
+    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/inboxes`;
     
     console.log('📞 Listando inboxes');
 
     const response = await fetch(chatwootUrl, {
       method: 'GET',
       headers: {
+        'Authorization': `Bearer ${config.chatwoot_api_access_token}`,
         'Content-Type': 'application/json',
       },
     });

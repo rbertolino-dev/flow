@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useChatwootConfig } from "@/hooks/useChatwootConfig";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 export const ChatwootConfigPanel = () => {
   const { activeOrgId } = useActiveOrganization();
@@ -62,6 +63,15 @@ export const ChatwootConfigPanel = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Importante:</strong> Use o Access Token de um usuário Administrator da conta (não SuperAdmin ou Platform App).
+            <br />
+            Acesse: Profile → Access Token no Chatwoot.
+          </AlertDescription>
+        </Alert>
+
         <div className="flex items-center justify-between">
           <Label htmlFor="enabled">Ativar Chatwoot para esta organização</Label>
           <Switch
