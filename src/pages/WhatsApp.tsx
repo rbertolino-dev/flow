@@ -28,13 +28,11 @@ export default function WhatsApp() {
 
   const selectedChat = filteredChats.find(c => c.phone === selectedPhone);
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "whatsapp") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "whatsapp") {
-      // já estamos aqui
     } else if (view === "settings") {
       navigate('/settings');
     } else {
@@ -44,7 +42,7 @@ export default function WhatsApp() {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="whatsapp" onViewChange={handleViewChange}>
+      <CRMLayout activeView="crm" onViewChange={handleViewChange}>
       <div className="h-screen flex flex-col bg-[#0a0a0a]">
         <WhatsAppNav />
         <div className="flex-1 flex overflow-hidden">
