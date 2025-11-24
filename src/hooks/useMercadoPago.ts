@@ -97,7 +97,6 @@ export function useMercadoPago() {
       .from("mercado_pago_payments")
       .select("*")
       .eq("organization_id", activeOrgId)
-      .eq("workflow_id", workflowId)
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data || []) as MercadoPagoPayment[];
