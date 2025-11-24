@@ -36,6 +36,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/broadcast" element={<BroadcastCampaigns />} />
           <Route path="/agilizechat" element={<ChatwootMessages />} />
           <Route path="/workflows" element={<PeriodicWorkflows />} />
           <Route path="/auth-logs" element={<AuthLogs />} />
