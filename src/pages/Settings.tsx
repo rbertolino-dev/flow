@@ -9,6 +9,7 @@ import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialo
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
 import { ArchivedLeadsPanel } from "@/components/crm/ArchivedLeadsPanel";
 import { WhatsAppNumberValidator } from "@/components/crm/WhatsAppNumberValidator";
+import { EvolutionApiDiagnostics } from "@/components/crm/EvolutionApiDiagnostics";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -202,6 +203,8 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
+            <EvolutionApiDiagnostics />
+            
             <WhatsAppNumberValidator configs={configs} />
 
             <Card>
