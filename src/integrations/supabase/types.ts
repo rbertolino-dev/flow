@@ -1254,6 +1254,120 @@ export type Database = {
           },
         ]
       }
+      follow_up_step_automations: {
+        Row: {
+          action_config: Json
+          action_type: string
+          created_at: string
+          execution_order: number
+          id: string
+          is_active: boolean
+          step_id: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type: string
+          created_at?: string
+          execution_order: number
+          id?: string
+          is_active?: boolean
+          step_id: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string
+          execution_order?: number
+          id?: string
+          is_active?: boolean
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_step_automations_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_template_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_up_template_steps: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          step_order: number
+          template_id: string
+          tip: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          step_order: number
+          template_id: string
+          tip?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          step_order?: number
+          template_id?: string
+          tip?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_template_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_up_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gmail_configs: {
         Row: {
           account_name: string
@@ -1444,6 +1558,87 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_follow_up_step_completions: {
+        Row: {
+          completed_at: string
+          completed_by: string
+          follow_up_id: string
+          id: string
+          step_id: string
+        }
+        Insert: {
+          completed_at?: string
+          completed_by: string
+          follow_up_id: string
+          id?: string
+          step_id: string
+        }
+        Update: {
+          completed_at?: string
+          completed_by?: string
+          follow_up_id?: string
+          id?: string
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_follow_up_step_completions_follow_up_id_fkey"
+            columns: ["follow_up_id"]
+            isOneToOne: false
+            referencedRelation: "lead_follow_ups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_follow_up_step_completions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_template_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_follow_ups: {
+        Row: {
+          completed_at: string | null
+          created_by: string
+          id: string
+          lead_id: string
+          started_at: string
+          template_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_by: string
+          id?: string
+          lead_id: string
+          started_at?: string
+          template_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_by?: string
+          id?: string
+          lead_id?: string
+          started_at?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_follow_ups_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_follow_ups_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_templates"
             referencedColumns: ["id"]
           },
         ]
