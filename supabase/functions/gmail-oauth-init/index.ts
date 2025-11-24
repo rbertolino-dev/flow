@@ -89,14 +89,14 @@ serve(async (req) => {
       );
     }
 
-    // Buscar credenciais OAuth do Google (pode usar as mesmas do Calendar ou criar novas)
-    const clientId = Deno.env.get('GOOGLE_GMAIL_CLIENT_ID') || Deno.env.get('GOOGLE_CALENDAR_CLIENT_ID');
-    const clientSecret = Deno.env.get('GOOGLE_GMAIL_CLIENT_SECRET') || Deno.env.get('GOOGLE_CALENDAR_CLIENT_SECRET');
+    // Buscar credenciais OAuth do Google
+    const clientId = Deno.env.get('GOOGLE_GMAIL_CLIENT_ID');
+    const clientSecret = Deno.env.get('GOOGLE_GMAIL_CLIENT_SECRET');
 
     if (!clientId || !clientSecret) {
       return new Response(
         JSON.stringify({ 
-          error: 'Credenciais OAuth do Google não configuradas. Configure GOOGLE_GMAIL_CLIENT_ID e GOOGLE_GMAIL_CLIENT_SECRET (ou use GOOGLE_CALENDAR_CLIENT_ID/SECRET) no Lovable Cloud.' 
+          error: 'Credenciais OAuth do Google não configuradas. Configure GOOGLE_GMAIL_CLIENT_ID e GOOGLE_GMAIL_CLIENT_SECRET no Lovable Cloud.' 
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -111,8 +111,8 @@ serve(async (req) => {
     };
     const state = btoa(JSON.stringify(statePayload));
     
-    // URL de callback
-    const redirectUri = `${projectUrl}/functions/v1/gmail-oauth-callback`;
+    // URL de callback (igual ao Google Calendar)
+    const redirectUri = `${supabaseUrl}/functions/v1/gmail-oauth-callback`;
     
     // Escopos necessários para Gmail (readonly para segurança)
     const scopes = [
