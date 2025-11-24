@@ -6,6 +6,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { KanbanSettings } from "./KanbanSettings";
 import { SalesReportDialog } from "./SalesReportDialog";
+import { FollowUpTemplateManager } from "./FollowUpTemplateManager";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
@@ -419,6 +420,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     <>
       <div className="flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
         <div className="flex items-center gap-2">
+          <FollowUpTemplateManager />
+          
           <KanbanSettings
             columnWidth={columnWidth}
             onColumnWidthChange={updateColumnWidth}

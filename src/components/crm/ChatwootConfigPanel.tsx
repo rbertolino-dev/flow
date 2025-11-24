@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,24 @@ export const ChatwootConfigPanel = () => {
   const { config, isLoading, testConnection, saveConfig, listInboxes } = useChatwootConfig(activeOrgId);
   
   const [enabled, setEnabled] = useState(config?.enabled || false);
+  const [createLeads, setCreateLeads] = useState(config?.create_leads !== false); // Default true
   const [baseUrl, setBaseUrl] = useState(config?.chatwoot_base_url || 'https://chat.atendimentoagilize.com');
   const [accountId, setAccountId] = useState(config?.chatwoot_account_id?.toString() || '');
   const [apiToken, setApiToken] = useState(config?.chatwoot_api_access_token || '');
   const [inboxes, setInboxes] = useState<any[]>([]);
   const [selectedInboxId, setSelectedInboxId] = useState(config?.default_inbox_id?.toString() || '');
+
+  // Sincronizar estados quando config carregar
+  useEffect(() => {
+    if (config) {
+      setEnabled(config.enabled || false);
+      setCreateLeads(config.create_leads !== false); // Default true se null
+      setBaseUrl(config.chatwoot_base_url || 'https://chat.atendimentoagilize.com');
+      setAccountId(config.chatwoot_account_id?.toString() || '');
+      setApiToken(config.chatwoot_api_access_token || '');
+      setSelectedInboxId(config.default_inbox_id?.toString() || '');
+    }
+  }, [config]);
 
   const handleTestConnection = async () => {
     if (!baseUrl || !accountId || !apiToken) return;
@@ -38,6 +51,7 @@ export const ChatwootConfigPanel = () => {
   const handleSave = () => {
     saveConfig.mutate({
       enabled,
+      create_leads: createLeads,
       chatwoot_base_url: baseUrl,
       chatwoot_account_id: parseInt(accountId),
       chatwoot_api_access_token: apiToken,
@@ -89,6 +103,22 @@ export const ChatwootConfigPanel = () => {
 
         {enabled && (
           <>
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+              <div className="space-y-0.5">
+                <Label htmlFor="createLeads" className="text-base font-medium">
+                  Criar leads no funil automaticamente
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Quando habilitado, mensagens recebidas criam leads no funil de vendas. 
+                  Quando desabilitado, apenas processa mensagens sem criar leads.
+                </p>
+              </div>
+              <Switch
+                id="createLeads"
+                checked={createLeads}
+                onCheckedChange={setCreateLeads}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="baseUrl">URL Base do Chatwoot</Label>
               <Input

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar, Users } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar, Users, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm";
-  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm") => void;
+  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention";
+  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -55,10 +55,12 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const baseMenuItems = [
     { id: "crm" as const, label: "CRM", icon: Users },
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
+    { id: "attention" as const, label: "Leads que Precisam Atenção", icon: AlertCircle },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "phonebook" as const, label: "Lista Telefônica", icon: PhoneCall },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
     { id: "agilizechat" as const, label: "Agilizechat", icon: MessageSquare },
+    { id: "unified-messages" as const, label: "Todas as Conversas", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "agents" as const, label: "Agentes IA", icon: Bot },
@@ -157,7 +159,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           </Button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-1 overflow-hidden">
           {menuItems.map((item) => {
             const handleClick = () => {
               if (item.id === 'crm') {
@@ -174,13 +176,15 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/calendar');
               } else if (item.id === 'agilizechat') {
                 navigate('/agilizechat');
+              } else if (item.id === 'unified-messages') {
+                navigate('/unified-messages');
               } else if (item.id === 'broadcast') {
                 navigate('/broadcast');
               } else if (item.id === 'users') {
                 navigate('/users');
               } else if (item.id === 'settings') {
                 navigate('/settings');
-              } else if (item.id === 'kanban' || item.id === 'calls') {
+              } else if (item.id === 'kanban' || item.id === 'calls' || item.id === 'attention') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });
               }
@@ -281,7 +285,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                     </button>
                   </div>
                   
-                  <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                  <nav className="flex-1 p-3 space-y-1 overflow-hidden">
                     {menuItems.map((item) => {
                       const handleClick = () => {
                         if (item.id === 'crm') {

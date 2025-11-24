@@ -17,6 +17,7 @@ import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays } from "lucide-react";
+import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
 import Settings from "./Settings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,13 +31,13 @@ import { useToast } from "@/hooks/use-toast";
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeView, setActiveView] = useState<"kanban" | "calls" | "settings" | "users" | "broadcast">("kanban");
+  const [activeView, setActiveView] = useState<"kanban" | "calls" | "settings" | "users" | "broadcast" | "attention">("kanban");
   
   // Lê o state da navegação para definir a view inicial
   useEffect(() => {
     if (location.state && (location.state as any).view) {
       const view = (location.state as any).view;
-      if (view === "kanban" || view === "calls") {
+      if (view === "kanban" || view === "calls" || view === "attention") {
         setActiveView(view);
       }
       // Limpa o state para evitar que seja aplicado novamente
@@ -162,7 +163,7 @@ const Index = () => {
     );
   }
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "attention") => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
@@ -471,6 +472,14 @@ const Index = () => {
           onRemoveTag={removeCallQueueTag}
           onAssignToUser={assignToUser}
           onRefetch={refetchCallQueue}
+        />
+      )}
+
+      {activeView === "attention" && (
+        <LeadsAttentionPanel
+          leads={leads}
+          callQueue={callQueue}
+          onLeadUpdated={refetchLeads}
         />
       )}
 

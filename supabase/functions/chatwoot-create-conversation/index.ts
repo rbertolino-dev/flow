@@ -63,9 +63,35 @@ Deno.serve(async (req) => {
     }
 
     const conversationData = await response.json();
+    const conversationId = conversationData.id;
+
+    // Configurar custom_attribute com organization_id para facilitar identificação no webhook
+    if (conversationId && config.chatwoot_account_id) {
+      try {
+        const updateUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations/${conversationId}`;
+        
+        await fetch(updateUrl, {
+          method: 'PUT',
+          headers: {
+            'api_access_token': config.chatwoot_api_access_token,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            custom_attributes: {
+              organization_id: organizationId,
+            },
+          }),
+        });
+        
+        console.log(`✅ Custom attribute configurado para conversa ${conversationId}`);
+      } catch (attrError) {
+        console.warn('⚠️ Não foi possível configurar custom_attribute (não crítico):', attrError);
+        // Não falha a requisição se não conseguir configurar o atributo
+      }
+    }
 
     return new Response(JSON.stringify({
-      conversation_id: conversationData.id,
+      conversation_id: conversationId,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

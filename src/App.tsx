@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
 import ChatwootMessages from "./pages/ChatwootMessages";
+import UnifiedMessages from "./pages/UnifiedMessages";
 import PeriodicWorkflows from "./pages/PeriodicWorkflows";
 import AuthLogs from "./pages/AuthLogs";
 import Diagnostics from "./pages/Diagnostics";
@@ -21,6 +22,7 @@ import NovaFuncao from "./pages/NovaFuncao";
 import BubbleIntegration from "./pages/BubbleIntegration";
 import Calendar from "./pages/Calendar";
 import CRM from "./pages/CRM";
+import Gmail from "./pages/Gmail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +40,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />
           <Route path="/agilizechat" element={<ChatwootMessages />} />
+          <Route path="/unified-messages" element={<UnifiedMessages />} />
           <Route path="/workflows" element={<PeriodicWorkflows />} />
           <Route path="/auth-logs" element={<AuthLogs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
@@ -50,6 +53,7 @@ const App = () => (
           <Route path="/agents" element={<AgentsDashboard />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/crm" element={<CRM />} />
+          <Route path="/gmail" element={<Gmail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

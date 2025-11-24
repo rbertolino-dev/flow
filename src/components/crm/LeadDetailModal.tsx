@@ -42,6 +42,7 @@ import {
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { ChatHistory } from "./ChatHistory";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
+import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -711,6 +712,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 )}
               </div>
             </div>
+
+            <Separator />
+
+            {/* Follow-up */}
+            <LeadFollowUpPanel leadId={lead.id} />
 
             <Separator />
 
