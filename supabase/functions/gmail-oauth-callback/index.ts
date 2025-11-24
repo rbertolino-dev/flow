@@ -89,8 +89,8 @@ serve(async (req) => {
     const { userId, organizationId, accountName } = statePayload;
 
     // Obter credenciais OAuth
-    const clientId = Deno.env.get('GOOGLE_GMAIL_CLIENT_ID') || Deno.env.get('GOOGLE_CALENDAR_CLIENT_ID');
-    const clientSecret = Deno.env.get('GOOGLE_GMAIL_CLIENT_SECRET') || Deno.env.get('GOOGLE_CALENDAR_CLIENT_SECRET');
+    const clientId = Deno.env.get('GOOGLE_GMAIL_CLIENT_ID');
+    const clientSecret = Deno.env.get('GOOGLE_GMAIL_CLIENT_SECRET');
 
     if (!clientId || !clientSecret) {
       throw new Error('Credenciais OAuth não configuradas');
