@@ -121,12 +121,13 @@ serve(async (req) => {
     console.log('Organization ID:', organization_id);
     console.log('User ID:', userId);
     
-    // Escopos necessários para Gmail (readonly para segurança)
+    // Escopos necessários para Gmail
     const scopes = [
       'openid',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
-      'https://www.googleapis.com/auth/gmail.readonly', // Apenas leitura
+      'https://www.googleapis.com/auth/gmail.readonly', // Leitura de emails
+      'https://www.googleapis.com/auth/gmail.send', // Envio de emails
     ].join(' ');
 
     // URL de autorização do Google
