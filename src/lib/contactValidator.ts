@@ -280,6 +280,11 @@ export async function validateWhatsAppNumbers(
 
       if (!resp.ok) {
         const preview = await resp.text().catch(() => "");
+        // Se o método não estiver disponível, considerar todos válidos
+        if (preview.includes("Method not available")) {
+          console.warn("⚠️ Validação WhatsApp indisponível neste canal Evolution - todos números serão aceitos");
+          return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
+        }
         throw new Error(`Evolution API retornou erro: ${resp.status}${preview ? ` - ${preview.slice(0,120)}` : ''}`);
       }
 
@@ -316,6 +321,11 @@ export async function validateWhatsAppNumbers(
 
   } catch (error: any) {
     console.error("Erro ao validar WhatsApp via Evolution API:", error);
+    // Se a validação falhar por qualquer motivo relacionado ao método indisponível, aceitar todos
+    if (error.message?.includes("Method not available")) {
+      console.warn("⚠️ Validação WhatsApp indisponível - aceitando todos os números válidos");
+      return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
+    }
     throw new Error(`Falha na validação WhatsApp: ${error.message}`);
   }
 
