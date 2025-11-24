@@ -58,18 +58,21 @@ export function FollowUpAutomationConfig({ stepId, automations }: FollowUpAutoma
   const { stages } = usePipelineStages();
   const { tags } = useTags();
   const { configs } = useEvolutionConfigs();
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<FollowUpStepAutomation | null>(null);
   const [actionType, setActionType] = useState<AutomationActionType>("send_whatsapp");
   const [actionConfig, setActionConfig] = useState<Record<string, any>>({});
   const [deletingAutomationId, setDeletingAutomationId] = useState<string | null>(null);
 
   const handleAddAutomation = () => {
+    setIsFormOpen(true);
     setEditingAutomation(null);
     setActionType("send_whatsapp");
     setActionConfig({});
   };
 
   const handleEditAutomation = (automation: FollowUpStepAutomation) => {
+    setIsFormOpen(true);
     setEditingAutomation(automation);
     setActionType(automation.actionType);
     setActionConfig(automation.actionConfig);
@@ -81,6 +84,7 @@ export function FollowUpAutomationConfig({ stepId, automations }: FollowUpAutoma
     } else {
       await addAutomation(stepId, actionType, actionConfig);
     }
+    setIsFormOpen(false);
     setEditingAutomation(null);
     setActionType("send_whatsapp");
     setActionConfig({});
@@ -266,7 +270,7 @@ export function FollowUpAutomationConfig({ stepId, automations }: FollowUpAutoma
             <Zap className="h-4 w-4" />
             Automações
           </Label>
-          {!editingAutomation && (
+          {!isFormOpen && (
             <Button variant="outline" size="sm" onClick={handleAddAutomation}>
               <Plus className="h-4 w-4 mr-2" />
               Adicionar Automação
@@ -338,7 +342,7 @@ export function FollowUpAutomationConfig({ stepId, automations }: FollowUpAutoma
         )}
 
         {/* Formulário de adicionar/editar automação */}
-        {editingAutomation !== null && (
+        {isFormOpen && (
           <Card className="bg-primary/5 border-primary/20">
             <CardHeader>
               <CardTitle className="text-sm">
@@ -380,6 +384,7 @@ export function FollowUpAutomationConfig({ stepId, automations }: FollowUpAutoma
                 <Button
                   variant="outline"
                   onClick={() => {
+                    setIsFormOpen(false);
                     setEditingAutomation(null);
                     setActionType("send_whatsapp");
                     setActionConfig({});
