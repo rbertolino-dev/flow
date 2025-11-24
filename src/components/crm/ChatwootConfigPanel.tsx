@@ -42,7 +42,11 @@ export const ChatwootConfigPanel = () => {
     });
 
     // Após teste bem-sucedido, listar inboxes
-    const inboxesData = await listInboxes.mutateAsync();
+    const inboxesData = await listInboxes.mutateAsync({
+      baseUrl,
+      accountId: parseInt(accountId),
+      apiToken,
+    });
     setInboxes(inboxesData?.payload || []);
   };
 

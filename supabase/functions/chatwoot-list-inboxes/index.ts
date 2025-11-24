@@ -24,37 +24,54 @@ Deno.serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const { organizationId } = await req.json();
+    const { organizationId, baseUrl, accountId, apiToken } = await req.json();
 
-    if (!organizationId) {
-      throw new Error('organizationId é obrigatório');
+    let chatwootBaseUrl: string;
+    let chatwootAccountId: number;
+    let chatwootApiToken: string;
+
+    // Se credenciais foram fornecidas diretamente (para teste), use-as
+    if (baseUrl && accountId && apiToken) {
+      chatwootBaseUrl = baseUrl;
+      chatwootAccountId = accountId;
+      chatwootApiToken = apiToken;
+      console.log('📞 Usando credenciais fornecidas para teste');
+    } else {
+      // Caso contrário, buscar da configuração salva
+      if (!organizationId) {
+        throw new Error('organizationId é obrigatório');
+      }
+
+      const { data: config, error: configError } = await supabase
+        .from('chatwoot_configs')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .single();
+
+      if (configError || !config) {
+        throw new Error('Configuração do Chatwoot não encontrada para esta organização');
+      }
+
+      if (!config.enabled) {
+        throw new Error('Integração com Chatwoot não está ativada para esta organização');
+      }
+
+      chatwootBaseUrl = config.chatwoot_base_url;
+      chatwootAccountId = config.chatwoot_account_id;
+      chatwootApiToken = config.chatwoot_api_access_token;
+      console.log('📞 Usando credenciais da configuração salva');
     }
 
-    // Buscar configuração do Chatwoot para esta organização
-    const { data: config, error: configError } = await supabase
-      .from('chatwoot_configs')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .single();
-
-    if (configError || !config) {
-      throw new Error('Configuração do Chatwoot não encontrada para esta organização');
-    }
-
-    if (!config.enabled) {
-      throw new Error('Integração com Chatwoot não está ativada para esta organização');
-    }
-
-    // Listar inboxes usando múltiplas formas de autenticação (igual ao test-connection)
-    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/inboxes?api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
+    // Listar inboxes
+    const chatwootUrl = `${chatwootBaseUrl}/api/v1/accounts/${chatwootAccountId}/inboxes?api_access_token=${encodeURIComponent(chatwootApiToken)}`;
     
     console.log('📞 Listando inboxes');
 
     const response = await fetch(chatwootUrl, {
       method: 'GET',
       headers: {
-        'api_access_token': config.chatwoot_api_access_token,
-        'Authorization': `Bearer ${config.chatwoot_api_access_token}`,
+        'api_access_token': chatwootApiToken,
+        'Authorization': `Bearer ${chatwootApiToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
