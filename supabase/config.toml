@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.list-gmail-messages]
 verify_jwt = true
+
+[functions.gmail-send-reply]
+verify_jwt = true
