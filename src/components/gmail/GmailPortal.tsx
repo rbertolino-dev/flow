@@ -25,6 +25,7 @@ export function GmailPortal() {
   const [searchQuery, setSearchQuery] = useState("");
   const [maxResults, setMaxResults] = useState(20);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const selectedConfig = configs.find(c => c.id === selectedConfigId);
   const { data: messagesData, isLoading: isLoadingMessages, refetch } = useGmailMessages(
@@ -242,8 +243,38 @@ export function GmailPortal() {
           <div className="flex flex-1 overflow-hidden">
             {/* Lista de emails - Estilo Gmail */}
             <div className="w-1/2 border-r overflow-y-auto bg-white dark:bg-gray-900">
-              <div className="text-xs text-muted-foreground px-4 py-2 border-b">
-                {messagesData.messages.length} de {messagesData.resultSizeEstimate} emails
+              <div className="text-xs text-muted-foreground px-4 py-2 border-b flex items-center justify-between">
+                <span>
+                  Página {currentPage} • {messagesData.messages.length} de {messagesData.resultSizeEstimate} emails
+                </span>
+                <div className="flex gap-2">
+                  {currentPage > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCurrentPage(p => p - 1);
+                        setSelectedMessageId(null);
+                      }}
+                      className="h-6 text-xs"
+                    >
+                      Anterior
+                    </Button>
+                  )}
+                  {messagesData.messages.length === maxResults && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCurrentPage(p => p + 1);
+                        setSelectedMessageId(null);
+                      }}
+                      className="h-6 text-xs"
+                    >
+                      Próxima
+                    </Button>
+                  )}
+                </div>
               </div>
               {messagesData.messages.map((message) => {
                 const from = parseEmailAddress(message.from);
