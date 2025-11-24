@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useGmailConfigs } from "@/hooks/useGmailConfigs";
 import { useGmailOAuth } from "@/hooks/useGmailOAuth";
 import { useGmailMessages } from "@/hooks/useGmailMessages";
-import { Mail, LogIn, RefreshCw, Trash2, Loader2, Search, X, Star, Archive, MoreVertical, Reply, Forward, ArchiveRestore } from "lucide-react";
+import { useGmailReply } from "@/hooks/useGmailReply";
+import { Mail, LogIn, RefreshCw, Trash2, Loader2, Search, X, Star, Archive, MoreVertical, Reply, Forward, ArchiveRestore, Send } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -26,6 +28,8 @@ export function GmailPortal() {
   const [maxResults, setMaxResults] = useState(20);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyBody, setReplyBody] = useState("");
 
   const selectedConfig = configs.find(c => c.id === selectedConfigId);
   const { data: messagesData, isLoading: isLoadingMessages, refetch } = useGmailMessages(
@@ -33,6 +37,7 @@ export function GmailPortal() {
     maxResults,
     searchQuery || undefined
   );
+  const { mutate: sendReply, isPending: isSendingReply } = useGmailReply();
 
   const selectedMessage = messagesData?.messages.find(m => m.id === selectedMessageId);
 
@@ -72,6 +77,26 @@ export function GmailPortal() {
     } else {
       return format(date, "dd/MM/yyyy", { locale: ptBR });
     }
+  };
+
+  const handleSendReply = () => {
+    if (!selectedMessage || !selectedConfigId || !replyBody.trim()) return;
+
+    sendReply({
+      gmail_config_id: selectedConfigId,
+      thread_id: selectedMessage.threadId,
+      to: selectedMessage.from,
+      subject: selectedMessage.subject.startsWith('Re: ') 
+        ? selectedMessage.subject 
+        : `Re: ${selectedMessage.subject}`,
+      body: replyBody,
+      in_reply_to: selectedMessage.id,
+    }, {
+      onSuccess: () => {
+        setReplyBody("");
+        setIsReplying(false);
+      },
+    });
   };
 
   if (isLoading) {
@@ -362,7 +387,11 @@ export function GmailPortal() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setIsReplying(!isReplying)}
+                        >
                           <Reply className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="sm">
@@ -391,6 +420,53 @@ export function GmailPortal() {
                       )}
                     </div>
                   </div>
+
+                  {isReplying && (
+                    <div className="border-t mt-6 pt-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium">Responder</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIsReplying(false);
+                              setReplyBody("");
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Para: {parseEmailAddress(selectedMessage.from).email}
+                        </div>
+                        <Textarea
+                          placeholder="Digite sua resposta..."
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          className="min-h-[200px]"
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={handleSendReply}
+                            disabled={!replyBody.trim() || isSendingReply}
+                          >
+                            {isSendingReply ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Enviar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
