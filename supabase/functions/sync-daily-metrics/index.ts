@@ -15,6 +15,8 @@ interface CostConfig {
   cost_per_edge_function_call: number;
   cost_per_storage_gb: number;
   cost_per_auth_user: number;
+  cost_per_gmail_sync: number;
+  cost_per_calendar_sync: number;
 }
 
 Deno.serve(async (req) => {
@@ -187,6 +189,47 @@ Deno.serve(async (req) => {
           metric_value: Math.round(estimatedWrites),
           cost_per_unit: config.cost_per_database_write,
           total_cost: Math.round(estimatedWrites) * config.cost_per_database_write
+        });
+      }
+
+      // 3.7. Gmail - contar sincronizações DO DIA
+      // Estimativa: 1 sync por gmail_config ativo
+      const { count: gmailConfigsCount } = await supabase
+        .from('gmail_configs')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', org.id)
+        .eq('is_active', true)
+        .gte('last_access_at', startOfDay.toISOString())
+        .lt('last_access_at', endOfDay.toISOString());
+
+      if (gmailConfigsCount && gmailConfigsCount > 0) {
+        metrics.push({
+          date: targetDate,
+          organization_id: org.id,
+          metric_type: 'gmail_syncs',
+          metric_value: gmailConfigsCount,
+          cost_per_unit: config.cost_per_gmail_sync || 0,
+          total_cost: gmailConfigsCount * (config.cost_per_gmail_sync || 0)
+        });
+      }
+
+      // 3.8. Google Calendar - contar sincronizações DO DIA
+      const { count: calendarSyncsCount } = await supabase
+        .from('google_calendar_configs')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', org.id)
+        .eq('is_active', true)
+        .gte('last_sync_at', startOfDay.toISOString())
+        .lt('last_sync_at', endOfDay.toISOString());
+
+      if (calendarSyncsCount && calendarSyncsCount > 0) {
+        metrics.push({
+          date: targetDate,
+          organization_id: org.id,
+          metric_type: 'calendar_syncs',
+          metric_value: calendarSyncsCount,
+          cost_per_unit: config.cost_per_calendar_sync || 0,
+          total_cost: calendarSyncsCount * (config.cost_per_calendar_sync || 0)
         });
       }
     }

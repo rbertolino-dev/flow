@@ -18,9 +18,14 @@ interface GmailMessagesResponse {
   resultSizeEstimate: number;
 }
 
-export function useGmailMessages(configId: string | null, maxResults: number = 20, query?: string) {
+export function useGmailMessages(
+  configId: string | null, 
+  maxResults: number = 20, 
+  query?: string,
+  pageToken?: string
+) {
   return useQuery({
-    queryKey: ["gmail-messages", configId, maxResults, query],
+    queryKey: ["gmail-messages", configId, maxResults, query, pageToken],
     queryFn: async (): Promise<GmailMessagesResponse> => {
       if (!configId) {
         return { messages: [], resultSizeEstimate: 0 };
@@ -31,6 +36,7 @@ export function useGmailMessages(configId: string | null, maxResults: number = 2
           gmail_config_id: configId,
           max_results: maxResults,
           query: query,
+          page_token: pageToken,
         },
       });
 
@@ -46,7 +52,8 @@ export function useGmailMessages(configId: string | null, maxResults: number = 2
       return data as GmailMessagesResponse;
     },
     enabled: !!configId,
-    refetchInterval: 30000, // Atualizar a cada 30 segundos
+    // REMOVIDO: refetchInterval (polling) para reduzir custos
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
   });
 }
 

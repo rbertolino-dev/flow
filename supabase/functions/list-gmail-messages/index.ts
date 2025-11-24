@@ -11,6 +11,7 @@ interface ListMessagesPayload {
   gmail_config_id: string;
   max_results?: number;
   query?: string;
+  page_token?: string;
 }
 
 serve(async (req) => {
@@ -19,7 +20,9 @@ serve(async (req) => {
   }
 
   try {
-    const { gmail_config_id, max_results = 20, query } = await req.json() as ListMessagesPayload;
+    const { gmail_config_id, max_results = 20, query, page_token } = await req.json() as ListMessagesPayload;
+    
+    console.log(`📧 Listando emails - config: ${gmail_config_id}, max: ${max_results}, query: ${query || 'none'}, page: ${page_token || 'first'}`);
 
     if (!gmail_config_id) {
       return new Response(
@@ -91,6 +94,9 @@ serve(async (req) => {
     messagesUrl.searchParams.set('maxResults', max_results.toString());
     if (query) {
       messagesUrl.searchParams.set('q', query);
+    }
+    if (page_token) {
+      messagesUrl.searchParams.set('pageToken', page_token);
     }
 
     const messagesResponse = await fetch(messagesUrl.toString(), {
@@ -164,11 +170,14 @@ serve(async (req) => {
 
     // Filtrar mensagens nulas
     const validMessages = messages.filter(msg => msg !== null);
+    
+    console.log(`✅ Retornando ${validMessages.length} mensagens (total estimado: ${messagesData.resultSizeEstimate || 0})`);
 
     return new Response(
       JSON.stringify({ 
         messages: validMessages,
         resultSizeEstimate: messagesData.resultSizeEstimate || 0,
+        nextPageToken: messagesData.nextPageToken, // Para paginação
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
