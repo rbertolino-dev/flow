@@ -1254,6 +1254,53 @@ export type Database = {
           },
         ]
       }
+      gmail_configs: {
+        Row: {
+          account_name: string
+          client_id: string
+          client_secret: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_access_at: string | null
+          organization_id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          client_id: string
+          client_secret: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_access_at?: string | null
+          organization_id: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_access_at?: string | null
+          organization_id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gmail_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_configs: {
         Row: {
           account_name: string
@@ -1549,6 +1596,92 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mercado_pago_configs: {
+        Row: {
+          access_token: string
+          created_at: string
+          environment: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          environment?: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mercado_pago_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mercado_pago_payments: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          mercado_pago_preference_id: string
+          organization_id: string
+          payment_link: string
+          status: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          mercado_pago_preference_id: string
+          organization_id: string
+          payment_link: string
+          status?: string
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          mercado_pago_preference_id?: string
+          organization_id?: string
+          payment_link?: string
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mercado_pago_payments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mercado_pago_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
