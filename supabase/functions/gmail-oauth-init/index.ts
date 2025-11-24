@@ -31,8 +31,7 @@ serve(async (req) => {
     }
 
     // Criar cliente Supabase com o token do usuário
-    const projectUrl = supabaseUrl.replace('/rest/v1', '');
-    const supabase = createClient(projectUrl, supabaseKey, {
+    const supabase = createClient(supabaseUrl, supabaseKey, {
       global: {
         headers: {
           Authorization: authHeader,
@@ -92,6 +91,9 @@ serve(async (req) => {
     // Buscar credenciais OAuth do Google
     const clientId = Deno.env.get('GOOGLE_GMAIL_CLIENT_ID');
     const clientSecret = Deno.env.get('GOOGLE_GMAIL_CLIENT_SECRET');
+    
+    console.log('Client ID:', clientId ? 'Configurado' : 'NÃO configurado');
+    console.log('Client Secret:', clientSecret ? 'Configurado' : 'NÃO configurado');
 
     if (!clientId || !clientSecret) {
       return new Response(
@@ -111,8 +113,13 @@ serve(async (req) => {
     };
     const state = btoa(JSON.stringify(statePayload));
     
-    // URL de callback (igual ao Google Calendar)
-    const redirectUri = `${projectUrl}/functions/v1/gmail-oauth-callback`;
+    // URL de callback - usar formato completo do Supabase
+    const baseUrl = supabaseUrl.replace('/rest/v1', '');
+    const redirectUri = `${baseUrl}/functions/v1/gmail-oauth-callback`;
+    
+    console.log('Redirect URI:', redirectUri);
+    console.log('Organization ID:', organization_id);
+    console.log('User ID:', userId);
     
     // Escopos necessários para Gmail (readonly para segurança)
     const scopes = [
