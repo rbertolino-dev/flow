@@ -1008,7 +1008,6 @@ export type Database = {
           chatwoot_account_id: number
           chatwoot_api_access_token: string
           chatwoot_base_url: string
-          create_leads: boolean | null
           created_at: string | null
           default_inbox_id: number | null
           default_inbox_identifier: string | null
@@ -1021,7 +1020,6 @@ export type Database = {
           chatwoot_account_id: number
           chatwoot_api_access_token: string
           chatwoot_base_url?: string
-          create_leads?: boolean | null
           created_at?: string | null
           default_inbox_id?: number | null
           default_inbox_identifier?: string | null
@@ -1034,7 +1032,6 @@ export type Database = {
           chatwoot_account_id?: number
           chatwoot_api_access_token?: string
           chatwoot_base_url?: string
-          create_leads?: boolean | null
           created_at?: string | null
           default_inbox_id?: number | null
           default_inbox_identifier?: string | null
