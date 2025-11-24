@@ -81,11 +81,9 @@ export const useChatwootConfig = (organizationId: string | null) => {
   });
 
   const listInboxes = useMutation({
-    mutationFn: async () => {
-      if (!organizationId) throw new Error('Organization ID não encontrado');
-
+    mutationFn: async (credentials?: { baseUrl: string; accountId: number; apiToken: string }) => {
       const { data, error } = await supabase.functions.invoke('chatwoot-list-inboxes', {
-        body: { organizationId },
+        body: credentials || { organizationId },
       });
 
       if (error) throw error;
