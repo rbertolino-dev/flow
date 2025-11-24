@@ -112,7 +112,7 @@ serve(async (req) => {
     const state = btoa(JSON.stringify(statePayload));
     
     // URL de callback (igual ao Google Calendar)
-    const redirectUri = `${supabaseUrl}/functions/v1/gmail-oauth-callback`;
+    const redirectUri = `${projectUrl}/functions/v1/gmail-oauth-callback`;
     
     // Escopos necessários para Gmail (readonly para segurança)
     const scopes = [
