@@ -168,8 +168,11 @@ export function GmailPortal() {
 
           {selectedConfig && (
             <div className="flex items-center gap-2">
+              <Badge variant={selectedConfig.is_active ? "default" : "secondary"}>
+                {selectedConfig.is_active ? "Ativa" : "Inativa"}
+              </Badge>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => handleToggleActive(selectedConfig)}
                 className="h-8"
@@ -177,13 +180,14 @@ export function GmailPortal() {
                 {selectedConfig.is_active ? "Desativar" : "Ativar"}
               </Button>
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="sm"
                 onClick={() => handleDelete(selectedConfig.id)}
                 disabled={isDeleting}
                 className="h-8"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remover e Reconectar
               </Button>
             </div>
           )}
