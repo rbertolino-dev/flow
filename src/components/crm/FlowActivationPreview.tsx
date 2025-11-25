@@ -4,14 +4,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Users, AlertCircle } from "lucide-react";
+import { Loader2, Users, AlertCircle, Building2, DollarSign, Calendar, MessageSquare } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface LeadPreview {
   id: string;
   name: string;
   phone: string;
   email?: string;
+  company?: string;
+  value?: number;
+  source?: string;
+  status?: string;
+  stage_name?: string;
+  created_at?: string;
+  last_contact?: string;
 }
 
 interface FlowActivationPreviewProps {
@@ -50,8 +59,21 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
       // Buscar leads baseado no tipo de gatilho
       let query = supabase
         .from('leads')
-        .select('id, name, phone, email')
+        .select(`
+          id, 
+          name, 
+          phone, 
+          email, 
+          company, 
+          value, 
+          source, 
+          status,
+          created_at,
+          last_contact,
+          pipeline_stages(name)
+        `)
         .eq('organization_id', organizationId)
+        .is('deleted_at', null)
         .limit(100);
 
       switch (triggerConfig.triggerType) {
@@ -135,7 +157,22 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
 
       if (fetchError) throw fetchError;
 
-      setLeads(data || []);
+      // Formatar os dados dos leads
+      const formattedLeads = (data || []).map((lead: any) => ({
+        id: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        email: lead.email,
+        company: lead.company,
+        value: lead.value,
+        source: lead.source,
+        status: lead.status,
+        stage_name: lead.pipeline_stages?.name,
+        created_at: lead.created_at,
+        last_contact: lead.last_contact,
+      }));
+
+      setLeads(formattedLeads);
     } catch (err: any) {
       console.error('Erro ao buscar leads:', err);
       setError(err.message || 'Erro ao buscar leads afetados');
@@ -176,29 +213,124 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
         </div>
       </div>
 
+      {/* Resumo estatístico */}
+      {leads.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 rounded-lg bg-muted/50 border">
+            <p className="text-xs text-muted-foreground mb-1">Total de Leads</p>
+            <p className="text-2xl font-bold">{leads.length}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-muted/50 border">
+            <p className="text-xs text-muted-foreground mb-1">Com Email</p>
+            <p className="text-2xl font-bold">{leads.filter(l => l.email).length}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-muted/50 border">
+            <p className="text-xs text-muted-foreground mb-1">Com Empresa</p>
+            <p className="text-2xl font-bold">{leads.filter(l => l.company).length}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-muted/50 border">
+            <p className="text-xs text-muted-foreground mb-1">Valor Total</p>
+            <p className="text-2xl font-bold">
+              {new Intl.NumberFormat('pt-BR', { 
+                style: 'currency', 
+                currency: 'BRL',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(leads.reduce((sum, l) => sum + (l.value || 0), 0))}
+            </p>
+          </div>
+        </div>
+      )}
+
       {leads.length > 0 ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Leads que atendem aos critérios:</h4>
+            <h4 className="text-sm font-medium">Leads que serão incluídos no fluxo:</h4>
             <Badge variant="outline">{leads.length} no total</Badge>
           </div>
           
-          <ScrollArea className="h-[300px] rounded-md border">
-            <div className="p-4 space-y-2">
+          <ScrollArea className="h-[400px] rounded-md border">
+            <div className="p-4 space-y-3">
               {leads.map((lead) => (
                 <div
                   key={lead.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  className="p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors border border-border/50"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{lead.name}</p>
-                    <div className="flex gap-2 text-xs text-muted-foreground mt-1">
-                      <span>{lead.phone}</span>
+                  <div className="space-y-3">
+                    {/* Header com nome e stage */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-base truncate">{lead.name}</p>
+                        {lead.stage_name && (
+                          <Badge variant="outline" className="mt-1">
+                            {lead.stage_name}
+                          </Badge>
+                        )}
+                      </div>
+                      {lead.value && (
+                        <div className="flex items-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400">
+                          <DollarSign className="h-4 w-4" />
+                          {new Intl.NumberFormat('pt-BR', { 
+                            style: 'currency', 
+                            currency: 'BRL' 
+                          }).format(lead.value)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Informações de contato */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="truncate">{lead.phone}</span>
+                      </div>
                       {lead.email && (
-                        <>
-                          <span>•</span>
+                        <div className="flex items-center gap-2 text-muted-foreground truncate">
                           <span className="truncate">{lead.email}</span>
-                        </>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Empresa e origem */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      {lead.company && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{lead.company}</span>
+                        </div>
+                      )}
+                      {lead.source && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {lead.source}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Datas */}
+                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-2 border-t border-border/50">
+                      {lead.created_at && (
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3" />
+                          <span>
+                            Criado {formatDistanceToNow(new Date(lead.created_at), { 
+                              addSuffix: true, 
+                              locale: ptBR 
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {lead.last_contact && (
+                        <div className="flex items-center gap-1.5">
+                          <MessageSquare className="h-3 w-3" />
+                          <span>
+                            Último contato {formatDistanceToNow(new Date(lead.last_contact), { 
+                              addSuffix: true, 
+                              locale: ptBR 
+                            })}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
