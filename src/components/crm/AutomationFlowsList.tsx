@@ -157,7 +157,7 @@ export function AutomationFlowsList() {
                 </div>
 
                 {/* Botão de Preview grande e destacado */}
-                {flow.status !== "active" && (
+                {flow.status !== "active" && flow.flowData.nodes.length > 0 && (
                   <Button
                     variant="default"
                     size="lg"
