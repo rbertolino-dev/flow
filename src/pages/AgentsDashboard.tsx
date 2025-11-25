@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useAgents } from "@/hooks/useAgents";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -338,7 +338,7 @@ const AgentsDashboard = () => {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "phonebook" | "workflows" | "agents") => {
+  const handleViewChange = (view: CRMView) => {
     if (view === "kanban") navigate('/');
     else if (view === "calls") navigate('/');
     else if (view === "settings") navigate('/settings');

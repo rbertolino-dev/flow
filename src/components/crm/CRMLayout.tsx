@@ -11,10 +11,28 @@ import agilizeLogo from "@/assets/agilize-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
+export type CRMView = 
+  | "kanban" 
+  | "calls" 
+  | "settings" 
+  | "users" 
+  | "broadcast" 
+  | "agilizechat" 
+  | "superadmin" 
+  | "workflows" 
+  | "agents" 
+  | "calendar" 
+  | "crm" 
+  | "form-builder"
+  | "phonebook"
+  | "unified-messages"
+  | "attention"
+  | "automation-flows";
+
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "workflows" | "agents" | "calendar" | "crm" | "form-builder";
-  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "workflows" | "agents" | "calendar" | "crm" | "form-builder") => void;
+  activeView: CRMView;
+  onViewChange: (view: CRMView) => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;

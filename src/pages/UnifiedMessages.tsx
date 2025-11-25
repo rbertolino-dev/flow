@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { MessageSquare, Inbox, Search, Tag, User, CheckCircle, X, Zap, MessageCircle } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useChatwootChats } from "@/hooks/useChatwootChats";
@@ -163,7 +163,7 @@ export default function UnifiedMessages() {
 
   const { data: leadsMap } = useLeadsByPhones(phoneNumbers);
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "unified-messages") => {
+  const handleViewChange = (view: CRMView) => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {

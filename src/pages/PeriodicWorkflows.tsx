@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkflowFilters } from "@/components/whatsapp/workflows/WorkflowFilters";
@@ -58,7 +58,7 @@ export default function PeriodicWorkflows() {
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowEnvio | null>(null);
 
   const handleViewChange = (
-    view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "phonebook" | "workflows",
+    view: CRMView,
   ) => {
     switch (view) {
       case "users":

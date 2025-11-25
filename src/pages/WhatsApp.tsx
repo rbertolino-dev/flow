@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { MessageSquare } from "lucide-react";
 import { ChatList } from "@/components/whatsapp/ChatList";
 import { ChatWindow } from "@/components/whatsapp/ChatWindow";
@@ -28,7 +28,7 @@ export default function WhatsApp() {
 
   const selectedChat = filteredChats.find(c => c.phone === selectedPhone);
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention") => {
+  const handleViewChange = (view: CRMView) => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
