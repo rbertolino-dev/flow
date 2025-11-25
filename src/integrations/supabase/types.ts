@@ -356,6 +356,50 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_flows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          flow_data: Json
+          id: string
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          flow_data?: Json
+          id?: string
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          flow_data?: Json
+          id?: string
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_flows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       broadcast_campaign_templates: {
         Row: {
           created_at: string
@@ -1288,6 +1332,76 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "evolution_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flow_executions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          current_node_id: string | null
+          execution_data: Json | null
+          flow_id: string
+          id: string
+          lead_id: string
+          next_execution_at: string | null
+          organization_id: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_node_id?: string | null
+          execution_data?: Json | null
+          flow_id: string
+          id?: string
+          lead_id: string
+          next_execution_at?: string | null
+          organization_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_node_id?: string | null
+          execution_data?: Json | null
+          flow_id?: string
+          id?: string
+          lead_id?: string
+          next_execution_at?: string | null
+          organization_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_executions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_executions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_executions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
