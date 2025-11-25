@@ -561,23 +561,29 @@ export function UsersPanel() {
       {userForPermissions && (
         <UserPermissionsDialog
           open={permissionsDialogOpen}
-          onOpenChange={setPermissionsDialogOpen}
+          onOpenChange={(open) => {
+            setPermissionsDialogOpen(open);
+            if (!open) {
+              fetchUsers();
+            }
+          }}
           userId={userForPermissions.id}
-          onUpdated={fetchUsers}
+          userName={userForPermissions.email}
         />
       )}
 
       {/* Delete Dialog */}
-      {userToDelete && (
+      {userToDelete && activeOrgId && (
         <DeleteUserDialog
           open={!!userToDelete}
           onOpenChange={(open) => !open && setUserToDelete(null)}
-          userId={userToDelete.id}
-          userName={userToDelete.email}
-          onDeleted={() => {
+          onSuccess={() => {
             setUserToDelete(null);
             fetchUsers();
           }}
+          userId={userToDelete.id}
+          userName={userToDelete.email}
+          organizationId={activeOrgId}
         />
       )}
     </div>
