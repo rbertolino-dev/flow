@@ -6,7 +6,7 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 export interface LeadSource {
-  source: 'whatsapp' | 'chatwoot';
+  source: 'whatsapp' | 'chatwoot' | 'facebook' | 'instagram';
   sourceInstanceId: string;
   sourceInstanceName: string;
   organizationId: string;

@@ -88,13 +88,53 @@ export function useGmailConfigs() {
     },
   });
 
+  const createMutation = useMutation({
+    mutationFn: async (data: {
+      account_name: string;
+      client_id: string;
+      client_secret: string;
+      refresh_token: string;
+      is_active: boolean;
+    }) => {
+      if (!activeOrgId) throw new Error("Organização não encontrada");
+
+      const { data: newConfig, error } = await supabase
+        .from("gmail_configs")
+        .insert({
+          organization_id: activeOrgId,
+          ...data,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return newConfig;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gmail-configs"] });
+      toast({
+        title: "Conta adicionada",
+        description: "A conta do Gmail foi adicionada com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao adicionar conta",
+        description: error.message || "Não foi possível adicionar a conta.",
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     configs: configs || [],
     isLoading,
     error,
     deleteConfig: deleteMutation.mutate,
     updateConfig: updateMutation.mutate,
+    createConfig: createMutation.mutate,
     isDeleting: deleteMutation.isPending,
+    isCreating: createMutation.isPending,
   };
 }
 

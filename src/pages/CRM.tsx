@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useLeads } from "@/hooks/useLeads";
+import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useTags } from "@/hooks/useTags";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,19 +10,22 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail, ChevronLeft, ChevronRight } from "lucide-react";
+import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDetailModal } from "@/components/crm/LeadDetailModal";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportContactsPanel } from "@/components/crm/ImportContactsPanel";
+import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Lead } from "@/types/lead";
 
 export default function CRM() {
   const { leads, loading, refetch } = useLeads();
+  const { callQueue } = useCallQueue();
   const { stages } = usePipelineStages();
   const { tags } = useTags();
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,6 +35,7 @@ export default function CRM() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState("all");
   const itemsPerPage = 25;
 
   const filteredLeads = useMemo(() => {
@@ -146,49 +151,63 @@ export default function CRM() {
               </CardContent>
             </Card>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total de Leads</p>
-                      <p className="text-3xl font-bold">{filteredLeads.length}</p>
-                    </div>
-                    <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                      <MessageSquare className="h-6 w-6 text-primary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Tabs para organizar as visualizações */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="all" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Todos os Leads
+                </TabsTrigger>
+                <TabsTrigger value="attention" className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Leads que Precisam Atenção
+                </TabsTrigger>
+              </TabsList>
 
-              {stages.slice(0, 3).map(stage => {
-                const stageLeads = filteredLeads.filter(l => l.stageId === stage.id);
-                return (
-                  <Card key={stage.id} className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
+              <TabsContent value="all" className="space-y-6">
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-muted-foreground">{stage.name}</p>
-                          <p className="text-3xl font-bold">{stageLeads.length}</p>
+                          <p className="text-sm text-muted-foreground">Total de Leads</p>
+                          <p className="text-3xl font-bold">{filteredLeads.length}</p>
                         </div>
-                        <div 
-                          className="h-12 w-12 rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: `${stage.color}20` }}
-                        >
-                          <div 
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: stage.color }}
-                          />
+                        <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                          <MessageSquare className="h-6 w-6 text-primary" />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                );
-              })}
-            </div>
 
-            {/* Leads Table */}
+                  {stages.slice(0, 3).map(stage => {
+                    const stageLeads = filteredLeads.filter(l => l.stageId === stage.id);
+                    return (
+                      <Card key={stage.id} className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">{stage.name}</p>
+                              <p className="text-3xl font-bold">{stageLeads.length}</p>
+                            </div>
+                            <div 
+                              className="h-12 w-12 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: `${stage.color}20` }}
+                            >
+                              <div 
+                                className="h-3 w-3 rounded-full"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Leads Table */}
             <Card className="border-border/50 shadow-lg">
               <CardHeader>
                 <CardTitle>Lista de Leads</CardTitle>
@@ -392,6 +411,16 @@ export default function CRM() {
                 )}
               </CardContent>
             </Card>
+              </TabsContent>
+
+              <TabsContent value="attention" className="space-y-6">
+                <LeadsAttentionPanel
+                  leads={leads}
+                  callQueue={callQueue || []}
+                  onLeadUpdated={refetch}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 

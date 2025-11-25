@@ -18,13 +18,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare } from "lucide-react";
+import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { ChatwootConfigPanel } from "@/components/crm/ChatwootConfigPanel";
+import { FacebookConfigPanel } from "@/components/crm/FacebookConfigPanel";
+import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
+import { MercadoPagoIntegrationPanel } from "@/components/mercado-pago/MercadoPagoIntegrationPanel";
+import { AsaasIntegrationPanel } from "@/components/crm/AsaasIntegrationPanel";
+import { GmailIntegrationPanel } from "@/components/crm/GmailIntegrationPanel";
+import { BubbleIntegrationPanel } from "@/components/crm/BubbleIntegrationPanel";
+import { UsersPanel } from "@/components/users/UsersPanel";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -139,10 +146,8 @@ export default function Settings() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "broadcast" | "agilizechat") => {
+    if (view === "broadcast") {
       navigate('/broadcast');
     } else if (view === "agilizechat") {
       navigate('/agilizechat');
@@ -177,8 +182,12 @@ export default function Settings() {
           </div>
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
-        <Tabs defaultValue="evolution" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1">
+        <Tabs defaultValue="integrations" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-1 overflow-x-auto">
+            <TabsTrigger value="integrations" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Integrações</span>
+              <span className="sm:hidden">Integrações</span>
+            </TabsTrigger>
             <TabsTrigger value="evolution" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Evolution API</span>
               <span className="sm:hidden">Evolution</span>
@@ -186,6 +195,10 @@ export default function Settings() {
             <TabsTrigger value="chatwoot" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Chatwoot</span>
               <span className="sm:hidden">Chat</span>
+            </TabsTrigger>
+            <TabsTrigger value="facebook" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Facebook/Instagram</span>
+              <span className="sm:hidden">FB/IG</span>
             </TabsTrigger>
             <TabsTrigger value="pipeline" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Funil & Etiquetas</span>
@@ -200,7 +213,47 @@ export default function Settings() {
               <span className="hidden sm:inline">Arquivados</span>
               <span className="sm:hidden">Arquivo</span>
             </TabsTrigger>
+            <TabsTrigger value="users" className="text-xs sm:text-sm">
+              <UserCog className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Usuários</span>
+              <span className="sm:hidden">Usuários</span>
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="integrations" className="space-y-6 mt-6">
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Integrações de Sistemas</h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Gerencie todas as integrações e conexões com sistemas externos. Todas as configurações são por organização.
+                </p>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+                {/* Google Calendar */}
+                <GoogleCalendarIntegrationPanel />
+
+                {/* Gmail */}
+                <GmailIntegrationPanel />
+
+                {/* Mercado Pago */}
+                <MercadoPagoIntegrationPanel />
+
+                {/* Asaas */}
+                <AsaasIntegrationPanel />
+
+                {/* Bubble.io */}
+                <BubbleIntegrationPanel />
+              </div>
+
+              <Alert>
+                <AlertDescription className="text-xs sm:text-sm">
+                  <strong>Importante:</strong> Todas as credenciais e configurações são armazenadas de forma segura e isoladas por organização. 
+                  Cada organização possui suas próprias integrações independentes.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </TabsContent>
 
           <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
             <EvolutionApiDiagnostics />
@@ -264,6 +317,10 @@ export default function Settings() {
 
           <TabsContent value="chatwoot" className="space-y-6">
             <ChatwootConfigPanel />
+          </TabsContent>
+
+          <TabsContent value="facebook" className="space-y-6">
+            <FacebookConfigPanel />
           </TabsContent>
 
           <TabsContent value="pipeline" className="space-y-6">
@@ -470,6 +527,10 @@ export default function Settings() {
 
               <TabsContent value="archived" className="space-y-6">
                 <ArchivedLeadsPanel />
+              </TabsContent>
+
+              <TabsContent value="users" className="space-y-6">
+                <UsersPanel />
               </TabsContent>
         </Tabs>
       </div>
