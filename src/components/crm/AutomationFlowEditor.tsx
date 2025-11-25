@@ -65,6 +65,7 @@ import {
 interface AutomationFlowEditorProps {
   flowId?: string;
   onClose?: () => void;
+  initialFlowData?: { nodes: FlowNode[]; edges: FlowEdge[] };
 }
 
 // Componentes de nós customizados
@@ -200,7 +201,7 @@ const nodeTypes: NodeTypes = {
   end: EndNode,
 };
 
-export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorProps) {
+export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: AutomationFlowEditorProps) {
   const { flows, loading, createFlow, updateFlow, deleteFlow, duplicateFlow } = useAutomationFlows();
   const { toast } = useToast();
   const [flowName, setFlowName] = useState("");
@@ -220,6 +221,15 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
 
   // Inicializar nodes e edges do React Flow
   const initialNodes: Node[] = useMemo(() => {
+    if (initialFlowData?.nodes && !currentFlow) {
+      // Usar dados do playbook se for um novo fluxo
+      return initialFlowData.nodes.map((node: FlowNode) => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: node.data,
+      }));
+    }
     if (currentFlow?.flowData.nodes) {
       return currentFlow.flowData.nodes.map((node: FlowNode) => ({
         id: node.id,
@@ -229,9 +239,19 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
       }));
     }
     return [];
-  }, [currentFlow]);
+  }, [currentFlow, initialFlowData]);
 
   const initialEdges: Edge[] = useMemo(() => {
+    if (initialFlowData?.edges && !currentFlow) {
+      // Usar dados do playbook se for um novo fluxo
+      return initialFlowData.edges.map((edge: FlowEdge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+      }));
+    }
     if (currentFlow?.flowData.edges) {
       return currentFlow.flowData.edges.map((edge: FlowEdge) => ({
         id: edge.id,
@@ -242,7 +262,7 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
       }));
     }
     return [];
-  }, [currentFlow]);
+  }, [currentFlow, initialFlowData]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -259,6 +279,25 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
       setFlowStatus("draft");
     }
   }, [currentFlow]);
+
+  // Aplicar dados iniciais do playbook quando disponível
+  useEffect(() => {
+    if (initialFlowData && !currentFlow) {
+      setNodes(initialFlowData.nodes.map((node: FlowNode) => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: node.data,
+      })));
+      setEdges(initialFlowData.edges.map((edge: FlowEdge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+      })));
+    }
+  }, [initialFlowData, currentFlow, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => {
