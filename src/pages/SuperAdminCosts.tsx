@@ -1,12 +1,12 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { CostsDashboard } from "@/components/superadmin/CostsDashboard";
 import { useNavigate } from "react-router-dom";
 
 export default function SuperAdminCosts() {
   const navigate = useNavigate();
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar") => {
+  const handleViewChange = (view: CRMView) => {
     if (view === "users") {
       navigate('/users');
     } else if (view === "broadcast") {
