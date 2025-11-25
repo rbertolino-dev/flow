@@ -14,7 +14,10 @@ export type TriggerType =
   | 'stage_changed'
   | 'field_changed'
   | 'date_trigger'
-  | 'relative_date';
+  | 'relative_date'
+  | 'google_calendar_event'
+  | 'lead_return_date'
+  | 'last_message_sent';
 
 // Tipos de espera
 export type WaitType = 'delay' | 'until_date' | 'until_field';

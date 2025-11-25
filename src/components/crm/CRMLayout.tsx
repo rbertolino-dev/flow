@@ -63,7 +63,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "unified-messages" as const, label: "Todas as Conversas", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
-    { id: "automation-flows" as const, label: "Fluxos de Automação", icon: Repeat },
+    { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "agents" as const, label: "Agentes IA", icon: Bot },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
     { id: "settings" as const, label: "Configurações", icon: Settings },
