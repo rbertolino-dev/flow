@@ -202,7 +202,7 @@ const nodeTypes: NodeTypes = {
 };
 
 export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: AutomationFlowEditorProps) {
-  const { flows, loading, createFlow, updateFlow, deleteFlow, duplicateFlow } = useAutomationFlows();
+  const { flows, loading, createFlow, updateFlow, deleteFlow, duplicateFlow, fetchFlows } = useAutomationFlows();
   const { toast } = useToast();
   const [flowName, setFlowName] = useState("");
   const [flowDescription, setFlowDescription] = useState("");
@@ -379,18 +379,25 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
 
       if (currentFlow) {
         console.log("Atualizando fluxo existente:", currentFlow.id);
-        await updateFlow(currentFlow.id, {
+        const success = await updateFlow(currentFlow.id, {
           name: flowName,
           description: flowDescription,
           status: flowStatus,
           flowData,
         });
+        
+        if (success) {
+          // Forçar atualização da lista
+          await fetchFlows();
+          console.log("Lista de fluxos atualizada após salvamento");
+        }
       } else {
         console.log("Criando novo fluxo");
         const newFlowId = await createFlow(flowName, flowDescription);
         if (newFlowId) {
           console.log("Novo fluxo criado, ID:", newFlowId, "- Atualizando dados do canvas");
           await updateFlow(newFlowId, { flowData });
+          await fetchFlows();
         }
       }
     } catch (error: any) {
