@@ -41,6 +41,9 @@ export function TriggerNodeConfig({ config, onConfigChange }: TriggerNodeConfigP
             <SelectItem value="field_changed">Campo Mudou</SelectItem>
             <SelectItem value="date_trigger">Data Específica</SelectItem>
             <SelectItem value="relative_date">Data Relativa</SelectItem>
+            <SelectItem value="google_calendar_event">Evento do Google Agenda</SelectItem>
+            <SelectItem value="lead_return_date">Data de Retorno do Lead</SelectItem>
+            <SelectItem value="last_message_sent">Última Mensagem Enviada</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -170,6 +173,60 @@ export function TriggerNodeConfig({ config, onConfigChange }: TriggerNodeConfigP
       {config.triggerType === 'lead_created' ? (
         <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
           Este gatilho será acionado sempre que um novo lead for criado no sistema.
+        </div>
+      ) : null}
+
+      {config.triggerType === 'google_calendar_event' ? (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Dias Antes do Evento *</Label>
+            <Input
+              type="number"
+              min="0"
+              value={config.days_before || ""}
+              onChange={(e) => updateConfig({ days_before: parseInt(e.target.value) || 0 })}
+              placeholder="Ex: 1 (1 dia antes do evento)"
+            />
+          </div>
+          <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+            Este gatilho será acionado X dias antes de um evento do Google Agenda associado ao lead.
+          </div>
+        </div>
+      ) : null}
+
+      {config.triggerType === 'lead_return_date' ? (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Dias Antes da Data de Retorno *</Label>
+            <Input
+              type="number"
+              min="0"
+              value={config.days_before || ""}
+              onChange={(e) => updateConfig({ days_before: parseInt(e.target.value) || 0 })}
+              placeholder="Ex: 1 (1 dia antes da data de retorno)"
+            />
+          </div>
+          <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+            Este gatilho será acionado X dias antes da data de retorno definida no card do lead.
+          </div>
+        </div>
+      ) : null}
+
+      {config.triggerType === 'last_message_sent' ? (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Dias Após Última Mensagem *</Label>
+            <Input
+              type="number"
+              min="0"
+              value={config.days_before || ""}
+              onChange={(e) => updateConfig({ days_before: parseInt(e.target.value) || 0 })}
+              placeholder="Ex: 7 (7 dias após última mensagem)"
+            />
+          </div>
+          <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+            Este gatilho será acionado X dias após a última mensagem enviada ao lead.
+          </div>
         </div>
       ) : null}
     </div>
