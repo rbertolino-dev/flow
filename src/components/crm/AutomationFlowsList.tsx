@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAutomationFlows } from "@/hooks/useAutomationFlows";
 import { AutomationFlow, FlowStatus } from "@/types/automationFlow";
-import { Plus, Edit, Trash2, Play, Pause, Copy, Loader2, List, ArrowRight } from "lucide-react";
+import { Plus, Edit, Trash2, Play, Pause, Copy, Loader2, List, ArrowRight, Eye } from "lucide-react";
 import { AutomationFlowEditor } from "./AutomationFlowEditor";
 import { FlowExecutionsPanel } from "./FlowExecutionsPanel";
 import { FlowMetricsDashboard } from "./FlowMetricsDashboard";
@@ -155,6 +155,20 @@ export function AutomationFlowsList() {
                     <span>{flow.flowData.edges.length} conexões</span>
                   </div>
                 </div>
+
+                {/* Botão de Preview grande e destacado */}
+                {flow.status !== "active" && (
+                  <Button
+                    variant="default"
+                    size="lg"
+                    onClick={() => setActivationPreviewFlow(flow)}
+                    className="w-full gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                  >
+                    <Eye className="h-5 w-5" />
+                    Pré-visualizar Leads Afetados
+                  </Button>
+                )}
+
                 <div className="flex gap-2 flex-wrap pt-2 border-t">
                   <Button
                     variant="outline"
@@ -165,24 +179,27 @@ export function AutomationFlowsList() {
                     <Edit className="h-3.5 w-3.5 mr-1.5" />
                     Editar
                   </Button>
-                  <Button
-                    variant={flow.status === "active" ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => handleToggleStatus(flow)}
-                    className="flex-1"
-                  >
-                    {flow.status === "active" ? (
-                      <>
-                        <Pause className="h-3.5 w-3.5 mr-1.5" />
-                        Pausar
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-3.5 w-3.5 mr-1.5" />
-                        Ativar
-                      </>
-                    )}
-                  </Button>
+                  {flow.status !== "active" ? (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleToggleStatus(flow)}
+                      className="flex-1"
+                    >
+                      <Play className="h-3.5 w-3.5 mr-1.5" />
+                      Ativar
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleStatus(flow)}
+                      className="flex-1"
+                    >
+                      <Pause className="h-3.5 w-3.5 mr-1.5" />
+                      Pausar
+                    </Button>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
