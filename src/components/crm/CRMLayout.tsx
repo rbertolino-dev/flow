@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar, Users, AlertCircle } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, PhoneCall, Repeat, Bot, Calendar, Users, AlertCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,8 +13,8 @@ import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
-  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention";
-  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention") => void;
+  activeView: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention" | "form-builder";
+  onViewChange: (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat" | "superadmin" | "phonebook" | "workflows" | "agents" | "calendar" | "crm" | "unified-messages" | "attention" | "form-builder") => void;
   syncInfo?: {
     lastSync: Date | null;
     nextSync: Date | null;
@@ -63,7 +63,9 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "unified-messages" as const, label: "Todas as Conversas", icon: MessageSquare },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
+    { id: "automation-flows" as const, label: "Fluxos de Automação", icon: Repeat },
     { id: "agents" as const, label: "Agentes IA", icon: Bot },
+    { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
@@ -170,6 +172,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/lista-telefonica');
               } else if (item.id === 'workflows') {
                 navigate('/workflows');
+              } else if (item.id === 'automation-flows') {
+                navigate('/automation-flows');
               } else if (item.id === 'agents') {
                 navigate('/agents');
               } else if (item.id === 'calendar') {
@@ -184,6 +188,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/users');
               } else if (item.id === 'settings') {
                 navigate('/settings');
+              } else if (item.id === 'form-builder') {
+                navigate('/form-builder');
               } else if (item.id === 'kanban' || item.id === 'calls' || item.id === 'attention') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });
@@ -296,6 +302,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/lista-telefonica');
                         } else if (item.id === 'workflows') {
                           navigate('/workflows');
+                        } else if (item.id === 'automation-flows') {
+                          navigate('/automation-flows');
                         } else if (item.id === 'agents') {
                           navigate('/agents');
                         } else if (item.id === 'calendar') {

@@ -6,37 +6,86 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { CalendarEvent } from "@/hooks/useCalendarEvents";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, Maximize2, Minimize2, List, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Maximize2, Minimize2, List, Calendar as CalendarIcon, Grid3x3, CalendarDays } from "lucide-react";
 import { EventCard } from "./EventCard";
 import { CreateEventDialog } from "./CreateEventDialog";
+import { WeekView } from "./WeekView";
+import { DayView } from "./DayView";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Filter } from "lucide-react";
 
 export function CalendarView() {
   const queryClient = useQueryClient();
+  const { configs } = useGoogleCalendarConfigs();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
+  const [currentDay, setCurrentDay] = useState<Date>(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createDialogDate, setCreateDialogDate] = useState<Date | undefined>();
   const [calendarSize, setCalendarSize] = useState<"full" | "compact">("full");
-  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [viewMode, setViewMode] = useState<"month" | "week" | "day" | "list">("month");
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
 
-  // Calcular período para buscar eventos (mês atual + margem)
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const viewStart = startOfWeek(monthStart, { locale: ptBR });
-  const viewEnd = endOfWeek(monthEnd, { locale: ptBR });
+  // Calcular período para buscar eventos baseado na visualização
+  const getDateRange = () => {
+    switch (viewMode) {
+      case "day":
+        return {
+          start: startOfDay(currentDay),
+          end: endOfDay(currentDay),
+        };
+      case "week":
+        const weekStart = startOfWeek(currentWeek, { locale: ptBR });
+        const weekEnd = endOfWeek(currentWeek, { locale: ptBR });
+        return {
+          start: startOfDay(weekStart),
+          end: endOfDay(weekEnd),
+        };
+      case "list":
+        const listStart = new Date();
+        listStart.setDate(listStart.getDate() - 30);
+        const listEnd = new Date();
+        listEnd.setDate(listEnd.getDate() + 90);
+        return { start: listStart, end: listEnd };
+      default: // month
+        const monthStart = startOfMonth(currentMonth);
+        const monthEnd = endOfMonth(currentMonth);
+        const viewStart = startOfWeek(monthStart, { locale: ptBR });
+        const viewEnd = endOfWeek(monthEnd, { locale: ptBR });
+        return { start: viewStart, end: viewEnd };
+    }
+  };
 
-  // Para lista, buscar mais eventos (últimos 30 dias + próximos 90 dias)
-  const listStart = new Date();
-  listStart.setDate(listStart.getDate() - 30);
-  const listEnd = new Date();
-  listEnd.setDate(listEnd.getDate() + 90);
-
-  const { events, isLoading } = useCalendarEvents({
-    startDate: viewMode === "list" ? listStart : viewStart,
-    endDate: viewMode === "list" ? listEnd : viewEnd,
+  const dateRange = getDateRange();
+  const { events: allEvents, isLoading } = useCalendarEvents({
+    startDate: dateRange.start,
+    endDate: dateRange.end,
   });
+
+  // Filtrar eventos por contas selecionadas
+  const events = useMemo(() => {
+    if (selectedCalendarIds.length === 0) {
+      return allEvents;
+    }
+    return allEvents.filter((event) => selectedCalendarIds.includes(event.google_calendar_config_id));
+  }, [allEvents, selectedCalendarIds]);
 
   // Agrupar eventos por data
   const eventsByDate = useMemo(() => {
@@ -76,6 +125,8 @@ export function CalendarView() {
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
       setSelectedDate(date);
+      setCurrentDay(date);
+      setCurrentWeek(date);
     }
   };
 
@@ -83,6 +134,26 @@ export function CalendarView() {
     if (date) {
       setCurrentMonth(date);
     }
+  };
+
+  const navigateWeek = (direction: "prev" | "next") => {
+    const newWeek = new Date(currentWeek);
+    if (direction === "prev") {
+      newWeek.setDate(newWeek.getDate() - 7);
+    } else {
+      newWeek.setDate(newWeek.getDate() + 7);
+    }
+    setCurrentWeek(newWeek);
+  };
+
+  const navigateDay = (direction: "prev" | "next") => {
+    const newDay = new Date(currentDay);
+    if (direction === "prev") {
+      newDay.setDate(newDay.getDate() - 1);
+    } else {
+      newDay.setDate(newDay.getDate() + 1);
+    }
+    setCurrentDay(newDay);
   };
 
   const handleCreateEvent = (date?: Date) => {
@@ -103,11 +174,15 @@ export function CalendarView() {
     setCurrentMonth(newMonth);
   };
 
+  const activeConfigs = configs.filter((c) => c.is_active);
+
   return (
     <div className="space-y-4">
+      {/* Filtros e controles */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2">
-          {viewMode === "calendar" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Navegação por período */}
+          {viewMode === "month" && (
             <>
               <Button variant="outline" size="icon" onClick={() => navigateMonth("prev")}>
                 <ChevronLeft className="h-4 w-4" />
@@ -120,12 +195,146 @@ export function CalendarView() {
               </Button>
             </>
           )}
+          {viewMode === "week" && (
+            <>
+              <Button variant="outline" size="icon" onClick={() => navigateWeek("prev")}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="text-2xl font-semibold">
+                Semana de {format(startOfWeek(currentWeek, { locale: ptBR }), "dd/MM", { locale: ptBR })} até {format(endOfWeek(currentWeek, { locale: ptBR }), "dd/MM/yyyy", { locale: ptBR })}
+              </h2>
+              <Button variant="outline" size="icon" onClick={() => navigateWeek("next")}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {viewMode === "day" && (
+            <>
+              <Button variant="outline" size="icon" onClick={() => navigateDay("prev")}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="text-2xl font-semibold">
+                {format(currentDay, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </h2>
+              <Button variant="outline" size="icon" onClick={() => navigateDay("next")}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           {viewMode === "list" && (
             <h2 className="text-2xl font-semibold">Lista de Agendamentos</h2>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {viewMode === "calendar" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filtro por conta */}
+          {activeConfigs.length > 1 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtros
+                  {selectedCalendarIds.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {selectedCalendarIds.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64" align="end">
+                <div className="space-y-3">
+                  <div className="font-medium text-sm">Filtrar por conta</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="filter-all"
+                        checked={selectedCalendarIds.length === 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCalendarIds([]);
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor="filter-all"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        Todas as contas
+                      </label>
+                    </div>
+                    {activeConfigs.map((config) => (
+                      <div key={config.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`filter-${config.id}`}
+                          checked={selectedCalendarIds.includes(config.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedCalendarIds([...selectedCalendarIds, config.id]);
+                            } else {
+                              setSelectedCalendarIds(selectedCalendarIds.filter(id => id !== config.id));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`filter-${config.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                        >
+                          {config.account_name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedCalendarIds.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => setSelectedCalendarIds([])}
+                    >
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          
+          {/* Botões de visualização */}
+          <div className="flex items-center gap-1 border rounded-md p-1">
+            <Button
+              variant={viewMode === "month" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("month")}
+              className="h-8"
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "week" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("week")}
+              className="h-8"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "day" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("day")}
+              className="h-8"
+            >
+              <CalendarDays className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="h-8"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {viewMode === "month" && (
             <Button
               variant="outline"
               size="sm"
@@ -144,27 +353,11 @@ export function CalendarView() {
               )}
             </Button>
           )}
-          <Button
-            variant={viewMode === "calendar" ? "outline" : "default"}
-            size="sm"
-            onClick={() => setViewMode("calendar")}
-          >
-            <CalendarIcon className="h-4 w-4 mr-2" />
-            Calendário
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "outline" : "default"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-4 w-4 mr-2" />
-            Lista
-          </Button>
+          
           <Button 
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log("Novo Evento button clicked");
               handleCreateEvent();
             }}
             type="button"
@@ -175,15 +368,29 @@ export function CalendarView() {
         </div>
       </div>
 
-      {viewMode === "calendar" ? (
+      {/* Badge com contagem de eventos */}
+      {events.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">
+            {events.length} evento{events.length !== 1 ? "s" : ""} encontrado{events.length !== 1 ? "s" : ""}
+          </Badge>
+          {selectedCalendarIds.length > 0 && (
+            <Badge variant="outline">
+              Filtrado por {selectedCalendarIds.length} conta{selectedCalendarIds.length !== 1 ? "s" : ""}
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {viewMode === "month" ? (
         <div className={`grid gap-4 ${calendarSize === "full" ? "grid-cols-1 lg:grid-cols-3" : "grid-cols-1 lg:grid-cols-4"}`}>
-          {/* Calendário */}
+          {/* Calendário - Maior e mais proeminente */}
           <Card className={calendarSize === "full" ? "lg:col-span-2" : "lg:col-span-1"}>
             <CardHeader>
-              <CardTitle>Calendário</CardTitle>
+              <CardTitle>Calendário Mensal</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={calendarSize === "full" ? "flex justify-center" : ""}>
+              <div className={calendarSize === "full" ? "flex justify-center py-4" : "py-2"}>
                 <Calendar
                   mode="single"
                   selected={selectedDate}
@@ -191,7 +398,7 @@ export function CalendarView() {
                   month={currentMonth}
                   onMonthChange={handleMonthChange}
                   locale={ptBR}
-                  className={`rounded-md border ${calendarSize === "full" ? "scale-110" : ""}`}
+                  className={`rounded-md border ${calendarSize === "full" ? "scale-125" : ""}`}
                   modifiers={{
                     hasEvents: (date) => {
                       const dateKey = format(date, "yyyy-MM-dd");
@@ -199,13 +406,13 @@ export function CalendarView() {
                     },
                   }}
                   modifiersClassNames={{
-                    hasEvents: "bg-primary/10 font-semibold",
+                    hasEvents: "bg-primary/20 font-semibold border-primary/50",
                   }}
                 />
               </div>
               <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded bg-primary/10" />
+                  <div className="w-3 h-3 rounded bg-primary/20 border border-primary/50" />
                   <span>Dia com eventos</span>
                 </div>
               </div>
@@ -250,6 +457,23 @@ export function CalendarView() {
             </CardContent>
           </Card>
         </div>
+      ) : viewMode === "week" ? (
+        <WeekView
+          currentDate={currentWeek}
+          events={events}
+          onDateClick={(date) => {
+            setSelectedDate(date);
+            setCurrentDay(date);
+            setViewMode("day");
+          }}
+          isLoading={isLoading}
+        />
+      ) : viewMode === "day" ? (
+        <DayView
+          currentDate={currentDay}
+          events={events}
+          isLoading={isLoading}
+        />
       ) : (
         /* Visualização em Lista */
         <Card>

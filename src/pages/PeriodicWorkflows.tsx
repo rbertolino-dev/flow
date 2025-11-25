@@ -29,6 +29,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BoletosList } from "@/components/whatsapp/workflows/BoletosList";
 import { MercadoPagoIntegrationPanel } from "@/components/mercado-pago/MercadoPagoIntegrationPanel";
+import { MercadoPagoCobrancasManagement } from "@/components/mercado-pago/MercadoPagoCobrancasManagement";
+import { MercadoPagoCobrancaForm } from "@/components/mercado-pago/MercadoPagoCobrancaForm";
 import { useMercadoPago } from "@/hooks/useMercadoPago";
 
 const DEFAULT_FILTERS: FiltersState = {
@@ -183,6 +185,7 @@ export default function PeriodicWorkflows() {
                 <TabsTrigger value="boletos">Gestão de Boletos Asaas</TabsTrigger>
                 <TabsTrigger value="asaas">Integração Asaas</TabsTrigger>
                 <TabsTrigger value="mercado-pago">Integração Mercado Pago</TabsTrigger>
+                <TabsTrigger value="mercado-pago-cobrancas">Cobranças Mercado Pago</TabsTrigger>
               </TabsList>
               <TabsContent value="workflows" className="space-y-6 mt-6">
                 <WorkflowFilters
@@ -315,6 +318,9 @@ export default function PeriodicWorkflows() {
               </TabsContent>
               <TabsContent value="mercado-pago" className="mt-6">
                 <MercadoPagoIntegrationPanel />
+              </TabsContent>
+              <TabsContent value="mercado-pago-cobrancas" className="mt-6">
+                <MercadoPagoCobrancasManagement />
               </TabsContent>
             </Tabs>
           </CardContent>

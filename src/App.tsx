@@ -23,6 +23,8 @@ import BubbleIntegration from "./pages/BubbleIntegration";
 import Calendar from "./pages/Calendar";
 import CRM from "./pages/CRM";
 import Gmail from "./pages/Gmail";
+import FormBuilder from "./pages/FormBuilder";
+import AutomationFlows from "./pages/AutomationFlows";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +56,8 @@ const App = () => (
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/crm" element={<CRM />} />
           <Route path="/gmail" element={<Gmail />} />
+          <Route path="/form-builder" element={<FormBuilder />} />
+          <Route path="/automation-flows" element={<AutomationFlows />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

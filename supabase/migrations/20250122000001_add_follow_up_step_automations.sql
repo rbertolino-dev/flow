@@ -7,11 +7,18 @@ CREATE TABLE IF NOT EXISTS public.follow_up_step_automations (
   step_id UUID NOT NULL REFERENCES public.follow_up_template_steps(id) ON DELETE CASCADE,
   action_type TEXT NOT NULL CHECK (action_type IN (
     'send_whatsapp',
+    'send_whatsapp_template',
     'add_tag',
+    'remove_tag',
     'move_stage',
     'add_note',
     'add_to_call_queue',
-    'update_field'
+    'remove_from_call_queue',
+    'update_field',
+    'update_value',
+    'apply_template',
+    'wait_delay',
+    'create_reminder'
   )),
   action_config JSONB NOT NULL, -- Configuração específica da ação
   execution_order INTEGER NOT NULL DEFAULT 1, -- Ordem de execução quando múltiplas automações

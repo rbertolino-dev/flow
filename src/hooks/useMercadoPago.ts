@@ -235,6 +235,70 @@ export function useMercadoPago() {
     },
   });
 
+  // Criar boleto
+  const createBoleto = useMutation({
+    mutationFn: async ({
+      leadId,
+      workflowId,
+      scheduledMessageId,
+      payer,
+      boleto,
+    }: {
+      leadId: string;
+      workflowId?: string;
+      scheduledMessageId?: string;
+      payer: {
+        name: string;
+        email?: string;
+        phone?: string;
+        cpfCnpj?: string;
+        address?: {
+          street_name?: string;
+          street_number?: string;
+          zip_code?: string;
+        };
+      };
+      boleto: {
+        valor: number;
+        descricao?: string;
+        referenciaExterna?: string;
+        dataVencimento?: string;
+      };
+    }) => {
+      if (!activeOrgId) throw new Error("Organização não encontrada");
+
+      const { data, error } = await supabase.functions.invoke("mercado-pago-create-boleto", {
+        body: {
+          organizationId: activeOrgId,
+          leadId,
+          workflowId,
+          scheduledMessageId,
+          payer,
+          boleto,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erro ao criar boleto");
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mercado-pago-payments", activeOrgId] });
+      toast({
+        title: "Boleto criado",
+        description: "O boleto foi gerado com sucesso",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao criar boleto",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Deletar pagamento
   const deletePayment = useMutation({
     mutationFn: async (paymentId: string) => {
@@ -269,10 +333,12 @@ export function useMercadoPago() {
     getPaymentsByLead,
     getPaymentsByWorkflow,
     createPayment: createPayment.mutateAsync,
+    createBoleto: createBoleto.mutateAsync,
     saveConfig: saveConfig.mutateAsync,
     deletePayment: deletePayment.mutateAsync,
     refetchPayments,
     isCreatingPayment: createPayment.isPending,
+    isCreatingBoleto: createBoleto.isPending,
     isSavingConfig: saveConfig.isPending,
     isDeletingPayment: deletePayment.isPending,
   };

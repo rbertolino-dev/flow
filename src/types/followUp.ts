@@ -11,11 +11,18 @@ export interface FollowUpTemplate {
 
 export type AutomationActionType = 
   | 'send_whatsapp'
+  | 'send_whatsapp_template' // Usar template de mensagem existente
   | 'add_tag'
+  | 'remove_tag' // Remover tag do lead
   | 'move_stage'
   | 'add_note'
   | 'add_to_call_queue'
-  | 'update_field';
+  | 'update_field'
+  | 'update_value' // Atualizar valor do lead especificamente
+  | 'apply_template' // Aplicar outro template de follow-up
+  | 'wait_delay' // Aguardar tempo antes de próxima ação
+  | 'create_reminder' // Criar lembrete/tarefa
+  | 'remove_from_call_queue'; // Remover da fila de ligações
 
 export interface FollowUpStepAutomation {
   id: string;

@@ -16,6 +16,7 @@ import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { useFlowTriggers } from "@/hooks/useFlowTriggers";
 import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays } from "lucide-react";
 import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
 import Settings from "./Settings";
@@ -73,6 +74,24 @@ const Index = () => {
   
   // Sincronização automática a cada 5 minutos
   const { lastSync, nextSync, isSyncing } = useAutoSync({ intervalMinutes: 5, enabled: true });
+
+  // Ativar sistema de gatilhos de fluxos
+  useFlowTriggers();
+
+  // Iniciar scheduler de execuções agendadas
+  useEffect(() => {
+    let stopScheduler: (() => void) | null = null;
+    
+    import('@/lib/flowScheduler').then(({ startFlowScheduler }) => {
+      stopScheduler = startFlowScheduler(1); // Verificar a cada 1 minuto
+    });
+    
+    return () => {
+      if (stopScheduler) {
+        stopScheduler();
+      }
+    };
+  }, []);
 
   const handleLeadUpdate = (leadId: string, newStatus: string) => {
     updateLeadStatus(leadId, newStatus);

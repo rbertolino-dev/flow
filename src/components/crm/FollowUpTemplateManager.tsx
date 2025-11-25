@@ -414,15 +414,16 @@ export function FollowUpTemplateManager() {
                                     </Button>
                                   </div>
                                 </div>
-                                {/* Componente de automações expandido */}
-                                {step.id && (
-                                  <div className="ml-9 mt-2">
-                                    <FollowUpAutomationConfig
-                                      stepId={step.id}
-                                      automations={step.automations || []}
-                                    />
-                                  </div>
-                                )}
+                                 {/* Componente de automações expandido */}
+                                 {step.id && (
+                                   <div className="ml-9 mt-2">
+                                     <FollowUpAutomationConfig
+                                       stepId={step.id}
+                                       templateId={template.id}
+                                       automations={step.automations || []}
+                                     />
+                                   </div>
+                                 )}
                               </div>
                             ))}
                           </div>
