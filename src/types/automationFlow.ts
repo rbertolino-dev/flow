@@ -1,5 +1,8 @@
 import { AutomationActionType } from "./followUp";
 
+// Re-exportar para uso em outros módulos
+export type { AutomationActionType };
+
 // Tipos de nós do canvas
 export type FlowNodeType = 'trigger' | 'action' | 'wait' | 'condition' | 'end';
 

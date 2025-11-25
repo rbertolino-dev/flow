@@ -109,11 +109,13 @@ export function CalendarView() {
 
   // Eventos do mês atual para marcar no calendário
   const monthEvents = useMemo(() => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
     return events.filter((event) => {
       const eventDate = new Date(event.start_datetime);
       return eventDate >= monthStart && eventDate <= monthEnd;
     });
-  }, [events, monthStart, monthEnd]);
+  }, [events, currentMonth]);
 
   // Eventos ordenados por data para lista
   const sortedEvents = useMemo(() => {
@@ -504,7 +506,7 @@ export function CalendarView() {
                       event={event}
                       onClick={() => {
                         setSelectedDate(new Date(event.start_datetime));
-                        setViewMode("calendar");
+                        setViewMode("month");
                       }}
                     />
                   ))}

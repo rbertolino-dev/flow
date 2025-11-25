@@ -59,7 +59,8 @@ const statusLabels: Record<string, string> = {
 };
 
 export function MercadoPagoCobrancasManagement() {
-  const { payments, isLoadingPayments, refetchPayments, activeOrgId } = useMercadoPago();
+  const { payments, isLoadingPayments, refetchPayments } = useMercadoPago();
+  const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
