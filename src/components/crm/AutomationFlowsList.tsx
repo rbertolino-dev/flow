@@ -10,6 +10,7 @@ import { AutomationFlowEditor } from "./AutomationFlowEditor";
 import { FlowExecutionsPanel } from "./FlowExecutionsPanel";
 import { FlowMetricsDashboard } from "./FlowMetricsDashboard";
 import { FlowTestMode } from "./FlowTestMode";
+import { AutomationFlowPlaybookSelector, AutomationPlaybook } from "./AutomationFlowPlaybookSelector";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,10 +30,20 @@ export function AutomationFlowsList() {
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<"flows" | "executions" | "metrics">("flows");
   const [testingFlowId, setTestingFlowId] = useState<string | null>(null);
+  const [showPlaybookSelector, setShowPlaybookSelector] = useState(false);
+  const [selectedPlaybook, setSelectedPlaybook] = useState<AutomationPlaybook | null>(null);
 
   const handleCreateFlow = async () => {
-    const newFlowId = await createFlow("Novo Fluxo", "");
+    setShowPlaybookSelector(true);
+  };
+
+  const handleSelectPlaybook = async (playbook: AutomationPlaybook) => {
+    const flowName = playbook.id === "blank" ? "Novo Fluxo" : playbook.name;
+    const flowDescription = playbook.id === "blank" ? "" : playbook.description;
+    
+    const newFlowId = await createFlow(flowName, flowDescription);
     if (newFlowId) {
+      setSelectedPlaybook(playbook);
       setIsCreating(true);
       setEditingFlowId(newFlowId);
     }
@@ -217,18 +228,28 @@ export function AutomationFlowsList() {
         </TabsContent>
       </Tabs>
 
+      {/* Dialog de Seleção de Playbook */}
+      <AutomationFlowPlaybookSelector
+        open={showPlaybookSelector}
+        onClose={() => setShowPlaybookSelector(false)}
+        onSelectPlaybook={handleSelectPlaybook}
+      />
+
       {/* Dialog do Editor */}
       {(editingFlowId || isCreating) && (
         <Dialog open={true} onOpenChange={() => {
           setEditingFlowId(null);
           setIsCreating(false);
+          setSelectedPlaybook(null);
         }}>
           <DialogContent className="max-w-[95vw] h-[95vh] p-0">
             <AutomationFlowEditor
               flowId={editingFlowId || undefined}
+              initialFlowData={selectedPlaybook?.flowData}
               onClose={() => {
                 setEditingFlowId(null);
                 setIsCreating(false);
+                setSelectedPlaybook(null);
               }}
             />
           </DialogContent>
