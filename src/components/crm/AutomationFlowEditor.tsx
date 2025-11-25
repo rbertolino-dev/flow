@@ -333,6 +333,11 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
 
   const handleSave = async () => {
     if (!flowName.trim()) {
+      toast({
+        title: "Nome obrigatório",
+        description: "Por favor, dê um nome ao fluxo antes de salvar.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -358,6 +363,8 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
         })),
       };
 
+      console.log("Salvando fluxo:", { flowName, flowDescription, flowStatus, nodesCount: nodes.length, edgesCount: edges.length });
+
       // Validar antes de salvar
       const validationResult = validateFlow(flowData);
       if (!validationResult.isValid && validationResult.errors.length > 0) {
@@ -371,6 +378,7 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
       }
 
       if (currentFlow) {
+        console.log("Atualizando fluxo existente:", currentFlow.id);
         await updateFlow(currentFlow.id, {
           name: flowName,
           description: flowDescription,
@@ -378,13 +386,20 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
           flowData,
         });
       } else {
+        console.log("Criando novo fluxo");
         const newFlowId = await createFlow(flowName, flowDescription);
         if (newFlowId) {
+          console.log("Novo fluxo criado, ID:", newFlowId, "- Atualizando dados do canvas");
           await updateFlow(newFlowId, { flowData });
         }
       }
-    } catch (error) {
-      console.error("Erro ao salvar:", error);
+    } catch (error: any) {
+      console.error("Erro ao salvar fluxo:", error);
+      toast({
+        title: "Erro ao salvar",
+        description: error.message || "Ocorreu um erro ao salvar o fluxo.",
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
