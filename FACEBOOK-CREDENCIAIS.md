@@ -33,11 +33,11 @@ FACEBOOK_WEBHOOK_VERIFY_TOKEN=seu_token_secreto_aqui
 
 2. **OAuth Redirect URI:**
    - Vá em: Configurações → Básico → URIs de redirecionamento OAuth válidos
-   - Adicione: `https://seu-dominio.com/supabase/functions/v1/facebook-oauth-callback`
+   - Adicione: `https://orcbxgajfhgmjobsjlix.supabase.co/functions/v1/facebook-oauth-callback`
 
 3. **Webhook:**
    - Vá em: Webhooks → Adicionar produto → Messenger
-   - URL de retorno: `https://seu-dominio.com/supabase/functions/v1/facebook-webhook`
+   - URL de retorno: `https://orcbxgajfhgmjobsjlix.supabase.co/functions/v1/facebook-webhook`
    - Token de verificação: Use o mesmo valor de `FACEBOOK_WEBHOOK_VERIFY_TOKEN`
    - Eventos: `messages`, `message_deliveries`, `message_reads`
 

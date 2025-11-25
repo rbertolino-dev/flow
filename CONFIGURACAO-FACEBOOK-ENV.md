@@ -63,12 +63,12 @@ uuidgen
 
 ### **Redirect URI OAuth:**
 ```
-https://seu-dominio.com/supabase/functions/v1/facebook-oauth-callback
+https://orcbxgajfhgmjobsjlix.supabase.co/functions/v1/facebook-oauth-callback
 ```
 
 ### **Webhook URL:**
 ```
-https://seu-dominio.com/supabase/functions/v1/facebook-webhook
+https://orcbxgajfhgmjobsjlix.supabase.co/functions/v1/facebook-webhook
 ```
 
 ### **Webhook Verify Token:**
