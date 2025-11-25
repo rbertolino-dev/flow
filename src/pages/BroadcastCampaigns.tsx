@@ -55,6 +55,8 @@ interface Campaign {
   created_at: string;
   started_at?: string;
   instance_id: string;
+  min_delay_seconds: number;
+  max_delay_seconds: number;
 }
 
 interface Template {
@@ -2211,6 +2213,10 @@ export default function BroadcastCampaigns() {
                     {campaign.started_at && (
                       <div>Enviada em: {formatDate(new Date(campaign.started_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
                     )}
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Delay: {campaign.min_delay_seconds}s - {campaign.max_delay_seconds}s
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
