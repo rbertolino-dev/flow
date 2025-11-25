@@ -31,7 +31,7 @@ export function useFormBuilder() {
         throw error;
       }
 
-      return (data || []) as FormBuilder[];
+      return (data || []) as unknown as FormBuilder[];
     },
   });
 
@@ -56,8 +56,8 @@ export function useFormBuilder() {
           organization_id: activeOrgId,
           name: formData.name,
           description: formData.description,
-          fields: formData.fields,
-          style: formData.style,
+          fields: formData.fields as any,
+          style: formData.style as any,
           success_message: formData.success_message,
           redirect_url: formData.redirect_url,
           stage_id: formData.stage_id,
@@ -67,7 +67,7 @@ export function useFormBuilder() {
         .single();
 
       if (error) throw error;
-      return data as FormBuilder;
+      return data as unknown as FormBuilder;
     },
     onSuccess: () => {
       invalidate();
@@ -106,6 +106,8 @@ export function useFormBuilder() {
         .from("form_builders")
         .update({
           ...formData,
+          fields: formData.fields as any,
+          style: formData.style as any,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)

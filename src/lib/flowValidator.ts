@@ -67,7 +67,7 @@ export function validateFlow(flowData: FlowData): FlowValidation {
   // Verificar nós de ação sem configuração
   const actionNodes = flowData.nodes.filter(node => node.type === 'action');
   actionNodes.forEach(action => {
-    const config = action.data.config;
+    const config = action.data.config as any;
     if (!config || !config.actionType) {
       errors.push(`Ação "${action.data.label}" não está configurada`);
     }
@@ -75,7 +75,7 @@ export function validateFlow(flowData: FlowData): FlowValidation {
 
   // Verificar gatilhos sem configuração
   triggerNodes.forEach(trigger => {
-    const config = trigger.data.config;
+    const config = trigger.data.config as any;
     if (!config || !config.triggerType) {
       errors.push(`Gatilho "${trigger.data.label}" não está configurado`);
     }
@@ -84,7 +84,7 @@ export function validateFlow(flowData: FlowData): FlowValidation {
   // Verificar esperas sem configuração
   const waitNodes = flowData.nodes.filter(node => node.type === 'wait');
   waitNodes.forEach(wait => {
-    const config = wait.data.config;
+    const config = wait.data.config as any;
     if (!config || !config.waitType) {
       errors.push(`Espera "${wait.data.label}" não está configurada`);
     }
@@ -92,7 +92,7 @@ export function validateFlow(flowData: FlowData): FlowValidation {
 
   // Verificar condições sem configuração
   conditionNodes.forEach(condition => {
-    const config = condition.data.config;
+    const config = condition.data.config as any;
     if (!config || !config.operator) {
       errors.push(`Condição "${condition.data.label}" não está configurada`);
     }

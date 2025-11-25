@@ -269,21 +269,24 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
 
   // Validar fluxo quando nodes ou edges mudarem
   useEffect(() => {
-    const flowData = {
-      nodes: nodes.map(node => ({
-        id: node.id,
-        type: node.type as FlowNodeType,
-        position: node.position,
-        data: node.data,
-      })),
-      edges: edges.map(edge => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        sourceHandle: edge.sourceHandle,
-        targetHandle: edge.targetHandle,
-      })),
-    };
+      const flowData = {
+        nodes: nodes.map(node => ({
+          id: node.id,
+          type: node.type as FlowNodeType,
+          position: node.position,
+          data: {
+            label: node.data.label as string,
+            config: node.data.config || {},
+          },
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle || '',
+          targetHandle: edge.targetHandle || '',
+        })),
+      };
 
     const validationResult = validateFlow(flowData);
     setValidation(validationResult);
@@ -302,14 +305,17 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
           id: node.id,
           type: node.type as FlowNodeType,
           position: node.position,
-          data: node.data,
+          data: {
+            label: node.data.label as string,
+            config: node.data.config || {},
+          },
         })),
         edges: edges.map(edge => ({
           id: edge.id,
           source: edge.source,
           target: edge.target,
-          sourceHandle: edge.sourceHandle,
-          targetHandle: edge.targetHandle,
+          sourceHandle: edge.sourceHandle || '',
+          targetHandle: edge.targetHandle || '',
         })),
       };
 
@@ -640,7 +646,7 @@ export function AutomationFlowEditor({ flowId, onClose }: AutomationFlowEditorPr
                 <div>
                   <Label>Nome do Bloco</Label>
                   <Input
-                    value={selectedNode.data.label}
+                    value={selectedNode.data.label as string}
                     onChange={(e) => {
                       const newLabel = e.target.value;
                       setNodes((nds) =>
