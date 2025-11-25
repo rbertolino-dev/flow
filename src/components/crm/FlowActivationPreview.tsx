@@ -157,6 +157,9 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
 
       if (fetchError) throw fetchError;
 
+      console.log('Leads retornados da query:', data?.length || 0);
+      console.log('Primeiros 5 leads:', data?.slice(0, 5));
+
       // Formatar os dados dos leads
       const formattedLeads = (data || []).map((lead: any) => ({
         id: lead.id,
@@ -172,6 +175,7 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
         last_contact: lead.last_contact,
       }));
 
+      console.log('Leads formatados:', formattedLeads.length);
       setLeads(formattedLeads);
     } catch (err: any) {
       console.error('Erro ao buscar leads:', err);
@@ -251,7 +255,9 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
           
           <ScrollArea className="h-[400px] rounded-md border">
             <div className="p-4 space-y-3">
-              {leads.map((lead) => (
+              {leads.map((lead, index) => {
+                console.log(`Renderizando lead ${index + 1}:`, lead.name);
+                return (
                 <div
                   key={lead.id}
                   className="p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors border border-border/50"
@@ -335,7 +341,8 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </ScrollArea>
         </div>
