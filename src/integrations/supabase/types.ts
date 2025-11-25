@@ -1339,6 +1339,68 @@ export type Database = {
           },
         ]
       }
+      facebook_configs: {
+        Row: {
+          account_name: string
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          instagram_access_token: string | null
+          instagram_account_id: string | null
+          instagram_enabled: boolean | null
+          instagram_username: string | null
+          last_sync_at: string | null
+          messenger_enabled: boolean | null
+          organization_id: string
+          page_access_token: string
+          page_id: string
+          page_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_name: string
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          instagram_access_token?: string | null
+          instagram_account_id?: string | null
+          instagram_enabled?: boolean | null
+          instagram_username?: string | null
+          last_sync_at?: string | null
+          messenger_enabled?: boolean | null
+          organization_id: string
+          page_access_token: string
+          page_id: string
+          page_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_name?: string
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          instagram_access_token?: string | null
+          instagram_account_id?: string | null
+          instagram_enabled?: boolean | null
+          instagram_username?: string | null
+          last_sync_at?: string | null
+          messenger_enabled?: boolean | null
+          organization_id?: string
+          page_access_token?: string
+          page_id?: string
+          page_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facebook_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flow_executions: {
         Row: {
           completed_at: string | null
