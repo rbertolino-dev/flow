@@ -74,3 +74,15 @@ verify_jwt = true
 
 [functions.gmail-send-reply]
 verify_jwt = true
+
+[functions.facebook-oauth-init]
+verify_jwt = true
+
+[functions.facebook-oauth-callback]
+verify_jwt = false
+
+[functions.facebook-test-connection]
+verify_jwt = true
+
+[functions.facebook-webhook]
+verify_jwt = false
