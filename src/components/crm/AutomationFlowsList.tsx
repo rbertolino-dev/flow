@@ -11,6 +11,7 @@ import { FlowExecutionsPanel } from "./FlowExecutionsPanel";
 import { FlowMetricsDashboard } from "./FlowMetricsDashboard";
 import { FlowTestMode } from "./FlowTestMode";
 import { AutomationFlowPlaybookSelector, AutomationPlaybook } from "./AutomationFlowPlaybookSelector";
+import { FlowActivationPreview } from "./FlowActivationPreview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export function AutomationFlowsList() {
   const { flows, loading, createFlow, updateFlow, deleteFlow, duplicateFlow } = useAutomationFlows();
@@ -32,6 +33,7 @@ export function AutomationFlowsList() {
   const [testingFlowId, setTestingFlowId] = useState<string | null>(null);
   const [showPlaybookSelector, setShowPlaybookSelector] = useState(false);
   const [selectedPlaybook, setSelectedPlaybook] = useState<AutomationPlaybook | null>(null);
+  const [activationPreviewFlow, setActivationPreviewFlow] = useState<AutomationFlow | null>(null);
 
   const handleCreateFlow = async () => {
     setShowPlaybookSelector(true);
@@ -50,8 +52,20 @@ export function AutomationFlowsList() {
   };
 
   const handleToggleStatus = async (flow: AutomationFlow) => {
-    const newStatus: FlowStatus = flow.status === "active" ? "paused" : "active";
-    await updateFlow(flow.id, { status: newStatus });
+    // Se estiver ativando o fluxo, mostrar preview primeiro
+    if (flow.status !== "active") {
+      setActivationPreviewFlow(flow);
+    } else {
+      // Se estiver pausando, fazer diretamente
+      await updateFlow(flow.id, { status: "paused" });
+    }
+  };
+
+  const handleConfirmActivation = async () => {
+    if (activationPreviewFlow) {
+      await updateFlow(activationPreviewFlow.id, { status: "active" });
+      setActivationPreviewFlow(null);
+    }
   };
 
   const getStatusBadge = (status: FlowStatus) => {
@@ -264,6 +278,38 @@ export function AutomationFlowsList() {
               flow={flows.find(f => f.id === testingFlowId)!}
               onClose={() => setTestingFlowId(null)}
             />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Dialog de Preview de Ativação */}
+      {activationPreviewFlow && (
+        <Dialog open={true} onOpenChange={() => setActivationPreviewFlow(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Pré-visualização de Ativação</DialogTitle>
+              <DialogDescription>
+                Revise os leads que serão afetados antes de ativar o fluxo "{activationPreviewFlow.name}"
+              </DialogDescription>
+            </DialogHeader>
+            
+            <FlowActivationPreview flow={activationPreviewFlow} />
+
+            <div className="flex justify-end gap-3 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setActivationPreviewFlow(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmActivation}
+                className="gap-2"
+              >
+                <Play className="h-4 w-4" />
+                Confirmar e Ativar
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
