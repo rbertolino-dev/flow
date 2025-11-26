@@ -86,3 +86,9 @@ verify_jwt = true
 
 [functions.facebook-webhook]
 verify_jwt = false
+
+[functions.bubble-sync-leads]
+verify_jwt = true
+
+[functions.bubble-query-data]
+verify_jwt = true
