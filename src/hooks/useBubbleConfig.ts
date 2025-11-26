@@ -44,6 +44,8 @@ export function useBubbleConfig() {
           organization_id: activeOrgId,
           api_url,
           api_key,
+        }, {
+          onConflict: 'organization_id'
         })
         .select()
         .single();
