@@ -65,14 +65,14 @@ export function useInstanceHealthMetrics({
       console.log(`📊 [useInstanceHealthMetrics] Buscando métricas para instância ${instanceId}...`);
       
       // Chamar função SQL otimizada (1 query em vez de múltiplas)
-      const { data, error: rpcError } = await supabase.rpc('get_instance_risk_score', {
+      const { data, error: rpcError } = await supabase.rpc('get_instance_risk_score' as any, {
         p_instance_id: instanceId,
         p_hours_back: hoursBack,
       });
 
       if (rpcError) throw rpcError;
 
-      if (data && data.length > 0) {
+      if (data && Array.isArray(data) && data.length > 0) {
         const metricsData = data[0] as InstanceHealthMetrics;
         
         // Atualizar cache
