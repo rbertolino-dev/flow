@@ -81,17 +81,20 @@ serve(async (req) => {
 
     const metaData = await response.json();
     
-    // Extrair Data Types
+    // Extrair Data Types do formato do Bubble
     const dataTypes: { name: string; fields: { name: string; type: string }[] }[] = [];
     
-    if (metaData.types && typeof metaData.types === 'object') {
-      for (const [typeName, typeInfo] of Object.entries(metaData.types)) {
+    // O Bubble retorna um objeto com "get" (array de nomes de data types) e opcionalmente "types" com detalhes
+    if (metaData.get && Array.isArray(metaData.get)) {
+      // Adicionar cada data type da lista "get"
+      for (const typeName of metaData.get) {
         const fields: { name: string; type: string }[] = [];
         
-        if (typeInfo && typeof typeInfo === 'object' && 'fields' in typeInfo) {
-          const typeFields = (typeInfo as any).fields;
-          if (typeFields && typeof typeFields === 'object') {
-            for (const [fieldName, fieldInfo] of Object.entries(typeFields)) {
+        // Se houver informações detalhadas de tipos, buscar os campos
+        if (metaData.types && metaData.types[typeName]) {
+          const typeInfo = metaData.types[typeName];
+          if (typeInfo.fields && typeof typeInfo.fields === 'object') {
+            for (const [fieldName, fieldInfo] of Object.entries(typeInfo.fields)) {
               fields.push({
                 name: fieldName,
                 type: (fieldInfo as any)?.type || 'text'
