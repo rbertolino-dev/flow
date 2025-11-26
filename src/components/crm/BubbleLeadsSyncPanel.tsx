@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useBubbleLeadsSync, FieldMapping } from "@/hooks/useBubbleLeadsSync";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Loader2, RefreshCw, Play, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { Loader2, RefreshCw, Play, CheckCircle2, AlertCircle, Plus, Trash2, List, Edit3 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LEAD_FIELDS: { value: FieldMapping['lead_field']; label: string }[] = [
@@ -37,6 +38,7 @@ export function BubbleLeadsSyncPanel() {
   } = useBubbleLeadsSync();
 
   const [endpoint, setEndpoint] = useState("");
+  const [inputMode, setInputMode] = useState<"select" | "manual">("select");
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([
     { bubble_field: "", lead_field: "name" },
     { bubble_field: "", lead_field: "phone" },
@@ -188,57 +190,84 @@ export function BubbleLeadsSyncPanel() {
       <CardContent className="space-y-6">
         {/* Endpoint/Tabela do Bubble */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="bubble-endpoint">Tabela do Bubble</Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => fetchDataTypes()}
-              disabled={isLoadingDataTypes}
-            >
-              {isLoadingDataTypes ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          <Select
-            value={endpoint}
-            onValueChange={(value) => {
-              setEndpoint(value);
-              // Resetar mapeamentos quando mudar de tabela
-              setFieldMappings([
-                { bubble_field: "", lead_field: "name" },
-                { bubble_field: "", lead_field: "phone" },
-              ]);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione uma tabela..." />
-            </SelectTrigger>
-            <SelectContent>
-              {isLoadingDataTypes ? (
-                <div className="p-2 text-center">
-                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                </div>
-              ) : dataTypes && dataTypes.length > 0 ? (
-                dataTypes.map((dt) => (
-                  <SelectItem key={dt.name} value={dt.name}>
-                    {dt.name} ({dt.fields.length} campos)
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="p-2 text-sm text-muted-foreground">
-                  Nenhuma tabela encontrada
-                </div>
-              )}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Selecione o Data Type do Bubble que contém os leads/clientes
-          </p>
+          <Label htmlFor="bubble-endpoint">Tabela do Bubble</Label>
+          <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as "select" | "manual")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="select">
+                <List className="h-4 w-4 mr-2" />
+                Selecionar
+              </TabsTrigger>
+              <TabsTrigger value="manual">
+                <Edit3 className="h-4 w-4 mr-2" />
+                Digitar Manualmente
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="select" className="space-y-2 mt-2">
+              <div className="flex gap-2">
+                <Select
+                  value={endpoint}
+                  onValueChange={(value) => {
+                    setEndpoint(value);
+                    // Resetar mapeamentos quando mudar de tabela
+                    setFieldMappings([
+                      { bubble_field: "", lead_field: "name" },
+                      { bubble_field: "", lead_field: "phone" },
+                    ]);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma tabela..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isLoadingDataTypes ? (
+                      <div className="p-2 text-center">
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                      </div>
+                    ) : dataTypes && dataTypes.length > 0 ? (
+                      dataTypes.map((dt) => (
+                        <SelectItem key={dt.name} value={dt.name}>
+                          {dt.name} ({dt.fields.length} campos)
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        Nenhuma tabela encontrada
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fetchDataTypes()}
+                  disabled={isLoadingDataTypes}
+                >
+                  {isLoadingDataTypes ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Selecione o Data Type do Bubble que contém os leads/clientes
+              </p>
+            </TabsContent>
+            
+            <TabsContent value="manual" className="space-y-2 mt-2">
+              <Input
+                value={endpoint}
+                onChange={(e) => setEndpoint(e.target.value)}
+                placeholder="Digite o nome da tabela (ex: contato)"
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Digite exatamente o nome do Data Type no Bubble (case-sensitive)
+              </p>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Mapeamento de Campos */}
