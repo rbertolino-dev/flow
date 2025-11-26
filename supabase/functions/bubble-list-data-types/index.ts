@@ -81,7 +81,9 @@ serve(async (req) => {
 
     const metaData = await response.json();
     
-    console.log('📦 Resposta do Bubble /meta - encontrados:', metaData.get?.length || 0, 'data types');
+    console.log('📦 RESPOSTA COMPLETA DO /meta:', JSON.stringify(metaData, null, 2));
+    console.log('📦 Número de data types em metaData.get:', metaData.get?.length || 0);
+    console.log('📦 Lista de data types:', metaData.get);
     
     // Extrair Data Types do formato do Bubble
     const dataTypes: { name: string; fields: { name: string; type: string }[] }[] = [];
