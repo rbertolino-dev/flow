@@ -81,11 +81,14 @@ serve(async (req) => {
 
     const metaData = await response.json();
     
+    console.log('📦 Resposta completa do Bubble /meta:', JSON.stringify(metaData, null, 2));
+    
     // Extrair Data Types do formato do Bubble
     const dataTypes: { name: string; fields: { name: string; type: string }[] }[] = [];
     
     // O Bubble retorna um objeto com "get" (array de nomes de data types) e opcionalmente "types" com detalhes
     if (metaData.get && Array.isArray(metaData.get)) {
+      console.log('📋 Data Types encontrados:', metaData.get);
       // Adicionar cada data type da lista "get"
       for (const typeName of metaData.get) {
         const fields: { name: string; type: string }[] = [];
@@ -93,6 +96,7 @@ serve(async (req) => {
         // Se houver informações detalhadas de tipos, buscar os campos
         if (metaData.types && metaData.types[typeName]) {
           const typeInfo = metaData.types[typeName];
+          console.log(`🔍 Campos de ${typeName}:`, typeInfo.fields);
           if (typeInfo.fields && typeof typeInfo.fields === 'object') {
             for (const [fieldName, fieldInfo] of Object.entries(typeInfo.fields)) {
               fields.push({
@@ -101,6 +105,8 @@ serve(async (req) => {
               });
             }
           }
+        } else {
+          console.log(`⚠️ Sem informações de campos para ${typeName}`);
         }
         
         dataTypes.push({
