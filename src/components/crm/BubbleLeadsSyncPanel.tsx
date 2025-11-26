@@ -30,7 +30,10 @@ export function BubbleLeadsSyncPanel() {
     isSavingConfig, 
     syncLeads, 
     isSyncing,
-    lastSyncResult 
+    lastSyncResult,
+    dataTypes,
+    isLoadingDataTypes,
+    fetchDataTypes
   } = useBubbleLeadsSync();
 
   const [endpoint, setEndpoint] = useState("");
@@ -49,6 +52,13 @@ export function BubbleLeadsSyncPanel() {
       );
     }
   }, [savedConfig]);
+
+  // Buscar Data Types quando carregar
+  useEffect(() => {
+    if (bubbleConfig) {
+      fetchDataTypes();
+    }
+  }, [bubbleConfig]);
 
   const handleAddMapping = () => {
     setFieldMappings([...fieldMappings, { bubble_field: "", lead_field: "name" }]);
@@ -178,16 +188,56 @@ export function BubbleLeadsSyncPanel() {
       <CardContent className="space-y-6">
         {/* Endpoint/Tabela do Bubble */}
         <div className="space-y-2">
-          <Label htmlFor="bubble-endpoint">Tabela/Endpoint do Bubble</Label>
-          <Input
-            id="bubble-endpoint"
+          <div className="flex items-center justify-between">
+            <Label htmlFor="bubble-endpoint">Tabela do Bubble</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => fetchDataTypes()}
+              disabled={isLoadingDataTypes}
+            >
+              {isLoadingDataTypes ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <Select
             value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
-            placeholder="Ex: cliente, lead, contato, pessoa"
-            required
-          />
+            onValueChange={(value) => {
+              setEndpoint(value);
+              // Resetar mapeamentos quando mudar de tabela
+              setFieldMappings([
+                { bubble_field: "", lead_field: "name" },
+                { bubble_field: "", lead_field: "phone" },
+              ]);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma tabela..." />
+            </SelectTrigger>
+            <SelectContent>
+              {isLoadingDataTypes ? (
+                <div className="p-2 text-center">
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                </div>
+              ) : dataTypes && dataTypes.length > 0 ? (
+                dataTypes.map((dt) => (
+                  <SelectItem key={dt.name} value={dt.name}>
+                    {dt.name} ({dt.fields.length} campos)
+                  </SelectItem>
+                ))
+              ) : (
+                <div className="p-2 text-sm text-muted-foreground">
+                  Nenhuma tabela encontrada
+                </div>
+              )}
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground">
-            Nome da tabela no Bubble que contém os leads/clientes
+            Selecione o Data Type do Bubble que contém os leads/clientes
           </p>
         </div>
 
@@ -207,45 +257,68 @@ export function BubbleLeadsSyncPanel() {
           </div>
 
           <div className="space-y-3 border rounded-lg p-4">
-            {fieldMappings.map((mapping, index) => (
-              <div key={index} className="flex gap-2 items-end">
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">Campo no Bubble</Label>
-                  <Input
-                    value={mapping.bubble_field}
-                    onChange={(e) => handleMappingChange(index, 'bubble_field', e.target.value)}
-                    placeholder="Ex: nome, telefone, email"
-                  />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label className="text-xs">Campo no Sistema</Label>
-                  <Select
-                    value={mapping.lead_field}
-                    onValueChange={(value) => handleMappingChange(index, 'lead_field', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LEAD_FIELDS.map((field) => (
-                        <SelectItem key={field.value} value={field.value}>
-                          {field.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveMapping(index)}
-                  disabled={fieldMappings.length <= 2}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+            {endpoint ? (
+              fieldMappings.map((mapping, index) => {
+                const currentDataType = dataTypes?.find(dt => dt.name === endpoint);
+                
+                return (
+                  <div key={index} className="flex gap-2 items-end">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">Campo no Bubble</Label>
+                      <Select
+                        value={mapping.bubble_field}
+                        onValueChange={(value) => handleMappingChange(index, 'bubble_field', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currentDataType?.fields.map((field) => (
+                            <SelectItem key={field.name} value={field.name}>
+                              {field.name} ({field.type})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">Campo no Sistema</Label>
+                      <Select
+                        value={mapping.lead_field}
+                        onValueChange={(value) => handleMappingChange(index, 'lead_field', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LEAD_FIELDS.map((field) => (
+                            <SelectItem key={field.value} value={field.value}>
+                              {field.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveMapping(index)}
+                      disabled={fieldMappings.length <= 2}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Selecione uma tabela do Bubble primeiro
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
           <Alert>

@@ -17,6 +17,11 @@ export interface BubbleSyncConfig {
   last_sync_at?: string;
 }
 
+export interface BubbleDataType {
+  name: string;
+  fields: { name: string; type: string }[];
+}
+
 export interface SyncResult {
   success: boolean;
   dry_run: boolean;
@@ -107,6 +112,27 @@ export function useBubbleLeadsSync() {
     },
   });
 
+  // Buscar Data Types do Bubble
+  const { data: dataTypes, isLoading: isLoadingDataTypes, refetch: refetchDataTypes } = useQuery({
+    queryKey: ['bubble-data-types', activeOrgId],
+    queryFn: async () => {
+      if (!activeOrgId) return [];
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
+
+      const response = await supabase.functions.invoke('bubble-list-data-types', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (response.error) throw response.error;
+      return response.data.data_types as BubbleDataType[];
+    },
+    enabled: false, // Só busca quando chamado manualmente
+  });
+
   return {
     savedConfig,
     isLoadingConfig,
@@ -115,6 +141,9 @@ export function useBubbleLeadsSync() {
     syncLeads: syncLeads.mutate,
     isSyncing: syncLeads.isPending,
     lastSyncResult: syncLeads.data,
+    dataTypes,
+    isLoadingDataTypes,
+    fetchDataTypes: refetchDataTypes,
   };
 }
 
