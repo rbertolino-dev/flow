@@ -45,15 +45,29 @@ export function BubbleIntegrationPanel() {
   const handleTest = async () => {
     setTestResult(null);
     try {
-      // Teste básico - tentar fazer uma requisição simples
-      const response = await fetch(`${formData.api_url}/version`, {
+      // Construir URL para o endpoint /meta que lista os data types
+      let testUrl = formData.api_url;
+      if (testUrl.endsWith('/obj')) {
+        testUrl = testUrl.replace('/obj', '/meta');
+      } else if (testUrl.endsWith('/')) {
+        testUrl = `${testUrl}meta`;
+      } else {
+        testUrl = `${testUrl}/meta`;
+      }
+
+      const response = await fetch(testUrl, {
         headers: {
           Authorization: `Bearer ${formData.api_key}`,
         },
       });
 
       if (response.ok) {
-        setTestResult({ success: true, message: "Conexão testada com sucesso!" });
+        const data = await response.json();
+        const typeCount = data.types ? Object.keys(data.types).length : 0;
+        setTestResult({ 
+          success: true, 
+          message: `Conexão testada com sucesso! Encontrados ${typeCount} data types.` 
+        });
       } else {
         throw new Error(`Erro HTTP: ${response.status}`);
       }
