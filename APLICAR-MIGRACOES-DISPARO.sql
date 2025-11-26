@@ -256,3 +256,4 @@ BEGIN
   RAISE NOTICE '✅ Todas as migrações foram aplicadas com sucesso!';
 END $$;
 
+

@@ -83,3 +83,4 @@ BEFORE UPDATE ON public.instance_groups
 FOR EACH ROW
 EXECUTE FUNCTION update_instance_groups_updated_at();
 
+

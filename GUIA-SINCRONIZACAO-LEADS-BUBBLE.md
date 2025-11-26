@@ -172,3 +172,4 @@ Se tiver dúvidas ou problemas:
 2. Teste a conexão com Bubble na página de Integração
 3. Verifique se os campos mapeados existem na tabela do Bubble
 
+

@@ -73,3 +73,4 @@ COMMENT ON COLUMN public.calendar_message_templates.template IS 'Template com va
 
 
 
+

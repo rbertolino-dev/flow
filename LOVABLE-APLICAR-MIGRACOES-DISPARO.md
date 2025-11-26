@@ -148,3 +148,4 @@ WHERE tablename IN ('broadcast_time_windows', 'instance_groups');
 **Data de Criação:** 2025-01-21  
 **Última Atualização:** 2025-01-21
 
+

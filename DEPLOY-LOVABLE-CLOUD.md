@@ -146,3 +146,4 @@ response_format: { type: "json_object" }, // ❌ ERRADO - hardcoded
 - ✅ **Mapeamento:** text → omitido/null, json → json_object
 - ✅ **Instruções JSON:** Só adicionadas se `response_format = 'json'`
 
+

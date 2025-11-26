@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -24,6 +24,7 @@ import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanc
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
+import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
@@ -1359,6 +1360,10 @@ export default function BroadcastCampaigns() {
                 <Download className="h-5 w-5 mr-2" />
                 Exportar
               </TabsTrigger>
+              <TabsTrigger value="health" className="text-base font-semibold px-6 py-2.5 h-10">
+                <Shield className="h-5 w-5 mr-2" />
+                Saúde
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="templates">
@@ -2309,6 +2314,38 @@ export default function BroadcastCampaigns() {
 
             <TabsContent value="export">
               <BroadcastExportReport instances={instances} />
+            </TabsContent>
+
+            <TabsContent value="health">
+              <div className="space-y-4">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold mb-2">Monitoramento de Saúde das Instâncias</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Visualize métricas de saúde e risco de banimento de cada instância WhatsApp.
+                    Métricas são coletadas automaticamente durante o envio de mensagens.
+                  </p>
+                </div>
+                
+                {instances.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-6 text-center text-muted-foreground">
+                      Nenhuma instância configurada. Configure uma instância Evolution API primeiro.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {instances.map((instance) => (
+                      <InstanceHealthDashboard
+                        key={instance.id}
+                        instanceId={instance.id}
+                        instanceName={instance.instance_name}
+                        hoursBack={24}
+                        showRefresh={true}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
 
