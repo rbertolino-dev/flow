@@ -81,32 +81,59 @@ serve(async (req) => {
 
     const metaData = await response.json();
     
-    console.log('📦 Resposta completa do Bubble /meta:', JSON.stringify(metaData, null, 2));
+    console.log('📦 Resposta do Bubble /meta - encontrados:', metaData.get?.length || 0, 'data types');
     
     // Extrair Data Types do formato do Bubble
     const dataTypes: { name: string; fields: { name: string; type: string }[] }[] = [];
     
-    // O Bubble retorna um objeto com "get" (array de nomes de data types) e opcionalmente "types" com detalhes
+    // O Bubble retorna um objeto com "get" (array de nomes de data types)
     if (metaData.get && Array.isArray(metaData.get)) {
-      console.log('📋 Data Types encontrados:', metaData.get);
       // Adicionar cada data type da lista "get"
       for (const typeName of metaData.get) {
+        // Buscar os campos fazendo uma chamada à API de dados desse tipo
         const fields: { name: string; type: string }[] = [];
         
-        // Se houver informações detalhadas de tipos, buscar os campos
-        if (metaData.types && metaData.types[typeName]) {
-          const typeInfo = metaData.types[typeName];
-          console.log(`🔍 Campos de ${typeName}:`, typeInfo.fields);
-          if (typeInfo.fields && typeof typeInfo.fields === 'object') {
-            for (const [fieldName, fieldInfo] of Object.entries(typeInfo.fields)) {
-              fields.push({
-                name: fieldName,
-                type: (fieldInfo as any)?.type || 'text'
-              });
+        try {
+          // Fazer uma requisição GET para obter um item de exemplo e extrair os campos
+          const dataUrl = `${bubbleConfig.api_url}/${typeName}?limit=1`;
+          console.log(`🔍 Buscando campos de ${typeName} em:`, dataUrl);
+          
+          const dataResponse = await fetch(dataUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${bubbleConfig.api_key}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (dataResponse.ok) {
+            const dataResult = await dataResponse.json();
+            console.log(`✅ Resposta de ${typeName}:`, dataResult);
+            
+            // O Bubble retorna { response: { results: [...] } }
+            if (dataResult.response?.results && dataResult.response.results.length > 0) {
+              const sampleItem = dataResult.response.results[0];
+              // Extrair os campos do item de exemplo
+              for (const [fieldName, fieldValue] of Object.entries(sampleItem)) {
+                // Ignorar campos internos do Bubble
+                if (!fieldName.startsWith('_')) {
+                  let fieldType = 'text';
+                  if (typeof fieldValue === 'number') fieldType = 'number';
+                  else if (typeof fieldValue === 'boolean') fieldType = 'boolean';
+                  else if (fieldValue && typeof fieldValue === 'object' && fieldValue.constructor === Array) fieldType = 'list';
+                  
+                  fields.push({
+                    name: fieldName,
+                    type: fieldType
+                  });
+                }
+              }
             }
+          } else {
+            console.log(`⚠️ Não foi possível buscar dados de ${typeName}: ${dataResponse.status}`);
           }
-        } else {
-          console.log(`⚠️ Sem informações de campos para ${typeName}`);
+        } catch (error) {
+          console.log(`⚠️ Erro ao buscar campos de ${typeName}:`, error);
         }
         
         dataTypes.push({
