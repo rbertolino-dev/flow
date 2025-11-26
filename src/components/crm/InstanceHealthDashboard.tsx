@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   AlertTriangle, 
   CheckCircle2, 
@@ -12,9 +13,11 @@ import {
   Shield,
   XCircle,
   Clock,
+  Zap,
 } from "lucide-react";
 import { useInstanceHealthMetrics } from "@/hooks/useInstanceHealthMetrics";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 interface InstanceHealthDashboardProps {
   instanceId: string;
@@ -26,9 +29,11 @@ interface InstanceHealthDashboardProps {
 export function InstanceHealthDashboard({
   instanceId,
   instanceName,
-  hoursBack = 24,
+  hoursBack: initialHoursBack = 168, // 7 dias por padrão
   showRefresh = true,
 }: InstanceHealthDashboardProps) {
+  const [hoursBack, setHoursBack] = useState(initialHoursBack);
+  
   const {
     metrics,
     loading,
@@ -45,6 +50,20 @@ export function InstanceHealthDashboard({
     hoursBack,
     enabled: !!instanceId,
   });
+
+  const periodOptions = [
+    { value: "24", label: "Últimas 24h" },
+    { value: "168", label: "Últimos 7 dias" },
+    { value: "720", label: "Últimos 30 dias" },
+  ];
+
+  const getPeriodLabel = () => {
+    const hours = hoursBack;
+    if (hours === 24) return "24 horas";
+    if (hours === 168) return "7 dias";
+    if (hours === 720) return "30 dias";
+    return `${hours} horas`;
+  };
 
   if (loading && !metrics) {
     return (
@@ -102,31 +121,48 @@ export function InstanceHealthDashboard({
   return (
     <Card className="w-full">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Saúde da Instância
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
+              <Shield className="h-5 w-5 flex-shrink-0" />
+              <span>Saúde da Instância</span>
               {instanceName && (
-                <span className="text-sm font-normal text-muted-foreground">
+                <span className="text-xs font-normal text-muted-foreground truncate">
                   ({instanceName})
                 </span>
               )}
             </CardTitle>
-            <CardDescription>
-              Análise das últimas {hoursBack} horas
+            <CardDescription className="flex items-center gap-2 mt-1">
+              <span>Análise dos últimos {getPeriodLabel()}</span>
             </CardDescription>
           </div>
-          {showRefresh && (
-            <Button
-              onClick={() => refresh()}
-              variant="ghost"
-              size="sm"
-              disabled={loading}
+          <div className="flex items-center gap-2">
+            <Select
+              value={hoursBack.toString()}
+              onValueChange={(value) => setHoursBack(parseInt(value))}
             >
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            </Button>
-          )}
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {periodOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {showRefresh && (
+              <Button
+                onClick={() => refresh()}
+                variant="ghost"
+                size="sm"
+                disabled={loading}
+              >
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -177,8 +213,8 @@ export function InstanceHealthDashboard({
           </Alert>
         )}
 
-        {/* Métricas Detalhadas */}
-        <div className="grid grid-cols-2 gap-4 pt-2">
+        {/* Métricas Detalhadas - Todas as métricas avaliadas */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <TrendingUp className="h-4 w-4" />
@@ -207,39 +243,67 @@ export function InstanceHealthDashboard({
             </div>
           </div>
 
-          {metrics.rate_limits_detected > 0 && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                Rate Limits
-              </div>
-              <div className="text-2xl font-bold text-destructive">
-                {metrics.rate_limits_detected}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                HTTP 429 detectado(s)
-              </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <AlertTriangle className={cn(
+                "h-4 w-4",
+                metrics.rate_limits_detected > 0 && "text-destructive"
+              )} />
+              Rate Limits
             </div>
-          )}
+            <div className={cn(
+              "text-2xl font-bold",
+              metrics.rate_limits_detected > 0 && "text-destructive"
+            )}>
+              {metrics.rate_limits_detected}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              HTTP 429 detectado(s)
+            </div>
+          </div>
 
-          {metrics.consecutive_failures_max > 0 && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <XCircle className="h-4 w-4" />
-                Falhas Consecutivas
-              </div>
-              <div className={cn(
-                "text-2xl font-bold",
-                metrics.consecutive_failures_max >= 10 && "text-destructive",
-                metrics.consecutive_failures_max >= 5 && metrics.consecutive_failures_max < 10 && "text-orange-500",
-              )}>
-                {metrics.consecutive_failures_max}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Máximo no período
-              </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <XCircle className="h-4 w-4" />
+              Falhas Consecutivas
             </div>
-          )}
+            <div className={cn(
+              "text-2xl font-bold",
+              metrics.consecutive_failures_max >= 10 && "text-destructive",
+              metrics.consecutive_failures_max >= 5 && metrics.consecutive_failures_max < 10 && "text-orange-500",
+            )}>
+              {metrics.consecutive_failures_max}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Máximo no período
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Zap className="h-4 w-4" />
+              Mudanças de Conexão
+            </div>
+            <div className="text-2xl font-bold">
+              {metrics.connection_state_changes_total}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Alterações de estado
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Activity className="h-4 w-4" />
+              Total de Mensagens
+            </div>
+            <div className="text-2xl font-bold">
+              {totalMessages}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Enviadas + Falhas
+            </div>
+          </div>
         </div>
 
         {/* Informações Adicionais */}
