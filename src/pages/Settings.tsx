@@ -31,10 +31,13 @@ import { MercadoPagoIntegrationPanel } from "@/components/mercado-pago/MercadoPa
 import { AsaasIntegrationPanel } from "@/components/crm/AsaasIntegrationPanel";
 import { GmailIntegrationPanel } from "@/components/crm/GmailIntegrationPanel";
 import { BubbleIntegrationPanel } from "@/components/crm/BubbleIntegrationPanel";
+import { BubbleLeadsSyncPanel } from "@/components/crm/BubbleLeadsSyncPanel";
 import { UsersPanel } from "@/components/users/UsersPanel";
+import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding";
 
 export default function Settings() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("integrations");
   const { 
     configs, 
     loading, 
@@ -182,7 +185,7 @@ export default function Settings() {
           </div>
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
-        <Tabs defaultValue="integrations" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-1 overflow-x-auto">
             <TabsTrigger value="integrations" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Integrações</span>
@@ -222,6 +225,8 @@ export default function Settings() {
 
           <TabsContent value="integrations" className="space-y-6 mt-6">
             <div className="space-y-6">
+              <IntegrationsOnboarding onTabChange={setActiveTab} />
+              
               <div>
                 <h2 className="text-xl font-semibold mb-2">Integrações de Sistemas</h2>
                 <p className="text-sm text-muted-foreground mb-6">
@@ -244,6 +249,14 @@ export default function Settings() {
 
                 {/* Bubble.io */}
                 <BubbleIntegrationPanel />
+              </div>
+
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-4">Sincronização de Dados</h3>
+                <div className="grid gap-6 md:grid-cols-1">
+                  {/* Sincronização de Leads do Bubble */}
+                  <BubbleLeadsSyncPanel />
+                </div>
               </div>
 
               <Alert>
