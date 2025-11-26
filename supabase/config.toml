@@ -95,3 +95,6 @@ verify_jwt = true
 
 [functions.bubble-list-data-types]
 verify_jwt = true
+
+[functions.bubble-sync-leads]
+verify_jwt = true
