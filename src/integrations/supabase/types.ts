@@ -3259,6 +3259,23 @@ export type Database = {
           scheduled_count: number
         }[]
       }
+      get_instance_risk_score: {
+        Args: { p_hours_back?: number; p_instance_id: string }
+        Returns: {
+          connection_state_changes_total: number
+          consecutive_failures_max: number
+          error_rate: number
+          instance_id: string
+          last_connection_state: string
+          last_error_message: string
+          messages_failed_total: number
+          messages_sent_total: number
+          period_end: string
+          period_start: string
+          rate_limits_detected: number
+          risk_score: number
+        }[]
+      }
       get_organization_metrics: {
         Args: {
           current_month_end: string
