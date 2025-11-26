@@ -81,9 +81,23 @@ serve(async (req) => {
 
     const metaData = await response.json();
     
-    console.log('📦 RESPOSTA COMPLETA DO /meta:', JSON.stringify(metaData, null, 2));
     console.log('📦 Número de data types em metaData.get:', metaData.get?.length || 0);
     console.log('📦 Lista de data types:', metaData.get);
+    
+    // Verificar se existe informação sobre mais data types no objeto types
+    if (metaData.types) {
+      const typesKeys = Object.keys(metaData.types);
+      console.log('📦 Data types encontrados em metaData.types:', typesKeys.length);
+      console.log('📦 Lista completa de types:', typesKeys);
+      
+      // Se houver mais types do que no get, adicionar eles
+      for (const typeName of typesKeys) {
+        if (!metaData.get.includes(typeName)) {
+          console.log(`➕ Adicionando ${typeName} que estava em types mas não em get`);
+          metaData.get.push(typeName);
+        }
+      }
+    }
     
     // Extrair Data Types do formato do Bubble
     const dataTypes: { name: string; fields: { name: string; type: string }[] }[] = [];

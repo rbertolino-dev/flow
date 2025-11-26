@@ -83,6 +83,9 @@ serve(async (req) => {
       bubbleUrl = bubbleUrl.slice(0, -1);
     }
     bubbleUrl = `${bubbleUrl}/${sync_config.endpoint}`;
+    
+    console.log('📡 URL do Bubble construída:', bubbleUrl);
+    console.log('📋 Endpoint solicitado:', sync_config.endpoint);
 
     // Adicionar constraints se houver
     const params = new URLSearchParams();
@@ -118,6 +121,8 @@ serve(async (req) => {
 
       const pageUrl = `${bubbleUrl}?${pageParams.toString()}`;
       
+      console.log(`🔍 Página ${pageCount}: Buscando leads do Bubble em ${pageUrl}`);
+      
       const pageResponse = await fetch(pageUrl, {
         method: 'GET',
         headers: {
@@ -128,6 +133,7 @@ serve(async (req) => {
 
       if (!pageResponse.ok) {
         const errorText = await pageResponse.text();
+        console.error(`❌ Erro Bubble API (${pageResponse.status}):`, errorText);
         throw new Error(`Erro Bubble API: ${pageResponse.status} - ${errorText}`);
       }
 
