@@ -90,6 +90,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
+  const [pendingTags, setPendingTags] = useState<string[]>([]);
+  const [isEditingTags, setIsEditingTags] = useState(false);
 
   // Identificar listas que contêm este lead
   const leadLists = useMemo(() => {
@@ -189,16 +191,38 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     }
   };
 
-  const handleAddTag = async () => {
+  const handleAddTagTemp = () => {
     if (!selectedTagId) return;
-    const success = await addTagToLead(lead.id, selectedTagId);
-    if (success) {
-      setSelectedTagId("");
+    setPendingTags(prev => [...prev, selectedTagId]);
+    setSelectedTagId("");
+  };
+
+  const handleRemoveTagTemp = (tagId: string) => {
+    setPendingTags(prev => prev.filter(id => id !== tagId));
+  };
+
+  const handleSaveTags = async () => {
+    try {
+      // Adicionar novas tags
+      for (const tagId of pendingTags) {
+        const success = await addTagToLead(lead.id, tagId);
+        if (!success) throw new Error("Erro ao adicionar etiqueta");
+      }
+
       toast({
-        title: "Etiqueta adicionada",
-        description: "A etiqueta foi adicionada ao lead.",
+        title: "Etiquetas salvas",
+        description: "As etiquetas foram atualizadas com sucesso.",
       });
-      onUpdated?.(); // Atualizar o lead após adicionar etiqueta
+
+      setPendingTags([]);
+      setIsEditingTags(false);
+      onUpdated?.();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar etiquetas",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -209,8 +233,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         title: "Etiqueta removida",
         description: "A etiqueta foi removida do lead.",
       });
-      onUpdated?.(); // Atualizar o lead após remover etiqueta
+      onUpdated?.();
     }
+  };
+
+  const handleCancelTagEdit = () => {
+    setPendingTags([]);
+    setIsEditingTags(false);
   };
 
   const handleAddToCallQueue = async () => {
@@ -703,11 +732,24 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
             {/* Tags Section */}
             <div className="space-y-3">
-              <h3 className="font-semibold text-lg flex items-center gap-2">
-                <TagIcon className="h-5 w-5" />
-                Etiquetas
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <TagIcon className="h-5 w-5" />
+                  Etiquetas
+                </h3>
+                {!isEditingTags && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsEditingTags(true)}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </Button>
+                )}
+              </div>
               <div className="space-y-3">
+                {/* Tags existentes */}
                 {lead.tags && lead.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {lead.tags.map((tag) => (
@@ -722,44 +764,104 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                         className="gap-1"
                       >
                         {tag.name}
-                        <button
-                          onClick={() => handleRemoveTag(tag.id)}
-                          className="ml-1 hover:bg-white/20 rounded-full"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                        {!isEditingTags && (
+                          <button
+                            onClick={() => handleRemoveTag(tag.id)}
+                            className="ml-1 hover:bg-white/20 rounded-full"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </Badge>
                     ))}
                   </div>
                 )}
-                {availableTags.length > 0 && (
-                  <div className="flex gap-2">
-                    <Select value={selectedTagId} onValueChange={setSelectedTagId}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecione uma etiqueta" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTags.map((tag) => (
-                          <SelectItem key={tag.id} value={tag.id}>
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: tag.color }}
-                              />
-                              {tag.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      onClick={handleAddTag}
-                      disabled={!selectedTagId}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
+
+                {/* Etiquetas pendentes (apenas no modo edição) */}
+                {isEditingTags && pendingTags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {pendingTags.map((tagId) => {
+                      const tag = tags.find(t => t.id === tagId);
+                      if (!tag) return null;
+                      return (
+                        <Badge
+                          key={tagId}
+                          variant="outline"
+                          style={{ 
+                            backgroundColor: `${tag.color}20`, 
+                            borderColor: tag.color,
+                            color: tag.color 
+                          }}
+                          className="gap-1 opacity-70"
+                        >
+                          {tag.name}
+                          <button
+                            onClick={() => handleRemoveTagTemp(tagId)}
+                            className="ml-1 hover:bg-white/20 rounded-full"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
                   </div>
+                )}
+
+                {/* Controles de edição */}
+                {isEditingTags && (
+                  <>
+                    {availableTags.filter(t => !pendingTags.includes(t.id)).length > 0 && (
+                      <div className="flex gap-2">
+                        <Select value={selectedTagId} onValueChange={setSelectedTagId}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Selecione uma etiqueta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableTags
+                              .filter(t => !pendingTags.includes(t.id))
+                              .map((tag) => (
+                                <SelectItem key={tag.id} value={tag.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: tag.color }}
+                                    />
+                                    {tag.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          onClick={handleAddTagTemp}
+                          disabled={!selectedTagId}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Botões de salvar/cancelar */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleSaveTags}
+                        disabled={pendingTags.length === 0}
+                        className="flex-1"
+                      >
+                        Salvar Etiquetas
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCancelTagEdit}
+                        className="flex-1"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
