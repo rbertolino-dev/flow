@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
-import { Plus, List } from "lucide-react";
+import { Plus, List, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Lead } from "@/types/lead";
 
@@ -31,6 +32,19 @@ export function AddLeadToListDialog({
   const [newListName, setNewListName] = useState("");
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Identificar listas que já contêm este lead
+  const leadLists = useMemo(() => {
+    return lists.filter((list) =>
+      list.contacts.some(
+        (c) => c.lead_id === lead.id || c.phone === lead.phone
+      )
+    );
+  }, [lists, lead.id, lead.phone]);
+
+  const isLeadInList = (listId: string) => {
+    return leadLists.some((l) => l.id === listId);
+  };
 
   const handleCreateList = async () => {
     if (!newListName.trim()) {
@@ -162,23 +176,37 @@ export function AddLeadToListDialog({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {lists.map((list) => (
-                      <Button
-                        key={list.id}
-                        onClick={() => handleAddToExistingList(list.id)}
-                        variant="outline"
-                        className="w-full justify-start gap-2"
-                        disabled={isSaving}
-                      >
-                        <List className="h-4 w-4" />
-                        <div className="flex-1 text-left">
-                          <p className="font-medium">{list.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {list.contacts.length} contato(s)
-                          </p>
-                        </div>
-                      </Button>
-                    ))}
+                    {lists.map((list) => {
+                      const isInList = isLeadInList(list.id);
+                      return (
+                        <Button
+                          key={list.id}
+                          onClick={() => handleAddToExistingList(list.id)}
+                          variant={isInList ? "secondary" : "outline"}
+                          className="w-full justify-start gap-2"
+                          disabled={isSaving || isInList}
+                        >
+                          {isInList ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <List className="h-4 w-4" />
+                          )}
+                          <div className="flex-1 text-left">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{list.name}</p>
+                              {isInList && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Já está na lista
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {list.contacts.length} contato(s)
+                            </p>
+                          </div>
+                        </Button>
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
