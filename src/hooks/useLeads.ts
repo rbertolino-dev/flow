@@ -71,6 +71,15 @@ export function useLeads() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lead_tags' },
+        (payload) => {
+          console.log('🏷️ Tags do lead alteradas:', payload);
+          // Refetch para atualizar as tags dos leads
+          fetchLeads();
+        }
+      )
       .subscribe((status) => {
         console.log('📡 Status do canal realtime:', status);
       });
