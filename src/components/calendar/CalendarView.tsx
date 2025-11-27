@@ -12,8 +12,12 @@ import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus, Maximize2, Minimize2, List, Calendar as CalendarIcon, Grid3x3, CalendarDays } from "lucide-react";
 import { EventCard } from "./EventCard";
 import { CreateEventDialog } from "./CreateEventDialog";
+import { EditEventDialog } from "./EditEventDialog";
+import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Select,
   SelectContent,
@@ -32,6 +36,7 @@ import { Filter } from "lucide-react";
 
 export function CalendarView() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { configs } = useGoogleCalendarConfigs();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -39,6 +44,10 @@ export function CalendarView() {
   const [currentDay, setCurrentDay] = useState<Date>(new Date());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createDialogDate, setCreateDialogDate] = useState<Date | undefined>();
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [schedulingEvent, setSchedulingEvent] = useState<CalendarEvent | null>(null);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [calendarSize, setCalendarSize] = useState<"full" | "compact">("full");
   const [viewMode, setViewMode] = useState<"month" | "week" | "day" | "list">("month");
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
@@ -136,6 +145,47 @@ export function CalendarView() {
     if (date) {
       setCurrentMonth(date);
     }
+  };
+
+  const handleEditEvent = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteEvent = async (event: CalendarEvent) => {
+    if (!confirm(`Tem certeza que deseja excluir o evento "${event.summary}"?`)) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-google-calendar-event", {
+        body: {
+          google_calendar_config_id: event.google_calendar_config_id,
+          google_event_id: event.google_event_id,
+        },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      toast({
+        title: "Evento excluído!",
+        description: "O evento foi excluído do Google Calendar.",
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir evento",
+        description: error.message || "Não foi possível excluir o evento.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleScheduleMessage = (event: CalendarEvent) => {
+    setSchedulingEvent(event);
+    setShowScheduleDialog(true);
   };
 
   const navigateWeek = (direction: "prev" | "next") => {
@@ -451,7 +501,13 @@ export function CalendarView() {
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-2">
                     {selectedDayEvents.map((event) => (
-                      <EventCard key={event.id} event={event} />
+                      <EventCard 
+                        key={event.id} 
+                        event={event}
+                        onEdit={() => handleEditEvent(event)}
+                        onDelete={() => handleDeleteEvent(event)}
+                        onScheduleMessage={() => handleScheduleMessage(event)}
+                      />
                     ))}
                   </div>
                 </ScrollArea>
@@ -475,6 +531,7 @@ export function CalendarView() {
           currentDate={currentDay}
           events={events}
           isLoading={isLoading}
+          onScheduleMessage={handleScheduleMessage}
         />
       ) : (
         /* Visualização em Lista */
@@ -508,6 +565,9 @@ export function CalendarView() {
                         setSelectedDate(new Date(event.start_datetime));
                         setViewMode("month");
                       }}
+                      onEdit={() => handleEditEvent(event)}
+                      onDelete={() => handleDeleteEvent(event)}
+                      onScheduleMessage={() => handleScheduleMessage(event)}
                     />
                   ))}
                 </div>
@@ -527,6 +587,27 @@ export function CalendarView() {
         onEventCreated={() => {
           // Os eventos serão atualizados automaticamente pelo hook
           queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+        }}
+      />
+
+      <EditEventDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        event={editingEvent}
+        onEventUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+        }}
+        onEventDeleted={() => {
+          queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+        }}
+      />
+
+      <ScheduleMessageDialog
+        open={showScheduleDialog}
+        onOpenChange={setShowScheduleDialog}
+        event={schedulingEvent}
+        onMessageScheduled={() => {
+          // Mensagem agendada com sucesso
         }}
       />
     </div>

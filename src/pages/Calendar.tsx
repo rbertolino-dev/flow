@@ -4,7 +4,8 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Settings } from "lucide-react";
+import { Calendar, Settings, BarChart3 } from "lucide-react";
+import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
 
 export default function CalendarPage() {
   const [activeTab, setActiveTab] = useState("calendar");
@@ -29,6 +30,10 @@ export default function CalendarPage() {
                   <Calendar className="h-4 w-4" />
                   Agenda
                 </TabsTrigger>
+                <TabsTrigger value="reports" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Relatórios
+                </TabsTrigger>
                 <TabsTrigger value="integration" className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
                   Integração
@@ -37,6 +42,10 @@ export default function CalendarPage() {
 
               <TabsContent value="calendar" className="mt-6">
                 <CalendarView />
+              </TabsContent>
+
+              <TabsContent value="reports" className="mt-6">
+                <CalendarEventsReport />
               </TabsContent>
 
               <TabsContent value="integration" className="mt-6">

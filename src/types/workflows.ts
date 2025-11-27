@@ -148,6 +148,8 @@ export interface WorkflowFilters {
   type: "all" | string;
   listId: "all" | string;
   search: string;
+  dateFrom?: string | null;
+  dateTo?: string | null;
 }
 
 export interface WorkflowFormValues {

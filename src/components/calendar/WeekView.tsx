@@ -6,6 +6,7 @@ import { EventCard } from "./EventCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { formatSaoPauloTime } from "@/lib/dateUtils";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -94,7 +95,7 @@ export function WeekView({ currentDate, events, onDateClick, isLoading }: WeekVi
                       >
                         <p className="font-medium truncate mb-1">{event.summary || "Sem título"}</p>
                         <p className="text-muted-foreground text-[10px]">
-                          {format(new Date(event.start_datetime), "HH:mm", { locale: ptBR })}
+                          {formatSaoPauloTime(new Date(event.start_datetime))}
                         </p>
                       </div>
                     ))}

@@ -9,8 +9,12 @@ import { WorkflowListTable } from "@/components/whatsapp/workflows/WorkflowListT
 import { WorkflowFormDrawer } from "@/components/whatsapp/workflows/WorkflowFormDrawer";
 import { WorkflowApprovalQueue } from "@/components/whatsapp/workflows/WorkflowApprovalQueue";
 import { BoletoManagement } from "@/components/whatsapp/workflows/BoletoManagement";
+import { WorkflowStatsDashboard } from "@/components/whatsapp/workflows/WorkflowStatsDashboard";
+import { WorkflowExecutionHistory } from "@/components/whatsapp/workflows/WorkflowExecutionHistory";
+import { WorkflowErrorsLog } from "@/components/whatsapp/workflows/WorkflowErrorsLog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWorkflowApprovals } from "@/hooks/useWorkflowApprovals";
+import { useEffect } from "react";
 import {
   WorkflowFilters as FiltersState,
   WorkflowEnvio,
@@ -38,6 +42,8 @@ const DEFAULT_FILTERS: FiltersState = {
   type: "all",
   listId: "all",
   search: "",
+  dateFrom: null,
+  dateTo: null,
 };
 
 export default function PeriodicWorkflows() {
@@ -101,6 +107,23 @@ export default function PeriodicWorkflows() {
       ) {
         return false;
       }
+      // Filtro por data (criado em)
+      if (filters.dateFrom) {
+        const workflowDate = new Date(workflow.created_at);
+        const filterDate = new Date(filters.dateFrom);
+        filterDate.setHours(0, 0, 0, 0);
+        if (workflowDate < filterDate) {
+          return false;
+        }
+      }
+      if (filters.dateTo) {
+        const workflowDate = new Date(workflow.created_at);
+        const filterDate = new Date(filters.dateTo);
+        filterDate.setHours(23, 59, 59, 999);
+        if (workflowDate > filterDate) {
+          return false;
+        }
+      }
       return true;
     });
   }, [workflows, filters]);
@@ -135,6 +158,60 @@ export default function PeriodicWorkflows() {
     await deleteWorkflow(workflow.id);
   };
 
+  const handleDuplicateWorkflow = (workflow: WorkflowEnvio) => {
+    setEditingWorkflow({
+      ...workflow,
+      id: undefined,
+      name: `${workflow.name} (Cópia)`,
+      is_active: false, // Desativar cópia por padrão
+    });
+    setFormOpen(true);
+  };
+
+  const handleBulkToggle = async (workflowIds: string[], isActive: boolean) => {
+    for (const id of workflowIds) {
+      const workflow = workflows.find((w) => w.id === id);
+      if (workflow && workflow.is_active !== isActive) {
+        await toggleWorkflowStatus({
+          workflowId: id,
+          isActive,
+        });
+      }
+    }
+  };
+
+  const handleBulkDelete = async (workflowIds: string[]) => {
+    for (const id of workflowIds) {
+      await deleteWorkflow(id);
+    }
+  };
+
+  // Atalhos de teclado
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + N para novo workflow
+      if ((event.ctrlKey || event.metaKey) && event.key === "n") {
+        event.preventDefault();
+        handleCreate();
+      }
+      // Ctrl/Cmd + F para focar na busca
+      if ((event.ctrlKey || event.metaKey) && event.key === "f") {
+        event.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+      // Esc para fechar formulário
+      if (event.key === "Escape" && formOpen) {
+        setFormOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [formOpen]);
+
   const handleSaveWorkflow = async (
     data: WorkflowFormValues & { workflow_list_id: string },
     extras: { attachmentsToUpload: File[]; attachmentsToRemove: string[] },
@@ -164,6 +241,9 @@ export default function PeriodicWorkflows() {
               <p className="text-sm text-muted-foreground">
                 Agende cobranças e lembretes automáticos com controle por organização.
               </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 Atalhos: <kbd className="px-1 py-0.5 text-xs font-semibold bg-muted rounded">Ctrl+N</kbd> Novo workflow • <kbd className="px-1 py-0.5 text-xs font-semibold bg-muted rounded">Ctrl+F</kbd> Buscar • <kbd className="px-1 py-0.5 text-xs font-semibold bg-muted rounded">Esc</kbd> Fechar
+              </p>
             </div>
             <Button onClick={handleCreate} className="gap-2">
               <Plus className="h-4 w-4" />
@@ -174,6 +254,9 @@ export default function PeriodicWorkflows() {
             <Tabs defaultValue="workflows" className="w-full">
               <TabsList>
                 <TabsTrigger value="workflows">Workflows</TabsTrigger>
+                <TabsTrigger value="stats">Estatísticas</TabsTrigger>
+                <TabsTrigger value="history">Histórico</TabsTrigger>
+                <TabsTrigger value="errors">Logs de Erros</TabsTrigger>
                 <TabsTrigger value="approvals">
                   Fila de Aprovação
                   {pendingApprovals.length > 0 && (
@@ -202,7 +285,19 @@ export default function PeriodicWorkflows() {
                   onEdit={handleEdit}
                   onToggle={handleToggle}
                   onDelete={handleDeleteWorkflow}
+                  onDuplicate={handleDuplicateWorkflow}
+                  onBulkToggle={handleBulkToggle}
+                  onBulkDelete={handleBulkDelete}
                 />
+              </TabsContent>
+              <TabsContent value="stats" className="mt-6">
+                <WorkflowStatsDashboard />
+              </TabsContent>
+              <TabsContent value="history" className="mt-6">
+                <WorkflowExecutionHistory />
+              </TabsContent>
+              <TabsContent value="errors" className="mt-6">
+                <WorkflowErrorsLog />
               </TabsContent>
               <TabsContent value="approvals" className="mt-6">
                 <WorkflowApprovalQueue />

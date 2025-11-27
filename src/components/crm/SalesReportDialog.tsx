@@ -6,15 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useReports, ReportMetrics } from "@/hooks/useReports";
 import { Lead } from "@/types/lead";
 import { CallQueueItem } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar as CalendarIcon, TrendingUp, DollarSign, Users, MessageSquare, Phone, BarChart3 } from "lucide-react";
+import { Calendar as CalendarIcon, TrendingUp, DollarSign, Users, MessageSquare, Phone, BarChart3, GitBranch } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { SalesFunnelVisualization } from "./SalesFunnelVisualization";
 
 interface SalesReportDialogProps {
   open: boolean;
@@ -146,106 +148,126 @@ export function SalesReportDialog({ open, onOpenChange, leads, stages, callQueue
           )}
         </div>
 
-        {/* Cards de Métricas Principais */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Leads</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalLeads}</div>
-              <p className="text-xs text-muted-foreground">
-                {startDate && endDate && `${formatDate(startDate)} - ${formatDate(endDate)}`}
-              </p>
-            </CardContent>
-          </Card>
+        {/* Abas para alternar entre visualização de funil e tabelas */}
+        <Tabs defaultValue="funnel" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="funnel" className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4" />
+              Visualização de Funil
+            </TabsTrigger>
+            <TabsTrigger value="tables" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Relatórios Detalhados
+            </TabsTrigger>
+          </TabsList>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(metrics.totalValue)}</div>
-              <p className="text-xs text-muted-foreground">
-                Ticket médio: {formatCurrency(metrics.averageTicket)}
-              </p>
-            </CardContent>
-          </Card>
+          <TabsContent value="funnel" className="space-y-4">
+            <SalesFunnelVisualization metrics={metrics} stages={stages} />
+          </TabsContent>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taxa de Conversão</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.conversionRate}%</div>
-              <p className="text-xs text-muted-foreground">
-                Leads na última etapa
-              </p>
-            </CardContent>
-          </Card>
+          <TabsContent value="tables" className="space-y-4">
+            {/* Cards de Métricas Principais */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Leads</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metrics.totalLeads}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {startDate && endDate && `${formatDate(startDate)} - ${formatDate(endDate)}`}
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Mensagens Não Lidas</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.unreadMessagesCount}</div>
-              <p className="text-xs text-muted-foreground">
-                Leads aguardando resposta
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrency(metrics.totalValue)}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Ticket médio: {formatCurrency(metrics.averageTicket)}
+                  </p>
+                </CardContent>
+              </Card>
 
-        {/* Métricas por Etapa */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Métricas por Etapa</CardTitle>
-            <CardDescription>Distribuição de leads e performance por etapa do funil</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Etapa</TableHead>
-                    <TableHead className="text-right">Leads</TableHead>
-                    <TableHead className="text-right">Valor Total</TableHead>
-                    <TableHead className="text-right">Ticket Médio</TableHead>
-                    <TableHead className="text-right">Taxa Conversão</TableHead>
-                    <TableHead className="text-right">Tempo Médio (dias)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {metrics.stageMetrics.map((stage) => (
-                    <TableRow key={stage.stageId}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: stage.stageColor }}
-                          />
-                          <span className="font-medium">{stage.stageName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{stage.leadCount}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(stage.totalValue)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(stage.averageTicket)}</TableCell>
-                      <TableCell className="text-right">
-                        {stage.conversionRate > 0 ? `${stage.conversionRate.toFixed(1)}%` : '-'}
-                      </TableCell>
-                      <TableCell className="text-right">{stage.averageTimeInStage.toFixed(1)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Taxa de Conversão</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metrics.conversionRate}%</div>
+                  <p className="text-xs text-muted-foreground">
+                    Leads na última etapa
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Mensagens Não Lidas</CardTitle>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metrics.unreadMessagesCount}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Leads aguardando resposta
+                  </p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Métricas por Etapa */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Métricas por Etapa</CardTitle>
+                <CardDescription>Distribuição de leads e performance por etapa do funil</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Etapa</TableHead>
+                        <TableHead className="text-right">Leads</TableHead>
+                        <TableHead className="text-right">Valor Total</TableHead>
+                        <TableHead className="text-right">Ticket Médio</TableHead>
+                        <TableHead className="text-right">Taxa Conversão</TableHead>
+                        <TableHead className="text-right">Tempo Médio (dias)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {metrics.stageMetrics.map((stage) => (
+                        <TableRow key={stage.stageId}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: stage.stageColor }}
+                              />
+                              <span className="font-medium">{stage.stageName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{stage.leadCount}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(stage.totalValue)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(stage.averageTicket)}</TableCell>
+                          <TableCell className="text-right">
+                            {stage.conversionRate > 0 ? `${stage.conversionRate.toFixed(1)}%` : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">{stage.averageTimeInStage.toFixed(1)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Métricas por Tag */}
         <Card>

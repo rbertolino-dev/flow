@@ -143,7 +143,8 @@ export function useWhatsAppWorkflows() {
 
     const payload: any = {
       organization_id: organizationId,
-      workflow_list_id: values.workflow_list_id,
+      // Para grupos, workflow_list_id deve ser null
+      workflow_list_id: values.recipientMode === "group" ? null : values.workflow_list_id,
       default_instance_id: values.default_instance_id || null,
       name: values.name,
       workflow_type: values.workflow_type,
@@ -299,12 +300,16 @@ export function useWhatsAppWorkflows() {
         await persistAttachments(workflow.id, payload.attachmentsToUpload);
       }
 
-      // Buscar lista para obter contatos
-      const { data: listData } = await supabase
-        .from("whatsapp_workflow_lists")
-        .select("contacts")
-        .eq("id", payload.workflow_list_id)
-        .single();
+      // Buscar lista para obter contatos (apenas se não for grupo)
+      let listData = null;
+      if (payload.recipientMode !== "group" && payload.workflow_list_id) {
+        const { data } = await supabase
+          .from("whatsapp_workflow_lists")
+          .select("contacts")
+          .eq("id", payload.workflow_list_id)
+          .single();
+        listData = data;
+      }
 
       if (payload.contact_attachments && listData?.contacts) {
         const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
@@ -333,8 +338,8 @@ export function useWhatsAppWorkflows() {
         payload.boleto_valor &&
         payload.boleto_vencimento
       ) {
-        // Para listas e leads individuais
-        if (listData?.contacts) {
+        // Para listas e leads individuais (não para grupos)
+        if (payload.recipientMode !== "group" && listData?.contacts) {
           const contacts = Array.isArray(listData.contacts) ? listData.contacts : [];
           
           // Buscar dados dos leads para criar boletos

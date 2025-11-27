@@ -14,6 +14,7 @@ interface CreateEventPayload {
   description?: string;
   location?: string;
   colorId?: string;
+  stageId?: string;
   addGoogleMeet?: boolean;
 }
 
@@ -31,6 +32,7 @@ serve(async (req) => {
       description,
       location,
       colorId,
+      stageId,
       addGoogleMeet = false
     } = await req.json() as CreateEventPayload;
 
@@ -179,6 +181,7 @@ serve(async (req) => {
           end_datetime: new Date(eventEnd).toISOString(),
           location: eventData.location || location || null,
           html_link: eventData.htmlLink || null,
+          stage_id: stageId || null,
         },
         {
           onConflict: 'google_calendar_config_id,google_event_id',

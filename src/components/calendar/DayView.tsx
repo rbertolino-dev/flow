@@ -5,14 +5,16 @@ import { CalendarEvent } from "@/hooks/useCalendarEvents";
 import { EventCard } from "./EventCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatSaoPauloTime } from "@/lib/dateUtils";
 
 interface DayViewProps {
   currentDate: Date;
   events: CalendarEvent[];
   isLoading?: boolean;
+  onScheduleMessage?: (event: CalendarEvent) => void;
 }
 
-export function DayView({ currentDate, events, isLoading }: DayViewProps) {
+export function DayView({ currentDate, events, isLoading, onScheduleMessage }: DayViewProps) {
   const dayStart = startOfDay(currentDate);
   const dayEnd = endOfDay(currentDate);
   const hours = eachHourOfInterval({ start: dayStart, end: dayEnd });
@@ -73,13 +75,19 @@ export function DayView({ currentDate, events, isLoading }: DayViewProps) {
                 <div key={hourNumber} className="flex gap-4 border-b pb-2">
                   <div className="w-20 flex-shrink-0 pt-2">
                     <p className="text-sm font-medium text-muted-foreground">
-                      {format(hour, "HH:mm", { locale: ptBR })}
+                      {formatSaoPauloTime(hour)}
                     </p>
                   </div>
                   <div className="flex-1 space-y-2">
                     {hourEvents.length > 0 ? (
                       hourEvents.map((event) => (
-                        <EventCard key={event.id} event={event} />
+                        <EventCard 
+                          key={event.id} 
+                          event={event}
+                          onEdit={() => {}}
+                          onDelete={() => {}}
+                          onScheduleMessage={onScheduleMessage ? () => onScheduleMessage(event) : undefined}
+                        />
                       ))
                     ) : (
                       <div className="h-1" />

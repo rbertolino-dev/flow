@@ -13,6 +13,7 @@ export interface CalendarEvent {
   end_datetime: string;
   location: string | null;
   html_link: string | null;
+  stage_id: string | null;
   created_at: string;
   updated_at: string;
 }

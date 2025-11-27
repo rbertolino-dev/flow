@@ -24,13 +24,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Calendar, Loader2, Video, MessageSquare, Clock } from "lucide-react";
 import { format, addHours, parse } from "date-fns";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
-// Removed useCalendarMessageTemplates - table does not exist
+import { useCalendarMessageTemplates } from "@/hooks/useCalendarMessageTemplates";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { extractContactFromEventTitle, applyMessageTemplate } from "@/lib/eventUtils";
 import { Switch } from "@/components/ui/switch";
 import { ptBR } from "date-fns/locale";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { formatSaoPauloDateTime, formatSaoPauloDate, parseSaoPauloDateTime } from "@/lib/dateUtils";
 
 interface CreateEventDialogProps {
   open: boolean;
@@ -48,14 +50,16 @@ export function CreateEventDialog({
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const { configs, isLoading: configsLoading } = useGoogleCalendarConfigs();
-  const templates: any[] = []; // Removed calendar templates feature
+  const { templates, isLoading: templatesLoading } = useCalendarMessageTemplates();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
+  const { stages } = usePipelineStages();
   const queryClient = useQueryClient();
   const activeConfigs = configs.filter((c) => c.is_active);
   const activeEvolutionConfigs = evolutionConfigs.filter((c) => c.is_connected);
   
   const [loading, setLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [meetLink, setMeetLink] = useState("");
   const [formData, setFormData] = useState({
     google_calendar_config_id: "",
     summary: "",
@@ -65,6 +69,7 @@ export function CreateEventDialog({
     description: "",
     location: "",
     colorId: "",
+    stageId: "",
     addGoogleMeet: false,
     sendMessage: false,
     scheduleMessage: false,
@@ -83,20 +88,30 @@ export function CreateEventDialog({
       if (contactInfo.phone && formData.selectedTemplateId) {
         const template = templates.find(t => t.id === formData.selectedTemplateId);
         if (template) {
-          const dateStr = formData.startDate ? format(new Date(formData.startDate), "dd/MM/yyyy", { locale: ptBR }) : "";
+          const dateStr = formData.startDate ? formatSaoPauloDate(new Date(formData.startDate)) : "";
           const timeStr = formData.startTime || "";
           const message = applyMessageTemplate(template.template, {
             nome: contactInfo.name,
             telefone: contactInfo.phone,
             data: dateStr,
             hora: timeStr,
-            link_meet: "", // Será preenchido após criar evento
+            link_meet: meetLink || "", // Usar link se já disponível
           });
           setFormData(prev => ({ ...prev, messageText: message }));
         }
       }
     }
-  }, [formData.summary, formData.selectedTemplateId, formData.startDate, formData.startTime, templates]);
+  }, [formData.summary, formData.selectedTemplateId, formData.startDate, formData.startTime, meetLink, templates]);
+
+  // Atualizar mensagem quando o link do Meet for gerado
+  useEffect(() => {
+    if (meetLink && formData.messageText && formData.sendMessage) {
+      const updatedMessage = formData.messageText.replace(/\{link_meet\}/g, meetLink);
+      if (updatedMessage !== formData.messageText) {
+        setFormData(prev => ({ ...prev, messageText: updatedMessage }));
+      }
+    }
+  }, [meetLink, formData.sendMessage]);
 
   // Cores disponíveis do Google Calendar (1-11)
   const calendarColors = [
@@ -122,11 +137,11 @@ export function CreateEventDialog({
     }
   }, [defaultDate]);
 
-  // Calcular data/hora de agendamento padrão (2 horas antes do evento)
+  // Calcular data/hora de agendamento padrão (2 horas antes do evento) - usando timezone de São Paulo
   useEffect(() => {
     if (formData.startDate && formData.startTime && formData.scheduleMessage) {
       try {
-        const eventDateTime = parse(`${formData.startDate} ${formData.startTime}`, "yyyy-MM-dd HH:mm", new Date());
+        const eventDateTime = parseSaoPauloDateTime(formData.startDate, formData.startTime);
         const scheduleDateTime = addHours(eventDateTime, -2); // 2 horas antes
         
         // Atualizar sempre que a data/hora do evento mudar ou quando ativar o agendamento
@@ -218,7 +233,7 @@ export function CreateEventDialog({
           });
           return;
         }
-        const scheduleDateTime = parse(`${formData.scheduleDate} ${formData.scheduleTime}`, "yyyy-MM-dd HH:mm", new Date());
+        const scheduleDateTime = parseSaoPauloDateTime(formData.scheduleDate, formData.scheduleTime);
         if (scheduleDateTime <= new Date()) {
           toast({
             title: "Data/hora inválida",
@@ -244,6 +259,7 @@ export function CreateEventDialog({
           description: formData.description || undefined,
           location: formData.location || undefined,
           colorId: formData.colorId || undefined,
+          stageId: formData.stageId || undefined,
           addGoogleMeet: formData.addGoogleMeet || false,
         },
       });
@@ -254,8 +270,9 @@ export function CreateEventDialog({
         throw new Error(data.error);
       }
 
-      // Se tiver Google Meet, pegar o link
-      const meetLink = data.hangoutLink || data.conferenceData?.entryPoints?.[0]?.uri || "";
+      // Se tiver Google Meet, pegar o link e atualizar estado
+      const newMeetLink = data.hangoutLink || data.conferenceData?.entryPoints?.[0]?.uri || "";
+      setMeetLink(newMeetLink);
 
       // Enviar ou agendar mensagem WhatsApp se solicitado
       if (formData.sendMessage && contactInfo.phone) {
@@ -263,13 +280,15 @@ export function CreateEventDialog({
         try {
           // Aplicar template com link do Meet se disponível
           let finalMessage = formData.messageText;
-          if (meetLink) {
-            finalMessage = finalMessage.replace(/\{link_meet\}/g, meetLink);
+          if (newMeetLink) {
+            finalMessage = finalMessage.replace(/\{link_meet\}/g, newMeetLink);
+            // Atualizar mensagem no formData para exibir o link
+            setFormData(prev => ({ ...prev, messageText: finalMessage }));
           }
 
           if (formData.scheduleMessage) {
-            // Agendar mensagem
-            const scheduleDateTime = parse(`${formData.scheduleDate} ${formData.scheduleTime}`, "yyyy-MM-dd HH:mm", new Date());
+            // Agendar mensagem - usando timezone de São Paulo
+            const scheduleDateTime = parseSaoPauloDateTime(formData.scheduleDate, formData.scheduleTime);
             
             // Buscar ou criar lead baseado no telefone
             const orgId = await getUserOrganizationId();
@@ -309,7 +328,7 @@ export function CreateEventDialog({
 
             toast({
               title: "Evento criado e mensagem agendada!",
-              description: `O evento foi criado e a mensagem será enviada em ${format(scheduleDateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.`,
+              description: `O evento foi criado e a mensagem será enviada em ${formatSaoPauloDateTime(scheduleDateTime)}.`,
             });
           } else {
             // Enviar mensagem imediatamente
@@ -358,6 +377,7 @@ export function CreateEventDialog({
         description: "",
         location: "",
         colorId: "",
+        stageId: "",
         addGoogleMeet: false,
         sendMessage: false,
         scheduleMessage: false,
@@ -367,6 +387,7 @@ export function CreateEventDialog({
         selectedInstanceId: "",
         messageText: "",
       });
+      setMeetLink("");
 
       if (onEventCreated) {
         onEventCreated();
@@ -535,6 +556,31 @@ export function CreateEventDialog({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="stage">Etiqueta do Funil</Label>
+            <Select
+              value={formData.stageId || undefined}
+              onValueChange={(value) => setFormData({ ...formData, stageId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma etiqueta (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-4 h-4 rounded-full border border-gray-300"
+                        style={{ backgroundColor: stage.color }}
+                      />
+                      <span>{stage.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex items-center space-x-2">
             <Switch
               id="add-google-meet"
@@ -597,9 +643,11 @@ export function CreateEventDialog({
                   </div>
                 )}
 
-                {templates.length > 0 && (
-                  <div className="space-y-2">
-                    <Label htmlFor="message-template">Template de Mensagem</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="message-template">Template de Mensagem (opcional)</Label>
+                  {templatesLoading ? (
+                    <div className="text-sm text-muted-foreground">Carregando templates...</div>
+                  ) : templates.length > 0 ? (
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <Select
@@ -607,14 +655,14 @@ export function CreateEventDialog({
                           onValueChange={(value) => {
                             const template = templates.find(t => t.id === value);
                             if (template) {
-                              const dateStr = formData.startDate ? format(new Date(formData.startDate), "dd/MM/yyyy", { locale: ptBR }) : "";
+                              const dateStr = formData.startDate ? formatSaoPauloDate(new Date(formData.startDate)) : "";
                               const timeStr = formData.startTime || "";
                               const message = applyMessageTemplate(template.template, {
                                 nome: contactInfo.name,
                                 telefone: contactInfo.phone || "",
                                 data: dateStr,
                                 hora: timeStr,
-                                link_meet: "", // Será preenchido após criar evento
+                                link_meet: meetLink || "", // Usar link se já disponível
                               });
                               setFormData(prev => ({ ...prev, selectedTemplateId: value, messageText: message }));
                             }
@@ -644,8 +692,12 @@ export function CreateEventDialog({
                         </Button>
                       )}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      Nenhum template disponível. Você pode criar templates na seção de configurações.
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="message-text">Mensagem *</Label>
@@ -697,10 +749,10 @@ export function CreateEventDialog({
                     {formData.startDate && formData.startTime && formData.scheduleDate && formData.scheduleTime && (
                       <div className="col-span-2 text-xs text-muted-foreground">
                         <p>
-                          Evento: {format(parse(`${formData.startDate} ${formData.startTime}`, "yyyy-MM-dd HH:mm", new Date()), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          Evento: {formatSaoPauloDateTime(parseSaoPauloDateTime(formData.startDate, formData.startTime))}
                         </p>
                         <p>
-                          Mensagem será enviada: {format(parse(`${formData.scheduleDate} ${formData.scheduleTime}`, "yyyy-MM-dd HH:mm", new Date()), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          Mensagem será enviada: {formatSaoPauloDateTime(parseSaoPauloDateTime(formData.scheduleDate, formData.scheduleTime))}
                         </p>
                       </div>
                     )}

@@ -31,6 +31,7 @@ import { WorkflowMonthlyAttachmentsField } from "./WorkflowMonthlyAttachmentsFie
 import { WorkflowGroupSelector } from "./WorkflowGroupSelector";
 import { AsaasBoletoForm } from "./AsaasBoletoForm";
 import { BoletosList } from "./BoletosList";
+import { MessagePreviewDialog } from "./MessagePreviewDialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -160,6 +161,9 @@ export function WorkflowFormDrawer({
   const [showCpfCnpjDialog, setShowCpfCnpjDialog] = useState(false);
   const [leadsSemCpfCnpj, setLeadsSemCpfCnpj] = useState<Array<{ id: string; name: string; cpf_cnpj: string }>>([]);
   const [cpfCnpjValues, setCpfCnpjValues] = useState<Record<string, string>>({});
+  
+  // Estado para preview de mensagem
+  const [showPreview, setShowPreview] = useState(false);
 
   const existingAttachments = workflow?.attachments || [];
 
@@ -317,6 +321,12 @@ export function WorkflowFormDrawer({
       return;
     }
 
+    // Para grupos, não é necessário workflow_list_id
+    if (values.recipientMode === "group" && values.workflow_list_id) {
+      // Limpar workflow_list_id se estiver definido para grupo
+      values.workflow_list_id = undefined;
+    }
+
     // Validação de anexos por mês para cobranças
     if (values.workflow_type === "cobranca" && values.recipientMode === "list" && values.workflow_list_id) {
       const months = selectedMonths;
@@ -444,7 +454,11 @@ export function WorkflowFormDrawer({
     try {
       setIsSubmitting(true);
       let workflowListId = values.workflow_list_id;
-      if (values.recipientMode === "single") {
+      
+      // Para grupos, não usar workflow_list_id
+      if (values.recipientMode === "group") {
+        workflowListId = undefined;
+      } else if (values.recipientMode === "single") {
         const lead = leadOptions.find(
           (item) => item.id === values.single_lead_id,
         );
@@ -459,7 +473,7 @@ export function WorkflowFormDrawer({
       await onSubmit(
         {
           ...values,
-          workflow_list_id: workflowListId!,
+          workflow_list_id: workflowListId,
           contact_attachments: contactFiles,
           contact_attachments_metadata: contactMetadata,
           monthly_attachments: monthlyAttachments,
@@ -842,15 +856,40 @@ export function WorkflowFormDrawer({
                   </Select>
 
                   {selectedTemplate && (
-                    <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                      <p className="font-medium">{selectedTemplate.name}</p>
-                      <p className="text-muted-foreground whitespace-pre-wrap">
-                        {selectedTemplate.content}
-                      </p>
+                    <div className="space-y-2">
+                      <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                        <p className="font-medium">{selectedTemplate.name}</p>
+                        <p className="text-muted-foreground whitespace-pre-wrap">
+                          {selectedTemplate.content}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowPreview(true)}
+                      >
+                        <Info className="h-4 w-4 mr-2" />
+                        Ver Preview
+                      </Button>
                     </div>
                   )}
                 </TabsContent>
                 <TabsContent value="custom" className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Mensagem personalizada</Label>
+                    {values.message_body && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowPreview(true)}
+                      >
+                        <Info className="h-4 w-4 mr-2" />
+                        Ver Preview
+                      </Button>
+                    )}
+                  </div>
                   <Textarea
                     rows={4}
                     value={values.message_body || ""}
@@ -1184,6 +1223,20 @@ export function WorkflowFormDrawer({
           <MessageTemplateManager />
         </DialogContent>
       </Dialog>
+
+      {/* Preview de Mensagem */}
+      <MessagePreviewDialog
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        message={
+          values.template_mode === "custom"
+            ? values.message_body || ""
+            : selectedTemplate?.content || ""
+        }
+        templateName={selectedTemplate?.name}
+        recipientName={selectedLead?.name || listContacts[0]?.name}
+        scheduledFor={values.start_date ? `${values.start_date}T${values.send_time}` : undefined}
+      />
 
       {/* Dialog para adicionar CPF/CNPJ */}
       <Dialog open={showCpfCnpjDialog} onOpenChange={setShowCpfCnpjDialog}>

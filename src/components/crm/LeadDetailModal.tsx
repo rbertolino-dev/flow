@@ -92,15 +92,22 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [isEditingTags, setIsEditingTags] = useState(false);
+  // Estado local do lead para atualizar tags imediatamente
+  const [currentLead, setCurrentLead] = useState<Lead>(lead);
+
+  // Atualizar currentLead quando o lead prop mudar
+  useEffect(() => {
+    setCurrentLead(lead);
+  }, [lead]);
 
   // Identificar listas que contêm este lead
   const leadLists = useMemo(() => {
     return lists.filter((list) =>
       list.contacts.some(
-        (c) => c.lead_id === lead.id || c.phone === lead.phone
+        (c) => c.lead_id === currentLead.id || c.phone === currentLead.phone
       )
     );
-  }, [lists, lead.id, lead.phone]);
+  }, [lists, currentLead.id, currentLead.phone]);
 
   // Sincronizar returnDate quando o lead mudar
   useEffect(() => {
@@ -203,46 +210,132 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
   const handleSaveTags = async () => {
     try {
+      console.log('💾 Salvando etiquetas:', { leadId: currentLead.id, pendingTags });
+      
       // Adicionar novas tags
+      const addedTags: any[] = [];
+      const errors: string[] = [];
+      
       for (const tagId of pendingTags) {
-        const success = await addTagToLead(lead.id, tagId);
-        if (!success) throw new Error("Erro ao adicionar etiqueta");
+        console.log(`📌 Adicionando etiqueta ${tagId} ao lead ${currentLead.id}`);
+        const success = await addTagToLead(currentLead.id, tagId);
+        
+        if (!success) {
+          errors.push(`Falha ao adicionar etiqueta ${tagId}`);
+          continue;
+        }
+        
+        // Buscar a tag completa para atualizar o estado local
+        const tag = tags.find(t => t.id === tagId);
+        if (tag) {
+          addedTags.push(tag);
+        }
       }
 
-      // Aguardar um pouco para garantir que o banco foi atualizado
-      await new Promise(resolve => setTimeout(resolve, 100));
+      if (errors.length > 0 && addedTags.length === 0) {
+        throw new Error(`Nenhuma etiqueta foi salva. Erros: ${errors.join(', ')}`);
+      }
 
-      toast({
-        title: "Etiquetas salvas",
-        description: "As etiquetas foram atualizadas com sucesso.",
-      });
+      // Buscar tags atualizadas do banco para garantir sincronização
+      console.log('🔄 Buscando etiquetas atualizadas do banco...');
+      const { data: leadTagsData, error: fetchError } = await supabase
+        .from('lead_tags')
+        .select('tag_id, tags(id, name, color)')
+        .eq('lead_id', currentLead.id);
+
+      if (fetchError) {
+        console.error('❌ Erro ao buscar etiquetas:', fetchError);
+      }
+
+      if (leadTagsData) {
+        const updatedTags = leadTagsData
+          .map((lt: any) => lt.tags)
+          .filter(Boolean);
+        
+        console.log('✅ Etiquetas atualizadas do banco:', updatedTags);
+        
+        setCurrentLead(prev => ({
+          ...prev,
+          tags: updatedTags
+        }));
+      } else if (addedTags.length > 0) {
+        // Fallback: usar tags adicionadas se não conseguir buscar do banco
+        setCurrentLead(prev => ({
+          ...prev,
+          tags: [...(prev.tags || []), ...addedTags]
+        }));
+      }
+
+      if (errors.length > 0 && addedTags.length > 0) {
+        toast({
+          title: "Etiquetas parcialmente salvas",
+          description: `${addedTags.length} salva(s), ${errors.length} erro(s)`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Etiquetas salvas",
+          description: `${addedTags.length} etiqueta(s) adicionada(s) com sucesso.`,
+        });
+      }
 
       setPendingTags([]);
       setIsEditingTags(false);
-      
-      // Forçar atualização imediata do lead para recarregar as tags
-      onUpdated?.();
       
       // Recarregar tags do hook
       if (refetchTags) {
         await refetchTags();
       }
+      
+      // Forçar atualização do lead no componente pai
+      onUpdated?.();
     } catch (error: any) {
+      console.error('❌ Erro ao salvar etiquetas:', error);
       toast({
         title: "Erro ao salvar etiquetas",
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao salvar etiquetas',
         variant: "destructive",
       });
     }
   };
 
   const handleRemoveTag = async (tagId: string) => {
-    const success = await removeTagFromLead(lead.id, tagId);
+    const success = await removeTagFromLead(currentLead.id, tagId);
     if (success) {
+      // Atualizar estado local imediatamente removendo a tag
+      setCurrentLead(prev => ({
+        ...prev,
+        tags: (prev.tags || []).filter(t => t.id !== tagId)
+      }));
+
+      // Buscar tags atualizadas do banco para garantir sincronização
+      const { data: leadTagsData } = await supabase
+        .from('lead_tags')
+        .select('tag_id, tags(id, name, color)')
+        .eq('lead_id', currentLead.id);
+
+      if (leadTagsData) {
+        const updatedTags = leadTagsData
+          .map((lt: any) => lt.tags)
+          .filter(Boolean);
+        
+        setCurrentLead(prev => ({
+          ...prev,
+          tags: updatedTags
+        }));
+      }
+
       toast({
         title: "Etiqueta removida",
         description: "A etiqueta foi removida do lead.",
       });
+      
+      // Recarregar tags do hook
+      if (refetchTags) {
+        await refetchTags();
+      }
+      
+      // Forçar atualização do lead no componente pai
       onUpdated?.();
     }
   };
@@ -588,9 +681,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     }
   }, [open, lead?.id, lead?.has_unread_messages, onUpdated, refetchLists]);
 
-  const availableTags = tags.filter(
-    tag => !lead.tags?.some(lt => lt.id === tag.id)
-  );
+  const availableTags = useMemo(() => tags.filter(
+    tag => !currentLead.tags?.some(lt => lt.id === tag.id)
+  ), [tags, currentLead.tags]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -760,9 +853,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
               </div>
               <div className="space-y-3">
                 {/* Tags existentes */}
-                {lead.tags && lead.tags.length > 0 && (
+                {currentLead.tags && currentLead.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {lead.tags.map((tag) => (
+                    {currentLead.tags.map((tag) => (
                       <Badge
                         key={tag.id}
                         variant="outline"

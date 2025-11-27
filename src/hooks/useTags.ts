@@ -206,14 +206,18 @@ export function useTags() {
 
   const addTagToLead = async (leadId: string, tagId: string) => {
     try {
-      const { error } = await (supabase as any)
+      console.log('🏷️ Adicionando etiqueta:', { leadId, tagId });
+      
+      const { data, error } = await (supabase as any)
         .from('lead_tags')
         .insert({
           lead_id: leadId,
           tag_id: tagId,
-        });
+        })
+        .select();
 
       if (error) {
+        console.error('❌ Erro ao adicionar etiqueta:', error);
         if (error.code === '23505') {
           toast({
             title: "Etiqueta já existe",
@@ -222,14 +226,22 @@ export function useTags() {
           });
           return false;
         }
+        // Mostrar erro detalhado
+        toast({
+          title: "Erro ao adicionar etiqueta",
+          description: error.message || `Código: ${error.code}`,
+          variant: "destructive",
+        });
         throw error;
       }
 
+      console.log('✅ Etiqueta adicionada com sucesso:', data);
       return true;
     } catch (error: any) {
+      console.error('❌ Erro capturado ao adicionar etiqueta:', error);
       toast({
         title: "Erro ao adicionar etiqueta",
-        description: error.message,
+        description: error.message || 'Erro desconhecido',
         variant: "destructive",
       });
       return false;

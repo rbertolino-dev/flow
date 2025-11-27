@@ -24,8 +24,10 @@ import { ChatwootCannedResponsesPanel } from "@/components/whatsapp/ChatwootCann
 import { ChatwootPrivateNotesPanel } from "@/components/whatsapp/ChatwootPrivateNotesPanel";
 import { ChatwootMacrosPanel } from "@/components/whatsapp/ChatwootMacrosPanel";
 import { ChatwootMergeContactsPanel } from "@/components/whatsapp/ChatwootMergeContactsPanel";
+import { LabelsReportPanel } from "@/components/whatsapp/LabelsReportPanel";
+import { LabelsAnalyticsReportPanel } from "@/components/whatsapp/LabelsAnalyticsReportPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Wrench } from "lucide-react";
+import { Settings, Wrench, BarChart3 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 
 export default function ChatwootMessages() {
@@ -237,6 +239,10 @@ export default function ChatwootMessages() {
                   <TabsTrigger value="tools" className="flex items-center gap-2">
                     <Wrench className="h-4 w-4" />
                     Ferramentas
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Relatórios
                   </TabsTrigger>
                 </TabsList>
 
@@ -477,14 +483,14 @@ export default function ChatwootMessages() {
                     </div>
                   ) : (
                     // Modo Por Inbox: Mostrar lista de inboxes
-                    <div className="p-2 pb-4">
-                      <Alert>
-                        <Inbox className="h-4 w-4" />
-                        <AlertDescription>
-                          Selecione uma caixa de entrada para visualizar conversas
-                        </AlertDescription>
-                      </Alert>
-                    </div>
+                  <div className="p-2 pb-4">
+                    <Alert>
+                      <Inbox className="h-4 w-4" />
+                      <AlertDescription>
+                        Selecione uma caixa de entrada para visualizar conversas
+                      </AlertDescription>
+                    </Alert>
+                  </div>
                   )}
                 </TabsContent>
 
@@ -496,87 +502,146 @@ export default function ChatwootMessages() {
                   </ScrollArea>
                 </TabsContent>
                 
-                <TabsContent value="tools" className="flex-1 mt-0 overflow-hidden">
-                  <ScrollArea className="h-[calc(100vh-12rem)]">
-                    <div className="p-4 pr-6 space-y-6">
+                <TabsContent value="tools" className="flex-1 mt-0 p-6 overflow-y-auto">
+                  <Tabs defaultValue="report" className="w-full">
+                    <TabsList className="grid w-full grid-cols-6 mb-6">
+                      <TabsTrigger value="report" className="flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Relatório</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="labels" className="flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        Labels
+                      </TabsTrigger>
+                      <TabsTrigger value="responses" className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="hidden sm:inline">Respostas</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="notes" className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Notas
+                      </TabsTrigger>
+                      <TabsTrigger value="macros" className="flex items-center gap-2">
+                        <Layers className="h-4 w-4" />
+                        Macros
+                      </TabsTrigger>
+                      <TabsTrigger value="merge" className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        <span className="hidden sm:inline">Mesclar</span>
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="report" className="mt-0 p-6">
+                      <div className="text-center text-muted-foreground py-12">
+                        <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                        <p className="text-lg font-medium mb-2">Relatórios movidos para aba dedicada</p>
+                        <p className="text-sm">Acesse a aba "Relatórios" no topo para visualizar os relatórios completos com maior visibilidade</p>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="labels" className="mt-0">
                       <ChatwootLabelsPanel 
                         organizationId={activeOrgId} 
                         conversationId={selectedConversation?.id ? parseInt(selectedConversation.id) : null}
                       />
+                    </TabsContent>
+
+                    <TabsContent value="responses" className="mt-0">
                       <ChatwootCannedResponsesPanel 
                         organizationId={activeOrgId}
                         onSelectResponse={(content) => setCurrentMessage(content)}
                       />
+                    </TabsContent>
+
+                    <TabsContent value="notes" className="mt-0">
                       <ChatwootPrivateNotesPanel 
                         organizationId={activeOrgId}
                         conversationId={selectedConversation?.id ? parseInt(selectedConversation.id) : null}
                       />
+                    </TabsContent>
+
+                    <TabsContent value="macros" className="mt-0">
                       <ChatwootMacrosPanel 
                         organizationId={activeOrgId}
                         selectedConversations={selectedConversations}
                         onMacroComplete={() => setSelectedConversations([])}
                       />
+                    </TabsContent>
+
+                    <TabsContent value="merge" className="mt-0">
                       <ChatwootMergeContactsPanel organizationId={activeOrgId} />
+                    </TabsContent>
+                  </Tabs>
+                </TabsContent>
+
+                {/* Aba de Relatórios - Design Limpo e Moderno */}
+                <TabsContent value="reports" className="flex-1 mt-0 overflow-y-auto">
+                  <div className="h-full p-6 space-y-6">
+                    <div className="bg-card border rounded-lg overflow-hidden shadow-sm">
+                      <LabelsReportPanel />
                     </div>
-                  </ScrollArea>
+                    <div className="bg-card border rounded-lg overflow-hidden shadow-sm">
+                      <LabelsAnalyticsReportPanel />
+                    </div>
+                  </div>
                 </TabsContent>
               </Tabs>
 
               {/* Lista de inboxes (apenas no modo inbox) */}
               {viewMode === 'inbox' && (
                 <>
-                  {isLoading ? (
-                    <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                      Carregando caixas de entrada...
-                    </div>
-                  ) : inboxes.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center text-center p-4">
-                      <div className="text-muted-foreground">
-                        <Inbox className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                        <p>Nenhuma caixa de entrada encontrada</p>
-                        <p className="text-xs mt-1">Configure o Chatwoot em Configurações</p>
-                      </div>
-                    </div>
-                  ) : (
+              {isLoading ? (
+                <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                  Carregando caixas de entrada...
+                </div>
+              ) : inboxes.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-center p-4">
+                  <div className="text-muted-foreground">
+                    <Inbox className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                    <p>Nenhuma caixa de entrada encontrada</p>
+                    <p className="text-xs mt-1">Configure o Chatwoot em Configurações</p>
+                  </div>
+                </div>
+              ) : (
                     <div className="flex-1 min-h-0 overflow-hidden">
                       <ScrollArea className="h-full">
                         <div className="p-2 pb-4">
-                          {inboxes.map((inbox: any) => (
-                          <div
-                            key={inbox.id}
-                            onClick={() => {
-                              setSelectedInbox(inbox);
-                              setSelectedConversation(null);
-                            }}
-                            className={cn(
-                              "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors mb-1",
-                              selectedInbox?.id === inbox.id
-                                ? "bg-primary/20 border border-primary/30"
-                                : "hover:bg-muted"
+                    {inboxes.map((inbox: any) => (
+                      <div
+                        key={inbox.id}
+                        onClick={() => {
+                          setSelectedInbox(inbox);
+                          setSelectedConversation(null);
+                        }}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors mb-1",
+                          selectedInbox?.id === inbox.id
+                            ? "bg-primary/20 border border-primary/30"
+                            : "hover:bg-muted"
+                        )}
+                      >
+                        <Avatar className="h-12 w-12 bg-primary text-primary-foreground">
+                          <Inbox className="h-6 w-6" />
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold truncate">
+                              {inbox.name}
+                            </span>
+                            {inbox.unread_count > 0 && (
+                              <Badge className="bg-primary">
+                                {inbox.unread_count}
+                              </Badge>
                             )}
-                          >
-                            <Avatar className="h-12 w-12 bg-primary text-primary-foreground">
-                              <Inbox className="h-6 w-6" />
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold truncate">
-                                  {inbox.name}
-                                </span>
-                                {inbox.unread_count > 0 && (
-                                  <Badge className="bg-primary">
-                                    {inbox.unread_count}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {inbox.channel_type} • ID: {inbox.id}
-                              </p>
-                            </div>
                           </div>
-                        ))}
+                          <p className="text-xs text-muted-foreground">
+                            {inbox.channel_type} • ID: {inbox.id}
+                          </p>
                         </div>
-                      </ScrollArea>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
                     </div>
                   )}
                 </>
@@ -694,21 +759,21 @@ export default function ChatwootMessages() {
                               };
 
                               return (
-                                <div
-                                  key={conv.id}
-                                  onClick={() => handleSelectConversation(conv)}
+                              <div
+                                key={conv.id}
+                                onClick={() => handleSelectConversation(conv)}
                                   className={cn(
                                     "p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-all",
                                     selectedConversation?.id === conv.id?.toString() && "bg-primary/10 border-primary/50 shadow-sm"
                                   )}
-                                >
-                                  <div className="flex items-start gap-3">
+                              >
+                                <div className="flex items-start gap-3">
                                     <Avatar className="h-10 w-10 flex-shrink-0">
-                                      <div className="h-full w-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
+                                    <div className="h-full w-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
                                         {contactName.charAt(0).toUpperCase() || '?'}
-                                      </div>
-                                    </Avatar>
-                                    <div className="flex-1 min-w-0">
+                                    </div>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
                                       {/* Header: Nome e Timestamp */}
                                       <div className="flex items-start justify-between gap-2 mb-1">
                                         <div className="flex-1 min-w-0">
@@ -731,11 +796,11 @@ export default function ChatwootMessages() {
                                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                                             {timestamp.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                          </span>
+                                      </span>
                                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                                             {timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                          </span>
-                                        </div>
+                                      </span>
+                                    </div>
                                       </div>
 
                                       {/* Mensagem */}
@@ -820,38 +885,38 @@ export default function ChatwootMessages() {
                                             {status === 'resolved' ? 'Resolvida' : 
                                              status === 'pending' ? 'Pendente' :
                                              status === 'snoozed' ? 'Adiada' : status}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
+                              </div>
+                          </div>
                               );
                             })}
                             
                             {/* Botão Carregar Mais */}
                             {hasNextPage && (
                               <div className="p-4 flex flex-col items-center gap-2">
-                                <Button
-                                  variant="outline"
+                            <Button
+                              variant="outline"
                                   onClick={loadMoreConversations}
                                   className="w-full"
-                                >
+                            >
                                   <ChevronDownIcon className="h-4 w-4 mr-2" />
                                   Carregar Mais ({filteredConversations.length - paginatedConversations.length} restantes)
-                                </Button>
+                            </Button>
                                 {totalPages > conversationPage + 1 && (
-                                  <Button
+                            <Button
                                     variant="ghost"
-                                    size="sm"
+                              size="sm"
                                     onClick={loadAllConversations}
                                     className="text-xs"
-                                  >
+                            >
                                     Carregar Todas ({filteredConversations.length} conversas)
-                                  </Button>
+                            </Button>
                                 )}
-                              </div>
-                            )}
+                          </div>
+                        )}
                             </div>
                           </ScrollArea>
                         </div>

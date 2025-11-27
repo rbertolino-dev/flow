@@ -8,7 +8,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Filter, RefreshCw } from "lucide-react";
+import { Filter, RefreshCw, Calendar } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 interface WorkflowFiltersProps {
   filters: WorkflowFilters;
@@ -30,70 +31,99 @@ export function WorkflowFilters({
   };
 
   return (
-    <div className="grid gap-3 md:grid-cols-5">
-      <div className="flex items-center gap-2">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium text-muted-foreground">
-          Filtros
-        </span>
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-5">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">
+            Filtros
+          </span>
+        </div>
+
+        <Select
+          value={filters.status}
+          onValueChange={(value) => update({ status: value as WorkflowFilters["status"] })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="active">Ativos</SelectItem>
+            <SelectItem value="paused">Pausados</SelectItem>
+            <SelectItem value="completed">Concluídos</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.type}
+          onValueChange={(value) => update({ type: value as WorkflowFilters["type"] })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            {availableTypes.map((type) => (
+              <SelectItem key={type} value={type}>
+                {capitalize(type)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.listId}
+          onValueChange={(value) => update({ listId: value as WorkflowFilters["listId"] })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Cliente / Lista" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os destinatários</SelectItem>
+            {lists.map((list) => (
+              <SelectItem key={list.id} value={list.id}>
+                {list.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          placeholder="Buscar por nome..."
+          value={filters.search}
+          onChange={(event) => update({ search: event.target.value })}
+        />
       </div>
 
-      <Select
-        value={filters.status}
-        onValueChange={(value) => update({ status: value as WorkflowFilters["status"] })}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos os status</SelectItem>
-          <SelectItem value="active">Ativos</SelectItem>
-          <SelectItem value="paused">Pausados</SelectItem>
-          <SelectItem value="completed">Concluídos</SelectItem>
-        </SelectContent>
-      </Select>
+      <div className="grid gap-3 md:grid-cols-3 items-end">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">
+            Data
+          </span>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="date-from" className="text-xs">De</Label>
+          <Input
+            id="date-from"
+            type="date"
+            value={filters.dateFrom || ""}
+            onChange={(event) => update({ dateFrom: event.target.value || null })}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="date-to" className="text-xs">Até</Label>
+          <Input
+            id="date-to"
+            type="date"
+            value={filters.dateTo || ""}
+            onChange={(event) => update({ dateTo: event.target.value || null })}
+          />
+        </div>
+      </div>
 
-      <Select
-        value={filters.type}
-        onValueChange={(value) => update({ type: value as WorkflowFilters["type"] })}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Tipo" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos os tipos</SelectItem>
-          {availableTypes.map((type) => (
-            <SelectItem key={type} value={type}>
-              {capitalize(type)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
-        value={filters.listId}
-        onValueChange={(value) => update({ listId: value as WorkflowFilters["listId"] })}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Cliente / Lista" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos os destinatários</SelectItem>
-          {lists.map((list) => (
-            <SelectItem key={list.id} value={list.id}>
-              {list.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Input
-        placeholder="Buscar por nome..."
-        value={filters.search}
-        onChange={(event) => update({ search: event.target.value })}
-      />
-
-      <div className="flex justify-end md:col-span-5">
+      <div className="flex justify-end">
         <Button
           variant="ghost"
           size="sm"
