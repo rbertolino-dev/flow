@@ -44,6 +44,7 @@ import { ChatHistory } from "./ChatHistory";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
 import { AddLeadToListDialog } from "./AddLeadToListDialog";
+import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -72,6 +73,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const { deleteLead } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
   const { templates, applyTemplate } = useMessageTemplates();
+  const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
   const { toast } = useToast();
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const [selectedTagId, setSelectedTagId] = useState<string>("");
@@ -88,6 +90,15 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
+
+  // Identificar listas que contêm este lead
+  const leadLists = useMemo(() => {
+    return lists.filter((list) =>
+      list.contacts.some(
+        (c) => c.lead_id === lead.id || c.phone === lead.phone
+      )
+    );
+  }, [lists, lead.id, lead.phone]);
 
   // Sincronizar returnDate quando o lead mudar
   useEffect(() => {
@@ -475,6 +486,39 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     setIsEditingName(false);
   };
 
+  const handleRemoveFromList = async (listId: string, listName: string) => {
+    try {
+      const list = lists.find((l) => l.id === listId);
+      if (!list) throw new Error("Lista não encontrada");
+
+      // Remover o lead da lista
+      const updatedContacts = list.contacts.filter(
+        (c) => c.lead_id !== lead.id && c.phone !== lead.phone
+      );
+
+      await saveList({
+        id: listId,
+        name: list.name,
+        description: list.description || undefined,
+        default_instance_id: list.default_instance_id || undefined,
+        contacts: updatedContacts,
+      });
+
+      toast({
+        title: "Removido da lista",
+        description: `${lead.name} foi removido de "${listName}"`,
+      });
+
+      await refetchLists();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover da lista",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   // Marcar mensagens como lidas quando o modal abre
   useEffect(() => {
     if (open && lead?.has_unread_messages) {
@@ -498,7 +542,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       };
       markAsRead();
     }
-  }, [open, lead?.id, lead?.has_unread_messages, onUpdated]);
+    
+    // Atualizar listas quando o modal abre
+    if (open) {
+      refetchLists();
+    }
+  }, [open, lead?.id, lead?.has_unread_messages, onUpdated, refetchLists]);
 
   const availableTags = tags.filter(
     tag => !lead.tags?.some(lt => lt.id === tag.id)
@@ -723,6 +772,34 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 <List className="h-5 w-5" />
                 Lista de Disparo
               </h3>
+              
+              {leadLists.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Este lead está nas seguintes listas:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {leadLists.map((list) => (
+                      <Badge
+                        key={list.id}
+                        variant="secondary"
+                        className="gap-2 py-1.5 px-3"
+                      >
+                        <span>{list.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({list.contacts.length} contatos)
+                        </span>
+                        <button
+                          onClick={() => handleRemoveFromList(list.id, list.name)}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                          title="Remover desta lista"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <Button
                 onClick={() => setAddToListDialogOpen(true)}
                 variant="outline"
