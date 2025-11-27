@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -28,6 +28,9 @@ import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboar
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
+import { WorkflowListManager } from "@/components/whatsapp/workflows/WorkflowListManager";
+import { useWorkflowLists } from "@/hooks/useWorkflowLists";
+import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
 import { 
   isTimeInWindow, 
@@ -102,7 +105,7 @@ export default function BroadcastCampaigns() {
   } | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [pastedList, setPastedList] = useState("");
-  const [importMode, setImportMode] = useState<"csv" | "paste">("csv");
+  const [importMode, setImportMode] = useState<"csv" | "paste" | "list">("csv");
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const [logsInstanceFilter, setLogsInstanceFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -122,6 +125,10 @@ export default function BroadcastCampaigns() {
   } | null>(null);
   const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { lists, saveList, deleteList, isLoading: listsLoading } = useWorkflowLists();
+  const { leadOptions } = useLeadOptions();
+  const [listManagerOpen, setListManagerOpen] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<string>("");
 
   const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "kanban") navigate('/');
@@ -458,10 +465,10 @@ export default function BroadcastCampaigns() {
 
   const handleValidateContacts = async () => {
     const hasInstance = newCampaign.sendingMethod === "single" ? newCampaign.instanceId : newCampaign.instanceIds.length > 0;
-    if (!hasInstance || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim())) {
+    if (!hasInstance || (importMode === "csv" && !csvFile) || (importMode === "paste" && !pastedList.trim()) || (importMode === "list" && !selectedListId)) {
       toast({
         title: "Campos obrigatórios",
-        description: "Selecione a(s) instância(s) e forneça uma lista de contatos",
+        description: importMode === "list" ? "Selecione uma lista salva" : "Selecione a(s) instância(s) e forneça uma lista de contatos",
         variant: "destructive",
       });
       return;
@@ -475,6 +482,16 @@ export default function BroadcastCampaigns() {
       let text: string;
       if (importMode === "csv" && csvFile) {
         text = await csvFile.text();
+      } else if (importMode === "list" && selectedListId) {
+        // Carregar contatos da lista salva
+        const selectedList = lists.find(l => l.id === selectedListId);
+        if (!selectedList) {
+          throw new Error("Lista não encontrada");
+        }
+        // Converter contatos da lista para o formato texto
+        text = selectedList.contacts
+          .map(contact => `${contact.phone}${contact.name ? `,${contact.name}` : ''}`)
+          .join('\n');
       } else {
         text = pastedList;
       }
@@ -1364,6 +1381,10 @@ export default function BroadcastCampaigns() {
                 <Shield className="h-5 w-5 mr-2" />
                 Saúde
               </TabsTrigger>
+              <TabsTrigger value="lists" className="text-base font-semibold px-6 py-2.5 h-10">
+                <List className="h-5 w-5 mr-2" />
+                Listas
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="templates">
@@ -1399,6 +1420,87 @@ export default function BroadcastCampaigns() {
                   });
                 }}
               />
+            </TabsContent>
+
+            <TabsContent value="lists">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Listas de Contatos</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Gerencie listas de contatos para uso em campanhas
+                      </p>
+                    </div>
+                    <Button onClick={() => setListManagerOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Lista
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {listsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : lists.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <List className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Nenhuma lista criada ainda</p>
+                      <p className="text-sm mt-1">
+                        Crie listas no funil de vendas ou clique em "Nova Lista"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3">
+                      {lists.map((list) => (
+                        <div
+                          key={list.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium">{list.name}</h3>
+                              <Badge variant="outline">
+                                {list.contacts.length} contato(s)
+                              </Badge>
+                            </div>
+                            {list.description && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {list.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedListId(list.id);
+                                setImportMode("list");
+                                setCreateDialogOpen(true);
+                              }}
+                            >
+                              Usar em Campanha
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                if (confirm(`Deseja excluir a lista "${list.name}"?`)) {
+                                  await deleteList(list.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="campaigns">
@@ -1971,6 +2073,15 @@ export default function BroadcastCampaigns() {
                       <FileText className="h-4 w-4 mr-2" />
                       Colar Lista
                     </Button>
+                    <Button
+                      type="button"
+                      variant={importMode === "list" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setImportMode("list")}
+                    >
+                      <List className="h-4 w-4 mr-2" />
+                      Lista Salva
+                    </Button>
                   </div>
                 </div>
 
@@ -1987,7 +2098,7 @@ export default function BroadcastCampaigns() {
                       Formato: telefone,nome (um por linha). Exemplo: 5511999999999,João Silva
                     </p>
                   </div>
-                ) : (
+                ) : importMode === "paste" ? (
                   <div className="space-y-2">
                     <Label htmlFor="pastedList">Lista de Contatos *</Label>
                     <Textarea
@@ -2000,6 +2111,31 @@ export default function BroadcastCampaigns() {
                     />
                      <p className="text-xs text-muted-foreground">
                       Formato aceito: telefone,nome (opcional). Um contato por linha.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="selectedList">Selecione uma Lista *</Label>
+                    <Select value={selectedListId} onValueChange={setSelectedListId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolha uma lista salva" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lists.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground text-center">
+                            Nenhuma lista disponível
+                          </div>
+                        ) : (
+                          lists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name} • {list.contacts.length} contato(s)
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Listas criadas no funil de vendas ou na aba "Listas"
                     </p>
                   </div>
                 )}
@@ -2775,6 +2911,16 @@ export default function BroadcastCampaigns() {
         </Dialog>
           </div>
         </div>
+
+        <WorkflowListManager
+          open={listManagerOpen}
+          onOpenChange={setListManagerOpen}
+          lists={lists}
+          leadOptions={leadOptions}
+          instances={instances}
+          onSaveList={saveList}
+          onDeleteList={deleteList}
+        />
       </CRMLayout>
     </AuthGuard>
   );
