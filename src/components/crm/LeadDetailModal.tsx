@@ -68,7 +68,7 @@ const activityColors = {
 };
 
 export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailModalProps) {
-  const { tags, addTagToLead, removeTagFromLead } = useTags();
+  const { tags, addTagToLead, removeTagFromLead, refetch: refetchTags } = useTags();
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
@@ -209,6 +209,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         if (!success) throw new Error("Erro ao adicionar etiqueta");
       }
 
+      // Aguardar um pouco para garantir que o banco foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       toast({
         title: "Etiquetas salvas",
         description: "As etiquetas foram atualizadas com sucesso.",
@@ -216,7 +219,14 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
       setPendingTags([]);
       setIsEditingTags(false);
+      
+      // Forçar atualização imediata do lead para recarregar as tags
       onUpdated?.();
+      
+      // Recarregar tags do hook
+      if (refetchTags) {
+        await refetchTags();
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao salvar etiquetas",

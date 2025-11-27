@@ -173,3 +173,4 @@ Se tiver dúvidas ou problemas:
 3. Verifique se os campos mapeados existem na tabela do Bubble
 
 
+

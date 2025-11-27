@@ -6,10 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useBubbleLeadsSync, FieldMapping } from "@/hooks/useBubbleLeadsSync";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
-import { Loader2, RefreshCw, Play, CheckCircle2, AlertCircle, Plus, Trash2, List, Edit3 } from "lucide-react";
+import { useWorkflowLists } from "@/hooks/useWorkflowLists";
+import { useLeads } from "@/hooks/useLeads";
+import { supabase } from "@/integrations/supabase/client";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { Loader2, RefreshCw, Play, CheckCircle2, AlertCircle, Plus, Trash2, List, Edit3, Upload, Send } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LEAD_FIELDS: { value: FieldMapping['lead_field']; label: string }[] = [
@@ -44,6 +50,13 @@ export function BubbleLeadsSyncPanel() {
     { bubble_field: "", lead_field: "phone" },
   ]);
   const [testResult, setTestResult] = useState<any>(null);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [addToListOpen, setAddToListOpen] = useState(false);
+  const [selectedListId, setSelectedListId] = useState("");
+  const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
+  const { refetch: refetchLeads } = useLeads();
 
   useEffect(() => {
     if (savedConfig) {
@@ -141,6 +154,220 @@ export function BubbleLeadsSyncPanel() {
       },
       dry_run: false,
     });
+  };
+
+  const handleBulkImport = async () => {
+    if (!bulkImportText.trim()) {
+      toast({
+        title: "Lista vazia",
+        description: "Cole uma lista de contatos para importar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) throw new Error("Organização não encontrada");
+
+      const lines = bulkImportText.split('\n').filter(line => line.trim());
+      const contacts: Array<{ name: string; phone: string }> = [];
+
+      for (const line of lines) {
+        // Suporta formato: Nome | Telefone ou Nome, Telefone
+        const parts = line.split(/[|,]/).map(p => p.trim());
+        if (parts.length >= 2) {
+          const name = parts[0];
+          const phone = parts[1].replace(/\D/g, ''); // Remove caracteres não numéricos
+          
+          if (name && phone.length >= 10) {
+            contacts.push({ name, phone });
+          }
+        }
+      }
+
+      if (contacts.length === 0) {
+        throw new Error("Nenhum contato válido encontrado");
+      }
+
+      let created = 0;
+      let updated = 0;
+      let errors = 0;
+
+      for (const contact of contacts) {
+        try {
+          // Verificar se já existe
+          const { data: existing } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('organization_id', orgId)
+            .eq('phone', contact.phone)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+          if (existing) {
+            // Atualizar
+            await supabase
+              .from('leads')
+              .update({ name: contact.name, updated_at: new Date().toISOString() })
+              .eq('id', existing.id);
+            updated++;
+          } else {
+            // Criar novo
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Usuário não autenticado");
+
+            await supabase.rpc('create_lead_secure', {
+              p_org_id: orgId,
+              p_name: contact.name,
+              p_phone: contact.phone,
+              p_email: null,
+              p_company: null,
+              p_value: null,
+              p_stage_id: null,
+              p_notes: 'Importado em massa',
+              p_source: 'manual',
+            });
+            created++;
+          }
+        } catch (error: any) {
+          console.error('Erro ao importar contato:', error);
+          errors++;
+        }
+      }
+
+      toast({
+        title: "Importação concluída",
+        description: `${created} criados, ${updated} atualizados, ${errors} erros`,
+      });
+
+      setBulkImportOpen(false);
+      setBulkImportText("");
+      refetchLeads();
+    } catch (error: any) {
+      toast({
+        title: "Erro na importação",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleAddToDisparoList = async () => {
+    if (!selectedListId) {
+      toast({
+        title: "Lista não selecionada",
+        description: "Selecione uma lista para adicionar os leads",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!lastSyncResult || lastSyncResult.dry_run) {
+      toast({
+        title: "Nenhum lead sincronizado",
+        description: "Sincronize leads primeiro antes de adicionar à lista",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) throw new Error("Organização não encontrada");
+
+      const list = lists.find(l => l.id === selectedListId);
+      if (!list) throw new Error("Lista não encontrada");
+
+      // Buscar leads sincronizados recentemente (últimos 5 minutos)
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+      const { data: recentLeads, error: leadsError } = await supabase
+        .from('leads')
+        .select('id, name, phone')
+        .eq('organization_id', orgId)
+        .eq('source', 'bubble_erp')
+        .gte('created_at', fiveMinutesAgo.toISOString())
+        .is('deleted_at', null);
+
+      if (leadsError) throw leadsError;
+
+      // Também buscar leads atualizados
+      const { data: updatedLeads, error: updatedError } = await supabase
+        .from('leads')
+        .select('id, name, phone')
+        .eq('organization_id', orgId)
+        .eq('source', 'bubble_erp')
+        .gte('updated_at', fiveMinutesAgo.toISOString())
+        .is('deleted_at', null);
+
+      if (updatedError) throw updatedError;
+
+      // Combinar e remover duplicatas
+      const allLeads = [...(recentLeads || []), ...(updatedLeads || [])];
+      const uniqueLeads = Array.from(
+        new Map(allLeads.map(lead => [lead.id, lead])).values()
+      );
+
+      // Verificar quais já estão na lista
+      const existingPhones = new Set(
+        list.contacts.map(c => c.phone)
+      );
+      const existingLeadIds = new Set(
+        list.contacts.map(c => c.lead_id).filter(Boolean)
+      );
+
+      const newContacts = uniqueLeads
+        .filter(lead => 
+          !existingPhones.has(lead.phone) && 
+          !existingLeadIds.has(lead.id)
+        )
+        .map(lead => ({
+          lead_id: lead.id,
+          phone: lead.phone,
+          name: lead.name,
+          variables: {},
+        }));
+
+      if (newContacts.length === 0) {
+        toast({
+          title: "Nenhum lead novo",
+          description: "Todos os leads já estão na lista selecionada",
+        });
+        return;
+      }
+
+      // Adicionar à lista
+      await saveList({
+        id: list.id,
+        name: list.name,
+        description: list.description || undefined,
+        default_instance_id: list.default_instance_id || undefined,
+        contacts: [...list.contacts, ...newContacts],
+      });
+
+      toast({
+        title: "Leads adicionados",
+        description: `${newContacts.length} leads adicionados à lista "${list.name}"`,
+      });
+
+      setAddToListOpen(false);
+      setSelectedListId("");
+      await refetchLists();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao adicionar à lista",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   if (isLoadingBubbleConfig || isLoadingConfig) {
@@ -395,7 +622,7 @@ export function BubbleLeadsSyncPanel() {
         )}
 
         {/* Botões de Ação */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleSaveConfig}
             disabled={isSavingConfig || !endpoint}
@@ -434,6 +661,22 @@ export function BubbleLeadsSyncPanel() {
               </>
             )}
           </Button>
+          <Button
+            onClick={() => setBulkImportOpen(true)}
+            variant="outline"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Importar Múltiplos Leads
+          </Button>
+          {lastSyncResult && lastSyncResult.success && !lastSyncResult.dry_run && (
+            <Button
+              onClick={() => setAddToListOpen(true)}
+              variant="outline"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Adicionar à Lista de Disparo
+            </Button>
+          )}
         </div>
 
         {savedConfig && (
@@ -448,5 +691,6 @@ export function BubbleLeadsSyncPanel() {
     </Card>
   );
 }
+
 
 

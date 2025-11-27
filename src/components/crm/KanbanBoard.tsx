@@ -11,7 +11,9 @@ import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, P
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
-import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3 } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3, Send, List } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { normalizePhone } from "@/lib/phoneUtils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
@@ -51,6 +55,10 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const { cardSize, toggleCardSize } = useViewPreference();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
+  const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
+  const [selectedListId, setSelectedListId] = useState("");
+  const [isAddingToList, setIsAddingToList] = useState(false);
   
   // Criar mapa de instâncias para lookup rápido
   const instanceMap = useMemo(() => {
@@ -416,6 +424,84 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     onRefetch();
   };
 
+  const handleAddToDisparoList = async () => {
+    if (!selectedListId) {
+      toast({
+        title: "Lista não selecionada",
+        description: "Selecione uma lista para adicionar os leads",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
+    if (selectedLeads.length === 0) {
+      toast({
+        title: "Nenhum lead selecionado",
+        description: "Selecione pelo menos um lead",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAddingToList(true);
+    try {
+      const list = lists.find(l => l.id === selectedListId);
+      if (!list) throw new Error("Lista não encontrada");
+
+      // Verificar quais leads já estão na lista
+      const existingPhones = new Set(list.contacts.map(c => c.phone));
+      const existingLeadIds = new Set(list.contacts.map(c => c.lead_id).filter(Boolean));
+
+      const newContacts = selectedLeads
+        .filter(lead => 
+          !existingPhones.has(lead.phone) && 
+          !existingLeadIds.has(lead.id)
+        )
+        .map(lead => ({
+          lead_id: lead.id,
+          phone: lead.phone,
+          name: lead.name,
+          variables: {},
+        }));
+
+      if (newContacts.length === 0) {
+        toast({
+          title: "Nenhum lead novo",
+          description: "Todos os leads selecionados já estão na lista",
+        });
+        return;
+      }
+
+      // Adicionar à lista
+      await saveList({
+        id: list.id,
+        name: list.name,
+        description: list.description || undefined,
+        default_instance_id: list.default_instance_id || undefined,
+        contacts: [...list.contacts, ...newContacts],
+      });
+
+      toast({
+        title: "Leads adicionados",
+        description: `${newContacts.length} lead(s) adicionado(s) à lista "${list.name}"`,
+      });
+
+      setAddToListDialogOpen(false);
+      setSelectedListId("");
+      clearSelection();
+      await refetchLists();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao adicionar à lista",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingToList(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
@@ -617,6 +703,17 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             <Button
               size="sm"
               variant="secondary"
+              onClick={() => setAddToListDialogOpen(true)}
+              className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
+            >
+              <Send className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Lista de Disparo</span>
+              <span className="sm:hidden">Lista</span>
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={handleAddToCallQueue}
               className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
             >
@@ -653,6 +750,76 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             onUpdated={onRefetch}
           />
         )}
+
+      {/* Dialog para adicionar à lista de disparo */}
+      <Dialog open={addToListDialogOpen} onOpenChange={setAddToListDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Leads à Lista de Disparo</DialogTitle>
+            <DialogDescription>
+              Selecione uma lista para adicionar {selectedLeadIds.size} lead(s) selecionado(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Selecione a Lista</Label>
+              <Select value={selectedListId} onValueChange={setSelectedListId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha uma lista..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {lists.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      Nenhuma lista disponível. Crie uma lista primeiro em Disparo em Massa.
+                    </div>
+                  ) : (
+                    lists.map((list) => (
+                      <SelectItem key={list.id} value={list.id}>
+                        <div className="flex items-center gap-2">
+                          <List className="h-4 w-4" />
+                          {list.name} ({list.contacts.length} contatos)
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <Alert>
+              <AlertDescription>
+                Os leads selecionados serão adicionados à lista e poderão ser usados em campanhas de disparo em massa.
+              </AlertDescription>
+            </Alert>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddToListDialogOpen(false);
+                setSelectedListId("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddToDisparoList}
+              disabled={!selectedListId || isAddingToList}
+            >
+              {isAddingToList ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adicionando...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Adicionar à Lista
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

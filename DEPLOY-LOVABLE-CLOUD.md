@@ -147,3 +147,4 @@ response_format: { type: "json_object" }, // ❌ ERRADO - hardcoded
 - ✅ **Instruções JSON:** Só adicionadas se `response_format = 'json'`
 
 
+
