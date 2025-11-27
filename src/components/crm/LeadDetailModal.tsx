@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
@@ -43,6 +43,7 @@ import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { ChatHistory } from "./ChatHistory";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
+import { AddLeadToListDialog } from "./AddLeadToListDialog";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -86,6 +87,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [liveStatus, setLiveStatus] = useState<Record<string, boolean | null>>({});
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
+  const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
 
   // Sincronizar returnDate quando o lead mudar
   useEffect(() => {
@@ -715,6 +717,24 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
             <Separator />
 
+            {/* Adicionar à Lista */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <List className="h-5 w-5" />
+                Lista de Disparo
+              </h3>
+              <Button
+                onClick={() => setAddToListDialogOpen(true)}
+                variant="outline"
+                className="w-full gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar a uma lista de disparo
+              </Button>
+            </div>
+
+            <Separator />
+
             {/* Follow-up */}
             <LeadFollowUpPanel leadId={lead.id} />
 
@@ -964,6 +984,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           </Button>
         </div>
       </DialogContent>
+
+      <AddLeadToListDialog
+        open={addToListDialogOpen}
+        onOpenChange={setAddToListDialogOpen}
+        lead={lead}
+      />
     </Dialog>
   );
 }
