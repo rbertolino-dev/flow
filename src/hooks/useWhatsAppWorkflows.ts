@@ -28,7 +28,7 @@ interface PersistWorkflowArgs extends WorkflowFormValues {
   boleto_valor?: number;
   boleto_vencimento?: string;
   boleto_descricao?: string;
-  recipient_type?: string;
+  recipient_mode?: string;
 }
 
 export function useWhatsAppWorkflows() {
@@ -174,15 +174,6 @@ export function useWhatsAppWorkflows() {
       status: values.is_active ? "active" : "paused",
       next_run_at: nextRun,
     };
-
-    // Tentar adicionar recipient_type (pode não existir no banco ainda)
-    // Se a coluna não existir, o Supabase vai rejeitar, mas vamos tentar
-    if (values.recipient_type || values.recipientMode) {
-      payload.recipient_type = values.recipient_type || values.recipientMode;
-    }
-    if (values.group_id) {
-      payload.group_id = values.group_id;
-    }
 
     return payload;
   };
