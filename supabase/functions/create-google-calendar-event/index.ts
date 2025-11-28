@@ -176,8 +176,8 @@ serve(async (req) => {
     const eventData = await calendarResponse.json();
     console.log('Evento criado:', eventData.id);
 
-    const eventStart = eventData.start?.dateTime || eventData.start?.date || startDate.toISOString();
-    const eventEnd = eventData.end?.dateTime || eventData.end?.date || endDate.toISOString();
+    const eventStart = eventData.start?.dateTime || eventData.start?.date || utcStartDate.toISOString();
+    const eventEnd = eventData.end?.dateTime || eventData.end?.date || utcEndDate.toISOString();
 
     // Atualizar cache local na tabela calendar_events
     const { error: upsertError } = await supabase
