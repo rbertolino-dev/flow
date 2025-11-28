@@ -720,7 +720,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 </div>
               )}
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                <Badge variant="secondary" className="text-xs sm:text-sm">{lead.source}</Badge>
+                <Badge variant="secondary" className="text-xs sm:text-sm">
+                  {lead.sourceInstanceName || lead.source}
+                </Badge>
                 <Badge variant="outline" className="text-xs sm:text-sm">{lead.status}</Badge>
               </div>
             </div>
