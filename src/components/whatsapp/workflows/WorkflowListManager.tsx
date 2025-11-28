@@ -29,7 +29,14 @@ import {
   LeadOption,
 } from "@/types/workflows";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Edit, Eye, Users, ArrowLeft } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 interface WorkflowListManagerProps {
   open: boolean;
@@ -56,6 +63,8 @@ export function WorkflowListManager({
   onSaveList,
   onDeleteList,
 }: WorkflowListManagerProps) {
+  const [view, setView] = useState<"main" | "create" | "edit" | "view">("main");
+  const [selectedList, setSelectedList] = useState<WorkflowList | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [defaultInstance, setDefaultInstance] = useState<string | undefined>();
@@ -64,23 +73,41 @@ export function WorkflowListManager({
   const [manualPhone, setManualPhone] = useState("");
   const [contacts, setContacts] = useState<WorkflowListContact[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [searchContact, setSearchContact] = useState("");
 
   useEffect(() => {
     if (!open) {
-      setName("");
-      setDescription("");
-      setContacts([]);
-      setDefaultInstance(undefined);
-      setSelectedLeadId("");
-      setManualName("");
-      setManualPhone("");
+      resetForm();
+      setView("main");
     }
   }, [open]);
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setContacts([]);
+    setDefaultInstance(undefined);
+    setSelectedLeadId("");
+    setManualName("");
+    setManualPhone("");
+    setSelectedList(null);
+    setSearchContact("");
+  };
 
   const selectedLead = useMemo(
     () => leadOptions.find((lead) => lead.id === selectedLeadId),
     [leadOptions, selectedLeadId],
   );
+
+  const filteredContacts = useMemo(() => {
+    if (!searchContact.trim()) return contacts;
+    const search = searchContact.toLowerCase();
+    return contacts.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(search) ||
+        c.phone.includes(search)
+    );
+  }, [contacts, searchContact]);
 
   const handleAddLead = () => {
     if (!selectedLead) return;
@@ -102,6 +129,8 @@ export function WorkflowListManager({
     if (!manualPhone) return;
     const sanitizedPhone = manualPhone.replace(/\D/g, "");
     if (sanitizedPhone.length < 10) return;
+    const exists = contacts.some((c) => c.phone === sanitizedPhone);
+    if (exists) return;
     setContacts((prev) => [
       ...prev,
       {
@@ -124,44 +153,157 @@ export function WorkflowListManager({
     try {
       setIsSaving(true);
       await onSaveList({
+        id: selectedList?.id,
         name: name.trim(),
         description,
         default_instance_id: defaultInstance,
         contacts,
       });
-      onOpenChange(false);
+      resetForm();
+      setView("main");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async (listId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta lista?")) return;
     await onDeleteList(listId);
+  };
+
+  const handleEditList = (list: WorkflowList) => {
+    setSelectedList(list);
+    setName(list.name);
+    setDescription(list.description || "");
+    setDefaultInstance(list.default_instance_id || undefined);
+    setContacts([...list.contacts]);
+    setView("edit");
+  };
+
+  const handleViewList = (list: WorkflowList) => {
+    setSelectedList(list);
+    setView("view");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Gerenciar listas de destinatários</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {view !== "main" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  resetForm();
+                  setView("main");
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            {view === "main" && "Gerenciar Listas de Contatos"}
+            {view === "create" && "Nova Lista"}
+            {view === "edit" && "Editar Lista"}
+            {view === "view" && "Visualizar Lista"}
+          </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="create" className="mt-4">
-          <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="create">Nova lista</TabsTrigger>
-            <TabsTrigger value="existing">Listas existentes</TabsTrigger>
-          </TabsList>
+        {/* VIEW MAIN - Lista de todas as listas */}
+        {view === "main" && (
+          <div className="space-y-4">
+            <Button
+              onClick={() => setView("create")}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Nova Lista
+            </Button>
 
-          <TabsContent value="create" className="mt-4 space-y-4">
+            <ScrollArea className="h-[500px]">
+              {lists.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Nenhuma lista cadastrada ainda.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {lists.map((list) => (
+                    <Card key={list.id}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-base">{list.name}</CardTitle>
+                            <CardDescription className="text-xs mt-1">
+                              {list.description || "Sem descrição"}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewList(list)}
+                              title="Visualizar contatos"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditList(list)}
+                              title="Editar lista"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(list.id)}
+                              title="Excluir lista"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pb-3">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            <span>{list.contacts.length} contato(s)</span>
+                          </div>
+                          {list.default_instance_id && (
+                            <Badge variant="outline" className="text-xs">
+                              Instância padrão
+                            </Badge>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        )}
+
+        {/* VIEW CREATE/EDIT - Formulário */}
+        {(view === "create" || view === "edit") && (
+          <div className="space-y-4">
             <Input
               placeholder="Nome da lista"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(e) => setName(e.target.value)}
             />
             <Textarea
               placeholder="Descrição (opcional)"
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
             />
 
             <Select
@@ -180,18 +322,19 @@ export function WorkflowListManager({
               </SelectContent>
             </Select>
 
-            <div className="rounded-lg border p-3 space-y-3">
-              <div className="flex flex-col gap-2 md:flex-row md:items-end">
-                <div className="flex-1">
-                  <label className="text-xs text-muted-foreground">
-                    Adicionar cliente (lead)
-                  </label>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Adicionar Contatos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Adicionar por Lead */}
+                <div className="flex gap-2">
                   <Select
                     value={selectedLeadId}
                     onValueChange={setSelectedLeadId}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolha um cliente" />
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Escolher cliente do funil" />
                     </SelectTrigger>
                     <SelectContent>
                       {leadOptions.map((lead) => (
@@ -201,127 +344,198 @@ export function WorkflowListManager({
                       ))}
                     </SelectContent>
                   </Select>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleAddLead}
+                    disabled={!selectedLeadId}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Adicionar Manual */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Telefone"
+                    value={manualPhone}
+                    onChange={(e) => setManualPhone(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Nome (opcional)"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                  />
                 </div>
                 <Button
                   type="button"
-                  variant="secondary"
-                  className="gap-2"
-                  onClick={handleAddLead}
+                  variant="outline"
+                  onClick={handleAddManual}
+                  disabled={!manualPhone}
+                  className="w-full"
                 >
-                  <Plus className="h-4 w-4" />
-                  Adicionar
+                  Adicionar Contato Manual
                 </Button>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="grid gap-2 md:grid-cols-2">
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Contato manual (telefone)
-                  </label>
+            {/* Lista de Contatos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  Contatos ({contacts.length})
+                </CardTitle>
+                {contacts.length > 5 && (
                   <Input
-                    placeholder="5511999999999"
-                    value={manualPhone}
-                    onChange={(event) => setManualPhone(event.target.value)}
+                    placeholder="Buscar contato..."
+                    value={searchContact}
+                    onChange={(e) => setSearchContact(e.target.value)}
+                    className="mt-2"
                   />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Nome (opcional)
-                  </label>
-                  <Input
-                    placeholder="Nome do contato"
-                    value={manualName}
-                    onChange={(event) => setManualName(event.target.value)}
-                  />
-                </div>
-              </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[200px]">
+                  {filteredContacts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      {searchContact ? "Nenhum contato encontrado" : "Nenhum contato adicionado"}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredContacts.map((contact, index) => (
+                        <div
+                          key={`${contact.phone}-${index}`}
+                          className="flex items-center justify-between rounded-md border px-3 py-2"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{contact.name || contact.phone}</p>
+                            <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveContact(contacts.indexOf(contact))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-2">
               <Button
-                type="button"
                 variant="outline"
-                onClick={handleAddManual}
+                onClick={() => {
+                  resetForm();
+                  setView("main");
+                }}
+                className="flex-1"
               >
-                Registrar contato manual
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={!name.trim() || contacts.length === 0 || isSaving}
+                className="flex-1"
+              >
+                {isSaving ? "Salvando..." : view === "edit" ? "Atualizar" : "Salvar"}
               </Button>
             </div>
+          </div>
+        )}
 
-            <ScrollArea className="max-h-60 rounded-lg border p-3">
-              {contacts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum contato adicionado ainda.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {contacts.map((contact, index) => (
-                    <div
-                      key={`${contact.phone}-${index}`}
-                      className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium">{contact.name}</p>
-                        <p className="text-xs text-muted-foreground">{contact.phone}</p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveContact(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-
-            <Button
-              onClick={handleSave}
-              disabled={!name.trim() || contacts.length === 0 || isSaving}
-              className="w-full"
-            >
-              Salvar lista
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="existing" className="mt-4">
-            <ScrollArea className="max-h-80 space-y-2">
-              {lists.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma lista cadastrada ainda.
-                </p>
-              ) : (
-                lists.map((list) => (
-                  <div
-                    key={list.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div>
-                      <p className="font-medium">{list.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {list.contacts.length} contato(s)
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {list.default_instance_id && (
-                        <Badge variant="outline">Instância padrão</Badge>
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(list.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+        {/* VIEW - Visualizar lista */}
+        {view === "view" && selectedList && (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>{selectedList.name}</CardTitle>
+                <CardDescription>
+                  {selectedList.description || "Sem descrição"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    <span>{selectedList.contacts.length} contato(s)</span>
                   </div>
-                ))
-              )}
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
+                  {selectedList.default_instance_id && (
+                    <Badge variant="outline">
+                      Instância: {instances.find(i => i.id === selectedList.default_instance_id)?.instance_name}
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Contatos</CardTitle>
+                {selectedList.contacts.length > 5 && (
+                  <Input
+                    placeholder="Buscar contato..."
+                    value={searchContact}
+                    onChange={(e) => setSearchContact(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[350px]">
+                  <div className="space-y-2">
+                    {selectedList.contacts
+                      .filter(c => 
+                        !searchContact || 
+                        c.name?.toLowerCase().includes(searchContact.toLowerCase()) ||
+                        c.phone.includes(searchContact)
+                      )
+                      .map((contact, index) => (
+                        <div
+                          key={`${contact.phone}-${index}`}
+                          className="rounded-md border px-3 py-2"
+                        >
+                          <p className="text-sm font-medium">{contact.name || contact.phone}</p>
+                          <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                          {contact.lead_id && (
+                            <Badge variant="secondary" className="text-xs mt-1">
+                              Cliente do funil
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchContact("");
+                  setView("main");
+                }}
+                className="flex-1"
+              >
+                Voltar
+              </Button>
+              <Button
+                onClick={() => handleEditList(selectedList)}
+                className="flex-1"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Editar Lista
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
-
