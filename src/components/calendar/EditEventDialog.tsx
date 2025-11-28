@@ -26,7 +26,7 @@ import { format } from "date-fns";
 import { CalendarEvent } from "@/hooks/useCalendarEvents";
 import { Switch } from "@/components/ui/switch";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
-import { parseSaoPauloDateTime, formatSaoPauloTime, formatSaoPauloDate } from "@/lib/dateUtils";
+import { parseSaoPauloDateTime, formatSaoPauloTime } from "@/lib/dateUtils";
 
 interface EditEventDialogProps {
   open: boolean;
@@ -68,9 +68,12 @@ export function EditEventDialog({
       const endDate = new Date(event.end_datetime);
       const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
       
+      // Formatar data no formato ISO (yyyy-MM-dd) para input[type="date"]
+      const isoDate = format(startDate, "yyyy-MM-dd");
+      
       setFormData({
         summary: event.summary || "",
-        startDate: formatSaoPauloDate(startDate),
+        startDate: isoDate,
         startTime: formatSaoPauloTime(startDate),
         duration: durationMinutes.toString(),
         description: event.description || "",
