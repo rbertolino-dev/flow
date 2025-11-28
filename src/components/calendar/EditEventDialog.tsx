@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { CalendarEvent } from "@/hooks/useCalendarEvents";
 import { Switch } from "@/components/ui/switch";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { parseSaoPauloDateTime, formatSaoPauloTime, formatSaoPauloDate } from "@/lib/dateUtils";
 
 interface EditEventDialogProps {
   open: boolean;
@@ -69,8 +70,8 @@ export function EditEventDialog({
       
       setFormData({
         summary: event.summary || "",
-        startDate: format(startDate, "yyyy-MM-dd"),
-        startTime: format(startDate, "HH:mm"),
+        startDate: formatSaoPauloDate(startDate),
+        startTime: formatSaoPauloTime(startDate),
         duration: durationMinutes.toString(),
         description: event.description || "",
         location: event.location || "",
@@ -107,6 +108,8 @@ export function EditEventDialog({
 
     setLoading(true);
     try {
+      // Criar data/hora no formato ISO para o timezone de São Paulo
+      // Formato: YYYY-MM-DDTHH:mm:ss (sem timezone, será interpretado como São Paulo na Edge Function)
       const startDateTime = `${formData.startDate}T${formData.startTime}:00`;
       
       const { data, error } = await supabase.functions.invoke("update-google-calendar-event", {

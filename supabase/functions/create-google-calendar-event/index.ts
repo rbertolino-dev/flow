@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { fromZonedTime } from "https://esm.sh/date-fns-tz@0.1.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,20 +98,31 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
+    // Interpretar startDateTime como hora de São Paulo e converter para UTC
+    // Formato esperado: "YYYY-MM-DDTHH:mm:ss" (sem timezone, assumindo São Paulo)
+    const [datePart, timePart] = startDateTime.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
+    
+    // Criar data local assumindo que é em São Paulo
+    // fromZonedTime converte uma data/hora de um timezone específico para UTC
+    const saoPauloDate = new Date(year, month - 1, day, hours, minutes, seconds || 0);
+    const utcStartDate = fromZonedTime(saoPauloDate, 'America/Sao_Paulo');
+    
     // Calcular data de término
-    const startDate = new Date(startDateTime);
-    const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+    const utcEndDate = new Date(utcStartDate.getTime() + durationMinutes * 60000);
 
     // Criar evento no Google Calendar
+    // O Google Calendar espera ISO string UTC quando especificamos timeZone
     const event: any = {
       summary,
       description: description || '',
       start: {
-        dateTime: startDate.toISOString(),
+        dateTime: utcStartDate.toISOString(),
         timeZone: 'America/Sao_Paulo',
       },
       end: {
-        dateTime: endDate.toISOString(),
+        dateTime: utcEndDate.toISOString(),
         timeZone: 'America/Sao_Paulo',
       },
     };

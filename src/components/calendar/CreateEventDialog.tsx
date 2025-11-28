@@ -247,6 +247,8 @@ export function CreateEventDialog({
 
     setLoading(true);
     try {
+      // Criar data/hora no formato ISO para o timezone de São Paulo
+      // Formato: YYYY-MM-DDTHH:mm:ss (sem timezone, será interpretado como São Paulo na Edge Function)
       const startDateTime = `${formData.startDate}T${formData.startTime}:00`;
       
       // Criar evento no Google Calendar

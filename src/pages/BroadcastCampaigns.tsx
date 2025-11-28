@@ -480,20 +480,96 @@ export default function BroadcastCampaigns() {
 
       // Ler contatos
       let text: string;
+      let isFromFunilList = false; // Flag para identificar se vem do funil
+      let selectedList: any = null;
+      
       if (importMode === "csv" && csvFile) {
         text = await csvFile.text();
       } else if (importMode === "list" && selectedListId) {
         // Carregar contatos da lista salva
-        const selectedList = lists.find(l => l.id === selectedListId);
+        selectedList = lists.find(l => l.id === selectedListId);
         if (!selectedList) {
           throw new Error("Lista não encontrada");
         }
+        
+        // Verificar se todos os contatos têm lead_id (vêm do funil)
+        const allFromFunil = selectedList.contacts.length > 0 && 
+          selectedList.contacts.every(contact => contact.lead_id);
+        isFromFunilList = allFromFunil;
+        
         // Converter contatos da lista para o formato texto
+        // IMPORTANTE: Adicionar prefixo "+" se o telefone começar com "55" e não tiver "+"
         text = selectedList.contacts
-          .map(contact => `${contact.phone}${contact.name ? `,${contact.name}` : ''}`)
+          .map(contact => {
+            let phone = contact.phone || '';
+            
+            // Se o telefone começa com "55" e não tem "+", adicionar "+"
+            // Isso garante que números brasileiros sejam formatados corretamente
+            if (phone.startsWith('55') && !phone.startsWith('+')) {
+              phone = '+' + phone;
+            }
+            // Se o telefone não tem "+" e não começa com "55", pode ser número sem DDI
+            // Nesse caso, assumir que é brasileiro e adicionar "+55"
+            else if (!phone.startsWith('+') && phone.length >= 10) {
+              // Se tem 11 dígitos (DDD + número), adicionar +55
+              if (phone.length === 11) {
+                phone = '+55' + phone;
+              }
+              // Se tem 10 dígitos, também adicionar +55
+              else if (phone.length === 10) {
+                phone = '+55' + phone;
+              }
+            }
+            
+            return `${phone}${contact.name ? `,${contact.name}` : ''}`;
+          })
           .join('\n');
       } else {
         text = pastedList;
+      }
+
+      // Se a lista vem do funil (todos têm lead_id), considerar todos válidos
+      // pois são leads que chegaram via webhook e têm WhatsApp válido
+      if (isFromFunilList && selectedList) {
+        const totalContacts = selectedList.contacts.length;
+        
+        // Normalizar telefones para o formato correto
+        const validContacts = selectedList.contacts.map(contact => {
+          let phone = contact.phone || '';
+          
+          // Garantir formato correto com "+"
+          if (phone.startsWith('55') && !phone.startsWith('+')) {
+            phone = '+' + phone;
+          } else if (!phone.startsWith('+') && phone.length >= 10) {
+            if (phone.length === 11) {
+              phone = '+55' + phone;
+            } else if (phone.length === 10) {
+              phone = '+55' + phone;
+            }
+          }
+          
+          return {
+            phone,
+            name: contact.name || undefined,
+            valid: true
+          };
+        });
+        
+        setValidationResult({
+          total: totalContacts,
+          valid: totalContacts,
+          invalid: 0,
+          whatsappValid: totalContacts,
+          whatsappInvalid: 0
+        });
+        
+        toast({
+          title: "Lista do funil validada!",
+          description: `✅ ${totalContacts} contatos válidos (todos têm WhatsApp confirmado via webhook)`,
+        });
+        
+        setValidatingContacts(false);
+        return;
       }
 
       // Buscar configuração da instância Evolution (usar primeira instância para validação)
@@ -506,7 +582,7 @@ export default function BroadcastCampaigns() {
         throw new Error("Instância não encontrada");
       }
 
-      // Validar contatos com normalização e verificação WhatsApp
+      // Validar contatos com normalização e verificação WhatsApp (para CSV e paste)
       toast({
         title: "Validando contatos...",
         description: "Normalizando números e verificando WhatsApp via Evolution API",
@@ -596,33 +672,85 @@ export default function BroadcastCampaigns() {
 
       // Ler contatos novamente para obter dados validados
       let text: string;
+      let contacts: Array<{ phone: string; name?: string }> = [];
+      
       if (importMode === "csv" && csvFile) {
         text = await csvFile.text();
+      } else if (importMode === "list" && selectedListId) {
+        // Se for lista do funil, usar contatos diretamente sem revalidar
+        const selectedList = lists.find(l => l.id === selectedListId);
+        if (selectedList) {
+          const allFromFunil = selectedList.contacts.length > 0 && 
+            selectedList.contacts.every(contact => contact.lead_id);
+          
+          if (allFromFunil) {
+            // Lista do funil: usar contatos diretamente com formatação correta
+            contacts = selectedList.contacts.map(contact => {
+              let phone = contact.phone || '';
+              
+              // Garantir formato correto com "+"
+              if (phone.startsWith('55') && !phone.startsWith('+')) {
+                phone = '+' + phone;
+              } else if (!phone.startsWith('+') && phone.length >= 10) {
+                if (phone.length === 11) {
+                  phone = '+55' + phone;
+                } else if (phone.length === 10) {
+                  phone = '+55' + phone;
+                }
+              }
+              
+              return {
+                phone,
+                name: contact.name || undefined
+              };
+            });
+          } else {
+            // Lista mista: converter para texto e validar
+            text = selectedList.contacts
+              .map(contact => {
+                let phone = contact.phone || '';
+                if (phone.startsWith('55') && !phone.startsWith('+')) {
+                  phone = '+' + phone;
+                } else if (!phone.startsWith('+') && phone.length >= 10) {
+                  if (phone.length === 11) {
+                    phone = '+55' + phone;
+                  } else if (phone.length === 10) {
+                    phone = '+55' + phone;
+                  }
+                }
+                return `${phone}${contact.name ? `,${contact.name}` : ''}`;
+              })
+              .join('\n');
+          }
+        }
       } else {
         text = pastedList;
       }
 
-      // Buscar configuração da instância Evolution (usar primeira para validação)
-      const instanceIdForValidation = newCampaign.sendingMethod === "single" 
-        ? newCampaign.instanceId 
-        : newCampaign.instanceIds[0];
-      
-      const instance = instances.find(i => i.id === instanceIdForValidation);
-      if (!instance) {
-        throw new Error("Instância não encontrada");
+      // Se ainda não temos contatos (não é lista do funil), validar via API
+      if (contacts.length === 0) {
+        // Buscar configuração da instância Evolution (usar primeira para validação)
+        const instanceIdForValidation = newCampaign.sendingMethod === "single" 
+          ? newCampaign.instanceId 
+          : newCampaign.instanceIds[0];
+        
+        const instance = instances.find(i => i.id === instanceIdForValidation);
+        if (!instance) {
+          throw new Error("Instância não encontrada");
+        }
+
+        const validation = await validateContactsComplete(text, instanceIdForValidation, {
+          api_url: instance.api_url,
+          api_key: instance.api_key,
+          instance_name: instance.instance_name
+        }, newCampaign.useLatamValidator);
+
+        // Usar apenas os contatos validados com WhatsApp
+        contacts = validation.whatsappValidated.map(c => ({
+          phone: c.phone,
+          name: c.name
+        }));
       }
-
-      const validation = await validateContactsComplete(text, instanceIdForValidation, {
-        api_url: instance.api_url,
-        api_key: instance.api_key,
-        instance_name: instance.instance_name
-      }, newCampaign.useLatamValidator);
-
-      // Usar apenas os contatos validados com WhatsApp
-      const contacts = validation.whatsappValidated.map(c => ({
-        phone: c.phone,
-        name: c.name
-      }));
 
       // Criar campanha
       const { data: { user } } = await supabase.auth.getUser();

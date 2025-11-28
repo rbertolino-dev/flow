@@ -1,23 +1,45 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
 interface DeleteEventPayload {
   google_calendar_config_id: string;
   google_event_id: string;
 }
 
 serve(async (req) => {
+  // CORS headers dinâmicos
+  const origin = req.headers.get('Origin') || '*';
+  const requestHeaders = req.headers.get('Access-Control-Request-Headers') || 'authorization, x-client-info, apikey, content-type';
+  
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': requestHeaders,
+    'Access-Control-Max-Age': '86400',
+  };
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204,
+      headers: {
+        ...corsHeaders,
+        'Content-Length': '0',
+      }
+    });
   }
 
   try {
-    const { google_calendar_config_id, google_event_id } = await req.json() as DeleteEventPayload;
+    let payload: DeleteEventPayload;
+    try {
+      payload = await req.json() as DeleteEventPayload;
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: 'Payload JSON inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { google_calendar_config_id, google_event_id } = payload;
 
     if (!google_calendar_config_id || !google_event_id) {
       return new Response(

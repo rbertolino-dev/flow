@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { fromZonedTime } from "https://esm.sh/date-fns-tz@0.1.2";
 
 interface UpdateEventPayload {
   google_calendar_config_id: string;
@@ -21,12 +17,37 @@ interface UpdateEventPayload {
 }
 
 serve(async (req) => {
+  // CORS headers dinâmicos
+  const origin = req.headers.get('Origin') || '*';
+  const requestHeaders = req.headers.get('Access-Control-Request-Headers') || 'authorization, x-client-info, apikey, content-type';
+  
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': requestHeaders,
+    'Access-Control-Max-Age': '86400',
+  };
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204,
+      headers: {
+        ...corsHeaders,
+        'Content-Length': '0',
+      }
+    });
   }
 
   try {
-    const payload = await req.json() as UpdateEventPayload;
+    let payload: UpdateEventPayload;
+    try {
+      payload = await req.json() as UpdateEventPayload;
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: 'Payload JSON inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const { 
       google_calendar_config_id,
       google_event_id,
@@ -121,17 +142,36 @@ serve(async (req) => {
 
     // Atualizar data/hora se fornecida
     if (startDateTime) {
-      const startDate = new Date(startDateTime);
-      const endDate = endDateTime ? new Date(endDateTime) : 
-                     (durationMinutes ? new Date(startDate.getTime() + durationMinutes * 60000) :
-                     new Date(existingEvent.end?.dateTime || existingEvent.end?.date));
+      // Interpretar startDateTime como hora de São Paulo e converter para UTC
+      // Formato esperado: "YYYY-MM-DDTHH:mm:ss" (sem timezone, assumindo São Paulo)
+      const [datePart, timePart] = startDateTime.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
+      
+      // Criar data local assumindo que é em São Paulo
+      const saoPauloStartDate = new Date(year, month - 1, day, hours, minutes, seconds || 0);
+      const utcStartDate = fromZonedTime(saoPauloStartDate, 'America/Sao_Paulo');
+      
+      let utcEndDate: Date;
+      if (endDateTime) {
+        const [endDatePart, endTimePart] = endDateTime.split('T');
+        const [endYear, endMonth, endDay] = endDatePart.split('-').map(Number);
+        const [endHours, endMinutes, endSeconds = 0] = endTimePart.split(':').map(Number);
+        const saoPauloEndDate = new Date(endYear, endMonth - 1, endDay, endHours, endMinutes, endSeconds || 0);
+        utcEndDate = fromZonedTime(saoPauloEndDate, 'America/Sao_Paulo');
+      } else if (durationMinutes) {
+        utcEndDate = new Date(utcStartDate.getTime() + durationMinutes * 60000);
+      } else {
+        const existingEnd = existingEvent.end?.dateTime || existingEvent.end?.date;
+        utcEndDate = new Date(existingEnd);
+      }
 
       eventUpdate.start = {
-        dateTime: startDate.toISOString(),
+        dateTime: utcStartDate.toISOString(),
         timeZone: 'America/Sao_Paulo',
       };
       eventUpdate.end = {
-        dateTime: endDate.toISOString(),
+        dateTime: utcEndDate.toISOString(),
         timeZone: 'America/Sao_Paulo',
       };
     }
