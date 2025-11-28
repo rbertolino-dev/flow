@@ -123,12 +123,21 @@ export default function BroadcastCampaigns() {
     whatsappValid: number;
     whatsappInvalid: number;
   } | null>(null);
+  const [validatedContactsList, setValidatedContactsList] = useState<Array<{
+    phone: string;
+    name?: string;
+    instanceId?: string;
+    messageVariation?: string;
+    estimatedTime?: Date;
+  }>>([]);
   const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
   const { toast } = useToast();
   const { lists, saveList, deleteList, isLoading: listsLoading } = useWorkflowLists();
   const { leadOptions } = useLeadOptions();
   const [listManagerOpen, setListManagerOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string>("");
+  const [searchSimulation, setSearchSimulation] = useState("");
+  const [filterInstanceSimulation, setFilterInstanceSimulation] = useState<string>("all");
 
   const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
     if (view === "kanban") navigate('/');
@@ -555,6 +564,50 @@ export default function BroadcastCampaigns() {
           };
         });
         
+        // Preparar lista completa para simulação
+        const messagesToUse = newCampaign.messageVariations.length > 0 
+          ? newCampaign.messageVariations 
+          : [newCampaign.customMessage || ''];
+        
+        const instancesForRotation = newCampaign.sendingMethod === "single" 
+          ? [newCampaign.instanceId]
+          : newCampaign.instanceIds;
+        
+        const simulationList: Array<{
+          phone: string;
+          name?: string;
+          instanceId?: string;
+          messageVariation?: string;
+          estimatedTime?: Date;
+        }> = [];
+        
+        if (newCampaign.sendingMethod === "separate") {
+          instancesForRotation.forEach(instanceId => {
+            validContacts.forEach((contact, index) => {
+              const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+              simulationList.push({
+                phone: contact.phone,
+                name: contact.name,
+                instanceId: instanceId,
+                messageVariation: messagesToUse[messageIndex],
+              });
+            });
+          });
+        } else {
+          validContacts.forEach((contact, index) => {
+            const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+            const instanceIndex = index % instancesForRotation.length;
+            simulationList.push({
+              phone: contact.phone,
+              name: contact.name,
+              instanceId: instancesForRotation[instanceIndex],
+              messageVariation: messagesToUse[messageIndex],
+            });
+          });
+        }
+        
+        setValidatedContactsList(simulationList);
+        
         setValidationResult({
           total: totalContacts,
           valid: totalContacts,
@@ -608,6 +661,50 @@ export default function BroadcastCampaigns() {
         whatsappValid,
         whatsappInvalid
       });
+
+      // Preparar lista completa de contatos validados para simulação
+      const messagesToUse = newCampaign.messageVariations.length > 0 
+        ? newCampaign.messageVariations 
+        : [newCampaign.customMessage || ''];
+      
+      const instancesForRotation = newCampaign.sendingMethod === "single" 
+        ? [newCampaign.instanceId]
+        : newCampaign.instanceIds;
+      
+      const simulationList: Array<{
+        phone: string;
+        name?: string;
+        instanceId?: string;
+        messageVariation?: string;
+        estimatedTime?: Date;
+      }> = [];
+      
+      if (newCampaign.sendingMethod === "separate") {
+        instancesForRotation.forEach(instanceId => {
+          validation.whatsappValidated.forEach((contact, index) => {
+            const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+            simulationList.push({
+              phone: contact.phone,
+              name: contact.name,
+              instanceId: instanceId,
+              messageVariation: messagesToUse[messageIndex],
+            });
+          });
+        });
+      } else {
+        validation.whatsappValidated.forEach((contact, index) => {
+          const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+          const instanceIndex = index % instancesForRotation.length;
+          simulationList.push({
+            phone: contact.phone,
+            name: contact.name,
+            instanceId: instancesForRotation[instanceIndex],
+            messageVariation: messagesToUse[messageIndex],
+          });
+        });
+      }
+      
+      setValidatedContactsList(simulationList);
 
       if (whatsappValid === 0) {
         toast({
@@ -876,6 +973,7 @@ export default function BroadcastCampaigns() {
       setPastedList("");
       setImportMode("csv");
       setValidationResult(null);
+      setValidatedContactsList([]);
       fetchCampaigns();
     } catch (error: any) {
       toast({
@@ -2267,6 +2365,31 @@ export default function BroadcastCampaigns() {
                     <p className="text-xs text-muted-foreground">
                       Listas criadas no funil de vendas ou na aba "Listas"
                     </p>
+                    {/* Botão Pular Validação para listas do funil */}
+                    {selectedListId && (() => {
+                      const selectedList = lists.find(l => l.id === selectedListId);
+                      const isFromFunil = selectedList && selectedList.contacts.length > 0 && 
+                        selectedList.contacts.every(contact => contact.lead_id);
+                      
+                      if (isFromFunil) {
+                        return (
+                          <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                                  Lista do Funil de Vendas
+                                </p>
+                                <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                                  Esta lista contém leads com WhatsApp já confirmado via webhook. Você pode pular a validação.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
 
@@ -2310,9 +2433,119 @@ export default function BroadcastCampaigns() {
                 )}
               </div>
               <DialogFooter className="flex-col sm:flex-row gap-2">
-                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                <Button variant="outline" onClick={() => {
+                  setCreateDialogOpen(false);
+                  setValidationResult(null);
+                  setValidatedContactsList([]);
+                }}>
                   Cancelar
                 </Button>
+                {/* Botão Pular Validação para listas do funil */}
+                {importMode === "list" && selectedListId && (() => {
+                  const selectedList = lists.find(l => l.id === selectedListId);
+                  const isFromFunil = selectedList && selectedList.contacts.length > 0 && 
+                    selectedList.contacts.every(contact => contact.lead_id);
+                  
+                  if (isFromFunil && !validationResult) {
+                    return (
+                      <Button 
+                        onClick={async () => {
+                          if (!selectedList) return;
+                          
+                          const totalContacts = selectedList.contacts.length;
+                          
+                          // Normalizar telefones e preparar lista de contatos validados
+                          const contacts = selectedList.contacts.map(contact => {
+                            let phone = contact.phone || '';
+                            
+                            if (phone.startsWith('55') && !phone.startsWith('+')) {
+                              phone = '+' + phone;
+                            } else if (!phone.startsWith('+') && phone.length >= 10) {
+                              if (phone.length === 11) {
+                                phone = '+55' + phone;
+                              } else if (phone.length === 10) {
+                                phone = '+55' + phone;
+                              }
+                            }
+                            
+                            return {
+                              phone,
+                              name: contact.name || undefined
+                            };
+                          });
+                          
+                          // Preparar lista completa para simulação
+                          const messagesToUse = newCampaign.messageVariations.length > 0 
+                            ? newCampaign.messageVariations 
+                            : [newCampaign.customMessage || ''];
+                          
+                          const instancesForRotation = newCampaign.sendingMethod === "single" 
+                            ? [newCampaign.instanceId]
+                            : newCampaign.instanceIds;
+                          
+                          const simulationList: Array<{
+                            phone: string;
+                            name?: string;
+                            instanceId?: string;
+                            messageVariation?: string;
+                            estimatedTime?: Date;
+                          }> = [];
+                          
+                          if (newCampaign.sendingMethod === "separate") {
+                            instancesForRotation.forEach(instanceId => {
+                              contacts.forEach((contact, index) => {
+                                const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+                                simulationList.push({
+                                  phone: contact.phone,
+                                  name: contact.name,
+                                  instanceId: instanceId,
+                                  messageVariation: messagesToUse[messageIndex],
+                                });
+                              });
+                            });
+                          } else {
+                            contacts.forEach((contact, index) => {
+                              const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+                              const instanceIndex = index % instancesForRotation.length;
+                              simulationList.push({
+                                phone: contact.phone,
+                                name: contact.name,
+                                instanceId: instancesForRotation[instanceIndex],
+                                messageVariation: messagesToUse[messageIndex],
+                              });
+                            });
+                          }
+                          
+                          setValidatedContactsList(simulationList);
+                          
+                          setValidationResult({
+                            total: totalContacts,
+                            valid: totalContacts,
+                            invalid: 0,
+                            whatsappValid: totalContacts,
+                            whatsappInvalid: 0
+                          });
+                          
+                          toast({
+                            title: "Validação pulada!",
+                            description: `${totalContacts} contatos da lista do funil considerados válidos (WhatsApp confirmado)`,
+                          });
+                        }}
+                        disabled={
+                          loading || 
+                          (newCampaign.sendingMethod === "single" && !newCampaign.instanceId) ||
+                          (newCampaign.sendingMethod !== "single" && newCampaign.instanceIds.length === 0)
+                        }
+                        variant="outline"
+                        className="border-green-500 text-green-700 hover:bg-green-50 dark:border-green-400 dark:text-green-400 dark:hover:bg-green-950/20"
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Pular Validação (Lista do Funil)
+                      </Button>
+                    );
+                  }
+                  return null;
+                })()}
                 <Button 
                   onClick={handleValidateContacts} 
                   disabled={
@@ -2829,8 +3062,14 @@ export default function BroadcastCampaigns() {
         )}
 
         {/* Dialog de Simulação de Envio */}
-        <Dialog open={simulationDialogOpen} onOpenChange={setSimulationDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <Dialog open={simulationDialogOpen} onOpenChange={(open) => {
+          setSimulationDialogOpen(open);
+          if (!open) {
+            setSearchSimulation("");
+            setFilterInstanceSimulation("all");
+          }
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Simulação de Envio</DialogTitle>
               <DialogDescription>
@@ -3024,6 +3263,109 @@ export default function BroadcastCampaigns() {
                       })()}
                     </div>
                   </div>
+
+                  {/* Lista Completa de Leads Validados */}
+                  {validatedContactsList.length > 0 && (() => {
+                    const filteredSimulationList = validatedContactsList.filter(contact => {
+                      const matchesSearch = !searchSimulation || 
+                        contact.phone.includes(searchSimulation.replace(/\D/g, "")) ||
+                        contact.name?.toLowerCase().includes(searchSimulation.toLowerCase());
+                      const matchesInstance = filterInstanceSimulation === "all" || 
+                        contact.instanceId === filterInstanceSimulation;
+                      return matchesSearch && matchesInstance;
+                    });
+                    
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold">Leads Validados para Envio</h3>
+                          <Badge variant="outline">{filteredSimulationList.length} de {validatedContactsList.length} contato(s)</Badge>
+                        </div>
+                        
+                        {/* Filtros de busca */}
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type="text"
+                              placeholder="Buscar por telefone ou nome..."
+                              value={searchSimulation}
+                              onChange={(e) => setSearchSimulation(e.target.value)}
+                              className="pl-10"
+                            />
+                          </div>
+                          <Select value={filterInstanceSimulation} onValueChange={setFilterInstanceSimulation}>
+                            <SelectTrigger className="w-[200px]">
+                              <SelectValue placeholder="Todas Instâncias" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todas Instâncias</SelectItem>
+                              {instances.map((instance) => (
+                                <SelectItem key={instance.id} value={instance.id}>
+                                  {instance.instance_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="border rounded-lg">
+                          <ScrollArea className="h-[400px]">
+                            <div className="divide-y">
+                              {filteredSimulationList.map((contact, index) => {
+                                const instance = instances.find(i => i.id === contact.instanceId);
+                                const originalIndex = validatedContactsList.findIndex(c => 
+                                  c.phone === contact.phone && c.instanceId === contact.instanceId
+                                );
+                                return (
+                                  <div key={`${contact.phone}-${contact.instanceId}-${index}`} className="p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1 space-y-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-medium text-sm">{contact.phone}</span>
+                                          {contact.name && (
+                                            <span className="text-sm text-muted-foreground">({contact.name})</span>
+                                          )}
+                                          {instance && (
+                                            <Badge variant="outline" className="text-xs">
+                                              {instance.instance_name}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        {contact.messageVariation && (
+                                          <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded border">
+                                            <span className="font-medium">Mensagem:</span>
+                                            <p className="mt-1 whitespace-pre-wrap line-clamp-2">
+                                              {contact.messageVariation.replace(/\{nome\}/gi, contact.name || 'Cliente')}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col items-end gap-1">
+                                        <Badge variant="secondary" className="text-xs">
+                                          #{originalIndex + 1}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                        {filteredSimulationList.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            {searchSimulation || filterInstanceSimulation !== "all" 
+                              ? "Nenhum contato encontrado com os filtros aplicados" 
+                              : "Nenhum contato para exibir"}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Mostrando {filteredSimulationList.length} de {validatedContactsList.length} contato(s) validado(s) que receberão mensagens nesta campanha.
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>
