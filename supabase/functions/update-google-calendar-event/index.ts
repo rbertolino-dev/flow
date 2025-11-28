@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { fromZonedTime } from "https://esm.sh/date-fns-tz@0.1.2";
+import { toZonedTime, fromZonedTime } from "https://esm.sh/date-fns-tz@3.1.3";
 
 interface UpdateEventPayload {
   google_calendar_config_id: string;
