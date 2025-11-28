@@ -55,6 +55,7 @@ export function BubbleLeadsSyncPanel() {
   const [isImporting, setIsImporting] = useState(false);
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState("");
+  const [isAddingToList, setIsAddingToList] = useState(false);
   const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
   const { refetch: refetchLeads } = useLeads();
 
@@ -275,7 +276,7 @@ export function BubbleLeadsSyncPanel() {
       return;
     }
 
-    setIsSyncing(true);
+    setIsAddingToList(true);
     try {
       const orgId = await getUserOrganizationId();
       if (!orgId) throw new Error("Organização não encontrada");
@@ -366,7 +367,7 @@ export function BubbleLeadsSyncPanel() {
         variant: "destructive",
       });
     } finally {
-      setIsSyncing(false);
+      setIsAddingToList(false);
     }
   };
 
