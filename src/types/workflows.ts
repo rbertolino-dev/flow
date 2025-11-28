@@ -136,6 +136,8 @@ export interface WorkflowEnvio {
   last_run_at?: string | null;
   requires_approval?: boolean;
   approval_deadline_hours?: number | null;
+  created_at: string;
+  updated_at: string;
   list?: WorkflowList | null;
   group?: WorkflowGroup | null; // Novo campo
   attachments?: WorkflowAttachment[];

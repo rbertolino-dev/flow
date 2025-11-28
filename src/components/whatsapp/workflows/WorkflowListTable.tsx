@@ -146,7 +146,10 @@ export function WorkflowListTable({
                     onCheckedChange={handleSelectAll}
                     ref={(el) => {
                       if (el) {
-                        el.indeterminate = someSelected;
+                        const input = el.querySelector('input');
+                        if (input) {
+                          input.indeterminate = someSelected;
+                        }
                       }
                     }}
                   />
