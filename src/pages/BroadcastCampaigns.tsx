@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -1434,7 +1434,7 @@ export default function BroadcastCampaigns() {
                     </div>
                     <Button onClick={() => setListManagerOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Nova Lista
+                      Gerenciar Listas
                     </Button>
                   </div>
                 </CardHeader>
@@ -1448,7 +1448,7 @@ export default function BroadcastCampaigns() {
                       <List className="h-12 w-12 mx-auto mb-3 opacity-50" />
                       <p>Nenhuma lista criada ainda</p>
                       <p className="text-sm mt-1">
-                        Crie listas no funil de vendas ou clique em "Nova Lista"
+                        Crie listas no funil de vendas ou clique em "Gerenciar Listas"
                       </p>
                     </div>
                   ) : (
@@ -1459,11 +1459,16 @@ export default function BroadcastCampaigns() {
                           className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-medium">{list.name}</h3>
                               <Badge variant="outline">
                                 {list.contacts.length} contato(s)
                               </Badge>
+                              {list.default_instance_id && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Instância padrão
+                                </Badge>
+                              )}
                             </div>
                             {list.description && (
                               <p className="text-sm text-muted-foreground mt-1">
@@ -1486,13 +1491,10 @@ export default function BroadcastCampaigns() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={async () => {
-                                if (confirm(`Deseja excluir a lista "${list.name}"?`)) {
-                                  await deleteList(list.id);
-                                }
-                              }}
+                              onClick={() => setListManagerOpen(true)}
+                              title="Editar/Visualizar lista"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Edit className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
