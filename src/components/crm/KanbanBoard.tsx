@@ -11,7 +11,7 @@ import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, P
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
-import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3, Send, List } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3, Send, List, Tag } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { normalizePhone } from "@/lib/phoneUtils";
@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { useTags } from "@/hooks/useTags";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -59,6 +60,10 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState("");
   const [isAddingToList, setIsAddingToList] = useState(false);
+  const { tags, addTagToLead } = useTags();
+  const [addTagDialogOpen, setAddTagDialogOpen] = useState(false);
+  const [selectedTagId, setSelectedTagId] = useState("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
   
   // Criar mapa de instâncias para lookup rápido
   const instanceMap = useMemo(() => {
@@ -502,6 +507,75 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     }
   };
 
+  const handleAddTagToSelected = async () => {
+    if (!selectedTagId) {
+      toast({
+        title: "Etiqueta não selecionada",
+        description: "Selecione uma etiqueta para adicionar aos leads",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
+    if (selectedLeads.length === 0) {
+      toast({
+        title: "Nenhum lead selecionado",
+        description: "Selecione pelo menos um lead",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAddingTag(true);
+    try {
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      for (const lead of selectedLeads) {
+        // Verificar se o lead já tem a etiqueta
+        const hasTag = lead.tags?.some(tag => tag.id === selectedTagId);
+        if (hasTag) {
+          skippedCount++;
+          continue;
+        }
+
+        const success = await addTagToLead(lead.id, selectedTagId);
+        if (success) {
+          addedCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+
+      if (addedCount > 0) {
+        toast({
+          title: "Etiquetas adicionadas",
+          description: `${addedCount} lead(s) receberam a etiqueta${skippedCount > 0 ? ` (${skippedCount} já tinham ou erro)` : ''}`,
+        });
+      } else {
+        toast({
+          title: "Nenhuma etiqueta adicionada",
+          description: skippedCount > 0 ? `${skippedCount} lead(s) já possuíam a etiqueta ou ocorreram erros.` : 'Nada para adicionar.',
+          variant: "destructive",
+        });
+      }
+
+      setAddTagDialogOpen(false);
+      setSelectedTagId("");
+      clearSelection();
+      onRefetch();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao adicionar etiquetas',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingTag(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
@@ -714,6 +788,17 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             <Button
               size="sm"
               variant="secondary"
+              onClick={() => setAddTagDialogOpen(true)}
+              className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
+            >
+              <Tag className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Etiqueta</span>
+              <span className="sm:hidden">Tag</span>
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={handleAddToCallQueue}
               className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
             >
@@ -814,6 +899,79 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                 <>
                   <Send className="h-4 w-4 mr-2" />
                   Adicionar à Lista
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para adicionar etiqueta aos leads selecionados */}
+      <Dialog open={addTagDialogOpen} onOpenChange={setAddTagDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Etiqueta aos Leads</DialogTitle>
+            <DialogDescription>
+              Selecione uma etiqueta para adicionar aos {selectedLeadIds.size} lead(s) selecionado(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Selecione a Etiqueta</Label>
+              <Select value={selectedTagId} onValueChange={setSelectedTagId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha uma etiqueta..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      Nenhuma etiqueta disponível. Crie uma etiqueta primeiro.
+                    </div>
+                  ) : (
+                    tags.map((tag) => (
+                      <SelectItem key={tag.id} value={tag.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="h-3 w-3 rounded-full" 
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          {tag.name}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <Alert>
+              <AlertDescription>
+                A etiqueta será adicionada a todos os leads selecionados. Leads que já possuem esta etiqueta serão ignorados.
+              </AlertDescription>
+            </Alert>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddTagDialogOpen(false);
+                setSelectedTagId("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddTagToSelected}
+              disabled={!selectedTagId || isAddingTag}
+            >
+              {isAddingTag ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adicionando...
+                </>
+              ) : (
+                <>
+                  <Tag className="h-4 w-4 mr-2" />
+                  Adicionar Etiqueta
                 </>
               )}
             </Button>
