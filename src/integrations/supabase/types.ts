@@ -2541,6 +2541,8 @@ export type Database = {
           boleto_url: string | null
           codigo_barras: string | null
           created_at: string
+          criado_por: string | null
+          data_pagamento: string | null
           data_vencimento: string
           descricao: string | null
           id: string
@@ -2553,6 +2555,7 @@ export type Database = {
           status: string
           updated_at: string
           valor: number
+          valor_pago: number | null
           workflow_id: string | null
         }
         Insert: {
@@ -2562,6 +2565,8 @@ export type Database = {
           boleto_url?: string | null
           codigo_barras?: string | null
           created_at?: string
+          criado_por?: string | null
+          data_pagamento?: string | null
           data_vencimento: string
           descricao?: string | null
           id?: string
@@ -2574,6 +2579,7 @@ export type Database = {
           status?: string
           updated_at?: string
           valor: number
+          valor_pago?: number | null
           workflow_id?: string | null
         }
         Update: {
@@ -2583,6 +2589,8 @@ export type Database = {
           boleto_url?: string | null
           codigo_barras?: string | null
           created_at?: string
+          criado_por?: string | null
+          data_pagamento?: string | null
           data_vencimento?: string
           descricao?: string | null
           id?: string
@@ -2595,9 +2603,17 @@ export type Database = {
           status?: string
           updated_at?: string
           valor?: number
+          valor_pago?: number | null
           workflow_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_boletos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_boletos_lead_id_fkey"
             columns: ["lead_id"]
