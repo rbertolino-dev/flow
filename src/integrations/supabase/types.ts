@@ -2908,6 +2908,76 @@ export type Database = {
           },
         ]
       }
+      whatsapp_status_posts: {
+        Row: {
+          caption: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          instance_id: string
+          media_type: string
+          media_url: string
+          organization_id: string
+          published_at: string | null
+          scheduled_for: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          instance_id: string
+          media_type: string
+          media_url: string
+          organization_id: string
+          published_at?: string | null
+          scheduled_for: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          instance_id?: string
+          media_type?: string
+          media_url?: string
+          organization_id?: string
+          published_at?: string | null
+          scheduled_for?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_status_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_status_posts_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_status_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_workflow_approvals: {
         Row: {
           approval_date: string | null
