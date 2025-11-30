@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -32,6 +32,8 @@ import { WorkflowListManager } from "@/components/whatsapp/workflows/WorkflowLis
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
+import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
+import { StatusMediaUpload } from "@/components/whatsapp/StatusMediaUpload";
 import { 
   isTimeInWindow, 
   calculateEstimatedTimeWithWindow, 
@@ -73,6 +75,377 @@ interface Template {
   message_variations?: string[];
   min_delay_seconds: number;
   max_delay_seconds: number;
+}
+
+interface WhatsAppStatusTabProps {
+  instances: Array<{ id: string; instance_name: string; is_connected: boolean }>;
+}
+
+function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
+  const {
+    statusPosts,
+    isLoading,
+    createStatusPost,
+    cancelStatusPost,
+    deleteStatusPost,
+    republishStatusPost,
+    isCreating,
+    isCancelling,
+    isDeleting,
+    isRepublishing,
+  } = useWhatsAppStatus();
+
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [mediaUrl, setMediaUrl] = useState<string>("");
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [caption, setCaption] = useState<string>("");
+  const [publishNow, setPublishNow] = useState(true);
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(new Date());
+  const [scheduledTime, setScheduledTime] = useState<string>("");
+  const { toast } = useToast();
+
+  const connectedInstances = useMemo(
+    () => instances.filter(i => i.is_connected === true),
+    [instances]
+  );
+
+  const handleCreateStatus = async () => {
+    if (!selectedInstanceId || !mediaUrl || !mediaType) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Selecione uma instância e faça upload de uma mídia",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!publishNow && (!scheduledDate || !scheduledTime)) {
+      toast({
+        title: "Data/hora obrigatória",
+        description: "Selecione data e hora para agendamento",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let scheduledFor: Date;
+      if (publishNow) {
+        scheduledFor = new Date();
+      } else {
+        const [hours, minutes] = scheduledTime.split(':');
+        scheduledFor = new Date(scheduledDate!);
+        scheduledFor.setHours(parseInt(hours || '0', 10));
+        scheduledFor.setMinutes(parseInt(minutes || '0', 10));
+        scheduledFor.setSeconds(0);
+      }
+
+      await createStatusPost({
+        instanceId: selectedInstanceId,
+        mediaUrl,
+        mediaType,
+        caption: caption || undefined,
+        scheduledFor,
+        publishNow,
+      });
+
+      // Limpar formulário
+      setSelectedInstanceId("");
+      setMediaUrl("");
+      setMediaType(null);
+      setCaption("");
+      setPublishNow(true);
+      setScheduledDate(new Date());
+      setScheduledTime("");
+      setCreateDialogOpen(false);
+    } catch (error: any) {
+      console.error('Erro ao criar status:', error);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-500';
+      case 'published': return 'bg-green-500';
+      case 'failed': return 'bg-red-500';
+      case 'cancelled': return 'bg-gray-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pendente';
+      case 'published': return 'Publicado';
+      case 'failed': return 'Falhou';
+      case 'cancelled': return 'Cancelado';
+      default: return status;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Status do WhatsApp</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Agende ou publique imagens e vídeos no status das instâncias conectadas
+            </p>
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Status
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : statusPosts.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <ImageIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>Nenhum status criado ainda</p>
+            <p className="text-sm mt-1">
+              Clique em "Novo Status" para criar seu primeiro agendamento
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {statusPosts.map((post) => {
+              const instance = instances.find(i => i.id === post.instance_id);
+              return (
+                <div
+                  key={post.id}
+                  className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      {post.media_type === 'image' ? (
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border">
+                          <img
+                            src={post.media_url}
+                            alt="Status"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border bg-black flex items-center justify-center">
+                          <Video className="h-8 w-8 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <Badge className={getStatusColor(post.status)}>
+                          {getStatusLabel(post.status)}
+                        </Badge>
+                        <Badge variant="outline">
+                          {instance?.instance_name || 'Instância desconhecida'}
+                        </Badge>
+                        <Badge variant="secondary">
+                          {post.media_type === 'image' ? 'Imagem' : 'Vídeo'}
+                        </Badge>
+                      </div>
+                      {post.caption && (
+                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                          {post.caption}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>
+                          Agendado: {formatDate(new Date(post.scheduled_for), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        {post.published_at && (
+                          <span>
+                            Publicado: {formatDate(new Date(post.published_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        )}
+                      </div>
+                      {post.error_message && (
+                        <p className="text-xs text-red-600 mt-2">
+                          Erro: {post.error_message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {post.status === 'failed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => republishStatusPost(post.id)}
+                          disabled={isRepublishing}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Republicar
+                        </Button>
+                      )}
+                      {post.status === 'pending' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => cancelStatusPost(post.id)}
+                          disabled={isCancelling}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteStatusPost(post.id)}
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Criar Status</DialogTitle>
+            <DialogDescription>
+              Publique ou agende uma imagem ou vídeo no status do WhatsApp
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Instância</Label>
+              <Select
+                value={selectedInstanceId}
+                onValueChange={setSelectedInstanceId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma instância conectada" />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedInstances.map((instance) => (
+                    <SelectItem key={instance.id} value={instance.id}>
+                      {instance.instance_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {connectedInstances.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nenhuma instância conectada disponível
+                </p>
+              )}
+            </div>
+
+            <StatusMediaUpload
+              onMediaSelected={(url, type) => {
+                setMediaUrl(url);
+                setMediaType(type);
+              }}
+              onCaptionChange={setCaption}
+            />
+
+            <div>
+              <Label>Opção de Publicação</Label>
+              <div className="flex gap-4 mt-2">
+                <Button
+                  type="button"
+                  variant={publishNow ? "default" : "outline"}
+                  onClick={() => setPublishNow(true)}
+                  className="flex-1"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Publicar Agora
+                </Button>
+                <Button
+                  type="button"
+                  variant={!publishNow ? "default" : "outline"}
+                  onClick={() => setPublishNow(false)}
+                  className="flex-1"
+                >
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  Agendar
+                </Button>
+              </div>
+            </div>
+
+            {!publishNow && (
+              <div className="space-y-4">
+                <div>
+                  <Label>Data</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {scheduledDate ? (
+                          formatDate(scheduledDate, "PPP", { locale: ptBR })
+                        ) : (
+                          <span>Selecione uma data</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={scheduledDate}
+                        onSelect={setScheduledDate}
+                        disabled={(date) => date < new Date()}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label>Hora</Label>
+                  <Input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateStatus} disabled={isCreating}>
+              {isCreating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {publishNow ? "Publicando..." : "Agendando..."}
+                </>
+              ) : (
+                <>
+                  {publishNow ? (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Publicar
+                    </>
+                  ) : (
+                    <>
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      Agendar
+                    </>
+                  )}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
 }
 
 export default function BroadcastCampaigns() {
@@ -1611,6 +1984,10 @@ export default function BroadcastCampaigns() {
                 <List className="h-5 w-5 mr-2" />
                 Listas
               </TabsTrigger>
+              <TabsTrigger value="status" className="text-base font-semibold px-6 py-2.5 h-10">
+                <ImageIcon className="h-5 w-5 mr-2" />
+                Status
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="templates">
@@ -1729,6 +2106,10 @@ export default function BroadcastCampaigns() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="status">
+              <WhatsAppStatusTab instances={instances} />
             </TabsContent>
 
             <TabsContent value="campaigns">
