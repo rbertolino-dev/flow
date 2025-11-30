@@ -104,3 +104,9 @@ verify_jwt = false
 
 [functions.delete-google-calendar-event]
 verify_jwt = false
+
+[functions.publish-whatsapp-status]
+verify_jwt = true
+
+[functions.process-status-schedule]
+verify_jwt = false
