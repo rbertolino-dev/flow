@@ -54,12 +54,11 @@ serve(async (req) => {
     // Para status do WhatsApp, usamos o endpoint sendStatus específico
     const evolutionUrl = `${baseUrl}/message/sendStatus/${config.instance_name}`;
     
-    // Payload para status do WhatsApp
+    // Payload para status do WhatsApp - quando allContacts é true, não incluir statusJidList
     const payload: any = {
       type: mediaType,
       content: mediaUrl,
       allContacts: true, // Visível para todos os contatos
-      statusJidList: [], // Array vazio quando allContacts é true
     };
 
     // Adicionar caption/legenda se fornecido
