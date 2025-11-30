@@ -54,10 +54,11 @@ serve(async (req) => {
     // Para status do WhatsApp, usamos o endpoint sendStatus específico
     const evolutionUrl = `${baseUrl}/message/sendStatus/${config.instance_name}`;
     
-    // Payload para status do WhatsApp
+    // Payload para status do WhatsApp - StatusJidList vazio significa visível para todos os contatos
     const payload: any = {
       type: mediaType,
       content: mediaUrl,
+      statusJidList: [], // Array vazio = todos os contatos podem ver
     };
 
     // Adicionar caption/legenda se fornecido
