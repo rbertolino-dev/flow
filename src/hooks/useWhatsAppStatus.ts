@@ -62,6 +62,11 @@ export function useWhatsAppStatus() {
         .eq('id', user.id)
         .single();
 
+      // Se for publicação imediata, usar data no passado para garantir execução
+      const scheduledFor = params.publishNow 
+        ? new Date(Date.now() - 1000).toISOString() // 1 segundo no passado
+        : params.scheduledFor.toISOString();
+
       // Criar registro no banco
       const { data, error } = await supabase
         .from('whatsapp_status_posts')
@@ -71,8 +76,8 @@ export function useWhatsAppStatus() {
           media_url: params.mediaUrl,
           media_type: params.mediaType,
           caption: params.caption || null,
-          scheduled_for: params.scheduledFor.toISOString(),
-          status: params.publishNow ? 'pending' : 'pending',
+          scheduled_for: scheduledFor,
+          status: 'pending',
           created_by: profile?.id || user.id,
         })
         .select()
@@ -80,7 +85,7 @@ export function useWhatsAppStatus() {
 
       if (error) throw error;
 
-      // Se for publicação imediata, chamar a função de publicação
+      // Se for publicação imediata, chamar a função de publicação imediatamente
       if (params.publishNow) {
         const response = await supabase.functions.invoke('publish-whatsapp-status', {
           body: {
