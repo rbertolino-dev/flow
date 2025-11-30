@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { fromZonedTime } from "https://esm.sh/date-fns-tz@0.1.2";
+import { toZonedTime, fromZonedTime } from "https://esm.sh/date-fns-tz@3.1.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -176,8 +176,8 @@ serve(async (req) => {
     const eventData = await calendarResponse.json();
     console.log('Evento criado:', eventData.id);
 
-    const eventStart = eventData.start?.dateTime || eventData.start?.date || startDate.toISOString();
-    const eventEnd = eventData.end?.dateTime || eventData.end?.date || endDate.toISOString();
+    const eventStart = eventData.start?.dateTime || eventData.start?.date || utcStartDate.toISOString();
+    const eventEnd = eventData.end?.dateTime || eventData.end?.date || utcEndDate.toISOString();
 
     // Atualizar cache local na tabela calendar_events
     const { error: upsertError } = await supabase
