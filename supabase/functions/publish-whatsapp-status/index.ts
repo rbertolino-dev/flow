@@ -51,28 +51,24 @@ serve(async (req) => {
     // Normalizar URL da API (remover /manager se existir)
     const baseUrl = config.api_url.replace(/\/manager\/?$/, '');
 
-    // Para status do WhatsApp, usamos sendMedia sem número (ou com número null)
-    // O endpoint pode variar, mas geralmente é sendMedia
-    const evolutionUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
+    // Para status do WhatsApp, usamos o endpoint sendStatus específico
+    const evolutionUrl = `${baseUrl}/message/sendStatus/${config.instance_name}`;
     
-    // Payload para status: sem número ou com número null
-    // Algumas versões da Evolution API podem precisar de um endpoint específico para status
+    // Payload para status do WhatsApp
     const payload: any = {
-      mediatype: mediaType,
-      media: mediaUrl,
+      type: mediaType,
+      content: mediaUrl,
     };
 
-    // Adicionar caption se fornecido
+    // Adicionar caption/legenda se fornecido
     if (caption) {
       payload.caption = caption;
     }
 
-    // Tentar primeiro sem número (para status)
-    // Se não funcionar, pode ser necessário usar endpoint específico
     console.log(`📤 Publicando status via Evolution API na instância ${config.instance_name}`);
-    console.log(`📋 Payload:`, JSON.stringify({ ...payload, media: mediaUrl.substring(0, 50) + '...' }));
+    console.log(`📋 Payload:`, JSON.stringify({ ...payload, content: mediaUrl.substring(0, 50) + '...' }));
     
-    let response = await fetch(evolutionUrl, {
+    const response = await fetch(evolutionUrl, {
       method: 'POST',
       headers: {
         'apikey': config.api_key || '',
@@ -80,21 +76,6 @@ serve(async (req) => {
       },
       body: JSON.stringify(payload),
     });
-
-    // Se falhar, tentar com número null (algumas versões podem precisar)
-    if (!response.ok) {
-      console.log('⚠️ Tentativa sem número falhou, tentando com número null...');
-      payload.number = null;
-      
-      response = await fetch(evolutionUrl, {
-        method: 'POST',
-        headers: {
-          'apikey': config.api_key || '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-    }
 
     if (!response.ok) {
       const errorText = await response.text();
