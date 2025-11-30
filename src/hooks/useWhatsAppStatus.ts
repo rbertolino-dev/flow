@@ -82,24 +82,18 @@ export function useWhatsAppStatus() {
 
       // Se for publicação imediata, chamar a função de publicação
       if (params.publishNow) {
-        try {
-          const response = await supabase.functions.invoke('publish-whatsapp-status', {
-            body: {
-              instanceId: params.instanceId,
-              mediaUrl: params.mediaUrl,
-              mediaType: params.mediaType,
-              caption: params.caption || null,
-              statusPostId: data.id,
-            },
-          });
+        const response = await supabase.functions.invoke('publish-whatsapp-status', {
+          body: {
+            instanceId: params.instanceId,
+            mediaUrl: params.mediaUrl,
+            mediaType: params.mediaType,
+            caption: params.caption || null,
+            statusPostId: data.id,
+          },
+        });
 
-          if (response.error) {
-            throw response.error;
-          }
-        } catch (error: any) {
-          console.error('Erro ao publicar status imediatamente:', error);
-          // Não falhar a criação do registro, apenas logar o erro
-          // O status ficará como 'pending' e pode ser republicado depois
+        if (response.error) {
+          throw new Error(response.error.message || 'Erro ao publicar status');
         }
       }
 
