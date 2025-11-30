@@ -1692,6 +1692,164 @@ export type Database = {
           },
         ]
       }
+      google_business_configs: {
+        Row: {
+          account_name: string
+          business_account_id: string | null
+          client_id: string
+          client_secret: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_access_at: string | null
+          location_id: string | null
+          location_name: string | null
+          organization_id: string
+          refresh_token: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_name: string
+          business_account_id?: string | null
+          client_id: string
+          client_secret: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_access_at?: string | null
+          location_id?: string | null
+          location_name?: string | null
+          organization_id: string
+          refresh_token: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_name?: string
+          business_account_id?: string | null
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_access_at?: string | null
+          location_id?: string | null
+          location_name?: string | null
+          organization_id?: string
+          refresh_token?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_business_configs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_business_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_business_configs_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_business_posts: {
+        Row: {
+          call_to_action_type: string | null
+          call_to_action_url: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          error_message: string | null
+          google_business_config_id: string
+          google_post_id: string | null
+          id: string
+          media_urls: Json | null
+          organization_id: string
+          post_type: string
+          published_at: string | null
+          scheduled_for: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          call_to_action_type?: string | null
+          call_to_action_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          error_message?: string | null
+          google_business_config_id: string
+          google_post_id?: string | null
+          id?: string
+          media_urls?: Json | null
+          organization_id: string
+          post_type: string
+          published_at?: string | null
+          scheduled_for: string
+          status?: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          call_to_action_type?: string | null
+          call_to_action_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          error_message?: string | null
+          google_business_config_id?: string
+          google_post_id?: string | null
+          id?: string
+          media_urls?: Json | null
+          organization_id?: string
+          post_type?: string
+          published_at?: string | null
+          scheduled_for?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_business_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_business_posts_google_business_config_id_fkey"
+            columns: ["google_business_config_id"]
+            isOneToOne: false
+            referencedRelation: "google_business_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_business_posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_configs: {
         Row: {
           account_name: string
