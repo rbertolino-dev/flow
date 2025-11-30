@@ -58,7 +58,7 @@ serve(async (req) => {
     const payload: any = {
       type: mediaType,
       content: mediaUrl,
-      statusJidList: [], // Array vazio = todos os contatos podem ver
+      StatusJidList: [], // Array vazio = todos os contatos podem ver (campo com maiúsculas!)
     };
 
     // Adicionar caption/legenda se fornecido
