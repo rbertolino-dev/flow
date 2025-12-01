@@ -28,8 +28,9 @@ export const useAllChatwootConversations = (organizationId: string | null, inbox
             return [];
           }
           
-          const conversationsList = data?.conversations?.data?.payload || data?.conversations?.payload || data?.conversations || [];
-          console.log(`💬 ${conversationsList.length} conversas encontradas na inbox ${inbox.name}`);
+          // A função agora retorna todas as conversas paginadas automaticamente
+          const conversationsList = data?.conversations || [];
+          console.log(`💬 ${conversationsList.length} conversas encontradas na inbox ${inbox.name} (Total: ${data?.total || conversationsList.length})`);
           
           // Adicionar informações da inbox em cada conversa
           return Array.isArray(conversationsList) 
