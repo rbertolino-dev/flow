@@ -2486,6 +2486,228 @@ export type Database = {
           },
         ]
       }
+      post_sale_activities: {
+        Row: {
+          content: string
+          created_at: string
+          direction: string | null
+          id: string
+          organization_id: string
+          post_sale_lead_id: string
+          type: string
+          user_name: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          direction?: string | null
+          id?: string
+          organization_id: string
+          post_sale_lead_id: string
+          type: string
+          user_name?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          direction?: string | null
+          id?: string
+          organization_id?: string
+          post_sale_lead_id?: string
+          type?: string
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_sale_activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_sale_activities_post_sale_lead_id_fkey"
+            columns: ["post_sale_lead_id"]
+            isOneToOne: false
+            referencedRelation: "post_sale_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_sale_lead_tags: {
+        Row: {
+          created_at: string
+          id: string
+          post_sale_lead_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_sale_lead_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_sale_lead_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_sale_lead_tags_post_sale_lead_id_fkey"
+            columns: ["post_sale_lead_id"]
+            isOneToOne: false
+            referencedRelation: "post_sale_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_sale_lead_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_sale_leads: {
+        Row: {
+          assigned_to: string | null
+          company: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          email: string | null
+          id: string
+          last_contact: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          original_lead_id: string | null
+          phone: string
+          source: string
+          stage_id: string | null
+          status: string
+          transferred_at: string | null
+          transferred_by: string | null
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          last_contact?: string | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          original_lead_id?: string | null
+          phone: string
+          source?: string
+          stage_id?: string | null
+          status?: string
+          transferred_at?: string | null
+          transferred_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          last_contact?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          original_lead_id?: string | null
+          phone?: string
+          source?: string
+          stage_id?: string | null
+          status?: string
+          transferred_at?: string | null
+          transferred_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_sale_leads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_sale_leads_original_lead_id_fkey"
+            columns: ["original_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_sale_leads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "post_sale_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_sale_stages: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_sale_stages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -3452,6 +3674,10 @@ export type Database = {
       can_schedule_message_for_lead: {
         Args: { _lead_id: string; _user_id: string }
         Returns: boolean
+      }
+      create_default_post_sale_stages: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: undefined
       }
       create_lead_secure: {
         Args: {
