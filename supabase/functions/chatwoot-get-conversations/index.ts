@@ -45,23 +45,50 @@ Deno.serve(async (req) => {
       throw new Error('Integração com Chatwoot não está ativada');
     }
 
-    // Função para buscar todas as conversas com paginação
-    const fetchAllConversations = async () => {
-      const allConversations: any[] = [];
-      let currentPage = 1;
+    // Primeiro, buscar a primeira página para verificar o formato
+    const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations?inbox_id=${inboxId}&api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
+    
+    console.log('📞 Buscando conversas da inbox:', inboxId);
+
+    const response = await fetch(chatwootUrl, {
+      method: 'GET',
+      headers: {
+        'api_access_token': config.chatwoot_api_access_token,
+        'Authorization': `Bearer ${config.chatwoot_api_access_token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Erro ao buscar conversas: ${response.status} - ${errorData}`);
+    }
+
+    const data = await response.json();
+    
+    // Extrair conversas do formato retornado
+    let conversations = data?.payload || data?.data?.payload || data?.data || data?.conversations || data || [];
+    
+    // Garantir que é um array
+    if (!Array.isArray(conversations)) {
+      conversations = [];
+    }
+
+    console.log(`✅ ${conversations.length} conversas encontradas na primeira página`);
+
+    // Se houver mais páginas, buscar todas
+    if (conversations.length >= 15) {
+      const allConversations = [...conversations];
+      let currentPage = 2;
       let hasMore = true;
-      const pageSize = 15;
-      let consecutiveErrors = 0;
-      const maxConsecutiveErrors = 2;
+      const maxPages = 100; // Limite de segurança
 
-      while (hasMore && currentPage <= 50) { // Limite de 50 páginas
+      while (hasMore && currentPage <= maxPages) {
         try {
-          // Formato igual ao usado em chatwoot-list-inboxes que funciona
-          const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations?inbox_id=${inboxId}&page=${currentPage}&api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
+          const pageUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations?inbox_id=${inboxId}&page=${currentPage}&api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
           
-          console.log(`📞 Buscando página ${currentPage} da inbox ${inboxId}`);
-
-          const response = await fetch(chatwootUrl, {
+          const pageResponse = await fetch(pageUrl, {
             method: 'GET',
             headers: {
               'api_access_token': config.chatwoot_api_access_token,
@@ -71,104 +98,57 @@ Deno.serve(async (req) => {
             },
           });
 
-          if (!response.ok) {
-            const errorData = await response.text();
-            console.error(`❌ Erro HTTP ${response.status} ao buscar página ${currentPage}: ${errorData.substring(0, 500)}`);
-            consecutiveErrors++;
-            
-            // Se for erro 404 ou 401, parar completamente
-            if (response.status === 404 || response.status === 401) {
-              console.error(`❌ Erro crítico ${response.status}, parando busca`);
-              break;
-            }
-            
-            // Se muitos erros consecutivos, parar
-            if (consecutiveErrors >= maxConsecutiveErrors) {
-              console.error(`❌ Muitos erros consecutivos (${consecutiveErrors}), parando busca`);
-              break;
-            }
-            
-            // Tentar próxima página mesmo com erro
-            currentPage++;
-            continue;
+          if (!pageResponse.ok) {
+            console.log(`ℹ️ Página ${currentPage} retornou erro ${pageResponse.status}, finalizando busca`);
+            hasMore = false;
+            break;
           }
 
-          consecutiveErrors = 0; // Reset contador de erros
-          const data = await response.json();
+          const pageData = await pageResponse.json();
+          const pageConversations = pageData?.payload || pageData?.data?.payload || pageData?.data || pageData?.conversations || pageData || [];
           
-          // A API do Chatwoot geralmente retorna { payload: [...] }
-          let conversations: any[] = [];
-          
-          // Tentar diferentes formatos de resposta
-          if (Array.isArray(data)) {
-            conversations = data;
-          } else if (data?.payload && Array.isArray(data.payload)) {
-            conversations = data.payload;
-          } else if (data?.data?.payload && Array.isArray(data.data.payload)) {
-            conversations = data.data.payload;
-          } else if (data?.data && Array.isArray(data.data)) {
-            conversations = data.data;
-          } else if (data?.conversations && Array.isArray(data.conversations)) {
-            conversations = data.conversations;
-          }
-          
-          console.log(`📋 Página ${currentPage}: formato recebido - isArray: ${Array.isArray(data)}, hasPayload: ${!!data?.payload}, conversas encontradas: ${conversations.length}`);
-          
-          if (conversations.length > 0) {
-            allConversations.push(...conversations);
-            console.log(`✅ Página ${currentPage}: ${conversations.length} conversas (Total: ${allConversations.length})`);
+          if (Array.isArray(pageConversations) && pageConversations.length > 0) {
+            allConversations.push(...pageConversations);
+            console.log(`✅ Página ${currentPage}: ${pageConversations.length} conversas (Total: ${allConversations.length})`);
             
-            // Se retornou menos que o pageSize, não há mais páginas
-            hasMore = conversations.length >= pageSize;
-            currentPage++;
+            // Se retornou menos que 15, não há mais páginas
+            if (pageConversations.length < 15) {
+              hasMore = false;
+            } else {
+              currentPage++;
+            }
           } else {
-            // Se não retornou conversas, não há mais páginas
-            console.log(`ℹ️ Página ${currentPage} sem conversas, finalizando`);
             hasMore = false;
           }
         } catch (pageError) {
-          console.error(`❌ Erro ao processar página ${currentPage}:`, pageError);
-          consecutiveErrors++;
-          
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.error(`❌ Muitos erros consecutivos (${consecutiveErrors}), parando busca`);
-            break;
-          }
-          
-          // Tentar próxima página mesmo com erro
-          currentPage++;
+          console.error(`❌ Erro ao buscar página ${currentPage}:`, pageError);
+          hasMore = false;
         }
       }
 
-      return allConversations;
-    };
+      console.log(`✅ Total final: ${allConversations.length} conversas`);
+      return new Response(JSON.stringify({ 
+        conversations: allConversations,
+        total: allConversations.length 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    // Buscar todas as conversas
-    console.log(`🚀 Iniciando busca de conversas para inbox ${inboxId}`);
-    const allConversations = await fetchAllConversations();
-
-    console.log(`✅ Total de conversas encontradas: ${allConversations.length}`);
-
-    // Sempre retornar um array, mesmo que vazio
+    // Se não há mais páginas, retornar apenas as primeiras
     return new Response(JSON.stringify({ 
-      conversations: allConversations,
-      total: allConversations.length 
+      conversations: conversations,
+      total: conversations.length 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('❌ Erro geral:', error);
+    console.error('❌ Erro:', error);
     const message = error instanceof Error ? error.message : 'Erro desconhecido';
-    
-    // Retornar array vazio ao invés de erro para não quebrar o frontend
-    return new Response(JSON.stringify({ 
-      conversations: [],
-      total: 0,
-      error: message 
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: message }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
