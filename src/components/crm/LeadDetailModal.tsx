@@ -212,29 +212,26 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     try {
       console.log('💾 Salvando etiquetas:', { leadId: currentLead.id, pendingTags });
       
-      // Adicionar novas tags
-      const addedTags: any[] = [];
-      const errors: string[] = [];
+      if (pendingTags.length === 0) {
+        toast({
+          title: "Nenhuma etiqueta selecionada",
+          description: "Selecione ao menos uma etiqueta para adicionar.",
+          variant: "default",
+        });
+        setIsEditingTags(false);
+        return;
+      }
       
-      for (const tagId of pendingTags) {
-        console.log(`📌 Adicionando etiqueta ${tagId} ao lead ${currentLead.id}`);
-        const success = await addTagToLead(currentLead.id, tagId);
-        
-        if (!success) {
-          errors.push(`Falha ao adicionar etiqueta ${tagId}`);
-          continue;
-        }
-        
-        // Buscar a tag completa para atualizar o estado local
-        const tag = tags.find(t => t.id === tagId);
-        if (tag) {
-          addedTags.push(tag);
-        }
-      }
+      // Adicionar novas tags
+      const results = await Promise.all(
+        pendingTags.map(tagId => addTagToLead(currentLead.id, tagId))
+      );
+      
+      const newlyAdded = results.filter(r => r.success && !r.alreadyExists);
+      const alreadyExisted = results.filter(r => r.success && r.alreadyExists);
+      const failed = results.filter(r => !r.success);
 
-      if (errors.length > 0 && addedTags.length === 0) {
-        throw new Error(`Nenhuma etiqueta foi salva. Erros: ${errors.join(', ')}`);
-      }
+      console.log('📊 Resultado:', { newlyAdded: newlyAdded.length, alreadyExisted: alreadyExisted.length, failed: failed.length });
 
       // Buscar tags atualizadas do banco para garantir sincronização
       console.log('🔄 Buscando etiquetas atualizadas do banco...');
@@ -245,6 +242,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
       if (fetchError) {
         console.error('❌ Erro ao buscar etiquetas:', fetchError);
+        throw fetchError;
       }
 
       if (leadTagsData) {
@@ -258,24 +256,36 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           ...prev,
           tags: updatedTags
         }));
-      } else if (addedTags.length > 0) {
-        // Fallback: usar tags adicionadas se não conseguir buscar do banco
-        setCurrentLead(prev => ({
-          ...prev,
-          tags: [...(prev.tags || []), ...addedTags]
-        }));
       }
 
-      if (errors.length > 0 && addedTags.length > 0) {
+      // Feedback ao usuário
+      if (failed.length === pendingTags.length) {
+        // Todas falharam
+        throw new Error('Nenhuma etiqueta pôde ser adicionada. Verifique os dados e tente novamente.');
+      } else if (newlyAdded.length > 0 && alreadyExisted.length === 0 && failed.length === 0) {
+        // Todas foram adicionadas com sucesso
         toast({
-          title: "Etiquetas parcialmente salvas",
-          description: `${addedTags.length} salva(s), ${errors.length} erro(s)`,
+          title: "Etiquetas adicionadas",
+          description: `${newlyAdded.length} etiqueta(s) adicionada(s) com sucesso.`,
+        });
+      } else if (alreadyExisted.length > 0 && newlyAdded.length === 0 && failed.length === 0) {
+        // Todas já existiam
+        toast({
+          title: "Etiquetas já existem",
+          description: `${alreadyExisted.length === 1 ? 'A etiqueta já estava' : 'As etiquetas já estavam'} associada(s) a este lead.`,
           variant: "default",
         });
       } else {
+        // Situação mista
+        const messages = [];
+        if (newlyAdded.length > 0) messages.push(`${newlyAdded.length} adicionada(s)`);
+        if (alreadyExisted.length > 0) messages.push(`${alreadyExisted.length} já existia(m)`);
+        if (failed.length > 0) messages.push(`${failed.length} falhou/falharam`);
+        
         toast({
-          title: "Etiquetas salvas",
-          description: `${addedTags.length} etiqueta(s) adicionada(s) com sucesso.`,
+          title: "Etiquetas processadas",
+          description: messages.join(', ') + '.',
+          variant: failed.length > 0 ? "destructive" : "default",
         });
       }
 

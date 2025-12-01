@@ -530,34 +530,45 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     setIsAddingTag(true);
     try {
       let addedCount = 0;
-      let skippedCount = 0;
+      let alreadyExistedCount = 0;
+      let errorCount = 0;
 
       for (const lead of selectedLeads) {
-        // Verificar se o lead já tem a etiqueta
+        // Verificar se o lead já tem a etiqueta (verificação local antes de chamar API)
         const hasTag = lead.tags?.some(tag => tag.id === selectedTagId);
         if (hasTag) {
-          skippedCount++;
+          alreadyExistedCount++;
           continue;
         }
 
-        const success = await addTagToLead(lead.id, selectedTagId);
-        if (success) {
+        const result = await addTagToLead(lead.id, selectedTagId);
+        if (result.success && !result.alreadyExists) {
           addedCount++;
+        } else if (result.success && result.alreadyExists) {
+          alreadyExistedCount++;
         } else {
-          skippedCount++;
+          errorCount++;
         }
       }
 
       if (addedCount > 0) {
+        const extras = [];
+        if (alreadyExistedCount > 0) extras.push(`${alreadyExistedCount} já tinham`);
+        if (errorCount > 0) extras.push(`${errorCount} erro(s)`);
+        
         toast({
           title: "Etiquetas adicionadas",
-          description: `${addedCount} lead(s) receberam a etiqueta${skippedCount > 0 ? ` (${skippedCount} já tinham ou erro)` : ''}`,
+          description: `${addedCount} lead(s) receberam a etiqueta${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`,
         });
       } else {
+        const message = [];
+        if (alreadyExistedCount > 0) message.push(`${alreadyExistedCount} já possuíam a etiqueta`);
+        if (errorCount > 0) message.push(`${errorCount} erro(s)`);
+        
         toast({
           title: "Nenhuma etiqueta adicionada",
-          description: skippedCount > 0 ? `${skippedCount} lead(s) já possuíam a etiqueta ou ocorreram erros.` : 'Nada para adicionar.',
-          variant: "destructive",
+          description: message.length > 0 ? message.join(', ') + '.' : 'Nada para adicionar.',
+          variant: "default",
         });
       }
 
