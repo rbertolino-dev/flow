@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CallQueueItem } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
-import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -10,9 +10,14 @@ export function useCallQueue() {
   const [callQueue, setCallQueue] = useState<CallQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
-    fetchCallQueue();
+    if (activeOrgId) {
+      fetchCallQueue();
+    } else {
+      setLoading(false);
+    }
 
     // OTIMIZAÇÃO: Canal único consolidado para reduzir conexões realtime
     const channel = supabase
@@ -46,13 +51,12 @@ export function useCallQueue() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeOrgId]);
 
   const fetchCallQueue = async () => {
     try {
       // Filtrar pela organização ativa
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
+      if (!activeOrgId) {
         setCallQueue([]);
         setLoading(false);
         return;
@@ -62,7 +66,7 @@ export function useCallQueue() {
       const { data, error: queryError } = await (supabase as any)
         .from('call_queue')
         .select('*, leads(id, name, phone, call_count, created_at)')
-        .eq('organization_id', organizationId)
+        .eq('organization_id', activeOrgId)
         .order('scheduled_for', { ascending: true });
 
       if (queryError) {
@@ -277,12 +281,12 @@ export function useCallQueue() {
       ));
 
       // Garantir organização e salvar histórico
-      const orgId = await ensureUserOrganization();
+      if (!activeOrgId) throw new Error('Organização não encontrada');
       await (supabase as any)
         .from('call_queue_history')
         .insert({
           lead_id: queueItem.lead_id,
-          organization_id: orgId,
+          organization_id: activeOrgId,
           lead_name: queueItem.leads?.name || 'Nome não disponível',
           lead_phone: queueItem.leads?.phone || '',
           scheduled_for: queueItem.scheduled_for,
