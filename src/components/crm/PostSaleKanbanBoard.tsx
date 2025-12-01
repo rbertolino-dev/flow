@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { CreatePostSaleLeadDialog } from "./CreatePostSaleLeadDialog";
+import { PostSaleStageManager } from "./PostSaleStageManager";
 
 interface PostSaleKanbanBoardProps {
   leads: PostSaleLead[];
@@ -137,10 +138,13 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
           <h2 className="text-xl font-semibold">Funil de Pós-Venda</h2>
           <Badge variant="secondary">{filteredLeads.length} clientes</Badge>
         </div>
-        <Button onClick={() => setCreateLeadOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Adicionar Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <PostSaleStageManager />
+          <Button onClick={() => setCreateLeadOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Adicionar Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Kanban Board */}

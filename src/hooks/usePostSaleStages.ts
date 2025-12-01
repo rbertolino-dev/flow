@@ -85,13 +85,19 @@ export function usePostSaleStages() {
     };
   }, []);
 
-  const createStage = async (name: string, color: string, position: number) => {
+  const createStage = async (name: string, color: string) => {
     try {
       const organizationId = await getUserOrganizationId();
       if (!organizationId) throw new Error('Organização não encontrada');
 
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user?.id) throw new Error('Usuário não autenticado');
+
+      // Calcular a próxima posição
+      const maxPosition = stages.length > 0 
+        ? Math.max(...stages.map(s => s.position)) 
+        : -1;
+      const nextPosition = maxPosition + 1;
 
       const { error } = await supabase
         .from('post_sale_stages')
@@ -100,7 +106,7 @@ export function usePostSaleStages() {
           user_id: userData.user.id,
           name,
           color,
-          position,
+          position: nextPosition,
         });
 
       if (error) throw error;
@@ -122,11 +128,14 @@ export function usePostSaleStages() {
     }
   };
 
-  const updateStage = async (id: string, name: string, color: string, position: number) => {
+  const updateStage = async (id: string, name: string, color: string) => {
     try {
+      const currentStage = stages.find(s => s.id === id);
+      if (!currentStage) throw new Error('Etapa não encontrada');
+
       const { error } = await supabase
         .from('post_sale_stages')
-        .update({ name, color, position })
+        .update({ name, color })
         .eq('id', id);
 
       if (error) throw error;
@@ -150,6 +159,37 @@ export function usePostSaleStages() {
 
   const deleteStage = async (id: string) => {
     try {
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) throw new Error('Organização não encontrada');
+
+      // Verificar se há leads nesta etapa
+      const { data: leadsInStage } = await supabase
+        .from('post_sale_leads')
+        .select('id')
+        .eq('stage_id', id)
+        .is('deleted_at', null)
+        .limit(1);
+
+      if (leadsInStage && leadsInStage.length > 0) {
+        // Buscar primeira etapa para mover os leads
+        const { data: firstStage } = await supabase
+          .from('post_sale_stages')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .neq('id', id)
+          .order('position', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (firstStage) {
+          // Mover todos os leads desta etapa para a primeira etapa disponível
+          await supabase
+            .from('post_sale_leads')
+            .update({ stage_id: firstStage.id })
+            .eq('stage_id', id);
+        }
+      }
+
       const { error } = await supabase
         .from('post_sale_stages')
         .delete()
@@ -159,7 +199,9 @@ export function usePostSaleStages() {
 
       toast({
         title: "Etapa excluída",
-        description: "A etapa foi excluída com sucesso.",
+        description: leadsInStage && leadsInStage.length > 0 
+          ? "Etapa excluída. Os clientes foram movidos para a primeira etapa."
+          : "A etapa foi excluída com sucesso.",
       });
 
       await fetchStages();
@@ -174,6 +216,28 @@ export function usePostSaleStages() {
     }
   };
 
-  return { stages, loading, createStage, updateStage, deleteStage, refetch: fetchStages };
+  const reorderStages = async (reorderedStages: PostSaleStage[]) => {
+    try {
+      const updates = reorderedStages.map((stage, index) => 
+        supabase
+          .from('post_sale_stages')
+          .update({ position: index })
+          .eq('id', stage.id)
+      );
+
+      await Promise.all(updates);
+      await fetchStages();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao reordenar etapas",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  return { stages, loading, createStage, updateStage, deleteStage, reorderStages, refetch: fetchStages };
 }
 
