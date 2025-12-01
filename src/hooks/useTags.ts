@@ -204,11 +204,86 @@ export function useTags() {
     }
   };
 
-  const addTagToLead = async (leadId: string, tagId: string) => {
+  const addTagToLead = async (leadId: string, tagId: string): Promise<{ success: boolean; alreadyExists?: boolean; tagName?: string }> => {
     try {
       console.log('🏷️ Adicionando etiqueta:', { leadId, tagId });
       
-      const { data, error } = await (supabase as any)
+      // Validação: verificar se leadId e tagId existem e são válidos
+      if (!leadId || !tagId) {
+        toast({
+          title: "Dados inválidos",
+          description: "Lead ou etiqueta não identificados corretamente.",
+          variant: "destructive",
+        });
+        return { success: false };
+      }
+
+      // Passo 1: Verificar se o lead existe
+      const { data: leadExists, error: leadCheckError } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('id', leadId)
+        .maybeSingle();
+
+      if (leadCheckError) {
+        console.error('❌ Erro ao verificar lead:', leadCheckError);
+        throw leadCheckError;
+      }
+
+      if (!leadExists) {
+        toast({
+          title: "Lead não encontrado",
+          description: "O lead não existe ou foi removido.",
+          variant: "destructive",
+        });
+        return { success: false };
+      }
+
+      // Passo 2: Verificar se a tag existe
+      const { data: tagExists, error: tagCheckError } = await supabase
+        .from('tags')
+        .select('id, name')
+        .eq('id', tagId)
+        .maybeSingle();
+
+      if (tagCheckError) {
+        console.error('❌ Erro ao verificar tag:', tagCheckError);
+        throw tagCheckError;
+      }
+
+      if (!tagExists) {
+        toast({
+          title: "Etiqueta não encontrada",
+          description: "A etiqueta não existe ou foi removida.",
+          variant: "destructive",
+        });
+        return { success: false };
+      }
+
+      // Passo 3: Verificar se a associação já existe
+      const { data: existingAssociation, error: checkError } = await supabase
+        .from('lead_tags')
+        .select('id')
+        .eq('lead_id', leadId)
+        .eq('tag_id', tagId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('❌ Erro ao verificar associação existente:', checkError);
+        throw checkError;
+      }
+
+      if (existingAssociation) {
+        console.log('ℹ️ Etiqueta já existe no lead');
+        return { 
+          success: true, 
+          alreadyExists: true,
+          tagName: tagExists.name 
+        };
+      }
+
+      // Passo 4: Inserir a associação
+      const { data, error } = await supabase
         .from('lead_tags')
         .insert({
           lead_id: leadId,
@@ -218,14 +293,26 @@ export function useTags() {
 
       if (error) {
         console.error('❌ Erro ao adicionar etiqueta:', error);
+        
+        // Tratamento específico para erro de chave duplicada
         if (error.code === '23505') {
+          return { 
+            success: true, 
+            alreadyExists: true,
+            tagName: tagExists.name 
+          };
+        }
+        
+        // Tratamento específico para erro de chave estrangeira
+        if (error.code === '23503') {
           toast({
-            title: "Etiqueta já existe",
-            description: "Este lead já possui essa etiqueta.",
+            title: "Erro de referência",
+            description: "O lead ou a etiqueta foram removidos durante a operação.",
             variant: "destructive",
           });
-          return false;
+          return { success: false };
         }
+        
         // Mostrar erro detalhado
         toast({
           title: "Erro ao adicionar etiqueta",
@@ -236,33 +323,73 @@ export function useTags() {
       }
 
       console.log('✅ Etiqueta adicionada com sucesso:', data);
-      return true;
+      return { 
+        success: true, 
+        alreadyExists: false,
+        tagName: tagExists.name 
+      };
     } catch (error: any) {
       console.error('❌ Erro capturado ao adicionar etiqueta:', error);
       toast({
         title: "Erro ao adicionar etiqueta",
-        description: error.message || 'Erro desconhecido',
+        description: error.message || 'Erro desconhecido ao adicionar etiqueta',
         variant: "destructive",
       });
-      return false;
+      return { success: false };
     }
   };
 
-  const removeTagFromLead = async (leadId: string, tagId: string) => {
+  const removeTagFromLead = async (leadId: string, tagId: string): Promise<boolean> => {
     try {
-      const { error } = await (supabase as any)
+      console.log('🗑️ Removendo etiqueta:', { leadId, tagId });
+      
+      // Validação: verificar se leadId e tagId existem e são válidos
+      if (!leadId || !tagId) {
+        toast({
+          title: "Dados inválidos",
+          description: "Lead ou etiqueta não identificados corretamente.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Verificar se a associação existe antes de tentar remover
+      const { data: existingAssociation, error: checkError } = await supabase
+        .from('lead_tags')
+        .select('id')
+        .eq('lead_id', leadId)
+        .eq('tag_id', tagId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('❌ Erro ao verificar associação:', checkError);
+        throw checkError;
+      }
+
+      if (!existingAssociation) {
+        console.log('ℹ️ Associação não existe, nada a remover');
+        return true; // Não é erro, apenas não havia nada para remover
+      }
+
+      // Remover a associação
+      const { error } = await supabase
         .from('lead_tags')
         .delete()
         .eq('lead_id', leadId)
         .eq('tag_id', tagId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao remover etiqueta:', error);
+        throw error;
+      }
 
+      console.log('✅ Etiqueta removida com sucesso');
       return true;
     } catch (error: any) {
+      console.error('❌ Erro capturado ao remover etiqueta:', error);
       toast({
         title: "Erro ao remover etiqueta",
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao remover etiqueta',
         variant: "destructive",
       });
       return false;
