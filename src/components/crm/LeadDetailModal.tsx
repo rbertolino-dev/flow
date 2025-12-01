@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
@@ -45,6 +45,7 @@ import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
 import { AddLeadToListDialog } from "./AddLeadToListDialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
+import { TransferToPostSaleDialog } from "./TransferToPostSaleDialog";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -94,6 +95,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [isEditingTags, setIsEditingTags] = useState(false);
   // Estado local do lead para atualizar tags imediatamente
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
+  const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
 
   // Atualizar currentLead quando o lead prop mudar
   useEffect(() => {
@@ -1025,6 +1027,15 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 <Plus className="h-4 w-4" />
                 Adicionar a uma lista de disparo
               </Button>
+              
+              <Button
+                onClick={() => setTransferToPostSaleDialogOpen(true)}
+                variant="outline"
+                className="w-full gap-2 border-green-500 text-green-700 hover:bg-green-50 dark:border-green-400 dark:text-green-400 dark:hover:bg-green-950"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Transferir para Pós-Venda
+              </Button>
             </div>
 
             <Separator />
@@ -1283,6 +1294,15 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         open={addToListDialogOpen}
         onOpenChange={setAddToListDialogOpen}
         lead={lead}
+      />
+      
+      <TransferToPostSaleDialog
+        lead={lead}
+        open={transferToPostSaleDialogOpen}
+        onOpenChange={setTransferToPostSaleDialogOpen}
+        onTransferred={() => {
+          onUpdated?.();
+        }}
       />
     </Dialog>
   );

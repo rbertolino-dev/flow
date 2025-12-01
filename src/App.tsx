@@ -26,6 +26,7 @@ import Gmail from "./pages/Gmail";
 import FormBuilder from "./pages/FormBuilder";
 import AutomationFlows from "./pages/AutomationFlows";
 import GoogleBusinessPosts from "./pages/GoogleBusinessPosts";
+import PostSale from "./pages/PostSale";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
           <Route path="/form-builder" element={<FormBuilder />} />
           <Route path="/automation-flows" element={<AutomationFlows />} />
           <Route path="/google-business-posts" element={<GoogleBusinessPosts />} />
+          <Route path="/post-sale" element={<PostSale />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

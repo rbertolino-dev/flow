@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +27,8 @@ export type CRMView =
   | "phonebook"
   | "unified-messages"
   | "attention"
-  | "automation-flows";
+  | "automation-flows"
+  | "post-sale";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -73,6 +74,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const baseMenuItems = [
     { id: "crm" as const, label: "CRM", icon: Users },
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
+    { id: "post-sale" as const, label: "Pós-Venda", icon: ShoppingBag },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
     { id: "agilizechat" as const, label: "Agilizechat", icon: MessageSquare },
@@ -197,6 +199,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/settings');
               } else if (item.id === 'form-builder') {
                 navigate('/form-builder');
+              } else if (item.id === 'post-sale') {
+                navigate('/post-sale');
               } else if (item.id === 'kanban' || item.id === 'calls') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });
