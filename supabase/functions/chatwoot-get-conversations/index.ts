@@ -50,40 +50,14 @@ Deno.serve(async (req) => {
       const allConversations: any[] = [];
       let currentPage = 1;
       let hasMore = true;
-      const pageSize = 15; // Tamanho padrão da API do Chatwoot
+      const pageSize = 15;
       let consecutiveErrors = 0;
-      const maxConsecutiveErrors = 3;
-      
-      // Primeiro, tentar buscar sem paginação para ver o formato da resposta
-      try {
-        const testUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations?inbox_id=${inboxId}`;
-        console.log(`🔍 Testando formato da API sem paginação...`);
-        
-        const testResponse = await fetch(testUrl, {
-          method: 'GET',
-          headers: {
-            'api_access_token': config.chatwoot_api_access_token,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (testResponse.ok) {
-          const testData = await testResponse.json();
-          console.log(`📋 Formato da resposta (sem paginação):`, {
-            isArray: Array.isArray(testData),
-            keys: Object.keys(testData || {}),
-            hasPayload: !!testData?.payload,
-            sample: JSON.stringify(testData).substring(0, 200),
-          });
-        }
-      } catch (testError) {
-        console.log(`ℹ️ Teste sem paginação falhou (continuando com paginação):`, testError);
-      }
+      const maxConsecutiveErrors = 2;
 
-      while (hasMore) {
+      while (hasMore && currentPage <= 50) { // Limite de 50 páginas
         try {
-          // API do Chatwoot - tentar diferentes formatos de URL
-          const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations?inbox_id=${inboxId}&page=${currentPage}&per_page=${pageSize}`;
+          // Formato igual ao usado em chatwoot-list-inboxes que funciona
+          const chatwootUrl = `${config.chatwoot_base_url}/api/v1/accounts/${config.chatwoot_account_id}/conversations?inbox_id=${inboxId}&page=${currentPage}&api_access_token=${encodeURIComponent(config.chatwoot_api_access_token)}`;
           
           console.log(`📞 Buscando página ${currentPage} da inbox ${inboxId}`);
 
@@ -91,13 +65,15 @@ Deno.serve(async (req) => {
             method: 'GET',
             headers: {
               'api_access_token': config.chatwoot_api_access_token,
+              'Authorization': `Bearer ${config.chatwoot_api_access_token}`,
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
           });
 
           if (!response.ok) {
             const errorData = await response.text();
-            console.error(`❌ Erro HTTP ${response.status} ao buscar página ${currentPage}: ${errorData}`);
+            console.error(`❌ Erro HTTP ${response.status} ao buscar página ${currentPage}: ${errorData.substring(0, 500)}`);
             consecutiveErrors++;
             
             // Se for erro 404 ou 401, parar completamente
@@ -118,36 +94,12 @@ Deno.serve(async (req) => {
           }
 
           consecutiveErrors = 0; // Reset contador de erros
-          const responseText = await response.text();
+          const data = await response.json();
           
-          if (!responseText || responseText.trim() === '') {
-            console.log(`⚠️ Resposta vazia na página ${currentPage}`);
-            hasMore = false;
-            break;
-          }
-
-          let data: any;
-          try {
-            data = JSON.parse(responseText);
-          } catch (parseError) {
-            console.error(`❌ Erro ao fazer parse do JSON na página ${currentPage}:`, parseError);
-            console.error(`Resposta recebida:`, responseText.substring(0, 200));
-            hasMore = false;
-            break;
-          }
-          
-          // A API do Chatwoot pode retornar em diferentes formatos
+          // A API do Chatwoot geralmente retorna { payload: [...] }
           let conversations: any[] = [];
           
-          // Log do formato recebido para debug
-          console.log(`📦 Formato da resposta página ${currentPage}:`, {
-            isArray: Array.isArray(data),
-            hasPayload: !!data?.payload,
-            hasData: !!data?.data,
-            hasConversations: !!data?.conversations,
-            keys: Object.keys(data || {}),
-          });
-          
+          // Tentar diferentes formatos de resposta
           if (Array.isArray(data)) {
             conversations = data;
           } else if (data?.payload && Array.isArray(data.payload)) {
@@ -158,27 +110,21 @@ Deno.serve(async (req) => {
             conversations = data.data;
           } else if (data?.conversations && Array.isArray(data.conversations)) {
             conversations = data.conversations;
-          } else if (data?.payload?.data && Array.isArray(data.payload.data)) {
-            conversations = data.payload.data;
           }
+          
+          console.log(`📋 Página ${currentPage}: formato recebido - isArray: ${Array.isArray(data)}, hasPayload: ${!!data?.payload}, conversas encontradas: ${conversations.length}`);
           
           if (conversations.length > 0) {
             allConversations.push(...conversations);
-            console.log(`✅ Página ${currentPage}: ${conversations.length} conversas encontradas (Total: ${allConversations.length})`);
+            console.log(`✅ Página ${currentPage}: ${conversations.length} conversas (Total: ${allConversations.length})`);
             
             // Se retornou menos que o pageSize, não há mais páginas
             hasMore = conversations.length >= pageSize;
             currentPage++;
           } else {
             // Se não retornou conversas, não há mais páginas
-            console.log(`ℹ️ Página ${currentPage} não retornou conversas, finalizando busca`);
+            console.log(`ℹ️ Página ${currentPage} sem conversas, finalizando`);
             hasMore = false;
-          }
-
-          // Limite de segurança para evitar loops infinitos
-          if (currentPage > 100) {
-            console.warn('⚠️ Limite de 100 páginas atingido');
-            break;
           }
         } catch (pageError) {
           console.error(`❌ Erro ao processar página ${currentPage}:`, pageError);
@@ -198,9 +144,10 @@ Deno.serve(async (req) => {
     };
 
     // Buscar todas as conversas
+    console.log(`🚀 Iniciando busca de conversas para inbox ${inboxId}`);
     const allConversations = await fetchAllConversations();
 
-    console.log(`✅ Total de conversas encontradas na inbox ${inboxId}: ${allConversations.length}`);
+    console.log(`✅ Total de conversas encontradas: ${allConversations.length}`);
 
     // Sempre retornar um array, mesmo que vazio
     return new Response(JSON.stringify({ 
@@ -220,7 +167,7 @@ Deno.serve(async (req) => {
       total: 0,
       error: message 
     }), {
-      status: 200, // Retornar 200 mesmo com erro para não quebrar o frontend
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
