@@ -2,15 +2,20 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
-    fetchLeads();
+    if (activeOrgId) {
+      fetchLeads();
+    } else {
+      setLoading(false);
+    }
 
     // ✅ OTIMIZAÇÃO: Realtime com updates otimistas
     const channel = supabase
@@ -88,7 +93,7 @@ export function useLeads() {
       console.log('🔌 Desconectando realtime...');
       supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, [toast, activeOrgId]);
 
   const fetchLeads = async () => {
     try {
@@ -99,20 +104,21 @@ export function useLeads() {
           title: "Você não está autenticado",
           description: "Faça login para visualizar seus leads conectados.",
         });
+        setLoading(false);
         return;
       }
 
-      // Pegar a organização ativa do localStorage
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
+      // Usar a organização ativa do contexto
+      if (!activeOrgId) {
         setLeads([]);
+        setLoading(false);
         return;
       }
 
       const { data: leadsData, error: leadsError } = await (supabase as any)
         .from('leads')
         .select('*')
-        .eq('organization_id', organizationId)
+        .eq('organization_id', activeOrgId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
@@ -205,8 +211,7 @@ export function useLeads() {
         )
       );
 
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) throw new Error('Usuário não pertence a uma organização');
+      if (!activeOrgId) throw new Error('Usuário não pertence a uma organização');
 
       const { error: updateError } = await supabase
         .from('leads')
@@ -225,7 +230,7 @@ export function useLeads() {
       // Add activity (org-scoped)
       const { error: activityError } = await supabase.from('activities').insert({
         lead_id: leadId,
-        organization_id: organizationId,
+        organization_id: activeOrgId,
         type: 'status_change',
         content: 'Lead movido para nova etapa',
         user_name: 'Sistema',
