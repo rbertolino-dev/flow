@@ -102,7 +102,7 @@ export default function AgilizeEmbed() {
             className="w-full h-full border-0"
             title="Agilize Chat"
             allow="camera; microphone; geolocation; autoplay"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-top-navigation allow-navigation"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-top-navigation"
             onLoad={() => {
               console.log('Iframe onLoad disparado');
               setLoading(false);
