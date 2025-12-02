@@ -22,6 +22,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { usePostSaleStages } from "@/hooks/usePostSaleStages";
+import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
+import { useLeadFollowUps } from "@/hooks/useLeadFollowUps";
+import { ListChecks } from "lucide-react";
 
 interface PostSaleLeadDetailModalProps {
   lead: PostSaleLead;
@@ -37,6 +40,14 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   const { toast } = useToast();
   const [notes, setNotes] = useState(lead.notes || "");
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Follow-up hooks
+  const { templates, loading: templatesLoading } = useFollowUpTemplates();
+  const leadIdForFollowUp = lead.originalLeadId || lead.id;
+  const { applyTemplate } = useLeadFollowUps(leadIdForFollowUp);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  
+  const activeTemplates = templates.filter(t => t.isActive);
 
   const handleSaveNotes = async () => {
     setIsSaving(true);
@@ -71,6 +82,36 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   const handleWhatsAppClick = () => {
     const formatted = buildCopyNumber(lead.phone);
     window.open(`https://wa.me/${formatted}`, '_blank');
+  };
+
+  const handleApplyFollowUp = async (templateId: string) => {
+    if (!templateId) return;
+    
+    // Se não tiver originalLeadId, avisar que precisa ter um lead original
+    if (!lead.originalLeadId) {
+      toast({
+        title: "Atenção",
+        description: "Este contato precisa estar vinculado a um lead original para aplicar follow-up.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const success = await applyTemplate(templateId);
+    if (success) {
+      toast({
+        title: "Follow-up aplicado",
+        description: "Template de follow-up aplicado com sucesso.",
+      });
+      setSelectedTemplateId("");
+      onUpdated?.();
+    } else {
+      toast({
+        title: "Erro ao aplicar follow-up",
+        description: "Não foi possível aplicar o template de follow-up.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -127,6 +168,43 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
             </div>
 
             <Separator />
+
+            {/* Follow-up */}
+            {lead.originalLeadId && activeTemplates.length > 0 && (
+              <>
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <ListChecks className="h-5 w-5" />
+                    Follow-up
+                  </h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="follow-up-select">Aplicar Template de Follow-up</Label>
+                    <Select
+                      value={selectedTemplateId}
+                      onValueChange={(value) => {
+                        setSelectedTemplateId(value);
+                        handleApplyFollowUp(value);
+                      }}
+                    >
+                      <SelectTrigger id="follow-up-select">
+                        <SelectValue placeholder="Selecione um template de follow-up" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione um template de follow-up para aplicar ao cliente. O template criará etapas de acompanhamento automático.
+                    </p>
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
 
             {/* Etiquetas */}
             {lead.tags && lead.tags.length > 0 && (

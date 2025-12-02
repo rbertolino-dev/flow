@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, DollarSign, MessageCircle, Trash2, Pencil } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PostSaleStage } from "@/types/postSaleLead";
 import { Checkbox } from "@/components/ui/checkbox";

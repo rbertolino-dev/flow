@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,7 +28,8 @@ export type CRMView =
   | "unified-messages"
   | "attention"
   | "automation-flows"
-  | "post-sale";
+  | "post-sale"
+  | "agilize";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -78,6 +79,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
     { id: "agilizechat" as const, label: "Agilizechat", icon: MessageSquare },
+    { id: "agilize" as const, label: "Agilize", icon: Zap },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
@@ -193,6 +195,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/calendar');
               } else if (item.id === 'agilizechat') {
                 navigate('/agilizechat');
+              } else if (item.id === 'agilize') {
+                navigate('/agilize');
               } else if (item.id === 'broadcast') {
                 navigate('/broadcast');
               } else if (item.id === 'settings') {
@@ -319,6 +323,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/calendar');
                         } else if (item.id === 'agilizechat') {
                           navigate('/agilizechat');
+                        } else if (item.id === 'agilize') {
+                          navigate('/agilize');
                         } else if (item.id === 'broadcast') {
                           navigate('/broadcast');
                         } else if (item.id === 'settings') {
