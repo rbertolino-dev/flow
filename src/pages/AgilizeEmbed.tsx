@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
@@ -9,159 +8,43 @@ export default function AgilizeEmbed() {
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [attemptedAuth, setAttemptedAuth] = useState(false);
-
-  useEffect(() => {
-    // Buscar email do usuário logado
-    const fetchUserEmail = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email) {
-          setUserEmail(user.email);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar email do usuário:', error);
-      }
-    };
-
-    fetchUserEmail();
-  }, []);
 
   useEffect(() => {
     const iframe = iframeRef.current;
-    if (!iframe || !userEmail || attemptedAuth) return;
+    if (!iframe) return;
+
+    // Timeout de segurança para desativar loading mesmo se o evento load não disparar
+    const loadingTimeout = setTimeout(() => {
+      console.log('Timeout: Desativando loading do iframe');
+      setLoading(false);
+    }, 10000); // 10 segundos máximo
 
     const handleLoad = () => {
+      console.log('Iframe carregado');
+      clearTimeout(loadingTimeout);
       setLoading(false);
-      
-      // Tentar autenticação automática após o iframe carregar
-      setTimeout(() => {
-        try {
-          const iframeWindow = iframe.contentWindow;
-          const iframeDocument = iframe.contentDocument || iframeWindow?.document;
-          
-          if (iframeDocument) {
-            // Tentar encontrar campos de login com vários seletores
-            const emailSelectors = [
-              'input[type="email"]',
-              'input[name*="email" i]',
-              'input[id*="email" i]',
-              'input[placeholder*="email" i]',
-              'input[placeholder*="e-mail" i]',
-              'input[name*="login" i]',
-              'input[name*="user" i]',
-            ];
-            
-            const passwordSelectors = [
-              'input[type="password"]',
-              'input[name*="password" i]',
-              'input[id*="password" i]',
-              'input[name*="senha" i]',
-            ];
-
-            let emailInput: HTMLInputElement | null = null;
-            let passwordInput: HTMLInputElement | null = null;
-
-            for (const selector of emailSelectors) {
-              emailInput = iframeDocument.querySelector<HTMLInputElement>(selector);
-              if (emailInput) break;
-            }
-
-            for (const selector of passwordSelectors) {
-              passwordInput = iframeDocument.querySelector<HTMLInputElement>(selector);
-              if (passwordInput) break;
-            }
-
-            if (emailInput) {
-              // Preencher email
-              emailInput.focus();
-              emailInput.value = userEmail;
-              emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-              emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-              emailInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-
-              // Se encontrar campo de senha, tentar usar mesma senha do Supabase
-              // Nota: Isso requer que o usuário tenha a mesma senha em ambos os sistemas
-              // ou que configure uma senha específica
-              if (passwordInput) {
-                // Tentar buscar senha do localStorage (se o usuário salvou)
-                const savedPassword = localStorage.getItem('agilize_chat_password');
-                if (savedPassword) {
-                  passwordInput.focus();
-                  passwordInput.value = savedPassword;
-                  passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
-                  passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
-                  passwordInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-
-                  // Tentar encontrar e clicar no botão de submit
-                  setTimeout(() => {
-                    const submitSelectors = [
-                      'button[type="submit"]',
-                      'input[type="submit"]',
-                      'button:contains("entrar")',
-                      'button:contains("login")',
-                      'button:contains("Entrar")',
-                      'button:contains("Login")',
-                      '[role="button"]:contains("entrar")',
-                    ];
-
-                    let submitButton: HTMLElement | null = null;
-                    for (const selector of submitSelectors) {
-                      try {
-                        submitButton = iframeDocument.querySelector<HTMLElement>(selector);
-                        if (submitButton) break;
-                      } catch {
-                        // Seletor pode não ser válido, continuar
-                      }
-                    }
-
-                    // Se não encontrar por seletor, procurar por texto
-                    if (!submitButton) {
-                      const buttons = iframeDocument.querySelectorAll('button, input[type="submit"]');
-                      buttons.forEach((btn) => {
-                        const text = btn.textContent?.toLowerCase() || '';
-                        if (text.includes('entrar') || text.includes('login') || text.includes('sign in')) {
-                          submitButton = btn as HTMLElement;
-                        }
-                      });
-                    }
-
-                    if (submitButton) {
-                      (submitButton as HTMLElement).click();
-                    } else {
-                      // Tentar submeter o formulário diretamente
-                      const form = emailInput.closest('form');
-                      if (form) {
-                        form.submit();
-                      }
-                    }
-                  }, 500);
-                }
-              }
-              
-              setAttemptedAuth(true);
-            }
-          }
-        } catch (error) {
-          // Erro de CORS é esperado ao tentar acessar conteúdo do iframe
-          // Tentar via postMessage como fallback
-          console.log('Tentando autenticação via postMessage...');
-          iframe.contentWindow?.postMessage({
-            type: 'AUTO_LOGIN',
-            email: userEmail,
-          }, 'https://chat.atendimentoagilize.com');
-          setAttemptedAuth(true);
-        }
-      }, 2000);
     };
 
-    iframe.addEventListener('load', handleLoad);
+    const handleError = () => {
+      console.error('Erro ao carregar iframe');
+      clearTimeout(loadingTimeout);
+      setLoading(false);
+    };
+
+    // Verificar se o iframe já está carregado
+    if (iframe.complete || iframe.readyState === 'complete') {
+      handleLoad();
+    } else {
+      iframe.addEventListener('load', handleLoad);
+      iframe.addEventListener('error', handleError);
+    }
     
     return () => {
+      clearTimeout(loadingTimeout);
       iframe.removeEventListener('load', handleLoad);
+      iframe.removeEventListener('error', handleError);
     };
-  }, [userEmail, attemptedAuth]);
+  }, []);
 
   const handleViewChange = (view: "kanban" | "calls" | "settings" | "broadcast" | "agilizechat" | "agilize" | "crm" | "calendar" | "workflows" | "automation-flows" | "agents" | "form-builder" | "post-sale") => {
     if (view === "broadcast") {
@@ -189,6 +72,18 @@ export default function AgilizeEmbed() {
     }
   };
 
+  // Garantir que o loading seja desativado após um tempo máximo
+  useEffect(() => {
+    const maxLoadingTime = setTimeout(() => {
+      if (loading) {
+        console.log('Tempo máximo de loading atingido, desativando...');
+        setLoading(false);
+      }
+    }, 15000); // 15 segundos máximo
+
+    return () => clearTimeout(maxLoadingTime);
+  }, [loading]);
+
   return (
     <AuthGuard>
       <CRMLayout activeView="agilize" onViewChange={handleViewChange}>
@@ -206,8 +101,16 @@ export default function AgilizeEmbed() {
             src="https://chat.atendimentoagilize.com/"
             className="w-full h-full border-0"
             title="Agilize Chat"
-            allow="camera; microphone; geolocation"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-top-navigation"
+            allow="camera; microphone; geolocation; autoplay"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-top-navigation allow-navigation"
+            onLoad={() => {
+              console.log('Iframe onLoad disparado');
+              setLoading(false);
+            }}
+            onError={() => {
+              console.error('Erro ao carregar iframe');
+              setLoading(false);
+            }}
           />
         </div>
       </CRMLayout>

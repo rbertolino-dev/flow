@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,29 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Verificar se já está autenticado ao carregar a página
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate('/', { replace: true });
+      }
+    };
+    
+    checkSession();
+
+    // Escutar mudanças de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && event === 'SIGNED_IN') {
+        navigate('/', { replace: true });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -26,8 +49,8 @@ export default function Login() {
         password,
       });
 
-      // Log auth attempt
-      await supabase.functions.invoke('log-auth-attempt', {
+      // Log auth attempt (não bloquear se falhar)
+      supabase.functions.invoke('log-auth-attempt', {
         body: {
           email,
           success: !error,
@@ -37,23 +60,46 @@ export default function Login() {
           method: 'signin',
           userId: data?.user?.id || null,
         },
-      });
+      }).catch(err => console.error('Erro ao logar tentativa:', err));
 
       if (error) throw error;
+
+      if (!data?.session) {
+        throw new Error('Sessão não foi criada');
+      }
 
       toast({
         title: "Login realizado!",
         description: "Bem-vindo de volta.",
       });
 
-      navigate('/');
+      // Aguardar um tempo suficiente para garantir que a sessão está salva no localStorage
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Verificar se a sessão está realmente salva
+      const sessionCheck = await supabase.auth.getSession();
+      console.log('Session check after login:', !!sessionCheck.data.session);
+      
+      if (sessionCheck.data.session) {
+        // Usar window.location.replace para garantir reload completo
+        window.location.replace('/');
+      } else {
+        // Se não encontrou sessão, tentar mais uma vez após aguardar
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const finalCheck = await supabase.auth.getSession();
+        if (finalCheck.data.session) {
+          window.location.replace('/');
+        } else {
+          throw new Error('Sessão não foi salva corretamente. Tente fazer login novamente.');
+        }
+      }
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Erro ao fazer login",
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao fazer login',
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -112,7 +158,25 @@ export default function Login() {
 
       if (signInError) throw signInError;
 
-      navigate('/');
+      if (!signInData?.session) {
+        throw new Error('Sessão não foi criada');
+      }
+
+      // Aguardar um momento para garantir que a sessão está estabelecida
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verificar novamente a sessão antes de navegar
+      const { data: { session: verifiedSession } } = await supabase.auth.getSession();
+      if (verifiedSession) {
+        toast({
+          title: "Conta criada e login realizado!",
+          description: "Bem-vindo!",
+        });
+        // Usar window.location para garantir que a página recarregue e o AuthGuard detecte a sessão
+        window.location.href = '/';
+      } else {
+        throw new Error('Sessão não foi estabelecida corretamente');
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao criar conta",
