@@ -162,7 +162,9 @@ serve(async (req) => {
       // Se for HTML, modificar URLs relativas para apontar para o proxy
       if (isHTML) {
         const baseUrl = new URL(config.chatwoot_base_url);
-        const proxyBase = `${url.origin}${url.pathname}`;
+        // CRÍTICO: Forçar HTTPS para evitar mixed content
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const proxyBase = `${supabaseUrl}/functions/v1/chatwoot-proxy`;
         const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
         
         // Função para escapar caracteres especiais em regex
@@ -190,15 +192,13 @@ serve(async (req) => {
           .replace(new RegExp(`https?://${escapeRegex(baseUrl.host)}`, 'g'), proxyBase + '?path=')
           // Base tag
           .replace(/<base[^>]*href=["']([^"']+)["'][^>]*>/gi, () => {
-            return `<base href="${proxyBase}?path=/${tokenParam}" />`;
+            return `<base href="${proxyBase}?path=${encodeURIComponent('/')}${tokenParam}" />`;
           })
-          // CRÍTICO: Substituir hostURL no JavaScript do Chatwoot para incluir token
-          .replace(/hostURL:\s*['"]([^'"]+)['"]/g, (_match, originalUrl) => {
-            // Se já tem o proxy, apenas adicionar token
-            if (originalUrl.includes('chatwoot-proxy')) {
-              return `hostURL: '${originalUrl}${tokenParam}'`;
-            }
-            return `hostURL: '${proxyBase}?path=${tokenParam}'`;
+          // CRÍTICO: Substituir hostURL no JavaScript do Chatwoot para apontar para o Chatwoot ORIGINAL
+          // O Chatwoot precisa fazer chamadas API diretamente, não através do proxy
+          .replace(/hostURL:\s*['"]([^'"]+)['"]/g, () => {
+            // Manter hostURL apontando para o Chatwoot original para que as chamadas API funcionem
+            return `hostURL: '${config.chatwoot_base_url}'`;
           });
       }
       body = textBody;
