@@ -191,6 +191,14 @@ serve(async (req) => {
           // Base tag
           .replace(/<base[^>]*href=["']([^"']+)["'][^>]*>/gi, () => {
             return `<base href="${proxyBase}?path=/${tokenParam}" />`;
+          })
+          // CRÍTICO: Substituir hostURL no JavaScript do Chatwoot para incluir token
+          .replace(/hostURL:\s*['"]([^'"]+)['"]/g, (_match, originalUrl) => {
+            // Se já tem o proxy, apenas adicionar token
+            if (originalUrl.includes('chatwoot-proxy')) {
+              return `hostURL: '${originalUrl}${tokenParam}'`;
+            }
+            return `hostURL: '${proxyBase}?path=${tokenParam}'`;
           });
       }
       body = textBody;
