@@ -152,9 +152,9 @@ serve(async (req) => {
     const isJavaScript = contentType.includes('application/javascript') || contentType.includes('text/javascript');
     const isCSS = contentType.includes('text/css');
 
-    let body: string | Uint8Array;
+    let body: BodyInit;
     if (isHTML || isJavaScript || isCSS) {
-      body = await chatwootResponse.text();
+      let textBody = await chatwootResponse.text();
       
       // Se for HTML, modificar URLs relativas para apontar para o proxy
       if (isHTML) {
@@ -166,33 +166,34 @@ serve(async (req) => {
         const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         
         // Substituir URLs relativas e absolutas do Chatwoot
-        body = body
+        textBody = textBody
           // URLs relativas em href
-          .replace(/href="(\/[^"]*)"/g, (match, path) => {
+          .replace(/href="(\/[^"]*)"/g, (_match, path) => {
             return `href="${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}"`;
           })
           // URLs relativas em src
-          .replace(/src="(\/[^"]*)"/g, (match, path) => {
+          .replace(/src="(\/[^"]*)"/g, (_match, path) => {
             return `src="${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}"`;
           })
           // URLs relativas em action
-          .replace(/action="(\/[^"]*)"/g, (match, path) => {
+          .replace(/action="(\/[^"]*)"/g, (_match, path) => {
             return `action="${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}"`;
           })
           // URLs em CSS (url())
-          .replace(/url\(['"]?(\/[^'"]*)['"]?\)/g, (match, path) => {
+          .replace(/url\(['"]?(\/[^'"]*)['"]?\)/g, (_match, path) => {
             return `url('${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}')`;
           })
           // URLs absolutas do Chatwoot (http/https)
           .replace(new RegExp(`https?://${escapeRegex(baseUrl.host)}`, 'g'), proxyBase + '?path=')
           // Base tag
-          .replace(/<base[^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
+          .replace(/<base[^>]*href=["']([^"']+)["'][^>]*>/gi, () => {
             return `<base href="${proxyBase}?path=/${tokenParam}" />`;
           });
       }
+      body = textBody;
     } else {
-      // Para outros tipos (imagens, etc), passar como binary
-      body = new Uint8Array(await chatwootResponse.arrayBuffer());
+      // Para outros tipos (imagens, etc), passar como ArrayBuffer
+      body = await chatwootResponse.arrayBuffer();
     }
 
     // Criar novos headers removendo/modificando headers de segurança
