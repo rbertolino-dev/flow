@@ -162,10 +162,16 @@ serve(async (req) => {
       // Se for HTML, modificar URLs relativas para apontar para o proxy
       if (isHTML) {
         const baseUrl = new URL(config.chatwoot_base_url);
-        // CRÍTICO: Forçar HTTPS para evitar mixed content
-        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        // CRÍTICO: Forçar HTTPS - usar URL fixa do Supabase
+        let supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        // Garantir que seja HTTPS
+        if (supabaseUrl.startsWith('http://')) {
+          supabaseUrl = supabaseUrl.replace('http://', 'https://');
+        }
         const proxyBase = `${supabaseUrl}/functions/v1/chatwoot-proxy`;
         const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+        
+        console.log('🔗 [chatwoot-proxy] ProxyBase URL:', proxyBase);
         
         // Função para escapar caracteres especiais em regex
         const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -188,12 +194,12 @@ serve(async (req) => {
           .replace(/url\(['"]?(\/[^'"]*)['"]?\)/g, (_match, path) => {
             return `url('${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}')`;
           })
-          // URLs absolutas do Chatwoot (http/https)
-          .replace(new RegExp(`https?://${escapeRegex(baseUrl.host)}`, 'g'), proxyBase + '?path=')
-          // Base tag
-          .replace(/<base[^>]*href=["']([^"']+)["'][^>]*>/gi, () => {
-            return `<base href="${proxyBase}?path=${encodeURIComponent('/')}${tokenParam}" />`;
+          // URLs absolutas do Chatwoot (http/https) - substituir pelo proxy
+          .replace(new RegExp(`https?://${escapeRegex(baseUrl.host)}(/[^"'\\s]*)`, 'g'), (_match, path) => {
+            return `${proxyBase}?path=${encodeURIComponent(path || '/')}${tokenParam}`;
           })
+          // Base tag - remover ou substituir
+          .replace(/<base[^>]*>/gi, '')
           // CRÍTICO: Substituir hostURL no JavaScript do Chatwoot para apontar para o Chatwoot ORIGINAL
           // O Chatwoot precisa fazer chamadas API diretamente, não através do proxy
           .replace(/hostURL:\s*['"]([^'"]+)['"]/g, () => {
