@@ -59,20 +59,23 @@ serve(async (req) => {
 
     console.log('✅ [chatwoot-proxy] Usuário autenticado:', user.id, user.email);
 
-    // Buscar organização ativa do usuário
-    const { data: orgMember } = await supabase
+    // Buscar organização do usuário (primeira encontrada)
+    const { data: orgMember, error: orgError } = await supabase
       .from('organization_members')
       .select('organization_id')
       .eq('user_id', user.id)
-      .eq('active', true)
-      .maybeSingle();
+      .limit(1)
+      .single();
 
-    if (!orgMember) {
+    if (orgError || !orgMember) {
+      console.error('❌ [chatwoot-proxy] Organização não encontrada:', orgError?.message);
       return new Response(
-        JSON.stringify({ error: 'Organização não encontrada' }),
+        JSON.stringify({ error: 'Organização não encontrada', details: orgError?.message }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('✅ [chatwoot-proxy] Organização encontrada:', orgMember.organization_id);
 
     // Buscar configuração do Chatwoot
     const { data: config, error: configError } = await supabase
