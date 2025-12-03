@@ -110,3 +110,6 @@ verify_jwt = true
 
 [functions.process-status-schedule]
 verify_jwt = false
+
+[functions.chatwoot-proxy]
+verify_jwt = false
