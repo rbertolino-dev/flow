@@ -90,7 +90,11 @@ serve(async (req) => {
       console.log('✅ Array direto com', messages.length, 'itens');
     } else if (result && typeof result === 'object') {
       // Resposta é um objeto, tentar várias propriedades
-      if (Array.isArray(result.messages)) {
+      // CASO PRINCIPAL: result.messages.records (formato atual da Evolution API)
+      if (result.messages && typeof result.messages === 'object' && Array.isArray(result.messages.records)) {
+        messages = result.messages.records;
+        console.log('✅ Array em result.messages.records com', messages.length, 'itens');
+      } else if (Array.isArray(result.messages)) {
         messages = result.messages;
         console.log('✅ Array em result.messages com', messages.length, 'itens');
       } else if (Array.isArray(result.data)) {
@@ -103,7 +107,10 @@ serve(async (req) => {
         messages = result.records;
         console.log('✅ Array em result.records com', messages.length, 'itens');
       } else {
-        console.log('⚠️ Nenhum array encontrado na resposta');
+        console.log('⚠️ Nenhum array encontrado na resposta. Estrutura:', JSON.stringify(Object.keys(result)));
+        if (result.messages) {
+          console.log('⚠️ result.messages existe mas é:', typeof result.messages, Array.isArray(result.messages) ? 'array' : 'object');
+        }
       }
     }
     
