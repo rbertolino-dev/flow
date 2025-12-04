@@ -194,12 +194,27 @@ export function useN8nConfig() {
 
   const createWorkflow = async (workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
-    return callN8nProxy(activeOrgId, "/api/v1/workflows", "POST", workflowData);
+    // n8n requires settings property in the request body
+    const payload = {
+      name: workflowData.name || "New Workflow",
+      nodes: workflowData.nodes || [],
+      connections: workflowData.connections || {},
+      settings: workflowData.settings || {
+        executionOrder: "v1",
+      },
+      ...workflowData,
+    };
+    return callN8nProxy(activeOrgId, "/api/v1/workflows", "POST", payload);
   };
 
   const updateWorkflow = async (workflowId: string, workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
-    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", workflowData);
+    // Ensure settings is included for update
+    const payload = {
+      settings: { executionOrder: "v1" },
+      ...workflowData,
+    };
+    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", payload);
   };
 
   const deleteWorkflow = async (workflowId: string): Promise<void> => {
