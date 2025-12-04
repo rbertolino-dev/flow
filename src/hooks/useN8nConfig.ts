@@ -258,14 +258,20 @@ export function useN8nConfig() {
         parameters: {},
       };
       
-      // Only send allowed properties for n8n PUT request
-      await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", {
+      // Only send allowed properties for n8n PUT request (exclude undefined values)
+      const updatePayload: Record<string, any> = {
         name: workflow.name,
         nodes: [defaultTriggerNode, ...(workflow.nodes || [])],
         connections: workflow.connections || {},
         settings: workflow.settings || { executionOrder: "v1" },
-        staticData: workflow.staticData,
-      });
+      };
+      
+      // Only include staticData if it exists
+      if (workflow.staticData !== undefined && workflow.staticData !== null) {
+        updatePayload.staticData = workflow.staticData;
+      }
+      
+      await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", updatePayload);
     }
     
     return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}/activate`, "POST");
