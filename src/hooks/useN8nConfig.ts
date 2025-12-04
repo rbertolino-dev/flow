@@ -49,28 +49,26 @@ export function useN8nConfig() {
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["n8n-config", activeOrgId],
-    queryFn: async () => {
+    queryFn: async (): Promise<N8nConfig | null> => {
       if (!activeOrgId) return null;
 
       try {
         const { data, error } = await supabase
-          .from("n8n_configs")
+          .from("n8n_configs" as any)
           .select("*")
           .eq("organization_id", activeOrgId)
           .maybeSingle();
 
         if (error) {
-          // Se a tabela não existir, retornar null silenciosamente
           if (error.code === '42P01' || error.message?.includes('does not exist')) {
             console.warn('Tabela n8n_configs não encontrada. Aplique a migração primeiro.');
             return null;
           }
           throw error;
         }
-        return data as N8nConfig | null;
+        return data as unknown as N8nConfig | null;
       } catch (error: any) {
         console.error('Erro ao buscar configuração n8n:', error);
-        // Retornar null em caso de erro para não quebrar a UI
         return null;
       }
     },
@@ -111,13 +109,13 @@ export function useN8nConfig() {
       }
 
       // Atualizar status da conexão
-      await supabase
-        .from('n8n_configs')
+      await (supabase
+        .from('n8n_configs' as any)
         .update({
           connection_status: 'connected',
           last_connection_test: new Date().toISOString(),
-        })
-        .eq('id', config.id);
+        } as any)
+        .eq('id', config.id));
 
       queryClient.invalidateQueries({ queryKey: ["n8n-config", activeOrgId] });
 
@@ -125,13 +123,13 @@ export function useN8nConfig() {
     } catch (error: any) {
       // Atualizar status da conexão
       if (config) {
-        await supabase
-          .from('n8n_configs')
+        await (supabase
+          .from('n8n_configs' as any)
           .update({
             connection_status: 'error',
             last_connection_test: new Date().toISOString(),
-          })
-          .eq('id', config.id);
+          } as any)
+          .eq('id', config.id));
       }
 
       queryClient.invalidateQueries({ queryKey: ["n8n-config", activeOrgId] });
@@ -143,18 +141,18 @@ export function useN8nConfig() {
     mutationFn: async ({ api_url, api_key }: { api_url: string; api_key: string }) => {
       if (!activeOrgId) throw new Error("Nenhuma organização selecionada");
 
-      const { data, error } = await supabase
-        .from("n8n_configs")
+      const { data, error } = await (supabase
+        .from("n8n_configs" as any)
         .upsert({
           organization_id: activeOrgId,
           api_url,
           api_key,
           connection_status: 'unknown',
-        }, {
+        } as any, {
           onConflict: 'organization_id'
         })
         .select()
-        .single();
+        .single());
 
       if (error) throw error;
       return data;
@@ -179,10 +177,10 @@ export function useN8nConfig() {
     mutationFn: async () => {
       if (!activeOrgId) throw new Error("Nenhuma organização selecionada");
 
-      const { error } = await supabase
-        .from("n8n_configs")
+      const { error } = await (supabase
+        .from("n8n_configs" as any)
         .delete()
-        .eq("organization_id", activeOrgId);
+        .eq("organization_id", activeOrgId));
 
       if (error) throw error;
     },
