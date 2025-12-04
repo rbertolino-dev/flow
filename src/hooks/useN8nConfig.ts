@@ -258,8 +258,11 @@ export function useN8nConfig() {
         parameters: {},
       };
       
+      // Only send allowed properties (exclude read-only ones)
+      const { id, active, createdAt, updatedAt, versionId, ...editableWorkflow } = workflow;
+      
       await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", {
-        ...workflow,
+        ...editableWorkflow,
         nodes: [defaultTriggerNode, ...(workflow.nodes || [])],
         settings: workflow.settings || { executionOrder: "v1" },
       });
