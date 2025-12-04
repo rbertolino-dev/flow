@@ -42,6 +42,33 @@ export interface N8nWorkflowExecution {
   workflowData?: any;
 }
 
+// Helper function to call n8n API through proxy
+async function callN8nProxy(
+  organizationId: string,
+  path: string,
+  method: string = "GET",
+  data?: any
+) {
+  const { data: response, error } = await supabase.functions.invoke("n8n-proxy", {
+    body: {
+      organization_id: organizationId,
+      path,
+      method,
+      data,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || "Erro ao conectar com n8n");
+  }
+
+  if (!response.success) {
+    throw new Error(response.error || `Erro ${response.status} ao acessar n8n`);
+  }
+
+  return response.data;
+}
+
 export function useN8nConfig() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -76,62 +103,14 @@ export function useN8nConfig() {
     retry: false,
   });
 
-  const normalizeApiUrl = (url: string) => {
-    try {
-      const u = new URL(url);
-      return u.origin;
-    } catch {
-      return url.replace(/\/$/, '');
-    }
-  };
-
-  const buildApiPath = (path: string) => {
-    const base = normalizeApiUrl(config?.api_url || '');
-    const sep = path.startsWith('/') ? '' : '/';
-    return `${base}${sep}${path}`;
-  };
-
   const testConnection = async () => {
-    if (!config) throw new Error("Configuração não encontrada");
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
 
     try {
-      const apiUrl = normalizeApiUrl(config.api_url);
-      const response = await fetch(`${apiUrl}/api/v1/workflows`, {
-        method: 'GET',
-        headers: {
-          'X-N8N-API-KEY': config.api_key,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro na conexão: ${response.status} ${response.statusText}`);
-      }
-
-      // Atualizar status da conexão
-      await (supabase
-        .from('n8n_configs' as any)
-        .update({
-          connection_status: 'connected',
-          last_connection_test: new Date().toISOString(),
-        } as any)
-        .eq('id', config.id));
-
+      await callN8nProxy(activeOrgId, "/api/v1/workflows", "GET");
       queryClient.invalidateQueries({ queryKey: ["n8n-config", activeOrgId] });
-
       return { success: true, message: "Conexão bem-sucedida!" };
     } catch (error: any) {
-      // Atualizar status da conexão
-      if (config) {
-        await (supabase
-          .from('n8n_configs' as any)
-          .update({
-            connection_status: 'error',
-            last_connection_test: new Date().toISOString(),
-          } as any)
-          .eq('id', config.id));
-      }
-
       queryClient.invalidateQueries({ queryKey: ["n8n-config", activeOrgId] });
       throw error;
     }
@@ -200,171 +179,52 @@ export function useN8nConfig() {
     },
   });
 
-  // Funções para gerenciar workflows
+  // Funções para gerenciar workflows (usando proxy)
   const listWorkflows = async (): Promise<N8nWorkflow[]> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath('/api/v1/workflows'), {
-      method: 'GET',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao listar workflows: ${response.status}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    const response = await callN8nProxy(activeOrgId, "/api/v1/workflows", "GET");
+    // n8n pode retornar { data: [...] } ou diretamente o array
+    return response?.data || response || [];
   };
 
   const getWorkflow = async (workflowId: string): Promise<N8nWorkflow> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/workflows/${workflowId}`), {
-      method: 'GET',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar workflow: ${response.status}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "GET");
   };
 
   const createWorkflow = async (workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath('/api/v1/workflows'), {
-      method: 'POST',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(workflowData),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Erro ao criar workflow: ${response.status} - ${errorText}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, "/api/v1/workflows", "POST", workflowData);
   };
 
   const updateWorkflow = async (workflowId: string, workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/workflows/${workflowId}`), {
-      method: 'PUT',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(workflowData),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Erro ao atualizar workflow: ${response.status} - ${errorText}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", workflowData);
   };
 
   const deleteWorkflow = async (workflowId: string): Promise<void> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/workflows/${workflowId}`), {
-      method: 'DELETE',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao deletar workflow: ${response.status}`);
-    }
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "DELETE");
   };
 
   const activateWorkflow = async (workflowId: string): Promise<N8nWorkflow> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/workflows/${workflowId}/activate`), {
-      method: 'POST',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao ativar workflow: ${response.status}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}/activate`, "POST");
   };
 
   const deactivateWorkflow = async (workflowId: string): Promise<N8nWorkflow> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/workflows/${workflowId}/deactivate`), {
-      method: 'POST',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao desativar workflow: ${response.status}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}/deactivate`, "POST");
   };
 
   const executeWorkflow = async (workflowId: string, inputData?: any): Promise<N8nWorkflowExecution> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/workflows/${workflowId}/execute`), {
-      method: 'POST',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(inputData || {}),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Erro ao executar workflow: ${response.status} - ${errorText}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}/execute`, "POST", inputData || {});
   };
 
   const getExecution = async (executionId: string): Promise<N8nWorkflowExecution> => {
-    if (!config) throw new Error("Configuração não encontrada");
-
-    const response = await fetch(buildApiPath(`/api/v1/executions/${executionId}`), {
-      method: 'GET',
-      headers: {
-        'X-N8N-API-KEY': config.api_key,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar execução: ${response.status}`);
-    }
-
-    return response.json();
+    if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
+    return callN8nProxy(activeOrgId, `/api/v1/executions/${executionId}`, "GET");
   };
 
   return {
@@ -387,4 +247,3 @@ export function useN8nConfig() {
     getExecution,
   };
 }
-
