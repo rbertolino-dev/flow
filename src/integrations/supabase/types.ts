@@ -2360,6 +2360,50 @@ export type Database = {
           },
         ]
       }
+      n8n_configs: {
+        Row: {
+          api_key: string
+          api_url: string
+          connection_status: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_connection_test: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          api_url: string
+          connection_status?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_connection_test?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          api_url?: string
+          connection_status?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_connection_test?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "n8n_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       openai_configs: {
         Row: {
           api_key: string
