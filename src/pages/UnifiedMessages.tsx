@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ChatwootChatWindow } from "@/components/whatsapp/ChatwootChatWindow";
 import { ChatWindow } from "@/components/whatsapp/ChatWindow";
+import { EvolutionChatWindow } from "@/components/whatsapp/EvolutionChatWindow";
 
 interface UnifiedConversation {
   id: string;
@@ -389,6 +390,13 @@ export default function UnifiedMessages() {
                   <ChatwootChatWindow
                     organizationId={activeOrgId!}
                     conversationId={selectedConversation.conversationId!}
+                    contactName={selectedConversation.name}
+                    onBack={() => setSelectedConversation(null)}
+                  />
+                ) : selectedConversation.source === 'evolution' && selectedConversation.sourceInstanceId && selectedConversation.meta?.remoteJid ? (
+                  <EvolutionChatWindow
+                    instanceId={selectedConversation.sourceInstanceId}
+                    remoteJid={selectedConversation.meta.remoteJid}
                     contactName={selectedConversation.name}
                     onBack={() => setSelectedConversation(null)}
                   />

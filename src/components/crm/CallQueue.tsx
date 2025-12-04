@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTags } from "@/hooks/useTags";
 import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
@@ -72,10 +73,6 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
   const [transferDialog, setTransferDialog] = useState<{ open: boolean; callItem: CallQueueItem | null }>({
     open: false,
     callItem: null,
-  });
-  const [assignDialog, setAssignDialog] = useState<{ open: boolean; callId: string; currentUserId?: string }>({
-    open: false,
-    callId: "",
   });
   
   // Filtros
@@ -829,27 +826,28 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                         <div className="flex items-center gap-2 mt-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div className="flex items-center gap-2 flex-1">
-                            {call.assignedToUserId ? (
-                              <Badge variant="outline" className="gap-1">
-                                {call.assignedToUserName || call.assignedToUserEmail || 'Usuário atribuído'}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground">
-                                Não atribuído
-                              </Badge>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setAssignDialog({ 
-                                open: true, 
-                                callId: call.id, 
-                                currentUserId: call.assignedToUserId 
-                              })}
-                              className="h-6 px-2 text-xs"
+                            <Label htmlFor={`assign-user-${call.id}`} className="text-sm font-medium whitespace-nowrap">
+                              Responsável:
+                            </Label>
+                            <Select
+                              value={call.assignedToUserId || "unassigned"}
+                              onValueChange={(value) => {
+                                const userId = value === "unassigned" ? null : value;
+                                onAssignToUser(call.id, userId);
+                              }}
                             >
-                              {call.assignedToUserId ? 'Reatribuir' : 'Atribuir'}
-                            </Button>
+                              <SelectTrigger id={`assign-user-${call.id}`} className="flex-1 h-8 text-sm">
+                                <SelectValue placeholder="Selecione um usuário" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">Não atribuído</SelectItem>
+                                {organizationUsers.map(user => (
+                                  <SelectItem key={user.id} value={user.id}>
+                                    {user.full_name || user.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                         <div className="space-y-2 mt-2">
@@ -988,27 +986,28 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                         <div className="flex items-center gap-2 mt-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div className="flex items-center gap-2 flex-1">
-                            {call.assignedToUserId ? (
-                              <Badge variant="outline" className="gap-1">
-                                {call.assignedToUserName || call.assignedToUserEmail || 'Usuário atribuído'}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground">
-                                Não atribuído
-                              </Badge>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setAssignDialog({ 
-                                open: true, 
-                                callId: call.id, 
-                                currentUserId: call.assignedToUserId 
-                              })}
-                              className="h-6 px-2 text-xs"
+                            <Label htmlFor={`assign-user-rescheduled-${call.id}`} className="text-sm font-medium whitespace-nowrap">
+                              Responsável:
+                            </Label>
+                            <Select
+                              value={call.assignedToUserId || "unassigned"}
+                              onValueChange={(value) => {
+                                const userId = value === "unassigned" ? null : value;
+                                onAssignToUser(call.id, userId);
+                              }}
                             >
-                              {call.assignedToUserId ? 'Reatribuir' : 'Atribuir'}
-                            </Button>
+                              <SelectTrigger id={`assign-user-rescheduled-${call.id}`} className="flex-1 h-8 text-sm">
+                                <SelectValue placeholder="Selecione um usuário" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">Não atribuído</SelectItem>
+                                {organizationUsers.map(user => (
+                                  <SelectItem key={user.id} value={user.id}>
+                                    {user.full_name || user.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       </div>
@@ -1188,36 +1187,6 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
         }}
       />
 
-      {/* Dialog para atribuir usuário */}
-      <Dialog open={assignDialog.open} onOpenChange={(open) => setAssignDialog({ ...assignDialog, open })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Atribuir Lead</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Select
-              value={assignDialog.currentUserId || "unassigned"}
-              onValueChange={(value) => {
-                const userId = value === "unassigned" ? null : value;
-                onAssignToUser(assignDialog.callId, userId);
-                setAssignDialog({ open: false, callId: "", currentUserId: undefined });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um usuário" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">Não atribuído</SelectItem>
-                {organizationUsers.map(user => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.full_name || user.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -8,9 +8,19 @@ export interface WhatsAppMessage {
   messageText: string;
   messageType: string;
   mediaUrl?: string;
+  thumbnailUrl?: string;
   direction: 'incoming' | 'outgoing';
   timestamp: Date;
   readStatus: boolean;
+  status?: string;
+  caption?: string;
+  fileName?: string;
+  fileSize?: number;
+  isPTT?: boolean;
+  latitude?: number;
+  longitude?: number;
+  contactName?: string;
+  contactNumber?: string;
 }
 
 export function useWhatsAppMessages(phone: string | null) {

@@ -20,6 +20,7 @@ import AgentsDashboard from "./pages/AgentsDashboard";
 import RLSDiagnostics from "./pages/RLSDiagnostics";
 import NovaFuncao from "./pages/NovaFuncao";
 import BubbleIntegration from "./pages/BubbleIntegration";
+import N8nIntegration from "./pages/N8nIntegration";
 import Calendar from "./pages/Calendar";
 import CRM from "./pages/CRM";
 import Gmail from "./pages/Gmail";
@@ -60,6 +61,7 @@ const App = () => (
           <Route path="/rls-diagnostics" element={<RLSDiagnostics />} />
           <Route path="/lista-telefonica" element={<NovaFuncao />} />
           <Route path="/bubble" element={<BubbleIntegration />} />
+          <Route path="/n8n" element={<N8nIntegration />} />
           <Route path="/agents" element={<AgentsDashboard />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/crm" element={<CRM />} />
