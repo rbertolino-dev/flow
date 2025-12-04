@@ -196,9 +196,20 @@ export function useN8nConfig() {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
     // n8n requires settings property, but 'active' is read-only
     const { active, ...rest } = workflowData;
+    
+    // n8n requires at least one trigger node
+    const defaultTriggerNode = {
+      id: "trigger-1",
+      name: "Manual Trigger",
+      type: "n8n-nodes-base.manualTrigger",
+      typeVersion: 1,
+      position: [250, 300],
+      parameters: {},
+    };
+    
     const payload = {
       name: rest.name || "New Workflow",
-      nodes: rest.nodes || [],
+      nodes: rest.nodes && rest.nodes.length > 0 ? rest.nodes : [defaultTriggerNode],
       connections: rest.connections || {},
       settings: rest.settings || {
         executionOrder: "v1",
