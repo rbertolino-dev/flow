@@ -268,38 +268,34 @@ export function useN8nConfig() {
       const defaultTriggerNode = {
         parameters: {},
         id: uuid,
-        name: "When clicking \"Execute Workflow\"",
+        name: "When clicking 'Execute Workflow'",
         type: "n8n-nodes-base.manualTrigger",
         typeVersion: 1,
         position: [250, 300],
       };
       
-      // Filter out any invalid trigger nodes and add the new valid one
-      const existingNonTriggerNodes = (workflow?.nodes || []).filter((node: any) => {
-        const isTriggerType = node.type?.toLowerCase().includes("trigger") || 
-          node.type?.toLowerCase().includes("webhook") || 
-          node.type?.toLowerCase().includes("poller");
-        const hasValidId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
-        // Keep non-trigger nodes, or trigger nodes with valid IDs
-        return !isTriggerType || hasValidId;
-      });
-      
-      // Only send allowed properties for n8n PUT request
+      // Remove ALL existing nodes and just use the new trigger
+      // This ensures n8n gets a clean workflow with a valid trigger
       const updatePayload: Record<string, any> = {
         name: workflow?.name || "Workflow",
-        nodes: [defaultTriggerNode, ...existingNonTriggerNodes],
-        connections: workflow?.connections || {},
-        settings: workflow?.settings || { executionOrder: "v1" },
+        nodes: [defaultTriggerNode],
+        connections: {},
+        settings: { executionOrder: "v1" },
       };
       
-      // Only include staticData if it exists
-      if (workflow?.staticData !== undefined && workflow?.staticData !== null) {
-        updatePayload.staticData = workflow.staticData;
+      console.log("[n8n] Updating workflow with new trigger node");
+      console.log("[n8n] Update payload:", JSON.stringify(updatePayload, null, 2));
+      
+      const updateResult = await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", updatePayload);
+      console.log("[n8n] PUT response:", JSON.stringify(updateResult, null, 2));
+      
+      // Verify the update by checking the response
+      if (!updateResult?.nodes?.some((n: any) => n.id === uuid)) {
+        console.error("[n8n] Update verification failed - trigger node not found in response");
+        throw new Error("Falha ao adicionar nó de trigger ao workflow");
       }
       
-      console.log("[n8n] Updating workflow with trigger node, total nodes:", updatePayload.nodes.length);
-      await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", updatePayload);
-      console.log("[n8n] Workflow updated successfully");
+      console.log("[n8n] Workflow updated and verified successfully");
     }
     
     console.log("[n8n] Activating workflow");
