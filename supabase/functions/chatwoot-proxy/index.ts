@@ -59,20 +59,23 @@ serve(async (req) => {
 
     console.log('✅ [chatwoot-proxy] Usuário autenticado:', user.id, user.email);
 
-    // Buscar organização ativa do usuário
-    const { data: orgMember } = await supabase
+    // Buscar organização do usuário (primeira encontrada)
+    const { data: orgMember, error: orgError } = await supabase
       .from('organization_members')
       .select('organization_id')
       .eq('user_id', user.id)
-      .eq('active', true)
-      .maybeSingle();
+      .limit(1)
+      .single();
 
-    if (!orgMember) {
+    if (orgError || !orgMember) {
+      console.error('❌ [chatwoot-proxy] Organização não encontrada:', orgError?.message);
       return new Response(
-        JSON.stringify({ error: 'Organização não encontrada' }),
+        JSON.stringify({ error: 'Organização não encontrada', details: orgError?.message }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('✅ [chatwoot-proxy] Organização encontrada:', orgMember.organization_id);
 
     // Buscar configuração do Chatwoot
     const { data: config, error: configError } = await supabase
@@ -152,47 +155,62 @@ serve(async (req) => {
     const isJavaScript = contentType.includes('application/javascript') || contentType.includes('text/javascript');
     const isCSS = contentType.includes('text/css');
 
-    let body: string | Uint8Array;
+    let body: BodyInit;
     if (isHTML || isJavaScript || isCSS) {
-      body = await chatwootResponse.text();
+      let textBody = await chatwootResponse.text();
       
       // Se for HTML, modificar URLs relativas para apontar para o proxy
       if (isHTML) {
         const baseUrl = new URL(config.chatwoot_base_url);
-        const proxyBase = `${url.origin}${url.pathname}`;
+        // CRÍTICO: Forçar HTTPS - usar URL fixa do Supabase
+        let supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        // Garantir que seja HTTPS
+        if (supabaseUrl.startsWith('http://')) {
+          supabaseUrl = supabaseUrl.replace('http://', 'https://');
+        }
+        const proxyBase = `${supabaseUrl}/functions/v1/chatwoot-proxy`;
         const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+        
+        console.log('🔗 [chatwoot-proxy] ProxyBase URL:', proxyBase);
         
         // Função para escapar caracteres especiais em regex
         const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         
         // Substituir URLs relativas e absolutas do Chatwoot
-        body = body
+        textBody = textBody
           // URLs relativas em href
-          .replace(/href="(\/[^"]*)"/g, (match, path) => {
+          .replace(/href="(\/[^"]*)"/g, (_match, path) => {
             return `href="${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}"`;
           })
           // URLs relativas em src
-          .replace(/src="(\/[^"]*)"/g, (match, path) => {
+          .replace(/src="(\/[^"]*)"/g, (_match, path) => {
             return `src="${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}"`;
           })
           // URLs relativas em action
-          .replace(/action="(\/[^"]*)"/g, (match, path) => {
+          .replace(/action="(\/[^"]*)"/g, (_match, path) => {
             return `action="${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}"`;
           })
           // URLs em CSS (url())
-          .replace(/url\(['"]?(\/[^'"]*)['"]?\)/g, (match, path) => {
+          .replace(/url\(['"]?(\/[^'"]*)['"]?\)/g, (_match, path) => {
             return `url('${proxyBase}?path=${encodeURIComponent(path)}${tokenParam}')`;
           })
-          // URLs absolutas do Chatwoot (http/https)
-          .replace(new RegExp(`https?://${escapeRegex(baseUrl.host)}`, 'g'), proxyBase + '?path=')
-          // Base tag
-          .replace(/<base[^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
-            return `<base href="${proxyBase}?path=/${tokenParam}" />`;
+          // URLs absolutas do Chatwoot (http/https) - substituir pelo proxy
+          .replace(new RegExp(`https?://${escapeRegex(baseUrl.host)}(/[^"'\\s]*)`, 'g'), (_match, path) => {
+            return `${proxyBase}?path=${encodeURIComponent(path || '/')}${tokenParam}`;
+          })
+          // Base tag - remover ou substituir
+          .replace(/<base[^>]*>/gi, '')
+          // CRÍTICO: Substituir hostURL no JavaScript do Chatwoot para apontar para o Chatwoot ORIGINAL
+          // O Chatwoot precisa fazer chamadas API diretamente, não através do proxy
+          .replace(/hostURL:\s*['"]([^'"]+)['"]/g, () => {
+            // Manter hostURL apontando para o Chatwoot original para que as chamadas API funcionem
+            return `hostURL: '${config.chatwoot_base_url}'`;
           });
       }
+      body = textBody;
     } else {
-      // Para outros tipos (imagens, etc), passar como binary
-      body = new Uint8Array(await chatwootResponse.arrayBuffer());
+      // Para outros tipos (imagens, etc), passar como ArrayBuffer
+      body = await chatwootResponse.arrayBuffer();
     }
 
     // Criar novos headers removendo/modificando headers de segurança
