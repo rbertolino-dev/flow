@@ -238,19 +238,29 @@ export function useN8nConfig() {
   const activateWorkflow = async (workflowId: string): Promise<N8nWorkflow> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
     
+    console.log("[n8n] Fetching workflow before activation:", workflowId);
+    
     // First fetch the workflow to check if it has trigger nodes
     const workflow = await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "GET");
     
-    const hasTriggerNode = workflow.nodes?.some((node: any) => 
-      node.type?.includes("Trigger") || 
-      node.type?.includes("webhook") || 
-      node.type?.includes("poller")
-    );
+    console.log("[n8n] Workflow fetched:", workflow?.name, "Nodes count:", workflow?.nodes?.length);
+    
+    const hasTriggerNode = workflow?.nodes?.some((node: any) => {
+      const isTrigger = node.type?.toLowerCase().includes("trigger") || 
+        node.type?.toLowerCase().includes("webhook") || 
+        node.type?.toLowerCase().includes("poller");
+      if (isTrigger) console.log("[n8n] Found trigger node:", node.type);
+      return isTrigger;
+    });
+    
+    console.log("[n8n] Has trigger node:", hasTriggerNode);
     
     // If no trigger node, add a manual trigger before activating
     if (!hasTriggerNode) {
+      console.log("[n8n] Adding default manual trigger node");
+      
       const defaultTriggerNode = {
-        id: "trigger-1",
+        id: `trigger-${Date.now()}`,
         name: "Manual Trigger",
         type: "n8n-nodes-base.manualTrigger",
         typeVersion: 1,
@@ -258,22 +268,25 @@ export function useN8nConfig() {
         parameters: {},
       };
       
-      // Only send allowed properties for n8n PUT request (exclude undefined values)
+      // Only send allowed properties for n8n PUT request
       const updatePayload: Record<string, any> = {
-        name: workflow.name,
-        nodes: [defaultTriggerNode, ...(workflow.nodes || [])],
-        connections: workflow.connections || {},
-        settings: workflow.settings || { executionOrder: "v1" },
+        name: workflow?.name || "Workflow",
+        nodes: [defaultTriggerNode, ...(workflow?.nodes || [])],
+        connections: workflow?.connections || {},
+        settings: workflow?.settings || { executionOrder: "v1" },
       };
       
       // Only include staticData if it exists
-      if (workflow.staticData !== undefined && workflow.staticData !== null) {
+      if (workflow?.staticData !== undefined && workflow?.staticData !== null) {
         updatePayload.staticData = workflow.staticData;
       }
       
+      console.log("[n8n] Updating workflow with trigger node:", updatePayload.nodes.length, "nodes");
       await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", updatePayload);
+      console.log("[n8n] Workflow updated successfully");
     }
     
+    console.log("[n8n] Activating workflow");
     return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}/activate`, "POST");
   };
 
