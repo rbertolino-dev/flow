@@ -194,25 +194,27 @@ export function useN8nConfig() {
 
   const createWorkflow = async (workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
-    // n8n requires settings property in the request body
+    // n8n requires settings property, but 'active' is read-only
+    const { active, ...rest } = workflowData;
     const payload = {
-      name: workflowData.name || "New Workflow",
-      nodes: workflowData.nodes || [],
-      connections: workflowData.connections || {},
-      settings: workflowData.settings || {
+      name: rest.name || "New Workflow",
+      nodes: rest.nodes || [],
+      connections: rest.connections || {},
+      settings: rest.settings || {
         executionOrder: "v1",
       },
-      ...workflowData,
+      ...rest,
     };
     return callN8nProxy(activeOrgId, "/api/v1/workflows", "POST", payload);
   };
 
   const updateWorkflow = async (workflowId: string, workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
-    // Ensure settings is included for update
+    // Remove read-only 'active' property before update
+    const { active, ...rest } = workflowData;
     const payload = {
       settings: { executionOrder: "v1" },
-      ...workflowData,
+      ...rest,
     };
     return callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", payload);
   };
