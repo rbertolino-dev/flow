@@ -245,33 +245,49 @@ export function useN8nConfig() {
     
     console.log("[n8n] Workflow fetched:", workflow?.name, "Nodes count:", workflow?.nodes?.length);
     
-    const hasTriggerNode = workflow?.nodes?.some((node: any) => {
-      const isTrigger = node.type?.toLowerCase().includes("trigger") || 
+    // Check for VALID trigger nodes (must have proper UUID format)
+    const validTriggerNode = workflow?.nodes?.find((node: any) => {
+      const isTriggerType = node.type?.toLowerCase().includes("trigger") || 
         node.type?.toLowerCase().includes("webhook") || 
         node.type?.toLowerCase().includes("poller");
-      if (isTrigger) console.log("[n8n] Found trigger node:", node.type);
-      return isTrigger;
+      // UUID format check: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      const hasValidId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
+      if (isTriggerType) console.log("[n8n] Found trigger node:", node.type, "Valid ID:", hasValidId);
+      return isTriggerType && hasValidId;
     });
     
-    console.log("[n8n] Has trigger node:", hasTriggerNode);
+    console.log("[n8n] Has valid trigger node:", !!validTriggerNode);
     
-    // If no trigger node, add a manual trigger before activating
-    if (!hasTriggerNode) {
-      console.log("[n8n] Adding default manual trigger node");
+    // If no valid trigger node, add a manual trigger before activating
+    if (!validTriggerNode) {
+      console.log("[n8n] Adding default manual trigger node with proper UUID");
+      
+      // Generate proper UUID
+      const uuid = crypto.randomUUID();
       
       const defaultTriggerNode = {
-        id: `trigger-${Date.now()}`,
-        name: "Manual Trigger",
+        parameters: {},
+        id: uuid,
+        name: "When clicking \"Execute Workflow\"",
         type: "n8n-nodes-base.manualTrigger",
         typeVersion: 1,
         position: [250, 300],
-        parameters: {},
       };
+      
+      // Filter out any invalid trigger nodes and add the new valid one
+      const existingNonTriggerNodes = (workflow?.nodes || []).filter((node: any) => {
+        const isTriggerType = node.type?.toLowerCase().includes("trigger") || 
+          node.type?.toLowerCase().includes("webhook") || 
+          node.type?.toLowerCase().includes("poller");
+        const hasValidId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
+        // Keep non-trigger nodes, or trigger nodes with valid IDs
+        return !isTriggerType || hasValidId;
+      });
       
       // Only send allowed properties for n8n PUT request
       const updatePayload: Record<string, any> = {
         name: workflow?.name || "Workflow",
-        nodes: [defaultTriggerNode, ...(workflow?.nodes || [])],
+        nodes: [defaultTriggerNode, ...existingNonTriggerNodes],
         connections: workflow?.connections || {},
         settings: workflow?.settings || { executionOrder: "v1" },
       };
@@ -281,7 +297,7 @@ export function useN8nConfig() {
         updatePayload.staticData = workflow.staticData;
       }
       
-      console.log("[n8n] Updating workflow with trigger node:", updatePayload.nodes.length, "nodes");
+      console.log("[n8n] Updating workflow with trigger node, total nodes:", updatePayload.nodes.length);
       await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", updatePayload);
       console.log("[n8n] Workflow updated successfully");
     }
