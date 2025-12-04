@@ -245,57 +245,68 @@ export function useN8nConfig() {
     
     console.log("[n8n] Workflow fetched:", workflow?.name, "Nodes count:", workflow?.nodes?.length);
     
-    // Check for VALID trigger nodes (must have proper UUID format)
-    const validTriggerNode = workflow?.nodes?.find((node: any) => {
-      const isTriggerType = node.type?.toLowerCase().includes("trigger") || 
-        node.type?.toLowerCase().includes("webhook") || 
-        node.type?.toLowerCase().includes("poller");
-      // UUID format check: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    // Check for ACTIVATABLE trigger nodes (manualTrigger cannot be activated!)
+    // Only webhooks, scheduleTrigger, and poller types can be activated
+    const activatableTriggerTypes = [
+      "n8n-nodes-base.scheduletrigger",
+      "n8n-nodes-base.webhook",
+      "n8n-nodes-base.cron",
+      "poller"
+    ];
+    
+    const hasActivatableTrigger = workflow?.nodes?.some((node: any) => {
+      const nodeType = node.type?.toLowerCase() || "";
+      const isActivatable = activatableTriggerTypes.some(t => nodeType.includes(t)) ||
+        (nodeType.includes("webhook") && !nodeType.includes("manual"));
       const hasValidId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
-      if (isTriggerType) console.log("[n8n] Found trigger node:", node.type, "Valid ID:", hasValidId);
-      return isTriggerType && hasValidId;
+      console.log("[n8n] Node:", node.type, "Activatable:", isActivatable, "Valid ID:", hasValidId);
+      return isActivatable && hasValidId;
     });
     
-    console.log("[n8n] Has valid trigger node:", !!validTriggerNode);
+    console.log("[n8n] Has activatable trigger:", hasActivatableTrigger);
     
-    // If no valid trigger node, add a manual trigger before activating
-    if (!validTriggerNode) {
-      console.log("[n8n] Adding default manual trigger node with proper UUID");
+    // If no activatable trigger, add a scheduleTrigger (runs every hour by default)
+    if (!hasActivatableTrigger) {
+      console.log("[n8n] Adding scheduleTrigger node for activation");
       
-      // Generate proper UUID
       const uuid = crypto.randomUUID();
       
-      const defaultTriggerNode = {
-        parameters: {},
+      // Use scheduleTrigger instead of manualTrigger - it CAN be activated
+      const scheduleTriggerNode = {
+        parameters: {
+          rule: {
+            interval: [{ field: "hours", hoursInterval: 1 }]
+          }
+        },
         id: uuid,
-        name: "When clicking 'Execute Workflow'",
-        type: "n8n-nodes-base.manualTrigger",
-        typeVersion: 1,
+        name: "Schedule Trigger",
+        type: "n8n-nodes-base.scheduleTrigger",
+        typeVersion: 1.2,
         position: [250, 300],
       };
       
-      // Remove ALL existing nodes and just use the new trigger
-      // This ensures n8n gets a clean workflow with a valid trigger
+      // Keep existing non-manual-trigger nodes
+      const existingNodes = (workflow?.nodes || []).filter((node: any) => {
+        return node.type !== "n8n-nodes-base.manualTrigger";
+      });
+      
       const updatePayload: Record<string, any> = {
         name: workflow?.name || "Workflow",
-        nodes: [defaultTriggerNode],
-        connections: {},
+        nodes: [scheduleTriggerNode, ...existingNodes],
+        connections: workflow?.connections || {},
         settings: { executionOrder: "v1" },
       };
       
-      console.log("[n8n] Updating workflow with new trigger node");
-      console.log("[n8n] Update payload:", JSON.stringify(updatePayload, null, 2));
+      console.log("[n8n] Updating workflow with scheduleTrigger");
       
       const updateResult = await callN8nProxy(activeOrgId, `/api/v1/workflows/${workflowId}`, "PUT", updatePayload);
-      console.log("[n8n] PUT response:", JSON.stringify(updateResult, null, 2));
       
-      // Verify the update by checking the response
       if (!updateResult?.nodes?.some((n: any) => n.id === uuid)) {
-        console.error("[n8n] Update verification failed - trigger node not found in response");
-        throw new Error("Falha ao adicionar nó de trigger ao workflow");
+        console.error("[n8n] Update verification failed");
+        throw new Error("Falha ao adicionar trigger ao workflow");
       }
       
-      console.log("[n8n] Workflow updated and verified successfully");
+      console.log("[n8n] Workflow updated with scheduleTrigger");
     }
     
     console.log("[n8n] Activating workflow");
