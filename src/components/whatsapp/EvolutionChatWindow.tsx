@@ -121,25 +121,23 @@ export function EvolutionChatWindow({ instanceId, remoteJid, contactName, onBack
           </div>
         ) : (
           <div>
-            {/* Botão para carregar mais mensagens */}
+            {/* Botão para carregar mais mensagens - DESTAQUE */}
             {hasMore && (
-              <div className="text-center py-3">
+              <div className="sticky top-0 z-10 py-3 px-4">
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="bg-white/80 hover:bg-white text-[#075e54] border-[#075e54]/30"
+                  className="w-full bg-[#075e54] hover:bg-[#064e46] text-white font-semibold py-3 rounded-lg shadow-lg transition-all hover:scale-[1.02]"
                 >
                   {loadingMore ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Carregando...
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Carregando mensagens...
                     </>
                   ) : (
                     <>
-                      <ChevronUp className="h-4 w-4 mr-2" />
-                      Carregar mensagens anteriores
+                      <ChevronUp className="h-5 w-5 mr-2" />
+                      ⬆️ CARREGAR MAIS MENSAGENS ⬆️
                     </>
                   )}
                 </Button>
