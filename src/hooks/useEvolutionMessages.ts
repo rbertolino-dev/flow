@@ -32,10 +32,10 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
   const [page, setPage] = useState(1);
   const { toast } = useToast();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const instanceIdRef = useRef<string | null>(null);
+  const remoteJidRef = useRef<string | null>(null);
 
   const mapEvolutionMessage = (msg: any): EvolutionMessage => {
-    // Detectar tipo de mensagem
     let messageType = 'text';
     let messageText = '';
     let mediaUrl: string | undefined;
@@ -49,23 +49,16 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
     let contactName: string | undefined;
     let contactNumber: string | undefined;
 
-    // Texto simples
     if (msg.message?.conversation) {
       messageText = msg.message.conversation;
       messageType = 'text';
-    }
-    // Texto estendido
-    else if (msg.message?.extendedTextMessage) {
+    } else if (msg.message?.extendedTextMessage) {
       messageText = msg.message.extendedTextMessage.text || '';
       messageType = 'text';
-    }
-    // Botões interativos
-    else if (msg.message?.buttonsResponseMessage) {
+    } else if (msg.message?.buttonsResponseMessage) {
       messageText = `Botão: ${msg.message.buttonsResponseMessage.selectedButtonId || 'Selecionado'}`;
       messageType = 'text';
-    }
-    // Imagem
-    else if (msg.message?.imageMessage) {
+    } else if (msg.message?.imageMessage) {
       messageType = 'image';
       mediaUrl = msg.message.imageMessage.url || msg.message.imageMessage.directPath;
       thumbnailUrl = msg.message.imageMessage.jpegThumbnail 
@@ -73,9 +66,7 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
         : undefined;
       caption = msg.message.imageMessage.caption;
       messageText = caption || '[Imagem]';
-    }
-    // Vídeo
-    else if (msg.message?.videoMessage) {
+    } else if (msg.message?.videoMessage) {
       messageType = 'video';
       mediaUrl = msg.message.videoMessage.url || msg.message.videoMessage.directPath;
       thumbnailUrl = msg.message.videoMessage.jpegThumbnail
@@ -83,37 +74,27 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
         : undefined;
       caption = msg.message.videoMessage.caption;
       messageText = caption || '[Vídeo]';
-    }
-    // Áudio
-    else if (msg.message?.audioMessage) {
+    } else if (msg.message?.audioMessage) {
       messageType = 'audio';
       mediaUrl = msg.message.audioMessage.url || msg.message.audioMessage.directPath;
       isPTT = msg.message.audioMessage.ptt === true;
       messageText = isPTT ? '[Mensagem de voz]' : '[Áudio]';
-    }
-    // Documento
-    else if (msg.message?.documentMessage) {
+    } else if (msg.message?.documentMessage) {
       messageType = 'document';
       mediaUrl = msg.message.documentMessage.url || msg.message.documentMessage.directPath;
       fileName = msg.message.documentMessage.fileName;
       fileSize = msg.message.documentMessage.fileLength;
       messageText = fileName || '[Documento]';
-    }
-    // Sticker
-    else if (msg.message?.stickerMessage) {
+    } else if (msg.message?.stickerMessage) {
       messageType = 'sticker';
       mediaUrl = msg.message.stickerMessage.url || msg.message.stickerMessage.directPath;
       messageText = '[Sticker]';
-    }
-    // Localização
-    else if (msg.message?.locationMessage) {
+    } else if (msg.message?.locationMessage) {
       messageType = 'location';
       latitude = msg.message.locationMessage.degreesLatitude;
       longitude = msg.message.locationMessage.degreesLongitude;
       messageText = '[Localização]';
-    }
-    // Contato
-    else if (msg.message?.contactMessage) {
+    } else if (msg.message?.contactMessage) {
       messageType = 'contact';
       contactName = msg.message.contactMessage.displayName;
       const vcard = msg.message.contactMessage.vcard;
@@ -124,9 +105,7 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
         }
       }
       messageText = contactName || '[Contato]';
-    }
-    // Mídia não identificada
-    else {
+    } else {
       messageText = '[Mídia]';
       messageType = 'text';
     }
@@ -153,17 +132,25 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
   };
 
   const fetchMessages = useCallback(async (pageNum: number = 1, append: boolean = false) => {
-    if (!instanceId || !remoteJid) return;
+    const currentInstanceId = instanceIdRef.current;
+    const currentRemoteJid = remoteJidRef.current;
+    
+    if (!currentInstanceId || !currentRemoteJid) return;
 
     try {
       if (append) {
         setLoadingMore(true);
-      } else {
+      } else if (pageNum === 1) {
         setLoading(true);
       }
       
       const { data, error } = await supabase.functions.invoke('evolution-fetch-messages', {
-        body: { instanceId, remoteJid, page: pageNum, limit: MESSAGES_PER_PAGE }
+        body: { 
+          instanceId: currentInstanceId, 
+          remoteJid: currentRemoteJid, 
+          page: pageNum, 
+          limit: MESSAGES_PER_PAGE 
+        }
       });
 
       if (error) throw error;
@@ -172,18 +159,26 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
         .map(mapEvolutionMessage)
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      // Verificar se há mais mensagens
       setHasMore(newMessages.length >= MESSAGES_PER_PAGE);
 
       if (append) {
-        // Adicionar mensagens mais antigas no início
+        // Add older messages at the beginning
         setMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
           const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
           return [...uniqueNew, ...prev].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
         });
       } else {
-        setMessages(newMessages);
+        // For initial load or refresh, merge with existing to preserve pagination
+        setMessages(prev => {
+          if (pageNum === 1 && prev.length === 0) {
+            return newMessages;
+          }
+          // Merge keeping existing older messages
+          const existingIds = new Set(prev.map(m => m.id));
+          const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+          return [...prev, ...uniqueNew].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        });
       }
 
     } catch (error: any) {
@@ -197,7 +192,7 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [instanceId, remoteJid, toast]);
+  }, [toast]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -207,41 +202,42 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
   }, [fetchMessages, page, loadingMore, hasMore]);
 
   useEffect(() => {
+    // Update refs
+    instanceIdRef.current = instanceId;
+    remoteJidRef.current = remoteJid;
+    
     if (!instanceId || !remoteJid) {
       setMessages([]);
       setPage(1);
       setHasMore(true);
+      setLoading(false);
       return;
     }
 
-    // Limpar intervalos anteriores
+    // Clear previous intervals
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current);
-    }
 
-    // Reset page
+    // Reset state for new conversation
+    setMessages([]);
     setPage(1);
+    setHasMore(true);
     
-    // Primeira busca imediata
+    // Initial fetch
     fetchMessages(1, false);
     
-    // Polling a cada 5 segundos (reduzido para economia)
+    // Polling every 10 seconds for new messages only
     pollingIntervalRef.current = setInterval(() => {
       fetchMessages(1, false);
-    }, 5000);
+    }, 10000);
     
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
     };
-  }, [instanceId, remoteJid, fetchMessages]);
+  }, [instanceId, remoteJid]);
 
   return {
     messages,
