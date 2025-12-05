@@ -8,7 +8,7 @@ import { useChatwootChats } from "@/hooks/useChatwootChats";
 import { useChatwootConversations } from "@/hooks/useChatwootConversations";
 import { useChatwootConfig } from "@/hooks/useChatwootConfig";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
-import { useEvolutionChats } from "@/hooks/useEvolutionChats";
+import { useAllEvolutionChats } from "@/hooks/useAllEvolutionChats";
 import { useLeadsByPhones } from "@/hooks/useLeadByPhone";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -65,13 +65,8 @@ export default function UnifiedMessages() {
     chatwootInboxesList[0]?.id || null
   );
 
-  // Buscar conversas de TODAS as instâncias Evolution
-  const evolutionChatsResults = evolutionConfigs.map(config => ({
-    config,
-    ...useEvolutionChats(config?.id || null)
-  }));
-  
-  const evolutionLoading = evolutionChatsResults.some(r => r.loading);
+  // Buscar conversas de TODAS as instâncias Evolution (sem violar regras de hooks)
+  const { chats: allEvolutionChats, loading: evolutionLoading } = useAllEvolutionChats(evolutionConfigs);
 
   // Combinar todas as conversas
   const allConversations = useMemo(() => {
@@ -107,33 +102,31 @@ export default function UnifiedMessages() {
     }
 
     // Conversas de TODAS as instâncias Evolution
-    evolutionChatsResults.forEach(({ config, chats }) => {
-      if (!chats || !config) return;
-      
-      chats.forEach((chat) => {
+    if (allEvolutionChats && allEvolutionChats.length > 0) {
+      allEvolutionChats.forEach((chat) => {
         const remoteJid = chat.remoteJid || '';
         const phone = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
         
         if (!phone || remoteJid.includes('@lid')) return; // Ignorar LIDs
 
         conversations.push({
-          id: `evolution_${config.id}_${remoteJid}`,
+          id: `evolution_${chat.instanceId}_${remoteJid}`,
           name: chat.name || phone,
           phone: phone,
           lastMessage: chat.lastMessage || 'Sem mensagens',
           timestamp: chat.lastMessageTime || new Date(),
           unreadCount: chat.unreadCount || 0,
           source: 'evolution',
-          sourceInstanceId: config.id,
-          sourceInstanceName: config.instance_name,
+          sourceInstanceId: chat.instanceId,
+          sourceInstanceName: chat.instanceName,
           meta: { remoteJid },
         });
       });
-    });
+    }
 
     // Ordenar por timestamp (mais recente primeiro)
     return conversations.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [chatwootConversations, evolutionChatsResults, chatwootInboxesList, activeOrgId]);
+  }, [chatwootConversations, allEvolutionChats, chatwootInboxesList, activeOrgId]);
 
   // Filtrar conversas
   const filteredConversations = useMemo(() => {
