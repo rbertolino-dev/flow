@@ -40,8 +40,8 @@ serve(async (req) => {
     if (configError) throw configError;
     if (!config) throw new Error('Instância não encontrada');
 
-    // Buscar mensagens da Evolution API
-    const evolutionUrl = `${config.api_url}/chat/fetchMessages/${config.instance_name}`;
+    // Buscar mensagens da Evolution API - endpoint correto é findMessages, não fetchMessages
+    const evolutionUrl = `${config.api_url}/chat/findMessages/${config.instance_name}`;
     
     console.log(`📨 Buscando mensagens da Evolution API para ${remoteJid}`);
     
