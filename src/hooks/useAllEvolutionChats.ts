@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -25,21 +25,32 @@ interface EvolutionConfig {
 export function useAllEvolutionChats(configs: EvolutionConfig[]) {
   const [chats, setChats] = useState<EvolutionChatWithInstance[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
+  const configsRef = useRef<EvolutionConfig[]>([]);
+  
+  // Criar uma chave estável para os configs
+  const configsKey = useMemo(() => {
+    return configs?.map(c => c.id).sort().join(',') || '';
+  }, [configs]);
 
-  const fetchAllChats = useCallback(async () => {
-    if (!configs || configs.length === 0 || !activeOrgId) {
+  const fetchAllChats = useCallback(async (showLoading = true) => {
+    const currentConfigs = configsRef.current;
+    
+    if (!currentConfigs || currentConfigs.length === 0 || !activeOrgId) {
       setChats([]);
       return;
     }
 
     try {
-      setLoading(true);
+      if (showLoading && !initialLoaded) {
+        setLoading(true);
+      }
       
       // Buscar chats de todas as instâncias em paralelo
       const results = await Promise.all(
-        configs.map(async (config) => {
+        currentConfigs.map(async (config) => {
           try {
             const { data, error } = await supabase.functions.invoke('evolution-fetch-chats', {
               body: { instanceId: config.id }
@@ -73,8 +84,9 @@ export function useAllEvolutionChats(configs: EvolutionConfig[]) {
 
       // Combinar todos os resultados
       const allChats = results.flat();
-      console.log(`✅ Total de ${allChats.length} conversas de ${configs.length} instâncias`);
+      console.log(`✅ Total de ${allChats.length} conversas de ${currentConfigs.length} instâncias`);
       setChats(allChats);
+      setInitialLoaded(true);
     } catch (error: any) {
       console.error('Error fetching all Evolution chats:', error);
       toast({
@@ -86,26 +98,34 @@ export function useAllEvolutionChats(configs: EvolutionConfig[]) {
     } finally {
       setLoading(false);
     }
-  }, [configs, activeOrgId, toast]);
+  }, [activeOrgId, toast, initialLoaded]);
+
+  // Atualizar ref quando configs mudam
+  useEffect(() => {
+    configsRef.current = configs || [];
+  }, [configs]);
 
   useEffect(() => {
-    if (!configs || configs.length === 0 || !activeOrgId) {
+    if (!configsKey || !activeOrgId) {
       setChats([]);
       setLoading(false);
+      setInitialLoaded(false);
       return;
     }
 
-    fetchAllChats();
+    // Reset state when configs change
+    setInitialLoaded(false);
+    fetchAllChats(true);
     
-    // Atualizar a cada 5 segundos
-    const interval = setInterval(fetchAllChats, 5000);
+    // Atualizar a cada 30 segundos (aumentado para reduzir custos)
+    const interval = setInterval(() => fetchAllChats(false), 30000);
     
     return () => clearInterval(interval);
-  }, [configs, activeOrgId, fetchAllChats]);
+  }, [configsKey, activeOrgId]);
 
   return {
     chats,
     loading,
-    refetch: fetchAllChats,
+    refetch: () => fetchAllChats(true),
   };
 }
