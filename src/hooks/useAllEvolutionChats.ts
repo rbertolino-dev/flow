@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -24,31 +24,38 @@ interface EvolutionConfig {
 
 export function useAllEvolutionChats(configs: EvolutionConfig[]) {
   const [chats, setChats] = useState<EvolutionChatWithInstance[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [initialLoaded, setInitialLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
-  const configsRef = useRef<EvolutionConfig[]>([]);
   
-  // Criar uma chave estável para os configs
-  const configsKey = useMemo(() => {
-    return configs?.map(c => c.id).sort().join(',') || '';
+  // Use refs to avoid dependency issues
+  const configsRef = useRef<EvolutionConfig[]>([]);
+  const initialLoadDoneRef = useRef(false);
+  const isFetchingRef = useRef(false);
+
+  // Update refs when configs change
+  useEffect(() => {
+    configsRef.current = configs || [];
   }, [configs]);
 
-  const fetchAllChats = useCallback(async (showLoading = true) => {
+  const fetchAllChats = useCallback(async (isInitialLoad = false) => {
     const currentConfigs = configsRef.current;
     
     if (!currentConfigs || currentConfigs.length === 0 || !activeOrgId) {
       setChats([]);
+      setLoading(false);
       return;
     }
 
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
-      if (showLoading && !initialLoaded) {
+      if (isInitialLoad) {
         setLoading(true);
       }
       
-      // Buscar chats de todas as instâncias em paralelo
       const results = await Promise.all(
         currentConfigs.map(async (config) => {
           try {
@@ -82,46 +89,45 @@ export function useAllEvolutionChats(configs: EvolutionConfig[]) {
         })
       );
 
-      // Combinar todos os resultados
       const allChats = results.flat();
       console.log(`✅ Total de ${allChats.length} conversas de ${currentConfigs.length} instâncias`);
       setChats(allChats);
-      setInitialLoaded(true);
+      initialLoadDoneRef.current = true;
     } catch (error: any) {
       console.error('Error fetching all Evolution chats:', error);
-      toast({
-        title: "Erro ao carregar conversas",
-        description: error.message || "Não foi possível conectar às instâncias",
-        variant: "destructive",
-      });
+      if (isInitialLoad) {
+        toast({
+          title: "Erro ao carregar conversas",
+          description: error.message || "Não foi possível conectar às instâncias",
+          variant: "destructive",
+        });
+      }
       setChats([]);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [activeOrgId, toast, initialLoaded]);
-
-  // Atualizar ref quando configs mudam
-  useEffect(() => {
-    configsRef.current = configs || [];
-  }, [configs]);
+  }, [activeOrgId, toast]);
 
   useEffect(() => {
-    if (!configsKey || !activeOrgId) {
+    if (!configs || configs.length === 0 || !activeOrgId) {
       setChats([]);
       setLoading(false);
-      setInitialLoaded(false);
+      initialLoadDoneRef.current = false;
       return;
     }
 
-    // Reset state when configs change
-    setInitialLoaded(false);
+    // Initial fetch
+    initialLoadDoneRef.current = false;
     fetchAllChats(true);
     
-    // Atualizar a cada 30 segundos (aumentado para reduzir custos)
-    const interval = setInterval(() => fetchAllChats(false), 30000);
+    // Polling every 60 seconds (reduced for cost savings)
+    const interval = setInterval(() => {
+      fetchAllChats(false);
+    }, 60000);
     
     return () => clearInterval(interval);
-  }, [configsKey, activeOrgId]);
+  }, [configs?.length, activeOrgId, fetchAllChats]);
 
   return {
     chats,
