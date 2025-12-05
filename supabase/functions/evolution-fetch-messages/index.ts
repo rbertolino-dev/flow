@@ -24,7 +24,7 @@ serve(async (req) => {
       }
     );
 
-    const { instanceId, remoteJid } = await req.json();
+    const { instanceId, remoteJid, page = 1, limit = 50 } = await req.json();
 
     if (!instanceId || !remoteJid) {
       throw new Error('instanceId e remoteJid são obrigatórios');
@@ -40,10 +40,10 @@ serve(async (req) => {
     if (configError) throw configError;
     if (!config) throw new Error('Instância não encontrada');
 
-    // Buscar mensagens da Evolution API - endpoint correto é findMessages, não fetchMessages
+    // Buscar mensagens da Evolution API - endpoint correto é findMessages
     const evolutionUrl = `${config.api_url}/chat/findMessages/${config.instance_name}`;
     
-    console.log(`📨 Buscando mensagens da Evolution API para ${remoteJid}`);
+    console.log(`📨 Buscando mensagens da Evolution API para ${remoteJid} (página ${page}, limite ${limit})`);
     
     const response = await fetch(evolutionUrl, {
       method: 'POST',
@@ -52,8 +52,13 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        remoteJid,
-        limit: 50, // Últimas 50 mensagens
+        where: {
+          key: {
+            remoteJid: remoteJid
+          }
+        },
+        page: page,
+        offset: limit,
       }),
     });
 
@@ -64,9 +69,20 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    const messages = result.messages || result || [];
     
-    console.log(`✅ ${messages.length} mensagens recuperadas`);
+    // Extrair mensagens do resultado (pode estar em diferentes formatos)
+    let messages = [];
+    if (Array.isArray(result)) {
+      messages = result;
+    } else if (result.messages?.records) {
+      messages = result.messages.records;
+    } else if (result.messages && Array.isArray(result.messages)) {
+      messages = result.messages;
+    } else if (result.records) {
+      messages = result.records;
+    }
+    
+    console.log(`✅ ${messages.length} mensagens recuperadas para página ${page}`);
 
     return new Response(
       JSON.stringify({ messages: Array.isArray(messages) ? messages : [] }),

@@ -22,11 +22,15 @@ export interface EvolutionMessage {
   contactNumber?: string;
 }
 
+const MESSAGES_PER_PAGE = 50;
+
 export function useEvolutionMessages(instanceId: string | null, remoteJid: string | null) {
   const [messages, setMessages] = useState<EvolutionMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
   const { toast } = useToast();
-  const lastMessageCountRef = useRef(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -54,10 +58,6 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
     else if (msg.message?.extendedTextMessage) {
       messageText = msg.message.extendedTextMessage.text || '';
       messageType = 'text';
-      // Pode ter preview de link
-      if (msg.message.extendedTextMessage.contextInfo?.quotedMessage) {
-        // Mensagem citada
-      }
     }
     // Botões interativos
     else if (msg.message?.buttonsResponseMessage) {
@@ -116,7 +116,6 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
     else if (msg.message?.contactMessage) {
       messageType = 'contact';
       contactName = msg.message.contactMessage.displayName;
-      // Tentar extrair número do vcard
       const vcard = msg.message.contactMessage.vcard;
       if (vcard) {
         const telMatch = vcard.match(/TEL[;:][^:]*:([^\r\n]+)/i);
@@ -153,49 +152,67 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
     };
   };
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (pageNum: number = 1, append: boolean = false) => {
     if (!instanceId || !remoteJid) return;
 
-    // Debounce: cancelar requisição anterior se ainda estiver pendente
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current);
-    }
-
-    fetchTimeoutRef.current = setTimeout(async () => {
-      try {
+    try {
+      if (append) {
+        setLoadingMore(true);
+      } else {
         setLoading(true);
-        
-        const { data, error } = await supabase.functions.invoke('evolution-fetch-messages', {
-          body: { instanceId, remoteJid }
-        });
-
-        if (error) throw error;
-
-        const messagesList: EvolutionMessage[] = (data.messages || [])
-          .map(mapEvolutionMessage)
-          .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-        // Polling inteligente: se não há novas mensagens, aumentar intervalo
-        const hasNewMessages = messagesList.length !== lastMessageCountRef.current;
-        lastMessageCountRef.current = messagesList.length;
-
-        setMessages(messagesList);
-
-      } catch (error: any) {
-        console.error('Error fetching Evolution messages:', error);
-        toast({
-          title: "Erro ao carregar mensagens",
-          description: error.message || "Não foi possível buscar mensagens",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
       }
-    }, 300); // Debounce de 300ms
+      
+      const { data, error } = await supabase.functions.invoke('evolution-fetch-messages', {
+        body: { instanceId, remoteJid, page: pageNum, limit: MESSAGES_PER_PAGE }
+      });
+
+      if (error) throw error;
+
+      const newMessages: EvolutionMessage[] = (data.messages || [])
+        .map(mapEvolutionMessage)
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      // Verificar se há mais mensagens
+      setHasMore(newMessages.length >= MESSAGES_PER_PAGE);
+
+      if (append) {
+        // Adicionar mensagens mais antigas no início
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+          return [...uniqueNew, ...prev].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        });
+      } else {
+        setMessages(newMessages);
+      }
+
+    } catch (error: any) {
+      console.error('Error fetching Evolution messages:', error);
+      toast({
+        title: "Erro ao carregar mensagens",
+        description: error.message || "Não foi possível buscar mensagens",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, [instanceId, remoteJid, toast]);
 
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    await fetchMessages(nextPage, true);
+  }, [fetchMessages, page, loadingMore, hasMore]);
+
   useEffect(() => {
-    if (!instanceId || !remoteJid) return;
+    if (!instanceId || !remoteJid) {
+      setMessages([]);
+      setPage(1);
+      setHasMore(true);
+      return;
+    }
 
     // Limpar intervalos anteriores
     if (pollingIntervalRef.current) {
@@ -205,13 +222,16 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
       clearTimeout(fetchTimeoutRef.current);
     }
 
-    // Primeira busca imediata
-    fetchMessages();
+    // Reset page
+    setPage(1);
     
-    // Polling inicial a cada 2 segundos
+    // Primeira busca imediata
+    fetchMessages(1, false);
+    
+    // Polling a cada 5 segundos (reduzido para economia)
     pollingIntervalRef.current = setInterval(() => {
-      fetchMessages();
-    }, 2000);
+      fetchMessages(1, false);
+    }, 5000);
     
     return () => {
       if (pollingIntervalRef.current) {
@@ -226,6 +246,9 @@ export function useEvolutionMessages(instanceId: string | null, remoteJid: strin
   return {
     messages,
     loading,
-    refetch: fetchMessages,
+    loadingMore,
+    hasMore,
+    loadMore,
+    refetch: () => fetchMessages(1, false),
   };
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, ArrowLeft, Image as ImageIcon } from "lucide-react";
+import { Send, ArrowLeft, Image as ImageIcon, ChevronUp, Loader2 } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { useEvolutionMessages } from "@/hooks/useEvolutionMessages";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,8 +18,9 @@ export function EvolutionChatWindow({ instanceId, remoteJid, contactName, onBack
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { messages, loading } = useEvolutionMessages(instanceId, remoteJid);
+  const { messages, loading, loadingMore, hasMore, loadMore } = useEvolutionMessages(instanceId, remoteJid);
   const { toast } = useToast();
+  const prevMessagesLengthRef = useRef(0);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -27,8 +28,15 @@ export function EvolutionChatWindow({ instanceId, remoteJid, contactName, onBack
     }
   };
 
+  // Scroll to bottom only on initial load or when new messages arrive
   useEffect(() => {
-    scrollToBottom();
+    if (messages.length > 0 && messages.length !== prevMessagesLengthRef.current) {
+      // Only scroll to bottom if we loaded initial messages or got new ones at the end
+      if (prevMessagesLengthRef.current === 0 || messages.length > prevMessagesLengthRef.current) {
+        scrollToBottom();
+      }
+      prevMessagesLengthRef.current = messages.length;
+    }
   }, [messages]);
 
   const handleSend = async () => {
@@ -113,8 +121,32 @@ export function EvolutionChatWindow({ instanceId, remoteJid, contactName, onBack
           </div>
         ) : (
           <div>
+            {/* Botão para carregar mais mensagens */}
+            {hasMore && (
+              <div className="text-center py-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="bg-white/80 hover:bg-white text-[#075e54] border-[#075e54]/30"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Carregando...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronUp className="h-4 w-4 mr-2" />
+                      Carregar mensagens anteriores
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            
             {messages.map((msg) => {
-              // Converter EvolutionMessage para WhatsAppMessage
               const whatsappMsg = {
                 id: msg.id,
                 messageText: msg.messageText,
