@@ -183,8 +183,18 @@ export function useN8nConfig() {
   const listWorkflows = async (): Promise<N8nWorkflow[]> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
     const response = await callN8nProxy(activeOrgId, "/api/v1/workflows", "GET");
-    // n8n pode retornar { data: [...] } ou diretamente o array
-    return response?.data || response || [];
+    // n8n API retorna diretamente um array de workflows
+    // Se vier dentro de um objeto, extrair o array
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response?.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    if (response?.workflows && Array.isArray(response.workflows)) {
+      return response.workflows;
+    }
+    return [];
   };
 
   const getWorkflow = async (workflowId: string): Promise<N8nWorkflow> => {
@@ -194,29 +204,87 @@ export function useN8nConfig() {
 
   const createWorkflow = async (workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {
     if (!config || !activeOrgId) throw new Error("Configuração não encontrada");
-    // n8n requires settings property, but 'active' is read-only
+    
+    // n8n API não aceita 'active' no POST - é read-only
     const { active, ...rest } = workflowData;
     
-    // n8n requires at least one trigger node
-    const defaultTriggerNode = {
-      id: "trigger-1",
-      name: "Manual Trigger",
-      type: "n8n-nodes-base.manualTrigger",
-      typeVersion: 1,
-      position: [250, 300],
-      parameters: {},
+    // Gerar UUIDs válidos para nodes se não tiverem
+    const ensureNodeIds = (nodes: any[]): any[] => {
+      return nodes.map((node, index) => {
+        // n8n requer UUIDs válidos no formato xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        if (!node.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id)) {
+          // Gerar UUID v4 válido
+          const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+          node.id = uuid;
+        }
+        
+        // Garantir propriedades obrigatórias
+        if (!node.position || !Array.isArray(node.position) || node.position.length !== 2) {
+          node.position = [250 + (index * 300), 300];
+        }
+        
+        if (!node.typeVersion) {
+          node.typeVersion = 1;
+        }
+        
+        if (!node.parameters) {
+          node.parameters = {};
+        }
+        
+        return node;
+      });
     };
     
+    // n8n requer pelo menos um node (preferencialmente trigger)
+    let nodes = rest.nodes && rest.nodes.length > 0 ? rest.nodes : [];
+    
+    // Se não tiver nodes, criar um manual trigger padrão
+    if (nodes.length === 0) {
+      const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      nodes = [{
+        id: uuid,
+        name: "Manual Trigger",
+        type: "n8n-nodes-base.manualTrigger",
+        typeVersion: 1,
+        position: [250, 300],
+        parameters: {},
+      }];
+    } else {
+      nodes = ensureNodeIds(nodes);
+    }
+    
+    // Estrutura do payload conforme documentação n8n API
     const payload = {
-      name: rest.name || "New Workflow",
-      nodes: rest.nodes && rest.nodes.length > 0 ? rest.nodes : [defaultTriggerNode],
+      name: rest.name || `Workflow ${new Date().toISOString()}`,
+      nodes: nodes,
       connections: rest.connections || {},
       settings: rest.settings || {
         executionOrder: "v1",
+        saveDataErrorExecution: "all",
+        saveDataSuccessExecution: "all",
+        saveManualExecutions: true,
+        callerPolicy: "workflowsFromSameOwner",
+        errorWorkflow: null,
       },
-      ...rest,
+      staticData: rest.staticData || null,
+      tags: rest.tags || [],
     };
-    return callN8nProxy(activeOrgId, "/api/v1/workflows", "POST", payload);
+    
+    console.log("[n8n] Creating workflow with payload:", JSON.stringify(payload, null, 2));
+    
+    const result = await callN8nProxy(activeOrgId, "/api/v1/workflows", "POST", payload);
+    
+    console.log("[n8n] Workflow created:", result);
+    
+    return result;
   };
 
   const updateWorkflow = async (workflowId: string, workflowData: Partial<N8nWorkflow>): Promise<N8nWorkflow> => {

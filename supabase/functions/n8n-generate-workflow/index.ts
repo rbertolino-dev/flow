@@ -61,47 +61,78 @@ serve(async (req) => {
 
     const openaiKey = openaiConfig.api_key;
 
-    // Prompt para gerar workflow n8n
-    const systemPrompt = `Você é um especialista em criar workflows do n8n. 
-Sua tarefa é gerar a estrutura JSON completa de um workflow n8n baseado na descrição fornecida pelo usuário.
+    // Prompt para gerar workflow n8n baseado na documentação oficial
+    const systemPrompt = `Você é um especialista em criar workflows do n8n seguindo a documentação oficial da API.
 
-O workflow n8n deve seguir esta estrutura EXATA:
+Estrutura EXATA de um workflow n8n conforme documentação:
 {
   "name": "Nome do Workflow",
   "nodes": [
     {
-      "parameters": {},
-      "id": "uuid-único-1",
+      "id": "uuid-v4-válido",  // OBRIGATÓRIO: UUID v4 no formato xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
       "name": "Nome do Node",
       "type": "n8n-nodes-base.triggerType",
-      "typeVersion": 1,
-      "position": [250, 300]
+      "typeVersion": 1,  // OBRIGATÓRIO
+      "position": [250, 300],  // OBRIGATÓRIO: [x, y] array com 2 números
+      "parameters": {}  // OBRIGATÓRIO: objeto (pode ser vazio)
     }
   ],
   "connections": {
-    "Node1": {
-      "main": [[{"node": "Node2", "type": "main", "index": 0}]]
+    "node-id-1": {  // Use o ID do node, não o nome
+      "main": [
+        [
+          {
+            "node": "node-id-2",  // ID do node de destino
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
-  "settings": {},
-  "staticData": null
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": []
 }
 
-Tipos de nodes comuns do n8n:
-- Triggers: n8n-nodes-base.webhook, n8n-nodes-base.scheduleTrigger, n8n-nodes-base.manualTrigger, n8n-nodes-base.cron
-- Actions: n8n-nodes-base.httpRequest, n8n-nodes-base.set, n8n-nodes-base.if, n8n-nodes-base.switch, n8n-nodes-base.code
-- Integrations: n8n-nodes-base.postgres, n8n-nodes-base.mysql, n8n-nodes-base.slack, n8n-nodes-base.emailSend
+REGRAS CRÍTICAS:
+1. IDs dos nodes DEVEM ser UUIDs v4 válidos (formato: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)
+2. Cada node DEVE ter: id (UUID), name, type, typeVersion, position [x,y], parameters {}
+3. Connections usam IDs dos nodes, não nomes
+4. Sempre comece com um trigger node (webhook, scheduleTrigger, manualTrigger, ou cron)
+5. Posições devem ser espaçadas: primeiro node [250, 300], segundo [550, 300], terceiro [850, 300], etc.
+6. typeVersion geralmente é 1, mas pode variar (verifique o tipo específico)
+7. Parameters devem ser configurados conforme o tipo de node
 
-IMPORTANTE:
-1. Use IDs únicos para cada node (ex: "node-1", "node-2", "node-3")
-2. Defina posições [x, y] para cada node (ex: [250, 300], [450, 300], [650, 300])
-3. Crie conexões lógicas entre os nodes no formato correto
-4. Sempre comece com um trigger node
-5. Retorne APENAS o JSON válido dentro de um objeto com chave "workflow"
-6. O workflow deve estar funcional e completo
-7. Use typeVersion: 1 para todos os nodes
-8. Configure parameters apropriados para cada tipo de node`;
+Tipos de nodes principais:
+- Triggers: n8n-nodes-base.webhook, n8n-nodes-base.scheduleTrigger, n8n-nodes-base.manualTrigger, n8n-nodes-base.cron
+- HTTP: n8n-nodes-base.httpRequest (method, url, authentication, etc.)
+- Logic: n8n-nodes-base.if (conditions), n8n-nodes-base.switch (routing)
+- Data: n8n-nodes-base.set (set fields), n8n-nodes-base.code (JavaScript)
+- Database: n8n-nodes-base.postgres, n8n-nodes-base.mysql
+- Integrations: n8n-nodes-base.slack, n8n-nodes-base.emailSend, n8n-nodes-base.telegram
+
+Exemplo de node HTTP Request:
+{
+  "id": "uuid-v4",
+  "name": "HTTP Request",
+  "type": "n8n-nodes-base.httpRequest",
+  "typeVersion": 4.1,
+  "position": [550, 300],
+  "parameters": {
+    "method": "GET",
+    "url": "https://api.exemplo.com/data",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth"
+  }
+}
+
+Retorne APENAS JSON válido dentro de um objeto com chave "workflow".`;
 
     const userPrompt = `Crie um workflow n8n completo para: ${description}
 
@@ -175,7 +206,7 @@ Retorne APENAS um objeto JSON com a chave "workflow" contendo o workflow complet
       }
     }
 
-    // Validar estrutura básica
+    // Validar e corrigir estrutura básica
     if (!workflow.name) {
       workflow.name = `Workflow: ${description.substring(0, 50)}`;
     }
@@ -185,8 +216,78 @@ Retorne APENAS um objeto JSON com a chave "workflow" contendo o workflow complet
     if (!workflow.connections) {
       workflow.connections = {};
     }
-    if (workflow.active === undefined) {
-      workflow.active = false;
+    
+    // Remover 'active' - é read-only na API
+    delete workflow.active;
+    
+    // Validar e corrigir nodes
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    workflow.nodes = workflow.nodes.map((node: any, index: number) => {
+      // Gerar UUID válido se não tiver ou for inválido
+      if (!node.id || !uuidRegex.test(node.id)) {
+        const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c: string) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+        node.id = uuid;
+      }
+      
+      // Garantir propriedades obrigatórias
+      if (!node.name) {
+        node.name = `Node ${index + 1}`;
+      }
+      if (!node.type) {
+        node.type = index === 0 ? "n8n-nodes-base.manualTrigger" : "n8n-nodes-base.set";
+      }
+      if (!node.typeVersion) {
+        node.typeVersion = 1;
+      }
+      if (!node.position || !Array.isArray(node.position) || node.position.length !== 2) {
+        node.position = [250 + (index * 300), 300];
+      }
+      if (!node.parameters || typeof node.parameters !== 'object') {
+        node.parameters = {};
+      }
+      
+      return node;
+    });
+    
+    // Se não tiver nodes, adicionar um trigger padrão
+    if (workflow.nodes.length === 0) {
+      const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c: string) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      workflow.nodes.push({
+        id: uuid,
+        name: "Manual Trigger",
+        type: "n8n-nodes-base.manualTrigger",
+        typeVersion: 1,
+        position: [250, 300],
+        parameters: {},
+      });
+    }
+    
+    // Garantir settings
+    if (!workflow.settings || typeof workflow.settings !== 'object') {
+      workflow.settings = {
+        executionOrder: "v1",
+        saveDataErrorExecution: "all",
+        saveDataSuccessExecution: "all",
+        saveManualExecutions: true,
+      };
+    }
+    
+    // Garantir staticData
+    if (workflow.staticData === undefined) {
+      workflow.staticData = null;
+    }
+    
+    // Garantir tags
+    if (!workflow.tags || !Array.isArray(workflow.tags)) {
+      workflow.tags = [];
     }
 
     return new Response(

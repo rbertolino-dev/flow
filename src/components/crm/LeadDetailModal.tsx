@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight, Ban, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
@@ -96,6 +96,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   // Estado local do lead para atualizar tags imediatamente
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
+  const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
 
   // Atualizar currentLead quando o lead prop mudar
   useEffect(() => {
@@ -197,6 +198,38 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     const success = await deleteLead(lead.id);
     if (success) {
       onClose();
+    }
+  };
+
+  const handleToggleExcludeFromFunnel = async () => {
+    setIsTogglingExclusion(true);
+    try {
+      const newExcludedValue = !(currentLead.excluded_from_funnel || false);
+      const { error } = await (supabase as any)
+        .from('leads')
+        .update({ excluded_from_funnel: newExcludedValue })
+        .eq('id', currentLead.id);
+
+      if (error) throw error;
+
+      setCurrentLead(prev => ({ ...prev, excluded_from_funnel: newExcludedValue } as Lead));
+      
+      toast({
+        title: newExcludedValue ? "Contato excluído do funil" : "Contato incluído no funil",
+        description: newExcludedValue 
+          ? "Este contato não aparecerá mais no funil de vendas, mas continuará recebendo mensagens."
+          : "Este contato voltou a aparecer no funil de vendas.",
+      });
+
+      onUpdated?.();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTogglingExclusion(false);
     }
   };
 
@@ -1257,36 +1290,59 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
         <Separator className="flex-shrink-0" />
 
-        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex flex-wrap gap-2 flex-shrink-0">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação não pode ser desfeita. O contato será removido do funil e da fila de ligações.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteLead} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Confirmar exclusão
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button variant="outline" onClick={onClose}>
-            Fechar
-          </Button>
-          <Button variant="secondary" onClick={handleAddToCallQueue}>
-            <PhoneCall className="h-4 w-4 mr-2" />
-            Adicionar à Fila
-          </Button>
+        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex flex-col gap-2 flex-shrink-0">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Fechar
+            </Button>
+            <Button variant="secondary" onClick={handleAddToCallQueue}>
+              <PhoneCall className="h-4 w-4 mr-2" />
+              Adicionar à Fila
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2 border-t pt-2 mt-2">
+            <Button
+              variant={currentLead.excluded_from_funnel ? "default" : "outline"}
+              onClick={handleToggleExcludeFromFunnel}
+              disabled={isTogglingExclusion}
+              size="sm"
+            >
+              {currentLead.excluded_from_funnel ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Incluir no Funil
+                </>
+              ) : (
+                <>
+                  <Ban className="h-4 w-4 mr-2" />
+                  Excluir do Funil
+                </>
+              )}
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir Permanentemente
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. Isso excluirá permanentemente o contato
+                    <span className="font-semibold"> {lead.name}</span> e removerá seus dados de nossos servidores.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteLead} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </DialogContent>
 

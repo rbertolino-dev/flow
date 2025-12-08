@@ -432,9 +432,29 @@ serve(async (req) => {
         .eq('source_instance_id', configs.id)
         .maybeSingle();
 
-      if (existingLead) {
-        // Se foi excluído, recriar
-        if (existingLead.deleted_at) {
+        if (existingLead) {
+          // Se está excluído do funil, não criar/restaurar - apenas registrar atividade silenciosamente
+          if (existingLead.excluded_from_funnel) {
+            console.log(`🚫 Lead excluído do funil (ID: ${existingLead.id}), não restaurando`);
+            
+            // Ainda registrar a atividade para histórico, mas não atualizar o lead
+            await supabaseServiceRole.from('activities').insert({
+              organization_id: configs.organization_id,
+              lead_id: existingLead.id,
+              type: 'whatsapp',
+              content: messageContent,
+              user_name: isFromMe ? 'Você' : contactName,
+              direction,
+            });
+            
+            return new Response(JSON.stringify({ success: true, action: 'skipped_excluded' }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          
+          // Se foi excluído (soft delete), recriar
+          if (existingLead.deleted_at) {
           console.log(`🔄 Lead foi excluído, recriando (ID: ${existingLead.id})`);
           
           // Buscar primeiro estágio do funil para garantir que o lead tenha uma etapa

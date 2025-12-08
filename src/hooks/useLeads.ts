@@ -120,6 +120,7 @@ export function useLeads() {
         .select('*')
         .eq('organization_id', activeOrgId)
         .is('deleted_at', null)
+        .eq('excluded_from_funnel', false) // Excluir contatos marcados como excluídos do funil
         .order('created_at', { ascending: false });
 
       if (leadsError) throw leadsError;
@@ -177,6 +178,7 @@ export function useLeads() {
           sourceInstanceId: lead.source_instance_id || undefined,
           notes: lead.notes || undefined,
           stageId: lead.stage_id || undefined,
+          excluded_from_funnel: lead.excluded_from_funnel || false,
           activities: (activities || []).map((a) => ({
             id: a.id,
             type: a.type as Activity['type'],

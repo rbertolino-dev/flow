@@ -41,6 +41,7 @@ export interface Lead {
   last_message_at?: string;
   unread_message_count?: number;
   call_count?: number;
+  excluded_from_funnel?: boolean;
 }
 
 export interface CallQueueItem {

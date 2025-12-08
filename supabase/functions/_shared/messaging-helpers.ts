@@ -38,14 +38,35 @@ export async function processLeadFromMessage(
   // Verificar se já existe lead com este telefone NESTA organização E desta mesma instância
   const { data: existingLead } = await supabase
     .from('leads')
-    .select('id, deleted_at, source_instance_id, source_instance_name, stage_id')
+    .select('id, deleted_at, excluded_from_funnel, source_instance_id, source_instance_name, stage_id')
     .eq('phone', phoneNumber)
     .eq('organization_id', organizationId)
     .eq('source_instance_id', sourceInstanceId)
     .maybeSingle();
 
   if (existingLead) {
-    // Se foi excluído, recriar
+    // Se está excluído do funil, não criar/restaurar - apenas registrar atividade silenciosamente
+    if (existingLead.excluded_from_funnel) {
+      console.log(`🚫 Lead excluído do funil (ID: ${existingLead.id}), não restaurando`);
+      
+      // Ainda registrar a atividade para histórico, mas não atualizar o lead
+      await supabase.from('activities').insert({
+        organization_id: organizationId,
+        lead_id: existingLead.id,
+        type: source,
+        content: messageContent,
+        user_name: contactName,
+        direction,
+      });
+      
+      return { 
+        success: true, 
+        leadId: existingLead.id,
+        action: 'skipped_excluded' 
+      };
+    }
+    
+    // Se foi excluído (soft delete), recriar
     if (existingLead.deleted_at) {
       console.log(`🔄 Lead foi excluído, restaurando (ID: ${existingLead.id})`);
       

@@ -481,6 +481,7 @@ export default function BroadcastCampaigns() {
   const [importMode, setImportMode] = useState<"csv" | "paste" | "list">("csv");
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const [logsInstanceFilter, setLogsInstanceFilter] = useState<string>("all");
+  const [logsSortOrder, setLogsSortOrder] = useState<"asc" | "desc">("asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -1881,7 +1882,7 @@ export default function BroadcastCampaigns() {
         .from("broadcast_queue")
         .select(`
           *,
-          instance:evolution_config(instance_name)
+          instance:evolution_config(id, instance_name)
         `)
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false });
@@ -3238,41 +3239,72 @@ export default function BroadcastCampaigns() {
             </DialogDescription>
           </DialogHeader>
           <div className="mb-4 space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Buscar por número de telefone..."
-                value={logsSearchQuery}
-                onChange={(e) => setLogsSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div>
-              <Label>Filtrar por Instância</Label>
-              <Select value={logsInstanceFilter} onValueChange={setLogsInstanceFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas as instâncias" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as instâncias</SelectItem>
-                  {instances.map((instance) => (
-                    <SelectItem key={instance.id} value={instance.id}>
-                      {instance.instance_name}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por número de telefone..."
+                  value={logsSearchQuery}
+                  onChange={(e) => setLogsSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div>
+                <Label>Filtrar por Instância</Label>
+                <Select value={logsInstanceFilter} onValueChange={setLogsInstanceFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas as instâncias" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as instâncias</SelectItem>
+                    {instances.map((instance) => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        {instance.instance_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Ordenar por Horário</Label>
+                <Select value={logsSortOrder} onValueChange={(value) => setLogsSortOrder(value as "asc" | "desc")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Mais antigas primeiro
+                      </div>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    <SelectItem value="desc">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Mais recentes primeiro
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-3">
               {(() => {
-                const filteredLogs = selectedCampaignLogs
+                let filteredLogs = selectedCampaignLogs
                   .filter((log) => {
                     const matchesPhone = !logsSearchQuery || log.phone.includes(logsSearchQuery.replace(/\D/g, ""));
-                    const matchesInstance = logsInstanceFilter === "all" || log.instance_id === logsInstanceFilter;
+                    // Verifica instance_id diretamente ou através do relacionamento instance
+                    const logInstanceId = log.instance_id || log.instance?.id;
+                    const matchesInstance = logsInstanceFilter === "all" || logInstanceId === logsInstanceFilter;
                     return matchesPhone && matchesInstance;
+                  })
+                  .sort((a, b) => {
+                    const dateA = a.scheduled_for ? new Date(a.scheduled_for).getTime() : 0;
+                    const dateB = b.scheduled_for ? new Date(b.scheduled_for).getTime() : 0;
+                    return logsSortOrder === "asc" ? dateA - dateB : dateB - dateA;
                   });
                 
                 const campaignData = campaigns.find(c => c.id === filteredLogs[0]?.campaign_id);
@@ -3280,7 +3312,13 @@ export default function BroadcastCampaigns() {
                 const maxDelay = filteredLogs[0]?.campaign?.max_delay_seconds || 60;
                 const avgDelay = (minDelay + maxDelay) / 2;
                 
-                const startTime = filteredLogs[0]?.scheduled_for ? new Date(filteredLogs[0].scheduled_for) : null;
+                // Sempre pega o horário mais antigo para calcular a estimativa, independente da ordenação
+                const sortedByTime = [...filteredLogs].sort((a, b) => {
+                  const dateA = a.scheduled_for ? new Date(a.scheduled_for).getTime() : 0;
+                  const dateB = b.scheduled_for ? new Date(b.scheduled_for).getTime() : 0;
+                  return dateA - dateB;
+                });
+                const startTime = sortedByTime[0]?.scheduled_for ? new Date(sortedByTime[0].scheduled_for) : null;
                 const totalMessages = filteredLogs.length;
                 const estimatedDuration = totalMessages * avgDelay * 1000;
                 const endTime = startTime ? new Date(startTime.getTime() + estimatedDuration) : null;
