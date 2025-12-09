@@ -115,40 +115,75 @@ export function useLeads() {
         return;
       }
 
-      const { data: leadsData, error: leadsError } = await (supabase as any)
+      // ✅ RESILIENTE: Tenta query completa, se falhar usa fallback sem colunas opcionais
+      let leadsData: any[] | null = null;
+      let leadsError: any = null;
+
+      // Primeira tentativa: query completa com excluded_from_funnel
+      const result1 = await (supabase as any)
         .from('leads')
         .select('*')
         .eq('organization_id', activeOrgId)
         .is('deleted_at', null)
-        .eq('excluded_from_funnel', false) // Excluir contatos marcados como excluídos do funil
+        .eq('excluded_from_funnel', false)
         .order('created_at', { ascending: false });
+
+      if (result1.error) {
+        // Se erro de coluna não existir, tenta sem o filtro
+        if (result1.error.message?.includes('does not exist') || 
+            result1.error.code === '42703') {
+          console.warn('⚠️ Coluna excluded_from_funnel não existe, usando fallback...');
+          const result2 = await (supabase as any)
+            .from('leads')
+            .select('*')
+            .eq('organization_id', activeOrgId)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false });
+          
+          leadsData = result2.data;
+          leadsError = result2.error;
+        } else {
+          leadsError = result1.error;
+        }
+      } else {
+        leadsData = result1.data;
+      }
 
       if (leadsError) throw leadsError;
 
       // ✅ OTIMIZAÇÃO: Buscar activities e tags em batch (evita N+1 queries)
       const leadIds = (leadsData || []).map(l => l.id);
       
-      // Batch fetch activities
-      const { data: allActivities } = await (supabase as any)
-        .from('activities')
-        .select('*')
-        .in('lead_id', leadIds)
-        .order('created_at', { ascending: false });
+      if (leadIds.length === 0) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Batch fetch activities e tags em paralelo para melhor performance
+      const [activitiesResult, tagsResult] = await Promise.all([
+        (supabase as any)
+          .from('activities')
+          .select('*')
+          .in('lead_id', leadIds)
+          .order('created_at', { ascending: false }),
+        (supabase as any)
+          .from('lead_tags')
+          .select('lead_id, tag_id, tags(id, name, color)')
+          .in('lead_id', leadIds)
+      ]);
 
-      // Batch fetch tags
-      const { data: allLeadTags } = await (supabase as any)
-        .from('lead_tags')
-        .select('lead_id, tag_id, tags(id, name, color)')
-        .in('lead_id', leadIds);
+      const allActivities = activitiesResult.data || [];
+      const allLeadTags = tagsResult.data || [];
 
       // Group by lead_id for fast lookup
-      const activitiesByLead = (allActivities || []).reduce((acc, act) => {
+      const activitiesByLead = allActivities.reduce((acc, act) => {
         if (!acc[act.lead_id]) acc[act.lead_id] = [];
         acc[act.lead_id].push(act);
         return acc;
       }, {} as Record<string, any[]>);
 
-      const tagsByLead = (allLeadTags || []).reduce((acc, lt) => {
+      const tagsByLead = allLeadTags.reduce((acc, lt) => {
         if (!acc[lt.lead_id]) acc[lt.lead_id] = [];
         acc[lt.lead_id].push(lt);
         return acc;
@@ -178,7 +213,7 @@ export function useLeads() {
           sourceInstanceId: lead.source_instance_id || undefined,
           notes: lead.notes || undefined,
           stageId: lead.stage_id || undefined,
-          excluded_from_funnel: lead.excluded_from_funnel || false,
+          excluded_from_funnel: lead.excluded_from_funnel ?? false,
           activities: (activities || []).map((a) => ({
             id: a.id,
             type: a.type as Activity['type'],
@@ -192,11 +227,14 @@ export function useLeads() {
 
       setLeads(leadsWithActivities);
     } catch (error: any) {
+      console.error('❌ Erro ao carregar leads:', error);
       toast({
         title: "Erro ao carregar leads",
-        description: error.message,
+        description: error.message || "Tente recarregar a página",
         variant: "destructive",
       });
+      // Em caso de erro, mantém os leads existentes ao invés de limpar
+      // setLeads([]);
     } finally {
       setLoading(false);
     }
