@@ -93,9 +93,11 @@ serve(async (req) => {
       },
     };
 
-    // Add body for POST/PUT requests
-    if (data && (method.toUpperCase() === "POST" || method.toUpperCase() === "PUT")) {
-      fetchOptions.body = JSON.stringify(data);
+    // Add body for POST/PUT/PATCH requests, stripping read-only fields
+    if (data && ["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+      // Remove read-only fields that n8n API doesn't accept
+      const { tags, active, createdAt, updatedAt, id, versionId, ...cleanData } = data;
+      fetchOptions.body = JSON.stringify(cleanData);
     }
 
     // Make request to n8n API
