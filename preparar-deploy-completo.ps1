@@ -132,13 +132,13 @@ Write-Host ""
 Write-Host "📋 PRÓXIMOS PASSOS (Fazer no Supabase Dashboard):" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "   1. Aplicar todas as migrations na ordem cronológica" -ForegroundColor White
-Write-Host "      → https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/sql/new" -ForegroundColor Gray
+Write-Host "      -> https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/sql/new" -ForegroundColor Gray
 Write-Host ""
 Write-Host "   2. Fazer deploy de todas as Edge Functions" -ForegroundColor White
-Write-Host "      → https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/functions" -ForegroundColor Gray
+Write-Host "      -> https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/functions" -ForegroundColor Gray
 Write-Host ""
 Write-Host "   3. Configurar variáveis de ambiente" -ForegroundColor White
-Write-Host "      → https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/settings/functions" -ForegroundColor Gray
+Write-Host "      -> https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/settings/functions" -ForegroundColor Gray
 Write-Host ""
 Write-Host "   4. Verificar tabelas, buckets e configurações" -ForegroundColor White
 Write-Host ""
