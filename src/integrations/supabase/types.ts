@@ -2116,6 +2116,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           email: string | null
+          excluded_from_funnel: boolean | null
           has_unread_messages: boolean | null
           id: string
           last_contact: string | null
@@ -2144,6 +2145,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           email?: string | null
+          excluded_from_funnel?: boolean | null
           has_unread_messages?: boolean | null
           id?: string
           last_contact?: string | null
@@ -2172,6 +2174,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           email?: string | null
+          excluded_from_funnel?: boolean | null
           has_unread_messages?: boolean | null
           id?: string
           last_contact?: string | null
