@@ -56,7 +56,7 @@ export function ProductsManagement() {
     description: "",
     price: 0,
     category: "",
-    active: true,
+    is_active: true,
   });
 
   const categories = Array.from(new Set(products.map((p) => p.category))).sort();
@@ -81,7 +81,7 @@ export function ProductsManagement() {
         description: product.description || "",
         price: product.price,
         category: product.category,
-        active: product.active,
+        is_active: product.is_active,
         commission_percentage: product.commission_percentage || 0,
         commission_fixed: product.commission_fixed || 0,
       });
@@ -92,7 +92,7 @@ export function ProductsManagement() {
         description: "",
         price: 0,
         category: "",
-        active: true,
+        is_active: true,
         commission_percentage: 0,
         commission_fixed: 0,
       });
@@ -108,7 +108,7 @@ export function ProductsManagement() {
       description: "",
       price: 0,
       category: "",
-      active: true,
+      is_active: true,
     });
   };
 
@@ -345,13 +345,13 @@ export function ProductsManagement() {
 
               <div className="flex items-center space-x-2">
                 <Switch
-                  id="active"
-                  checked={formData.active}
+                  id="is_active"
+                  checked={formData.is_active}
                   onCheckedChange={(checked) =>
-                    setFormData({ ...formData, active: checked })
+                    setFormData({ ...formData, is_active: checked })
                   }
                 />
-                <Label htmlFor="active" className="cursor-pointer">
+                <Label htmlFor="is_active" className="cursor-pointer">
                   Produto ativo (disponível para venda)
                 </Label>
               </div>
@@ -415,7 +415,7 @@ export function ProductsManagement() {
             Produtos ({filteredProducts.length})
           </CardTitle>
           <CardDescription>
-            {filteredProducts.filter((p) => p.active).length} ativos
+            {filteredProducts.filter((p) => p.is_active).length} ativos
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -479,9 +479,9 @@ export function ProductsManagement() {
                           </TableCell>
                           <TableCell>
                             <Badge
-                              variant={product.active ? "default" : "secondary"}
+                              variant={product.is_active ? "default" : "secondary"}
                             >
-                              {product.active ? "Ativo" : "Inativo"}
+                              {product.is_active ? "Ativo" : "Inativo"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
