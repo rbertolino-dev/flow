@@ -305,41 +305,50 @@ export function ProductsManagement() {
                   <Label htmlFor="category">
                     Categoria <span className="text-red-500">*</span>
                   </Label>
-                  <div className="flex gap-2">
-                    <Select
-                      value={formData.category}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, category: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione ou digite" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {categories.length > 0 ? (
+                    <div className="space-y-2">
+                      <Select
+                        value={categories.includes(formData.category) ? formData.category : "__new__"}
+                        onValueChange={(value) => {
+                          if (value === "__new__") {
+                            setFormData({ ...formData, category: "" });
+                          } else {
+                            setFormData({ ...formData, category: value });
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat} value={cat}>
+                              {cat}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__new__">+ Nova categoria</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(!categories.includes(formData.category) || formData.category === "") && (
+                        <Input
+                          placeholder="Digite o nome da nova categoria"
+                          value={formData.category === "__new__" ? "" : formData.category}
+                          onChange={(e) =>
+                            setFormData({ ...formData, category: e.target.value })
+                          }
+                          autoFocus
+                        />
+                      )}
+                    </div>
+                  ) : (
                     <Input
-                      placeholder="Nova categoria"
-                      value={
-                        categories.includes(formData.category)
-                          ? ""
-                          : formData.category
-                      }
+                      placeholder="Digite o nome da categoria (ex: Software, Consultoria)"
+                      value={formData.category}
                       onChange={(e) =>
                         setFormData({ ...formData, category: e.target.value })
                       }
-                      onFocus={(e) => {
-                        if (categories.includes(formData.category)) {
-                          setFormData({ ...formData, category: "" });
-                        }
-                      }}
                     />
-                  </div>
+                  )}
                 </div>
               </div>
 
