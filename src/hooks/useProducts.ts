@@ -30,7 +30,29 @@ export function useProducts() {
 
       if (error) throw error;
 
-      setProducts((data || []) as Product[]);
+      // Map database fields to Product interface
+      const mappedProducts: Product[] = (data || []).map((item) => ({
+        id: item.id,
+        organization_id: item.organization_id,
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        cost: item.cost,
+        category: item.category,
+        sku: item.sku,
+        stock_quantity: item.stock_quantity,
+        min_stock: item.min_stock,
+        image_url: item.image_url,
+        is_active: item.is_active,
+        commission_percentage: null,
+        commission_fixed: null,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        created_by: item.created_by,
+        updated_by: null,
+      }));
+
+      setProducts(mappedProducts);
     } catch (error: any) {
       console.error("Erro ao buscar produtos:", error);
       toast({
@@ -154,7 +176,7 @@ export function useProducts() {
   };
 
   const getActiveProducts = () => {
-    return products.filter((p) => p.active);
+    return products.filter((p) => p.is_active);
   };
 
   return {
@@ -168,4 +190,3 @@ export function useProducts() {
     getActiveProducts,
   };
 }
-

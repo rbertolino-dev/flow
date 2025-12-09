@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useSellerGoals, SellerGoal } from "@/hooks/useSellerGoals";
+import { useSellerGoals, SellerGoal, SellerGoalFormData } from "@/hooks/useSellerGoals";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,43 +12,43 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Pencil, Trash2, Target, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Target } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
 export function SellerGoalsManagement() {
-  const { organizationId } = useAuth();
-  const { goals, isLoading, createGoal, updateGoal, deleteGoal } = useSellerGoals();
+  const { activeOrgId } = useActiveOrganization();
+  const { goals, loading, createGoal, updateGoal, deleteGoal } = useSellerGoals();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<SellerGoal | null>(null);
-  const [formData, setFormData] = useState({
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<SellerGoalFormData>({
     user_id: "",
+    period_type: "monthly",
     period_start: "",
     period_end: "",
-    goal_type: "revenue" as 'revenue' | 'deals' | 'leads',
+    target_leads: 0,
     target_value: 0,
-    current_value: 0,
-    status: "in_progress" as 'in_progress' | 'achieved' | 'missed',
-    notes: "",
+    target_commission: 0,
   });
 
   // Buscar membros da organização
   const { data: members = [] } = useQuery({
-    queryKey: ['org-members', organizationId],
+    queryKey: ['org-members', activeOrgId],
     queryFn: async () => {
-      if (!organizationId) return [];
+      if (!activeOrgId) return [];
       const { data, error } = await supabase
         .from('organization_members')
         .select(`
           user_id,
-          profiles!organization_members_user_id_fkey(id, full_name, email)
+          profiles(id, full_name, email)
         `)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', activeOrgId);
       if (error) throw error;
       return data;
     },
-    enabled: !!organizationId,
+    enabled: !!activeOrgId,
   });
 
   const handleOpenDialog = (goal?: SellerGoal) => {
@@ -56,13 +56,12 @@ export function SellerGoalsManagement() {
       setEditingGoal(goal);
       setFormData({
         user_id: goal.user_id,
+        period_type: goal.period_type,
         period_start: goal.period_start,
         period_end: goal.period_end,
-        goal_type: goal.goal_type,
+        target_leads: goal.target_leads,
         target_value: goal.target_value,
-        current_value: goal.current_value,
-        status: goal.status,
-        notes: goal.notes || "",
+        target_commission: goal.target_commission,
       });
     } else {
       setEditingGoal(null);
@@ -71,13 +70,12 @@ export function SellerGoalsManagement() {
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       setFormData({
         user_id: "",
+        period_type: "monthly",
         period_start: startOfMonth.toISOString().split('T')[0],
         period_end: endOfMonth.toISOString().split('T')[0],
-        goal_type: "revenue",
+        target_leads: 0,
         target_value: 0,
-        current_value: 0,
-        status: "in_progress",
-        notes: "",
+        target_commission: 0,
       });
     }
     setIsDialogOpen(true);
@@ -85,25 +83,28 @@ export function SellerGoalsManagement() {
 
   const handleSubmit = async () => {
     if (!formData.user_id || !formData.target_value) {
-      toast.error("Vendedor e meta são obrigatórios");
+      toast.error("Vendedor e meta de valor são obrigatórios");
       return;
     }
 
     try {
+      setSaving(true);
       if (editingGoal) {
-        await updateGoal.mutateAsync({ id: editingGoal.id, ...formData });
+        await updateGoal(editingGoal.id, formData);
       } else {
-        await createGoal.mutateAsync(formData);
+        await createGoal(formData);
       }
       setIsDialogOpen(false);
     } catch (error) {
       console.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm("Tem certeza que deseja excluir esta meta?")) {
-      await deleteGoal.mutateAsync(id);
+      await deleteGoal(id);
     }
   };
 
@@ -111,26 +112,19 @@ export function SellerGoalsManagement() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const getGoalTypeLabel = (type: string) => {
+  const getPeriodTypeLabel = (type: string) => {
     switch (type) {
-      case 'revenue': return 'Faturamento';
-      case 'deals': return 'Negócios';
-      case 'leads': return 'Leads';
+      case 'monthly': return 'Mensal';
+      case 'weekly': return 'Semanal';
+      case 'quarterly': return 'Trimestral';
+      case 'yearly': return 'Anual';
       default: return type;
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'achieved': return <Badge className="bg-green-500">Atingida</Badge>;
-      case 'missed': return <Badge variant="destructive">Não atingida</Badge>;
-      default: return <Badge variant="secondary">Em progresso</Badge>;
-    }
-  };
-
-  const getProgress = (current: number, target: number) => {
-    if (target === 0) return 0;
-    return Math.min((current / target) * 100, 100);
+  const getMemberName = (userId: string) => {
+    const member = members.find((m: any) => m.user_id === userId);
+    return member?.profiles?.full_name || member?.profiles?.email || 'N/A';
   };
 
   return (
@@ -150,33 +144,29 @@ export function SellerGoalsManagement() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Metas Ativas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total de Metas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {goals.filter(g => g.status === 'in_progress').length}
-            </div>
+            <div className="text-2xl font-bold">{goals.length}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Metas Atingidas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Meta Total Leads</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {goals.filter(g => g.status === 'achieved').length}
+              {goals.reduce((acc, g) => acc + g.target_leads, 0)}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Sucesso</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Meta Total Valor</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {goals.length > 0 
-                ? ((goals.filter(g => g.status === 'achieved').length / goals.length) * 100).toFixed(0)
-                : 0}%
+              {formatCurrency(goals.reduce((acc, g) => acc + g.target_value, 0))}
             </div>
           </CardContent>
         </Card>
@@ -184,7 +174,7 @@ export function SellerGoalsManagement() {
 
       <Card>
         <CardContent className="pt-6">
-          {isLoading ? (
+          {loading ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
           ) : goals.length === 0 ? (
             <div className="text-center py-8">
@@ -198,8 +188,9 @@ export function SellerGoalsManagement() {
                   <TableHead>Vendedor</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Período</TableHead>
-                  <TableHead>Progresso</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Meta Leads</TableHead>
+                  <TableHead>Meta Valor</TableHead>
+                  <TableHead>Meta Comissão</TableHead>
                   <TableHead className="w-[100px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -207,24 +198,17 @@ export function SellerGoalsManagement() {
                 {goals.map((goal) => (
                   <TableRow key={goal.id}>
                     <TableCell className="font-medium">
-                      {goal.user?.full_name || goal.user?.email || 'N/A'}
+                      {getMemberName(goal.user_id)}
                     </TableCell>
-                    <TableCell>{getGoalTypeLabel(goal.goal_type)}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{getPeriodTypeLabel(goal.period_type)}</Badge>
+                    </TableCell>
                     <TableCell>
                       {format(new Date(goal.period_start), "dd/MM", { locale: ptBR })} - {format(new Date(goal.period_end), "dd/MM/yy", { locale: ptBR })}
                     </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span>{goal.goal_type === 'revenue' ? formatCurrency(goal.current_value) : goal.current_value}</span>
-                          <span className="text-muted-foreground">
-                            {goal.goal_type === 'revenue' ? formatCurrency(goal.target_value) : goal.target_value}
-                          </span>
-                        </div>
-                        <Progress value={getProgress(goal.current_value, goal.target_value)} className="h-2" />
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(goal.status)}</TableCell>
+                    <TableCell>{goal.target_leads}</TableCell>
+                    <TableCell>{formatCurrency(goal.target_value)}</TableCell>
+                    <TableCell>{formatCurrency(goal.target_commission)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(goal)}>
@@ -264,6 +248,20 @@ export function SellerGoalsManagement() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Tipo de Período</Label>
+              <Select value={formData.period_type} onValueChange={(v: any) => setFormData({ ...formData, period_type: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="quarterly">Trimestral</SelectItem>
+                  <SelectItem value="yearly">Anual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Início do Período</Label>
@@ -282,61 +280,37 @@ export function SellerGoalsManagement() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo de Meta</Label>
-                <Select value={formData.goal_type} onValueChange={(v: any) => setFormData({ ...formData, goal_type: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="revenue">Faturamento (R$)</SelectItem>
-                    <SelectItem value="deals">Negócios Fechados</SelectItem>
-                    <SelectItem value="leads">Leads Convertidos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Valor da Meta *</Label>
-                <Input
-                  type="number"
-                  step={formData.goal_type === 'revenue' ? "0.01" : "1"}
-                  value={formData.target_value}
-                  onChange={(e) => setFormData({ ...formData, target_value: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Meta de Leads</Label>
+              <Input
+                type="number"
+                value={formData.target_leads}
+                onChange={(e) => setFormData({ ...formData, target_leads: parseInt(e.target.value) || 0 })}
+              />
             </div>
-            {editingGoal && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Valor Atual</Label>
-                  <Input
-                    type="number"
-                    step={formData.goal_type === 'revenue' ? "0.01" : "1"}
-                    value={formData.current_value}
-                    onChange={(e) => setFormData({ ...formData, current_value: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={formData.status} onValueChange={(v: any) => setFormData({ ...formData, status: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="in_progress">Em Progresso</SelectItem>
-                      <SelectItem value="achieved">Atingida</SelectItem>
-                      <SelectItem value="missed">Não Atingida</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Meta de Valor (R$) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={formData.target_value}
+                onChange={(e) => setFormData({ ...formData, target_value: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Meta de Comissão (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={formData.target_commission}
+                onChange={(e) => setFormData({ ...formData, target_commission: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={createGoal.isPending || updateGoal.isPending}>
-              {editingGoal ? "Salvar" : "Criar"}
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? "Salvando..." : (editingGoal ? "Salvar" : "Criar")}
             </Button>
           </DialogFooter>
         </DialogContent>

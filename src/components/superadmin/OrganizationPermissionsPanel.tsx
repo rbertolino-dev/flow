@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Users, Shield, AlertCircle, CheckCircle2, Package } from "lucide-react";
+import { Loader2, Save, Users, Shield, CheckCircle2, Package } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -92,19 +92,10 @@ export function OrganizationPermissionsPanel({
   onUpdate
 }: OrganizationPermissionsPanelProps) {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [availablePermissions, setAvailablePermissions] = useState<string[]>([]);
   const [userPermissions, setUserPermissions] = useState<Record<string, string[]>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [planInfo, setPlanInfo] = useState<{ name: string | null; features: string[] } | null>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (organizationId) {
-      fetchPlanInfo();
-      fetchAvailablePermissions();
-    }
-  }, [organizationId]);
 
   useEffect(() => {
     if (selectedUser && organizationId) {
@@ -112,59 +103,9 @@ export function OrganizationPermissionsPanel({
     }
   }, [selectedUser, organizationId]);
 
-  const fetchPlanInfo = async () => {
-    try {
-      if (!organizationId) return;
-      
-      const { data, error } = await supabase
-        .rpc('get_organization_limits', { _org_id: organizationId });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        const limits = data[0];
-        setPlanInfo({
-          name: limits.plan_name || null,
-          features: limits.enabled_features || [],
-        });
-      } else {
-        setPlanInfo({
-          name: null,
-          features: [],
-        });
-      }
-    } catch (error: any) {
-      console.error('Erro ao buscar informações do plano:', error);
-      setPlanInfo({
-        name: null,
-        features: [],
-      });
-    }
-  };
-
-  const fetchAvailablePermissions = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .rpc('get_available_permissions_for_org', { _org_id: organizationId });
-
-      if (error) throw error;
-
-      setAvailablePermissions(data?.map((p: any) => p.permission) || []);
-    } catch (error: any) {
-      console.error('Erro ao buscar permissões disponíveis:', error);
-      toast({
-        title: "Erro ao carregar permissões",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchUserPermissions = async (userId: string) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('user_permissions')
         .select('permission')
@@ -184,6 +125,8 @@ export function OrganizationPermissionsPanel({
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -214,10 +157,7 @@ export function OrganizationPermissionsPanel({
     try {
       setSaving(true);
 
-      // Filtrar apenas permissões disponíveis (validação extra)
-      const permissions = (userPermissions[userId] || []).filter(p => 
-        availablePermissions.length === 0 || availablePermissions.includes(p)
-      );
+      const permissions = userPermissions[userId] || [];
 
       // Remover permissões existentes desta organização
       const { error: deleteError } = await supabase
@@ -266,12 +206,6 @@ export function OrganizationPermissionsPanel({
     }
   };
 
-  const isPermissionAvailable = (permission: string) => {
-    // Se não há permissões disponíveis definidas, permitir todas (compatibilidade)
-    if (availablePermissions.length === 0) return true;
-    return availablePermissions.includes(permission);
-  };
-
   const selectedMember = members.find(m => m.user_id === selectedUser);
 
   if (loading) {
@@ -284,21 +218,6 @@ export function OrganizationPermissionsPanel({
 
   return (
     <div className="space-y-6">
-      {/* Informações do Plano */}
-      {planInfo && (
-        <Alert>
-          <Package className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Plano:</strong> {planInfo.name || 'Sem plano (Todas funcionalidades)'}
-            {planInfo.features.length > 0 && (
-              <span className="ml-2 text-xs text-muted-foreground">
-                ({planInfo.features.length} funcionalidades habilitadas)
-              </span>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -358,12 +277,8 @@ export function OrganizationPermissionsPanel({
                 <div className="space-y-6">
                   {CATEGORIES.map(category => {
                     const categoryPerms = ALL_PERMISSIONS.filter(p => p.category === category);
-                    const availablePerms = categoryPerms.filter(p => isPermissionAvailable(p.value));
-                    
-                    if (availablePerms.length === 0) return null;
-
                     const userPerms = userPermissions[selectedUser] || [];
-                    const allSelected = availablePerms.every(p => userPerms.includes(p.value));
+                    const allSelected = categoryPerms.every(p => userPerms.includes(p.value));
 
                     return (
                       <div key={category} className="space-y-3">
@@ -376,12 +291,12 @@ export function OrganizationPermissionsPanel({
                               if (allSelected) {
                                 setUserPermissions(prev => ({
                                   ...prev,
-                                  [selectedUser]: userPerms.filter(p => !availablePerms.some(ap => ap.value === p)),
+                                  [selectedUser]: userPerms.filter(p => !categoryPerms.some(cp => cp.value === p)),
                                 }));
                               } else {
                                 setUserPermissions(prev => ({
                                   ...prev,
-                                  [selectedUser]: [...new Set([...userPerms, ...availablePerms.map(ap => ap.value)])],
+                                  [selectedUser]: [...new Set([...userPerms, ...categoryPerms.map(cp => cp.value)])],
                                 }));
                               }
                             }}
@@ -392,7 +307,7 @@ export function OrganizationPermissionsPanel({
                         </div>
 
                         <div className="space-y-2 pl-1">
-                          {availablePerms.map(permission => {
+                          {categoryPerms.map(permission => {
                             const isSelected = userPerms.includes(permission.value);
                             return (
                               <div key={permission.value} className="flex items-start space-x-3">
@@ -463,4 +378,3 @@ export function OrganizationPermissionsPanel({
     </div>
   );
 }
-

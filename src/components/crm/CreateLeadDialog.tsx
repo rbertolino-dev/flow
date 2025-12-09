@@ -83,15 +83,20 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           p_source: 'manual',
         });
 
-      // Vincular produto ao lead se selecionado
-      if (formData.productId && leadId) {
-        await supabase
-          .from('leads')
-          .update({ product_id: formData.productId })
-          .eq('id', leadId);
-      }
-
       if (error) throw error;
+
+      // Vincular produto ao lead via tabela lead_products se selecionado
+      if (formData.productId && leadId && selectedProduct) {
+        await supabase
+          .from('lead_products')
+          .insert({
+            lead_id: leadId,
+            product_id: formData.productId,
+            quantity: 1,
+            unit_price: selectedProduct.price,
+            total_price: selectedProduct.price,
+          });
+      }
 
       // Opcionalmente adicionar à fila de ligações
       if (addToQueue && leadId) {
