@@ -16,13 +16,15 @@ interface OrganizationLimits {
   id?: string;
   organization_id: string;
   max_leads: number | null;
-  max_evolution_instances: number | null;
-  enabled_features: string[];
-  notes: string | null;
+  max_instances: number | null;
+  max_users: number | null;
+  max_broadcasts_per_month: number | null;
+  max_scheduled_messages_per_month: number | null;
+  max_storage_gb: number | null;
   current_leads_count?: number;
-  current_evolution_instances_count?: number;
-  plan_name?: string | null;
-  has_custom_limits?: boolean;
+  current_instances_count?: number;
+  current_users_count?: number;
+  plan_id?: string | null;
 }
 
 interface OrganizationLimitsPanelProps {
@@ -55,14 +57,18 @@ export function OrganizationLimitsPanel({
   const [limits, setLimits] = useState<OrganizationLimits>({
     organization_id: organizationId,
     max_leads: null,
-    max_evolution_instances: null,
-    enabled_features: [],
-    notes: null,
+    max_instances: null,
+    max_users: null,
+    max_broadcasts_per_month: null,
+    max_scheduled_messages_per_month: null,
+    max_storage_gb: null,
   });
   const [currentCounts, setCurrentCounts] = useState({
     leads: 0,
-    evolutionInstances: 0,
+    instances: 0,
+    users: 0,
   });
+  const [planName, setPlanName] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,36 +86,41 @@ export function OrganizationLimitsPanel({
         .eq('organization_id', organizationId)
         .maybeSingle();
 
-      if (limitsError && limitsError.code !== 'PGRST116') { // PGRST116 = not found
+      if (limitsError && limitsError.code !== 'PGRST116') {
         throw limitsError;
       }
 
-      // Buscar contadores atuais usando a função RPC
-      const { data: countsData, error: countsError } = await supabase
-        .rpc('get_organization_limits', { _org_id: organizationId });
-
-      if (countsError) throw countsError;
-
       if (limitsData) {
         setLimits({
-          ...limitsData,
-          enabled_features: limitsData.enabled_features || [],
-        });
-      }
-
-      if (countsData && countsData.length > 0) {
-        const counts = countsData[0];
-        setCurrentCounts({
-          leads: Number(counts.current_leads_count) || 0,
-          evolutionInstances: Number(counts.current_evolution_instances_count) || 0,
+          id: limitsData.id,
+          organization_id: limitsData.organization_id,
+          max_leads: limitsData.max_leads,
+          max_instances: limitsData.max_instances,
+          max_users: limitsData.max_users,
+          max_broadcasts_per_month: limitsData.max_broadcasts_per_month,
+          max_scheduled_messages_per_month: limitsData.max_scheduled_messages_per_month,
+          max_storage_gb: limitsData.max_storage_gb,
+          plan_id: limitsData.plan_id,
+          current_leads_count: limitsData.current_leads_count || 0,
+          current_instances_count: limitsData.current_instances_count || 0,
+          current_users_count: limitsData.current_users_count || 0,
         });
         
-        // Atualizar informações do plano (sempre, mesmo sem limites customizados)
-        setLimits(prev => ({
-          ...prev,
-          plan_name: counts.plan_name || null,
-          has_custom_limits: counts.has_custom_limits || false,
-        }));
+        setCurrentCounts({
+          leads: limitsData.current_leads_count || 0,
+          instances: limitsData.current_instances_count || 0,
+          users: limitsData.current_users_count || 0,
+        });
+
+        // Buscar nome do plano se existir
+        if (limitsData.plan_id) {
+          const { data: planData } = await supabase
+            .from('plans')
+            .select('name')
+            .eq('id', limitsData.plan_id)
+            .single();
+          setPlanName(planData?.name || null);
+        }
       } else {
         // Se não há limites configurados, buscar contadores diretamente
         const { count: leadsCount } = await supabase
@@ -123,9 +134,15 @@ export function OrganizationLimitsPanel({
           .select('*', { count: 'exact', head: true })
           .eq('organization_id', organizationId);
 
+        const { count: usersCount } = await supabase
+          .from('organization_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', organizationId);
+
         setCurrentCounts({
           leads: leadsCount || 0,
-          evolutionInstances: evoCount || 0,
+          instances: evoCount || 0,
+          users: usersCount || 0,
         });
       }
     } catch (error: any) {
@@ -143,17 +160,15 @@ export function OrganizationLimitsPanel({
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
 
       const limitsToSave = {
         organization_id: organizationId,
-        max_leads: limits.max_leads || null,
-        max_evolution_instances: limits.max_evolution_instances || null,
-        enabled_features: limits.enabled_features,
-        notes: limits.notes || null,
-        updated_by: user.id,
+        max_leads: limits.max_leads,
+        max_instances: limits.max_instances,
+        max_users: limits.max_users,
+        max_broadcasts_per_month: limits.max_broadcasts_per_month,
+        max_scheduled_messages_per_month: limits.max_scheduled_messages_per_month,
+        max_storage_gb: limits.max_storage_gb,
       };
 
       const { error } = await supabase
@@ -186,21 +201,7 @@ export function OrganizationLimitsPanel({
     }
   };
 
-  const toggleFeature = (featureValue: string) => {
-    setLimits(prev => {
-      const currentFeatures = prev.enabled_features || [];
-      const isEnabled = currentFeatures.includes(featureValue);
-      
-      return {
-        ...prev,
-        enabled_features: isEnabled
-          ? currentFeatures.filter(f => f !== featureValue)
-          : [...currentFeatures, featureValue],
-      };
-    });
-  };
-
-  const getLimitStatus = (current: number, max: number | null) => {
+  const getLimitStatus = (current: number, max: number | null): { status: string; color: "default" | "destructive" | "secondary" | "outline" } => {
     if (max === null) return { status: 'unlimited', color: 'default' };
     const percentage = (current / max) * 100;
     if (percentage >= 100) return { status: 'exceeded', color: 'destructive' };
@@ -217,21 +218,16 @@ export function OrganizationLimitsPanel({
   }
 
   const leadsStatus = getLimitStatus(currentCounts.leads, limits.max_leads);
-  const evoStatus = getLimitStatus(currentCounts.evolutionInstances, limits.max_evolution_instances);
+  const instancesStatus = getLimitStatus(currentCounts.instances, limits.max_instances);
 
   return (
     <div className="space-y-6">
       {/* Informações do Plano */}
-      {limits.plan_name && (
+      {planName && (
         <Alert>
           <Package className="h-4 w-4" />
           <AlertDescription>
-            <strong>Plano Atual:</strong> {limits.plan_name}
-            {limits.has_custom_limits && (
-              <span className="ml-2 text-xs text-muted-foreground">
-                (Limites customizados sobrescrevem o plano)
-              </span>
-            )}
+            <strong>Plano Atual:</strong> {planName}
           </AlertDescription>
         </Alert>
       )}
@@ -244,18 +240,7 @@ export function OrganizationLimitsPanel({
           </div>
           <CardDescription>
             Configure limites customizados para {organizationName}. 
-            {limits.plan_name && ' Estes limites sobrescrevem os limites do plano.'}
-            {!limits.plan_name && ' Se nenhum plano estiver associado, estes serão os limites aplicados.'}
           </CardDescription>
-          {limits.plan_name && !limits.has_custom_limits && (
-            <Alert className="mt-4">
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                Esta organização está usando os limites do plano <strong>{limits.plan_name}</strong>. 
-                Configure limites customizados abaixo para sobrescrever o plano.
-              </AlertDescription>
-            </Alert>
-          )}
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Limites Numéricos */}
@@ -292,119 +277,114 @@ export function OrganizationLimitsPanel({
                   </AlertDescription>
                 </Alert>
               )}
-              {leadsStatus.status === 'warning' && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Aproximando-se do limite de leads ({Math.round((currentCounts.leads / (limits.max_leads || 1)) * 100)}%).
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
 
             <Separator />
 
-            {/* Limite de Instâncias Evolution */}
+            {/* Limite de Instâncias */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="max_evolution_instances" className="flex items-center gap-2">
+                <Label htmlFor="max_instances" className="flex items-center gap-2">
                   <Smartphone className="h-4 w-4" />
                   Limite de Instâncias Evolution
                 </Label>
-                <Badge variant={evoStatus.color}>
-                  {currentCounts.evolutionInstances} / {limits.max_evolution_instances ?? '∞'}
+                <Badge variant={instancesStatus.color}>
+                  {currentCounts.instances} / {limits.max_instances ?? '∞'}
                 </Badge>
               </div>
               <Input
-                id="max_evolution_instances"
+                id="max_instances"
                 type="number"
                 min="0"
                 placeholder="Ilimitado (deixe em branco)"
-                value={limits.max_evolution_instances ?? ''}
+                value={limits.max_instances ?? ''}
                 onChange={(e) => setLimits(prev => ({
                   ...prev,
-                  max_evolution_instances: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                  max_instances: e.target.value === '' ? null : parseInt(e.target.value) || null,
                 }))}
               />
-              {evoStatus.status === 'exceeded' && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Limite de instâncias Evolution excedido! A organização não pode criar novas instâncias.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {evoStatus.status === 'warning' && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Aproximando-se do limite de instâncias ({Math.round((currentCounts.evolutionInstances / (limits.max_evolution_instances || 1)) * 100)}%).
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
-          </div>
 
-          <Separator />
+            <Separator />
 
-          {/* Funcionalidades */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Funcionalidades Habilitadas</h3>
-              <Badge variant="outline">
-                {limits.enabled_features?.length || 0} / {AVAILABLE_FEATURES.length}
-              </Badge>
+            {/* Limite de Usuários */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="max_users" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Limite de Usuários
+                </Label>
+                <Badge variant="secondary">
+                  {currentCounts.users} / {limits.max_users ?? '∞'}
+                </Badge>
+              </div>
+              <Input
+                id="max_users"
+                type="number"
+                min="0"
+                placeholder="Ilimitado (deixe em branco)"
+                value={limits.max_users ?? ''}
+                onChange={(e) => setLimits(prev => ({
+                  ...prev,
+                  max_users: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                }))}
+              />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Selecione as funcionalidades que esta organização pode utilizar. 
-              Se nenhuma for selecionada, todas estarão disponíveis (compatibilidade).
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {AVAILABLE_FEATURES.map((feature) => {
-                const isEnabled = limits.enabled_features?.includes(feature.value);
-                return (
-                  <div
-                    key={feature.value}
-                    className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <Checkbox
-                      id={feature.value}
-                      checked={isEnabled}
-                      onCheckedChange={() => toggleFeature(feature.value)}
-                    />
-                    <div className="flex-1 space-y-1">
-                      <Label
-                        htmlFor={feature.value}
-                        className="text-sm font-medium leading-none cursor-pointer"
-                      >
-                        {feature.label}
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        {feature.description}
-                      </p>
-                    </div>
-                    {isEnabled && (
-                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                    )}
-                  </div>
-                );
-              })}
+
+            <Separator />
+
+            {/* Limite de Broadcasts por mês */}
+            <div className="space-y-2">
+              <Label htmlFor="max_broadcasts">Limite de Disparos por Mês</Label>
+              <Input
+                id="max_broadcasts"
+                type="number"
+                min="0"
+                placeholder="Ilimitado (deixe em branco)"
+                value={limits.max_broadcasts_per_month ?? ''}
+                onChange={(e) => setLimits(prev => ({
+                  ...prev,
+                  max_broadcasts_per_month: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                }))}
+              />
             </div>
-          </div>
 
-          <Separator />
+            <Separator />
 
-          {/* Notas */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea
-              id="notes"
-              placeholder="Adicione observações sobre esta configuração..."
-              value={limits.notes || ''}
-              onChange={(e) => setLimits(prev => ({ ...prev, notes: e.target.value }))}
-              rows={3}
-            />
+            {/* Limite de Mensagens Agendadas por mês */}
+            <div className="space-y-2">
+              <Label htmlFor="max_scheduled">Limite de Mensagens Agendadas por Mês</Label>
+              <Input
+                id="max_scheduled"
+                type="number"
+                min="0"
+                placeholder="Ilimitado (deixe em branco)"
+                value={limits.max_scheduled_messages_per_month ?? ''}
+                onChange={(e) => setLimits(prev => ({
+                  ...prev,
+                  max_scheduled_messages_per_month: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                }))}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Limite de Storage */}
+            <div className="space-y-2">
+              <Label htmlFor="max_storage">Limite de Armazenamento (GB)</Label>
+              <Input
+                id="max_storage"
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="Ilimitado (deixe em branco)"
+                value={limits.max_storage_gb ?? ''}
+                onChange={(e) => setLimits(prev => ({
+                  ...prev,
+                  max_storage_gb: e.target.value === '' ? null : parseFloat(e.target.value) || null,
+                }))}
+              />
+            </div>
           </div>
 
           {/* Botão Salvar */}
@@ -432,4 +412,3 @@ export function OrganizationLimitsPanel({
     </div>
   );
 }
-

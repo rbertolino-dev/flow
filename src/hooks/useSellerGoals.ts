@@ -3,6 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { SellerGoal, SellerGoalFormData } from "@/types/product";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  startOfMonth, endOfMonth, 
+  startOfWeek, endOfWeek, 
+  startOfQuarter, endOfQuarter, 
+  startOfYear, endOfYear 
+} from "date-fns";
+
+export type { SellerGoal, SellerGoalFormData } from "@/types/product";
 
 export function useSellerGoals() {
   const { activeOrgId } = useActiveOrganization();
@@ -29,7 +37,23 @@ export function useSellerGoals() {
 
       if (error) throw error;
 
-      setGoals((data || []) as SellerGoal[]);
+      // Map database fields to SellerGoal interface
+      const mappedGoals: SellerGoal[] = (data || []).map((item) => ({
+        id: item.id,
+        organization_id: item.organization_id,
+        user_id: item.user_id,
+        period_type: (item.goal_type as SellerGoal['period_type']) || 'monthly',
+        period_start: item.period_start,
+        period_end: item.period_end,
+        target_leads: 0,
+        target_value: item.target_value,
+        target_commission: 0,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        created_by: null,
+      }));
+
+      setGoals(mappedGoals);
     } catch (error: any) {
       console.error("Erro ao buscar metas:", error);
       toast({
@@ -52,9 +76,12 @@ export function useSellerGoals() {
       const { data, error } = await supabase
         .from("seller_goals")
         .insert({
-          ...goalData,
+          user_id: goalData.user_id,
+          goal_type: goalData.period_type,
+          period_start: goalData.period_start,
+          period_end: goalData.period_end,
+          target_value: goalData.target_value,
           organization_id: activeOrgId,
-          created_by: user.id,
         })
         .select()
         .single();
@@ -67,7 +94,12 @@ export function useSellerGoals() {
         description: "A meta foi criada com sucesso.",
       });
 
-      return data as SellerGoal;
+      return {
+        ...data,
+        period_type: data.goal_type,
+        target_leads: 0,
+        target_commission: 0,
+      } as SellerGoal;
     } catch (error: any) {
       console.error("Erro ao criar meta:", error);
       toast({
@@ -181,4 +213,3 @@ export function useSellerGoals() {
     getCurrentGoal,
   };
 }
-

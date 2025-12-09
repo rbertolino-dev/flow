@@ -2,26 +2,36 @@ export interface Product {
   id: string;
   organization_id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   price: number;
+  cost?: number | null;
   category: string;
-  active: boolean;
-  commission_percentage?: number;
-  commission_fixed?: number;
+  sku?: string | null;
+  stock_quantity?: number | null;
+  min_stock?: number | null;
+  image_url?: string | null;
+  is_active: boolean;
+  commission_percentage?: number | null;
+  commission_fixed?: number | null;
   created_at: string;
   updated_at: string;
-  created_by?: string;
-  updated_by?: string;
+  created_by?: string | null;
+  updated_by?: string | null;
 }
 
 export interface ProductFormData {
   name: string;
-  description?: string;
+  description?: string | null;
   price: number;
+  cost?: number | null;
   category: string;
-  active: boolean;
-  commission_percentage?: number;
-  commission_fixed?: number;
+  sku?: string | null;
+  stock_quantity?: number | null;
+  min_stock?: number | null;
+  image_url?: string | null;
+  is_active: boolean;
+  commission_percentage?: number | null;
+  commission_fixed?: number | null;
 }
 
 export interface SellerGoal {
@@ -36,7 +46,7 @@ export interface SellerGoal {
   target_commission: number;
   created_at: string;
   updated_at: string;
-  created_by?: string;
+  created_by?: string | null;
 }
 
 export interface SellerGoalFormData {
@@ -66,20 +76,15 @@ export interface SellerCommission {
 export interface SellerPerformanceMetrics {
   sellerId: string;
   sellerName: string;
-  // Metas
   currentGoal?: SellerGoal;
-  // Realizado
   actualLeads: number;
   actualValue: number;
   actualCommission: number;
-  // Progresso
-  leadsProgress: number; // Percentual
-  valueProgress: number; // Percentual
-  commissionProgress: number; // Percentual
-  // Detalhes
+  leadsProgress: number;
+  valueProgress: number;
+  commissionProgress: number;
   wonLeads: number;
   totalLeads: number;
   averageTicket: number;
   conversionRate: number;
 }
-

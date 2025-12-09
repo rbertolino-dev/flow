@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Plus, Edit, Trash2, CheckCircle2, X, Package, DollarSign } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Save, Plus, Edit, Trash2, Package, DollarSign } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,20 +18,45 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Plan {
   id: string;
   name: string;
   description: string | null;
   max_leads: number | null;
-  max_evolution_instances: number | null;
-  enabled_features: string[];
+  max_instances: number | null;
+  max_users: number | null;
+  max_broadcasts_per_month: number | null;
+  max_scheduled_messages_per_month: number | null;
+  max_storage_gb: number | null;
+  price: number | null;
+  billing_period: string;
   is_active: boolean;
-  price_monthly: number | null;
-  price_yearly: number | null;
-  sort_order: number;
+  features: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+interface PlanFormData {
+  name: string;
+  description: string;
+  max_leads: number | null;
+  max_instances: number | null;
+  max_users: number | null;
+  max_broadcasts_per_month: number | null;
+  max_scheduled_messages_per_month: number | null;
+  max_storage_gb: number | null;
+  price: number | null;
+  billing_period: string;
+  is_active: boolean;
+  features: string[];
 }
 
 const AVAILABLE_FEATURES = [
@@ -55,16 +79,19 @@ export function PlansManagementPanel() {
   const [saving, setSaving] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<Plan>>({
+  const [formData, setFormData] = useState<PlanFormData>({
     name: '',
     description: '',
     max_leads: null,
-    max_evolution_instances: null,
-    enabled_features: [],
+    max_instances: null,
+    max_users: null,
+    max_broadcasts_per_month: null,
+    max_scheduled_messages_per_month: null,
+    max_storage_gb: null,
+    price: null,
+    billing_period: 'monthly',
     is_active: true,
-    price_monthly: null,
-    price_yearly: null,
-    sort_order: 0,
+    features: [],
   });
   const { toast } = useToast();
 
@@ -78,10 +105,30 @@ export function PlansManagementPanel() {
       const { data, error } = await supabase
         .from('plans')
         .select('*')
-        .order('sort_order', { ascending: true });
+        .order('name', { ascending: true });
 
       if (error) throw error;
-      setPlans(data || []);
+      
+      // Map database response to Plan interface
+      const mappedPlans: Plan[] = (data || []).map(item => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        max_leads: item.max_leads,
+        max_instances: item.max_instances,
+        max_users: item.max_users,
+        max_broadcasts_per_month: item.max_broadcasts_per_month,
+        max_scheduled_messages_per_month: item.max_scheduled_messages_per_month,
+        max_storage_gb: item.max_storage_gb,
+        price: item.price,
+        billing_period: item.billing_period,
+        is_active: item.is_active,
+        features: Array.isArray(item.features) ? item.features as string[] : [],
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+      }));
+      
+      setPlans(mappedPlans);
     } catch (error: any) {
       console.error('Erro ao carregar planos:', error);
       toast({
@@ -101,12 +148,15 @@ export function PlansManagementPanel() {
         name: plan.name,
         description: plan.description || '',
         max_leads: plan.max_leads,
-        max_evolution_instances: plan.max_evolution_instances,
-        enabled_features: plan.enabled_features || [],
+        max_instances: plan.max_instances,
+        max_users: plan.max_users,
+        max_broadcasts_per_month: plan.max_broadcasts_per_month,
+        max_scheduled_messages_per_month: plan.max_scheduled_messages_per_month,
+        max_storage_gb: plan.max_storage_gb,
+        price: plan.price,
+        billing_period: plan.billing_period,
         is_active: plan.is_active,
-        price_monthly: plan.price_monthly,
-        price_yearly: plan.price_yearly,
-        sort_order: plan.sort_order,
+        features: plan.features || [],
       });
     } else {
       setEditingPlan(null);
@@ -114,12 +164,15 @@ export function PlansManagementPanel() {
         name: '',
         description: '',
         max_leads: null,
-        max_evolution_instances: null,
-        enabled_features: [],
+        max_instances: null,
+        max_users: null,
+        max_broadcasts_per_month: null,
+        max_scheduled_messages_per_month: null,
+        max_storage_gb: null,
+        price: null,
+        billing_period: 'monthly',
         is_active: true,
-        price_monthly: null,
-        price_yearly: null,
-        sort_order: 0,
+        features: [],
       });
     }
     setIsDialogOpen(true);
@@ -128,13 +181,20 @@ export function PlansManagementPanel() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
 
       const planData = {
-        ...formData,
-        created_by: editingPlan ? undefined : user.id,
+        name: formData.name,
+        description: formData.description || null,
+        max_leads: formData.max_leads,
+        max_instances: formData.max_instances,
+        max_users: formData.max_users,
+        max_broadcasts_per_month: formData.max_broadcasts_per_month,
+        max_scheduled_messages_per_month: formData.max_scheduled_messages_per_month,
+        max_storage_gb: formData.max_storage_gb,
+        price: formData.price,
+        billing_period: formData.billing_period,
+        is_active: formData.is_active,
+        features: formData.features,
       };
 
       if (editingPlan) {
@@ -205,12 +265,12 @@ export function PlansManagementPanel() {
 
   const toggleFeature = (featureValue: string) => {
     setFormData(prev => {
-      const currentFeatures = prev.enabled_features || [];
+      const currentFeatures = prev.features || [];
       const isEnabled = currentFeatures.includes(featureValue);
       
       return {
         ...prev,
-        enabled_features: isEnabled
+        features: isEnabled
           ? currentFeatures.filter(f => f !== featureValue)
           : [...currentFeatures, featureValue],
       };
@@ -278,13 +338,11 @@ export function PlansManagementPanel() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Preços */}
-              {(plan.price_monthly || plan.price_yearly) && (
+              {plan.price && (
                 <div className="flex items-center gap-2 text-sm">
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    {plan.price_monthly && `R$ ${plan.price_monthly.toFixed(2)}/mês`}
-                    {plan.price_monthly && plan.price_yearly && ' • '}
-                    {plan.price_yearly && `R$ ${plan.price_yearly.toFixed(2)}/ano`}
+                    R$ {plan.price.toFixed(2)}/{plan.billing_period === 'monthly' ? 'mês' : plan.billing_period === 'yearly' ? 'ano' : plan.billing_period}
                   </span>
                 </div>
               )}
@@ -298,15 +356,21 @@ export function PlansManagementPanel() {
                   </Badge>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Instâncias EVO:</span>
+                  <span className="text-muted-foreground">Instâncias:</span>
                   <Badge variant="outline">
-                    {plan.max_evolution_instances ?? '∞'}
+                    {plan.max_instances ?? '∞'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Usuários:</span>
+                  <Badge variant="outline">
+                    {plan.max_users ?? '∞'}
                   </Badge>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Funcionalidades:</span>
                   <Badge variant="outline">
-                    {plan.enabled_features?.length || 0}
+                    {plan.features?.length || 0}
                   </Badge>
                 </div>
               </div>
@@ -353,46 +417,36 @@ export function PlansManagementPanel() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price_monthly">Preço Mensal (R$)</Label>
+                  <Label htmlFor="price">Preço (R$)</Label>
                   <Input
-                    id="price_monthly"
+                    id="price"
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.price_monthly ?? ''}
+                    value={formData.price ?? ''}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
-                      price_monthly: e.target.value ? parseFloat(e.target.value) : null 
+                      price: e.target.value ? parseFloat(e.target.value) : null 
                     }))}
                     placeholder="0.00"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="price_yearly">Preço Anual (R$)</Label>
-                  <Input
-                    id="price_yearly"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price_yearly ?? ''}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      price_yearly: e.target.value ? parseFloat(e.target.value) : null 
-                    }))}
-                    placeholder="0.00"
-                  />
+                  <Label htmlFor="billing_period">Período de Cobrança</Label>
+                  <Select 
+                    value={formData.billing_period} 
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, billing_period: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                      <SelectItem value="yearly">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sort_order">Ordem de Exibição</Label>
-                <Input
-                  id="sort_order"
-                  type="number"
-                  value={formData.sort_order}
-                  onChange={(e) => setFormData(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
-                />
               </div>
 
               <div className="flex items-center space-x-2">
@@ -413,34 +467,97 @@ export function PlansManagementPanel() {
             <div className="space-y-4">
               <h3 className="font-semibold">Limites</h3>
               
-              <div className="space-y-2">
-                <Label htmlFor="max_leads">Limite de Leads</Label>
-                <Input
-                  id="max_leads"
-                  type="number"
-                  min="0"
-                  placeholder="Ilimitado (deixe em branco)"
-                  value={formData.max_leads ?? ''}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    max_leads: e.target.value === '' ? null : parseInt(e.target.value) || null,
-                  }))}
-                />
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="max_leads">Limite de Leads</Label>
+                  <Input
+                    id="max_leads"
+                    type="number"
+                    min="0"
+                    placeholder="Ilimitado"
+                    value={formData.max_leads ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      max_leads: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                    }))}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="max_evolution_instances">Limite de Instâncias Evolution</Label>
-                <Input
-                  id="max_evolution_instances"
-                  type="number"
-                  min="0"
-                  placeholder="Ilimitado (deixe em branco)"
-                  value={formData.max_evolution_instances ?? ''}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    max_evolution_instances: e.target.value === '' ? null : parseInt(e.target.value) || null,
-                  }))}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="max_instances">Limite de Instâncias</Label>
+                  <Input
+                    id="max_instances"
+                    type="number"
+                    min="0"
+                    placeholder="Ilimitado"
+                    value={formData.max_instances ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      max_instances: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                    }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="max_users">Limite de Usuários</Label>
+                  <Input
+                    id="max_users"
+                    type="number"
+                    min="0"
+                    placeholder="Ilimitado"
+                    value={formData.max_users ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      max_users: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                    }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="max_broadcasts">Disparos/Mês</Label>
+                  <Input
+                    id="max_broadcasts"
+                    type="number"
+                    min="0"
+                    placeholder="Ilimitado"
+                    value={formData.max_broadcasts_per_month ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      max_broadcasts_per_month: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                    }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="max_scheduled">Agendadas/Mês</Label>
+                  <Input
+                    id="max_scheduled"
+                    type="number"
+                    min="0"
+                    placeholder="Ilimitado"
+                    value={formData.max_scheduled_messages_per_month ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      max_scheduled_messages_per_month: e.target.value === '' ? null : parseInt(e.target.value) || null,
+                    }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="max_storage">Storage (GB)</Label>
+                  <Input
+                    id="max_storage"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="Ilimitado"
+                    value={formData.max_storage_gb ?? ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      max_storage_gb: e.target.value === '' ? null : parseFloat(e.target.value) || null,
+                    }))}
+                  />
+                </div>
               </div>
             </div>
 
@@ -451,13 +568,13 @@ export function PlansManagementPanel() {
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">Funcionalidades</h3>
                 <Badge variant="outline">
-                  {formData.enabled_features?.length || 0} / {AVAILABLE_FEATURES.length}
+                  {formData.features?.length || 0} / {AVAILABLE_FEATURES.length}
                 </Badge>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
                 {AVAILABLE_FEATURES.map((feature) => {
-                  const isEnabled = formData.enabled_features?.includes(feature.value);
+                  const isEnabled = formData.features?.includes(feature.value);
                   return (
                     <div
                       key={feature.value}
@@ -499,7 +616,7 @@ export function PlansManagementPanel() {
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Salvar
+                  {editingPlan ? 'Salvar' : 'Criar'}
                 </>
               )}
             </Button>
@@ -509,4 +626,3 @@ export function PlansManagementPanel() {
     </div>
   );
 }
-
