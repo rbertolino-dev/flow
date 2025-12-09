@@ -102,6 +102,7 @@ export function PlansManagementPanel() {
   const fetchPlans = async () => {
     try {
       setLoading(true);
+      // Buscar todos os planos ordenados por nome
       const { data, error } = await supabase
         .from('plans')
         .select('*')
