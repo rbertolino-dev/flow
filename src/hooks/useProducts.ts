@@ -31,7 +31,7 @@ export function useProducts() {
       if (error) throw error;
 
       // Map database fields to Product interface
-      const mappedProducts: Product[] = (data || []).map((item) => ({
+      const mappedProducts: Product[] = (data || []).map((item: any) => ({
         id: item.id,
         organization_id: item.organization_id,
         name: item.name,
@@ -44,8 +44,8 @@ export function useProducts() {
         min_stock: item.min_stock,
         image_url: item.image_url,
         is_active: item.is_active,
-        commission_percentage: null,
-        commission_fixed: null,
+        commission_percentage: item.commission_percentage,
+        commission_fixed: item.commission_fixed,
         created_at: item.created_at,
         updated_at: item.updated_at,
         created_by: item.created_by,
