@@ -3839,7 +3839,6 @@ export type Database = {
         Returns: boolean
       }
       has_role:
-        | { Args: { _role: string; _user_id: string }; Returns: boolean }
         | {
             Args: {
               _role: Database["public"]["Enums"]["app_role"]
@@ -3847,6 +3846,7 @@ export type Database = {
             }
             Returns: boolean
           }
+        | { Args: { _role: string; _user_id: string }; Returns: boolean }
       increment_unread_count: {
         Args: { lead_id_param: string }
         Returns: undefined
