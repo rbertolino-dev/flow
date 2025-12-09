@@ -2078,6 +2078,57 @@ export type Database = {
           },
         ]
       }
+      lead_products: {
+        Row: {
+          created_at: string | null
+          discount: number | null
+          id: string
+          lead_id: string
+          notes: string | null
+          product_id: string
+          quantity: number | null
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          discount?: number | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          product_id: string
+          quantity?: number | null
+          total_price: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          discount?: number | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number | null
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_products_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_tags: {
         Row: {
           created_at: string
@@ -2439,6 +2490,84 @@ export type Database = {
           },
         ]
       }
+      organization_limits: {
+        Row: {
+          created_at: string | null
+          current_instances_count: number | null
+          current_leads_count: number | null
+          current_month_broadcasts: number | null
+          current_month_scheduled: number | null
+          current_storage_used_gb: number | null
+          current_users_count: number | null
+          id: string
+          last_reset_at: string | null
+          max_broadcasts_per_month: number | null
+          max_instances: number | null
+          max_leads: number | null
+          max_scheduled_messages_per_month: number | null
+          max_storage_gb: number | null
+          max_users: number | null
+          organization_id: string
+          plan_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_instances_count?: number | null
+          current_leads_count?: number | null
+          current_month_broadcasts?: number | null
+          current_month_scheduled?: number | null
+          current_storage_used_gb?: number | null
+          current_users_count?: number | null
+          id?: string
+          last_reset_at?: string | null
+          max_broadcasts_per_month?: number | null
+          max_instances?: number | null
+          max_leads?: number | null
+          max_scheduled_messages_per_month?: number | null
+          max_storage_gb?: number | null
+          max_users?: number | null
+          organization_id: string
+          plan_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_instances_count?: number | null
+          current_leads_count?: number | null
+          current_month_broadcasts?: number | null
+          current_month_scheduled?: number | null
+          current_storage_used_gb?: number | null
+          current_users_count?: number | null
+          id?: string
+          last_reset_at?: string | null
+          max_broadcasts_per_month?: number | null
+          max_instances?: number | null
+          max_leads?: number | null
+          max_scheduled_messages_per_month?: number | null
+          max_storage_gb?: number | null
+          max_users?: number | null
+          organization_id?: string
+          plan_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_limits_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -2532,6 +2661,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      plans: {
+        Row: {
+          billing_period: string | null
+          created_at: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          max_broadcasts_per_month: number | null
+          max_instances: number | null
+          max_leads: number | null
+          max_scheduled_messages_per_month: number | null
+          max_storage_gb: number | null
+          max_users: number | null
+          name: string
+          price: number
+          updated_at: string | null
+        }
+        Insert: {
+          billing_period?: string | null
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          max_broadcasts_per_month?: number | null
+          max_instances?: number | null
+          max_leads?: number | null
+          max_scheduled_messages_per_month?: number | null
+          max_storage_gb?: number | null
+          max_users?: number | null
+          name: string
+          price?: number
+          updated_at?: string | null
+        }
+        Update: {
+          billing_period?: string | null
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          max_broadcasts_per_month?: number | null
+          max_instances?: number | null
+          max_leads?: number | null
+          max_scheduled_messages_per_month?: number | null
+          max_storage_gb?: number | null
+          max_users?: number | null
+          name?: string
+          price?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       post_sale_activities: {
         Row: {
@@ -2929,6 +3112,73 @@ export type Database = {
             columns: ["workflow_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seller_commissions: {
+        Row: {
+          commission_rate: number
+          commission_value: number
+          created_at: string | null
+          id: string
+          lead_id: string | null
+          notes: string | null
+          organization_id: string
+          paid_at: string | null
+          sale_value: number
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          commission_rate: number
+          commission_value: number
+          created_at?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          organization_id: string
+          paid_at?: string | null
+          sale_value: number
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          commission_rate?: number
+          commission_value?: number
+          created_at?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          paid_at?: string | null
+          sale_value?: number
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_commissions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_commissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_commissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
