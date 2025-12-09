@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useProducts } from "@/hooks/useProducts";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface CreateLeadDialogProps {
 
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
+  const { getActiveProducts } = useProducts();
   const [loading, setLoading] = useState(false);
   const [addToQueue, setAddToQueue] = useState(true);
   const [formData, setFormData] = useState({
@@ -28,9 +30,12 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     email: "",
     company: "",
     value: "",
+    productId: "",
     stageId: stages[0]?.id || "",
     notes: "",
   });
+
+  const activeProducts = getActiveProducts();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +64,12 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
       const organizationId = await getUserOrganizationId();
       if (!organizationId) throw new Error("Usuário não pertence a uma organização");
 
+      // Se um produto foi selecionado, usar o preço do produto como valor
+      const selectedProduct = activeProducts.find(p => p.id === formData.productId);
+      const finalValue = formData.value 
+        ? parseFloat(formData.value) 
+        : (selectedProduct ? selectedProduct.price : null);
+
       const { data: leadId, error } = await supabase
         .rpc('create_lead_secure', {
           p_org_id: organizationId,
@@ -66,11 +77,19 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           p_phone: normalizePhone(formData.phone),
           p_email: formData.email || null,
           p_company: formData.company || null,
-          p_value: formData.value ? parseFloat(formData.value) : null,
+          p_value: finalValue,
           p_stage_id: formData.stageId || null,
           p_notes: formData.notes || null,
           p_source: 'manual',
         });
+
+      // Vincular produto ao lead se selecionado
+      if (formData.productId && leadId) {
+        await supabase
+          .from('leads')
+          .update({ product_id: formData.productId })
+          .eq('id', leadId);
+      }
 
       if (error) throw error;
 
@@ -116,6 +135,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         email: "",
         company: "",
         value: "",
+        productId: "",
         stageId: stages[0]?.id || "",
         notes: "",
       });
@@ -187,6 +207,36 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="product">Produto/Serviço</Label>
+            <Select 
+              value={formData.productId} 
+              onValueChange={(value) => {
+                const product = activeProducts.find(p => p.id === value);
+                setFormData({ 
+                  ...formData, 
+                  productId: value,
+                  value: product ? product.price.toString() : formData.value
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um produto (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Nenhum produto</SelectItem>
+                {activeProducts.map((product) => (
+                  <SelectItem key={product.id} value={product.id}>
+                    {product.name} - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Ao selecionar um produto, o valor será preenchido automaticamente
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="value">Valor Estimado (R$)</Label>
             <Input
               id="value"
@@ -195,7 +245,13 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               value={formData.value}
               onChange={(e) => setFormData({ ...formData, value: e.target.value })}
               placeholder="0.00"
+              disabled={!!formData.productId}
             />
+            {formData.productId && (
+              <p className="text-xs text-muted-foreground">
+                Valor definido pelo produto selecionado
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

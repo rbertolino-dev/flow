@@ -4,18 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2 } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
 import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
+import { PlansManagementPanel } from "./PlansManagementPanel";
 import { useNavigate } from "react-router-dom";
 
 interface OrganizationWithMembers {
   id: string;
   name: string;
   created_at: string;
+  plan_id?: string | null;
   organization_members: Array<{
     user_id: string;
     role: string;
@@ -40,6 +42,7 @@ export function SuperAdminDashboard() {
   const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
   const [orgToDelete, setOrgToDelete] = useState<{ id: string; name: string } | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithMembers | null>(null);
+  const [showPlansManagement, setShowPlansManagement] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -103,6 +106,7 @@ export function SuperAdminDashboard() {
             id: row.org_id,
             name: row.org_name,
             created_at: row.org_created_at,
+            plan_id: row.org_plan_id || null,
             organization_members: [],
           });
         }
@@ -159,6 +163,19 @@ export function SuperAdminDashboard() {
     );
   }
 
+  if (showPlansManagement) {
+    return (
+      <div className="h-full overflow-auto bg-background p-6">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => setShowPlansManagement(false)}>
+            ← Voltar para Organizações
+          </Button>
+        </div>
+        <PlansManagementPanel />
+      </div>
+    );
+  }
+
   if (selectedOrg) {
     return (
       <div className="h-full overflow-auto bg-background p-6">
@@ -205,6 +222,14 @@ export function SuperAdminDashboard() {
               >
                 <TrendingUp className="h-4 w-4 mr-2" />
                 Painel de Custos
+              </Button>
+              <Button 
+                onClick={() => setShowPlansManagement(!showPlansManagement)} 
+                variant="secondary" 
+                className="w-full sm:w-auto"
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Gerenciar Planos
               </Button>
               <Button onClick={() => setCreateUserOpen(true)} variant="outline" className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />

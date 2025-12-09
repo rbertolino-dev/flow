@@ -1,0 +1,565 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
+// Tabs não utilizado, removido
+import { useSellerPerformanceMetrics } from "@/hooks/useSellerPerformanceMetrics";
+import { useSellerGoals } from "@/hooks/useSellerGoals";
+import { useProducts } from "@/hooks/useProducts";
+import { useLeads } from "@/hooks/useLeads";
+import { Lead } from "@/types/lead";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  Target,
+  DollarSign,
+  TrendingUp,
+  Users,
+  Award,
+  BarChart3,
+  AlertCircle,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { SellerGoalFormData } from "@/types/product";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+
+export function SellerDashboard() {
+  const { leads } = useLeads();
+  const { products } = useProducts();
+  const { goals, loading: goalsLoading, createGoal, updateGoal, deleteGoal, getCurrentGoal } = useSellerGoals();
+  const { toast } = useToast();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [periodType, setPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>('monthly');
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  const metrics = useSellerPerformanceMetrics({
+    leads,
+    products,
+    goals,
+    sellerId: currentUserId || undefined,
+    periodType,
+  });
+
+  const currentMetric = metrics.find((m) => m.sellerId === currentUserId) || metrics[0];
+  const currentGoal = currentMetric?.currentGoal;
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const handleCreateOrUpdateGoal = async (goalData: SellerGoalFormData) => {
+    try {
+      if (editingGoal) {
+        await updateGoal(editingGoal.id, goalData);
+      } else {
+        await createGoal({
+          ...goalData,
+          user_id: currentUserId!,
+        });
+      }
+      setGoalDialogOpen(false);
+      setEditingGoal(null);
+    } catch (error) {
+      // Erro já tratado no hook
+    }
+  };
+
+  const handleEditGoal = () => {
+    if (currentGoal) {
+      setEditingGoal(currentGoal);
+      setGoalDialogOpen(true);
+    }
+  };
+
+  if (!currentUserId) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            Carregando informações do vendedor...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!currentMetric) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum dado de performance disponível</p>
+            <p className="text-sm mt-2">
+              Você ainda não possui leads atribuídos ou vendas registradas.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const progressData = [
+    {
+      name: "Leads",
+      meta: currentGoal?.target_leads || 0,
+      realizado: currentMetric.actualLeads,
+      progress: currentMetric.leadsProgress,
+    },
+    {
+      name: "Valor",
+      meta: currentGoal?.target_value || 0,
+      realizado: currentMetric.actualValue,
+      progress: currentMetric.valueProgress,
+    },
+    {
+      name: "Comissão",
+      meta: currentGoal?.target_commission || 0,
+      realizado: currentMetric.actualCommission,
+      progress: currentMetric.commissionProgress,
+    },
+  ];
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Meu Painel de Vendas</h2>
+          <p className="text-muted-foreground">
+            Acompanhe suas metas e comissões em tempo real
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Select value={periodType} onValueChange={(v: any) => setPeriodType(v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="weekly">Semanal</SelectItem>
+              <SelectItem value="monthly">Mensal</SelectItem>
+              <SelectItem value="quarterly">Trimestral</SelectItem>
+              <SelectItem value="yearly">Anual</SelectItem>
+            </SelectContent>
+          </Select>
+          <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" onClick={() => {
+                setEditingGoal(null);
+                setGoalDialogOpen(true);
+              }}>
+                <Target className="h-4 w-4 mr-2" />
+                {currentGoal ? "Editar Meta" : "Definir Meta"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingGoal ? "Editar Meta" : "Nova Meta"}
+                </DialogTitle>
+                <DialogDescription>
+                  Defina suas metas de vendas para o período selecionado
+                </DialogDescription>
+              </DialogHeader>
+              <GoalForm
+                goal={editingGoal || currentGoal}
+                periodType={periodType}
+                onSubmit={handleCreateOrUpdateGoal}
+                onCancel={() => {
+                  setGoalDialogOpen(false);
+                  setEditingGoal(null);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Cards de Resumo */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Meta de Leads
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {currentMetric.actualLeads} / {currentGoal?.target_leads || 0}
+            </div>
+            <Progress
+              value={Math.min(currentMetric.leadsProgress, 100)}
+              className="mt-2"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {currentMetric.leadsProgress.toFixed(1)}% concluído
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Meta de Valor
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(currentMetric.actualValue)}
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              Meta: {formatCurrency(currentGoal?.target_value || 0)}
+            </div>
+            <Progress
+              value={Math.min(currentMetric.valueProgress, 100)}
+              className="mt-2"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {currentMetric.valueProgress.toFixed(1)}% concluído
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Award className="h-4 w-4" />
+              Comissão
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {formatCurrency(currentMetric.actualCommission)}
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              Meta: {formatCurrency(currentGoal?.target_commission || 0)}
+            </div>
+            <Progress
+              value={Math.min(currentMetric.commissionProgress, 100)}
+              className="mt-2"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {currentMetric.commissionProgress.toFixed(1)}% concluído
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Taxa de Conversão
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {currentMetric.conversionRate.toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {currentMetric.wonLeads} ganhos de {currentMetric.totalLeads} leads
+            </p>
+            <div className="mt-2">
+              <Badge
+                variant={
+                  currentMetric.conversionRate >= 30
+                    ? "default"
+                    : currentMetric.conversionRate >= 15
+                    ? "secondary"
+                    : "outline"
+                }
+              >
+                {currentMetric.conversionRate >= 30
+                  ? "Excelente"
+                  : currentMetric.conversionRate >= 15
+                  ? "Bom"
+                  : "Melhorar"}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Progresso vs Meta</CardTitle>
+            <CardDescription>Comparação entre realizado e meta</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={progressData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value: any) => {
+                    if (typeof value === 'number') {
+                      return value.toLocaleString('pt-BR');
+                    }
+                    return value;
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="meta" fill="#8884d8" name="Meta" />
+                <Bar dataKey="realizado" fill="#82ca9d" name="Realizado" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Status das Metas</CardTitle>
+            <CardDescription>Percentual de conclusão de cada meta</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={progressData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, progress }) => `${name}: ${progress.toFixed(1)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="progress"
+                >
+                  {progressData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Informações da Meta Atual */}
+      {currentGoal && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Meta Atual</CardTitle>
+                <CardDescription>
+                  Período: {format(new Date(currentGoal.period_start), "dd/MM/yyyy", { locale: ptBR })} até{" "}
+                  {format(new Date(currentGoal.period_end), "dd/MM/yyyy", { locale: ptBR })}
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleEditGoal}>
+                Editar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-sm text-muted-foreground">Meta de Leads</Label>
+                <div className="text-2xl font-bold mt-1">{currentGoal.target_leads}</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Realizado: {currentMetric.actualLeads}
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Meta de Valor</Label>
+                <div className="text-2xl font-bold mt-1">
+                  {formatCurrency(currentGoal.target_value)}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Realizado: {formatCurrency(currentMetric.actualValue)}
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Meta de Comissão</Label>
+                <div className="text-2xl font-bold mt-1 text-primary">
+                  {formatCurrency(currentGoal.target_commission)}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Realizado: {formatCurrency(currentMetric.actualCommission)}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!currentGoal && (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-muted-foreground mb-4">
+              Você ainda não possui uma meta definida para este período.
+            </p>
+            <Button onClick={() => setGoalDialogOpen(true)}>
+              <Target className="h-4 w-4 mr-2" />
+              Definir Meta
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function GoalForm({
+  goal,
+  periodType,
+  onSubmit,
+  onCancel,
+}: {
+  goal?: any;
+  periodType: 'monthly' | 'weekly' | 'quarterly' | 'yearly';
+  onSubmit: (data: SellerGoalFormData) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState<SellerGoalFormData>({
+    user_id: "",
+    period_type: periodType,
+    period_start: "",
+    period_end: "",
+    target_leads: goal?.target_leads || 0,
+    target_value: goal?.target_value || 0,
+    target_commission: goal?.target_commission || 0,
+  });
+
+  useEffect(() => {
+    // Calcular período baseado no tipo
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    switch (periodType) {
+      case 'monthly':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case 'weekly':
+        const dayOfWeek = now.getDay();
+        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        start = new Date(now.setDate(diff));
+        end = new Date(now.setDate(diff + 6));
+        break;
+      case 'quarterly':
+        const quarter = Math.floor(now.getMonth() / 3);
+        start = new Date(now.getFullYear(), quarter * 3, 1);
+        end = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
+        break;
+      case 'yearly':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear(), 11, 31);
+        break;
+      default:
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      period_start: format(start, "yyyy-MM-dd"),
+      period_end: format(end, "yyyy-MM-dd"),
+    }));
+  }, [periodType]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="target_leads">Meta de Leads</Label>
+          <Input
+            id="target_leads"
+            type="number"
+            min="0"
+            value={formData.target_leads}
+            onChange={(e) =>
+              setFormData({ ...formData, target_leads: parseInt(e.target.value) || 0 })
+            }
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="target_value">Meta de Valor (R$)</Label>
+          <Input
+            id="target_value"
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.target_value}
+            onChange={(e) =>
+              setFormData({ ...formData, target_value: parseFloat(e.target.value) || 0 })
+            }
+            required
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="target_commission">Meta de Comissão (R$)</Label>
+        <Input
+          id="target_commission"
+          type="number"
+          step="0.01"
+          min="0"
+          value={formData.target_commission}
+          onChange={(e) =>
+            setFormData({ ...formData, target_commission: parseFloat(e.target.value) || 0 })
+          }
+          required
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit">
+          {goal ? "Salvar Alterações" : "Criar Meta"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+

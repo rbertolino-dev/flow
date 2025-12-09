@@ -46,6 +46,7 @@ import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
 import { AddLeadToListDialog } from "./AddLeadToListDialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { TransferToPostSaleDialog } from "./TransferToPostSaleDialog";
+import { EnhancedActivityHistory } from "./EnhancedActivityHistory";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -1254,36 +1255,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
               </>
             )} */}
 
-            {/* Activity Timeline - Other Activities */}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-lg">Outras Atividades</h3>
-              <div className="space-y-4">
-                {otherActivities.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma atividade adicional</p>
-                ) : (
-                  otherActivities.map((activity) => {
-                  const Icon = activityIcons[activity.type];
-                  const colorClass = activityColors[activity.type];
-
-                  return (
-                    <div key={activity.id} className="flex gap-3">
-                      <div className={`mt-1 ${colorClass}`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm">{activity.content}</p>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <span>{format(activity.timestamp, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                          <span>•</span>
-                          <span>{activity.user}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                  })
-                )}
-              </div>
-            </div>
+            {/* Activity Timeline - Enhanced History */}
+            <EnhancedActivityHistory
+              activities={otherActivities}
+            />
           </div>
           </ScrollArea>
         </div>

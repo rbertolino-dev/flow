@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail, ChevronLeft, ChevronRight, AlertCircle, Download, Users, BarChart3, Settings, Target } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,32 +22,86 @@ import { ImportContactsPanel } from "@/components/crm/ImportContactsPanel";
 import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Lead } from "@/types/lead";
+import { AdvancedSearchPanel, AdvancedSearchFilters } from "@/components/crm/AdvancedSearchPanel";
+import { BulkActionsBar } from "@/components/crm/BulkActionsBar";
+import { LeadPreviewTooltip } from "@/components/crm/LeadPreviewTooltip";
+import { CRMNotifications } from "@/components/crm/CRMNotifications";
+import { ExportLeadsDialog } from "@/components/crm/ExportLeadsDialog";
+import { SavedFiltersManager } from "@/components/crm/SavedFiltersManager";
+import { LeadSkeleton } from "@/components/crm/LeadSkeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
+import { SellerActivityDashboard } from "@/components/crm/SellerActivityDashboard";
+import { SellerPerformanceReport } from "@/components/crm/SellerPerformanceReport";
+import { SalesReportDialog } from "@/components/crm/SalesReportDialog";
+import { ProductsManagement } from "@/components/crm/ProductsManagement";
+import { SellerDashboard } from "@/components/crm/SellerDashboard";
 
 export default function CRM() {
-  const { leads, loading, refetch } = useLeads();
+  const { leads, loading, refetch: refetchLeads, updateLeadStatus, deleteLead: deleteLeadHook } = useLeads();
   const { callQueue } = useCallQueue();
   const { stages } = usePipelineStages();
-  const { tags } = useTags();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStage, setSelectedStage] = useState<string>("all");
-  const [selectedTag, setSelectedTag] = useState<string>("all");
+  const { tags, addTagToLead } = useTags();
+  const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [salesReportOpen, setSalesReportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedSearchFilters>({});
   const itemsPerPage = 25;
 
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
-      const matchesSearch = lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           lead.phone.includes(searchQuery);
-      const matchesStage = selectedStage === "all" || lead.stageId === selectedStage;
-      const matchesTag = selectedTag === "all" || lead.tags?.some(tag => tag.id === selectedTag);
+      // Busca avançada
+      if (advancedFilters.name && !lead.name.toLowerCase().includes(advancedFilters.name.toLowerCase())) {
+        return false;
+      }
+      if (advancedFilters.phone && !lead.phone.includes(advancedFilters.phone.replace(/\D/g, ""))) {
+        return false;
+      }
+      if (advancedFilters.email && (!lead.email || !lead.email.toLowerCase().includes(advancedFilters.email.toLowerCase()))) {
+        return false;
+      }
+      if (advancedFilters.company && (!lead.company || !lead.company.toLowerCase().includes(advancedFilters.company.toLowerCase()))) {
+        return false;
+      }
+      if (advancedFilters.notes && (!lead.notes || !lead.notes.toLowerCase().includes(advancedFilters.notes.toLowerCase()))) {
+        return false;
+      }
+      if (advancedFilters.stageId && lead.stageId !== advancedFilters.stageId) {
+        return false;
+      }
+      if (advancedFilters.tagId && !lead.tags?.some(tag => tag.id === advancedFilters.tagId)) {
+        return false;
+      }
+      if (advancedFilters.source && lead.source !== advancedFilters.source) {
+        return false;
+      }
+      if (advancedFilters.minValue && (!lead.value || lead.value < advancedFilters.minValue)) {
+        return false;
+      }
+      if (advancedFilters.maxValue && (!lead.value || lead.value > advancedFilters.maxValue)) {
+        return false;
+      }
+      if (advancedFilters.dateFrom && lead.createdAt && new Date(lead.createdAt) < advancedFilters.dateFrom) {
+        return false;
+      }
+      if (advancedFilters.dateTo && lead.createdAt) {
+        const toDate = new Date(advancedFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (new Date(lead.createdAt) > toDate) {
+          return false;
+        }
+      }
       
-      return matchesSearch && matchesStage && matchesTag;
+      return true;
     });
-  }, [leads, searchQuery, selectedStage, selectedTag]);
+  }, [leads, advancedFilters]);
 
   // Paginação
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
@@ -91,69 +145,55 @@ export default function CRM() {
               </div>
             </div>
 
-            {/* Filters Section */}
-            <Card className="mb-6 border-border/50 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Filtros
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nome ou telefone..."
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        handleFilterChange();
-                      }}
-                      className="pl-10"
-                    />
-                  </div>
-                  
-                  <Select value={selectedStage} onValueChange={(value) => {
-                    setSelectedStage(value);
-                    handleFilterChange();
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todas as etapas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as etapas</SelectItem>
-                      {stages.map(stage => (
-                        <SelectItem key={stage.id} value={stage.id}>
-                          {stage.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Notificações */}
+            <CRMNotifications leads={leads} />
 
-                  <Select value={selectedTag} onValueChange={(value) => {
-                    setSelectedTag(value);
+            {/* Busca Avançada e Filtros Salvos */}
+            <div className="mb-4 space-y-3">
+              <AdvancedSearchPanel
+                filters={advancedFilters}
+                onChange={(filters) => {
+                  setAdvancedFilters(filters);
+                  handleFilterChange();
+                }}
+                stages={stages}
+                tags={tags}
+                onClear={() => {
+                  setAdvancedFilters({});
+                  handleFilterChange();
+                }}
+              />
+              <div className="flex items-center justify-between">
+                <SavedFiltersManager
+                  onLoadFilter={(filters) => {
+                    setAdvancedFilters(filters);
                     handleFilterChange();
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todas as tags" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as tags</SelectItem>
-                      {tags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.id}>
-                          {tag.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
+                  }}
+                  currentFilters={advancedFilters}
+                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExportDialogOpen(true)}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Exportar
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Exportar leads para CSV ou Excel</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
 
             {/* Tabs para organizar as visualizações */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsList className="grid w-full grid-cols-6 mb-6">
                 <TabsTrigger value="all" className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" />
                   Todos os Leads
@@ -162,50 +202,121 @@ export default function CRM() {
                   <AlertCircle className="h-4 w-4" />
                   Leads que Precisam Atenção
                 </TabsTrigger>
+                <TabsTrigger value="my-dashboard" className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Meu Painel
+                </TabsTrigger>
+                <TabsTrigger value="sellers" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Atividades por Vendedor
+                </TabsTrigger>
+                <TabsTrigger value="reports" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Relatórios
+                </TabsTrigger>
+                <TabsTrigger value="config" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Configuração
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="all" className="space-y-6">
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Total de Leads</p>
-                          <p className="text-3xl font-bold">{filteredLeads.length}</p>
-                        </div>
-                        <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                          <MessageSquare className="h-6 w-6 text-primary" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow cursor-help">
+                          <CardContent className="pt-6">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Total de Leads</p>
+                                <p className="text-3xl font-bold">{filteredLeads.length}</p>
+                              </div>
+                              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                <MessageSquare className="h-6 w-6 text-primary" />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Total de leads após aplicar os filtros</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
                   {stages.slice(0, 3).map(stage => {
                     const stageLeads = filteredLeads.filter(l => l.stageId === stage.id);
                     return (
-                      <Card key={stage.id} className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-muted-foreground">{stage.name}</p>
-                              <p className="text-3xl font-bold">{stageLeads.length}</p>
-                            </div>
-                            <div 
-                              className="h-12 w-12 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: `${stage.color}20` }}
-                            >
-                              <div 
-                                className="h-3 w-3 rounded-full"
-                                style={{ backgroundColor: stage.color }}
-                              />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <TooltipProvider key={stage.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow cursor-help">
+                              <CardContent className="pt-6">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">{stage.name}</p>
+                                    <p className="text-3xl font-bold">{stageLeads.length}</p>
+                                  </div>
+                                  <div 
+                                    className="h-12 w-12 rounded-full flex items-center justify-center"
+                                    style={{ backgroundColor: `${stage.color}20` }}
+                                  >
+                                    <div 
+                                      className="h-3 w-3 rounded-full"
+                                      style={{ backgroundColor: stage.color }}
+                                    />
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Leads na etapa "{stage.name}"</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     );
                   })}
                 </div>
+
+                {/* Ações em Lote */}
+                <BulkActionsBar
+                  selectedIds={selectedIds}
+                  onClearSelection={() => setSelectedIds(new Set())}
+                  onMoveToStage={async (leadIds, stageId) => {
+                    for (const id of leadIds) {
+                      await updateLeadStatus(id, stageId);
+                    }
+                    await refetchLeads();
+                  }}
+                  onAddTag={async (leadIds, tagId) => {
+                    for (const id of leadIds) {
+                      await addTagToLead(id, tagId);
+                    }
+                    await refetchLeads();
+                  }}
+                  onExport={async () => { setExportDialogOpen(true); }}
+                  onArchive={async (leadIds) => {
+                    // TODO: Implementar arquivamento quando necessário
+                    toast({
+                      title: "Em desenvolvimento",
+                      description: "Funcionalidade de arquivamento em breve",
+                    });
+                  }}
+                  onDelete={async (leadIds) => {
+                    for (const id of leadIds) {
+                      await deleteLeadHook(id);
+                    }
+                    await refetchLeads();
+                  }}
+                  stages={stages}
+                  tags={tags}
+                  totalCount={filteredLeads.length}
+                  onSelectAll={() => setSelectedIds(new Set(filteredLeads.map(l => l.id)))}
+                  onDeselectAll={() => setSelectedIds(new Set())}
+                />
 
                 {/* Leads Table */}
             <Card className="border-border/50 shadow-lg">
@@ -218,19 +329,11 @@ export default function CRM() {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-4 text-muted-foreground">Carregando leads...</p>
-                  </div>
-                ) : filteredLeads.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">Nenhum lead encontrado</p>
-                  </div>
-                ) : (
                   <div className="rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-12"></TableHead>
                           <TableHead>Nome</TableHead>
                           <TableHead>Contato</TableHead>
                           <TableHead>Etapa</TableHead>
@@ -241,14 +344,65 @@ export default function CRM() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {paginatedLeads.map(lead => {
-                          const stage = getStage(lead.stageId);
-                          return (
-                            <TableRow 
-                              key={lead.id} 
-                              className="cursor-pointer hover:bg-muted/50"
-                              onClick={() => setSelectedLead(lead)}
-                            >
+                        <LeadSkeleton />
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : filteredLeads.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">Nenhum lead encontrado</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={selectedIds.size === paginatedLeads.length && paginatedLeads.length > 0}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedIds(new Set(paginatedLeads.map(l => l.id)));
+                                } else {
+                                  setSelectedIds(new Set());
+                                }
+                              }}
+                            />
+                          </TableHead>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Contato</TableHead>
+                          <TableHead>Etapa</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Data Retorno</TableHead>
+                          <TableHead>Tags</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TooltipProvider>
+                          {paginatedLeads.map(lead => {
+                            const stage = getStage(lead.stageId);
+                            const isSelected = selectedIds.has(lead.id);
+                            return (
+                              <LeadPreviewTooltip key={lead.id} lead={lead}>
+                                <TableRow 
+                                  className={`cursor-pointer hover:bg-muted/50 ${isSelected ? 'bg-muted/30' : ''}`}
+                                  onClick={() => setSelectedLead(lead)}
+                                >
+                                  <TableCell onClick={(e) => e.stopPropagation()}>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        const newSelected = new Set(selectedIds);
+                                        if (checked) {
+                                          newSelected.add(lead.id);
+                                        } else {
+                                          newSelected.delete(lead.id);
+                                        }
+                                        setSelectedIds(newSelected);
+                                      }}
+                                    />
+                                  </TableCell>
                               <TableCell className="font-medium">
                                 <div className="flex flex-col">
                                   <span>{lead.name}</span>
@@ -326,25 +480,41 @@ export default function CRM() {
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank')}
-                                  >
-                                    <MessageSquare className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => window.location.href = `tel:${lead.phone}`}
-                                  >
-                                    <Phone className="h-4 w-4" />
-                                  </Button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank')}
+                                      >
+                                        <MessageSquare className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Abrir WhatsApp</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => window.location.href = `tel:${lead.phone}`}
+                                      >
+                                        <Phone className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Ligar</p>
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </div>
                               </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                                </TableRow>
+                              </LeadPreviewTooltip>
+                            );
+                          })}
+                        </TooltipProvider>
                       </TableBody>
                     </Table>
                   </div>
@@ -417,8 +587,45 @@ export default function CRM() {
                 <LeadsAttentionPanel
                   leads={leads}
                   callQueue={callQueue || []}
-                  onLeadUpdated={refetch}
+                  onLeadUpdated={() => refetchLeads()}
                 />
+              </TabsContent>
+
+              <TabsContent value="my-dashboard" className="space-y-6">
+                <SellerDashboard />
+              </TabsContent>
+
+              <TabsContent value="sellers" className="space-y-6">
+                <SellerActivityDashboard leads={leads} />
+              </TabsContent>
+
+              <TabsContent value="reports" className="space-y-6">
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Relatório de Vendas</CardTitle>
+                      <CardDescription>
+                        Análise completa do funil de vendas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setSalesReportOpen(true)}
+                      >
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        Ver Relatório de Vendas
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  
+                  <SellerPerformanceReport leads={leads} stages={stages} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="config" className="space-y-6">
+                <ProductsManagement />
               </TabsContent>
             </Tabs>
           </div>
@@ -430,7 +637,7 @@ export default function CRM() {
             lead={selectedLead}
             open={!!selectedLead}
             onClose={() => setSelectedLead(null)}
-            onUpdated={refetch}
+            onUpdated={() => refetchLeads()}
           />
         )}
 
@@ -438,7 +645,7 @@ export default function CRM() {
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onLeadCreated={() => {
-            refetch();
+            refetchLeads();
             setCreateDialogOpen(false);
           }}
           stages={stages}
@@ -452,6 +659,21 @@ export default function CRM() {
             <ImportContactsPanel />
           </DialogContent>
         </Dialog>
+
+        <ExportLeadsDialog
+          open={exportDialogOpen}
+          onOpenChange={setExportDialogOpen}
+          leads={filteredLeads}
+          selectedLeads={Array.from(selectedIds).map(id => filteredLeads.find(l => l.id === id)).filter(Boolean) as Lead[]}
+        />
+
+        <SalesReportDialog
+          open={salesReportOpen}
+          onOpenChange={setSalesReportOpen}
+          leads={leads}
+          stages={stages}
+          callQueue={callQueue || []}
+        />
       </CRMLayout>
     </AuthGuard>
   );

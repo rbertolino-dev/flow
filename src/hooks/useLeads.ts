@@ -122,7 +122,15 @@ export function useLeads() {
       // Primeira tentativa: query completa com excluded_from_funnel
       const result1 = await (supabase as any)
         .from('leads')
-        .select('*')
+        .select(`
+          *,
+          products:product_id (
+            id,
+            name,
+            price,
+            category
+          )
+        `)
         .eq('organization_id', activeOrgId)
         .is('deleted_at', null)
         .eq('excluded_from_funnel', false)
@@ -135,7 +143,15 @@ export function useLeads() {
           console.warn('⚠️ Coluna excluded_from_funnel não existe, usando fallback...');
           const result2 = await (supabase as any)
             .from('leads')
-            .select('*')
+            .select(`
+              *,
+              products:product_id (
+                id,
+                name,
+                price,
+                category
+              )
+            `)
             .eq('organization_id', activeOrgId)
             .is('deleted_at', null)
             .order('created_at', { ascending: false });
@@ -222,6 +238,13 @@ export function useLeads() {
             user: a.user_name || 'Sistema',
           })),
           tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
+          productId: lead.product_id || undefined,
+          product: lead.products ? {
+            id: lead.products.id,
+            name: lead.products.name,
+            price: lead.products.price,
+            category: lead.products.category,
+          } : undefined,
         } as Lead;
       });
 

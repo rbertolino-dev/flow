@@ -25,6 +25,27 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Validar limites antes de criar instância
+    const { data: canCreate, error: limitError } = await supabase
+      .rpc('can_create_evolution_instance', { _org_id: organizationId });
+
+    if (limitError) {
+      console.error('Erro ao verificar limites:', limitError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao verificar limites da organização' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!canCreate) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Limite de instâncias Evolution excedido ou funcionalidade não habilitada para esta organização. Entre em contato com o administrador.' 
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Normalizar URL
     const normalizedUrl = apiUrl.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/, '');
 

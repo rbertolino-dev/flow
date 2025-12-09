@@ -8,6 +8,13 @@ const corsHeaders = {
 // Função para adicionar delay entre requisições
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Função para normalizar número de telefone para comparação
+function normalizePhoneForComparison(phone: string): string {
+  if (!phone) return "";
+  // Remove todos os caracteres não numéricos
+  return phone.replace(/\D/g, "");
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -87,18 +94,65 @@ serve(async (req) => {
             });
           });
         } else {
-          const batchResults = await evolutionResponse.json();
+          let batchResults = await evolutionResponse.json();
           
-          // Processar resultados do lote
-          batchResults.forEach((result: any, index: number) => {
-            results.push({
-              phone: formattedBatch[index],
-              hasWhatsApp: result?.exists === true,
-              jid: result?.jid || null,
-            });
-          });
+          // Tratar diferentes formatos de resposta
+          if (batchResults && !Array.isArray(batchResults)) {
+            // Pode ser objeto com array dentro
+            batchResults = batchResults.data || batchResults.results || batchResults.numbers || [];
+          }
+          
+          if (!Array.isArray(batchResults)) {
+            console.warn(`⚠️ Formato de resposta inesperado no lote ${batchNumber}`);
+            batchResults = [];
+          }
 
-          console.log(`✅ Lote ${batchNumber} processado: ${batchResults.filter((r: any) => r?.exists).length}/${batch.length} com WhatsApp`);
+          // Criar mapa de resultados por número normalizado
+          const resultsMap = new Map<string, any>();
+          for (const result of batchResults) {
+            if (result && result.number) {
+              const normalized = normalizePhoneForComparison(result.number);
+              if (normalized) {
+                // Priorizar resultados com exists: true
+                if (!resultsMap.has(normalized) || result.exists === true) {
+                  resultsMap.set(normalized, result);
+                }
+              }
+            }
+          }
+
+          // Processar cada número do lote e buscar na resposta
+          for (const phone of formattedBatch) {
+            const normalized = normalizePhoneForComparison(phone);
+            const apiResult = resultsMap.get(normalized);
+
+            if (apiResult) {
+              // Verificar múltiplas formas de indicar que existe WhatsApp
+              const hasWhatsApp = 
+                apiResult.exists === true || 
+                apiResult.exists === "true" ||
+                apiResult.hasWhatsApp === true ||
+                (apiResult.jid && apiResult.jid.length > 0) ||
+                apiResult.status === "valid";
+
+              results.push({
+                phone: phone,
+                hasWhatsApp: hasWhatsApp,
+                jid: apiResult.jid || null,
+              });
+            } else {
+              // Número não encontrado na resposta
+              console.warn(`⚠️ Número não encontrado na resposta: ${phone} (normalizado: ${normalized})`);
+              results.push({
+                phone: phone,
+                hasWhatsApp: false,
+                error: 'Número não retornado pela API'
+              });
+            }
+          }
+
+          const validCount = results.filter(r => r.hasWhatsApp && !r.error).length;
+          console.log(`✅ Lote ${batchNumber} processado: ${validCount}/${batch.length} com WhatsApp`);
         }
 
         // Delay entre lotes (exceto no último)

@@ -1,11 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2 } from "lucide-react";
+import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { AddExistingUserDialog } from "./AddExistingUserDialog";
 import { DeleteUserDialog } from "./DeleteUserDialog";
+import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
+import { OrganizationPermissionsPanel } from "./OrganizationPermissionsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -38,7 +49,14 @@ interface Organization {
   id: string;
   name: string;
   created_at: string;
+  plan_id?: string | null;
   organization_members: Member[];
+}
+
+interface Plan {
+  id: string;
+  name: string;
+  description: string | null;
 }
 
 interface OrganizationDetailPanelProps {
@@ -54,7 +72,57 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
   const [removing, setRemoving] = useState(false);
   const [deleteUserOpen, setDeleteUserOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(organization.plan_id || null);
+  const [updatingPlan, setUpdatingPlan] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const fetchPlans = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('id, name, description')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      setPlans(data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar planos:', error);
+    }
+  };
+
+  const handlePlanChange = async (planId: string) => {
+    try {
+      setUpdatingPlan(true);
+      const { error } = await supabase
+        .from('organizations')
+        .update({ plan_id: planId === 'none' ? null : planId })
+        .eq('id', organization.id);
+
+      if (error) throw error;
+
+      setCurrentPlanId(planId === 'none' ? null : planId);
+      toast({
+        title: "Sucesso!",
+        description: "Plano atualizado com sucesso",
+      });
+      onUpdate();
+    } catch (error: any) {
+      console.error('Erro ao atualizar plano:', error);
+      toast({
+        title: "Erro ao atualizar plano",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingPlan(false);
+    }
+  };
 
   const getRoleBadgeColor = (roles: Array<{ role: string }>) => {
     if (roles.some(r => r.role === 'admin')) return "destructive";
@@ -124,6 +192,29 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                     Criada em {format(new Date(organization.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </span>
                 </CardDescription>
+                <div className="mt-2">
+                  <Label className="text-xs text-muted-foreground flex items-center gap-2">
+                    <Package className="h-3 w-3" />
+                    Plano:
+                  </Label>
+                  <Select
+                    value={currentPlanId || 'none'}
+                    onValueChange={handlePlanChange}
+                    disabled={updatingPlan}
+                  >
+                    <SelectTrigger className="w-full sm:w-[200px] mt-1">
+                      <SelectValue placeholder="Selecione um plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem plano (Ilimitado)</SelectItem>
+                      {plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.id}>
+                          {plan.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0 self-start sm:self-center">
@@ -132,8 +223,25 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 sm:p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 bg-muted/50 rounded-lg border border-border">
+        <CardContent className="p-4 sm:p-6">
+          <Tabs defaultValue="members" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="members">
+                <Users className="h-4 w-4 mr-2" />
+                Membros
+              </TabsTrigger>
+              <TabsTrigger value="permissions">
+                <Shield className="h-4 w-4 mr-2" />
+                Permissões
+              </TabsTrigger>
+              <TabsTrigger value="limits">
+                <Settings className="h-4 w-4 mr-2" />
+                Limites e Funcionalidades
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="members" className="space-y-6 mt-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 bg-muted/50 rounded-lg border border-border">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-primary/10">
                 <Users className="h-5 w-5 text-primary" />
@@ -227,6 +335,25 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
               ))
             )}
           </div>
+            </TabsContent>
+            
+            <TabsContent value="permissions" className="mt-6">
+              <OrganizationPermissionsPanel
+                organizationId={organization.id}
+                organizationName={organization.name}
+                members={organization.organization_members}
+                onUpdate={onUpdate}
+              />
+            </TabsContent>
+            
+            <TabsContent value="limits" className="mt-6">
+              <OrganizationLimitsPanel
+                organizationId={organization.id}
+                organizationName={organization.name}
+                onUpdate={onUpdate}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

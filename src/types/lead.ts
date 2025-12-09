@@ -42,6 +42,13 @@ export interface Lead {
   unread_message_count?: number;
   call_count?: number;
   excluded_from_funnel?: boolean;
+  productId?: string;
+  product?: {
+    id: string;
+    name: string;
+    price: number;
+    category: string;
+  };
 }
 
 export interface CallQueueItem {
