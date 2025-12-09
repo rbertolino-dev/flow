@@ -40,13 +40,22 @@ export function SellerGoalsManagement() {
       if (!activeOrgId) return [];
       const { data, error } = await supabase
         .from('organization_members')
-        .select(`
-          user_id,
-          profiles(id, full_name, email)
-        `)
+        .select('user_id')
         .eq('organization_id', activeOrgId);
       if (error) throw error;
-      return data;
+      
+      // Fetch profiles separately
+      const userIds = data.map(m => m.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+      if (profilesError) throw profilesError;
+      
+      return data.map(m => ({
+        user_id: m.user_id,
+        profile: profiles?.find(p => p.id === m.user_id)
+      }));
     },
     enabled: !!activeOrgId,
   });
@@ -124,7 +133,7 @@ export function SellerGoalsManagement() {
 
   const getMemberName = (userId: string) => {
     const member = members.find((m: any) => m.user_id === userId);
-    return member?.profiles?.full_name || member?.profiles?.email || 'N/A';
+    return member?.profile?.full_name || member?.profile?.email || 'N/A';
   };
 
   return (
@@ -242,7 +251,7 @@ export function SellerGoalsManagement() {
                 <SelectContent>
                   {members.map((m: any) => (
                     <SelectItem key={m.user_id} value={m.user_id}>
-                      {m.profiles?.full_name || m.profiles?.email}
+                      {m.profile?.full_name || m.profile?.email}
                     </SelectItem>
                   ))}
                 </SelectContent>
