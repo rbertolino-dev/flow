@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import agilizeLogo from "@/assets/agilize-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
+import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
 
 export type CRMView = 
   | "kanban" 
@@ -29,7 +30,8 @@ export type CRMView =
   | "attention"
   | "automation-flows"
   | "post-sale"
-  | "agilize";
+  | "agilize"
+  | "assistant";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -84,6 +86,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "agents" as const, label: "Agentes IA", icon: Bot },
+    { id: "assistant" as const, label: "Assistente IA", icon: Sparkles },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
@@ -191,6 +194,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/automation-flows');
               } else if (item.id === 'agents') {
                 navigate('/agents');
+              } else if (item.id === 'assistant') {
+                navigate('/assistant');
               } else if (item.id === 'calendar') {
                 navigate('/calendar');
               } else if (item.id === 'agilizechat') {
@@ -403,6 +408,9 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           {children}
         </div>
       </main>
+      
+      {/* Floating Chat Widget */}
+      <FloatingChatWidget />
     </div>
   );
 }
