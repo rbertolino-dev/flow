@@ -98,13 +98,33 @@ serve(async (req) => {
       throw new Error('list_id, list_name e field_mappings são obrigatórios');
     }
 
+    // Propriedades a buscar do HubSpot
+    const propertiesToFetch = [
+      'firstname',
+      'lastname', 
+      'email',
+      'phone',
+      'mobilephone',
+      'company',
+      'lifecyclestage',
+      'jobtitle',
+      'website',
+      'city',
+      'state',
+      'country',
+    ];
+
     // Buscar todos os contatos da lista (com paginação)
     let allContacts: any[] = [];
     let vidOffset = 0;
     const count = 100;
 
     while (true) {
-      const contactsUrl = `https://api.hubapi.com/contacts/v1/lists/${body.list_id}/contacts/all?vidOffset=${vidOffset}&count=${count}`;
+      // IMPORTANTE: Adicionar properties na URL para obter os dados dos contatos
+      const propertiesParam = propertiesToFetch.map(p => `property=${p}`).join('&');
+      const contactsUrl = `https://api.hubapi.com/contacts/v1/lists/${body.list_id}/contacts/all?vidOffset=${vidOffset}&count=${count}&${propertiesParam}`;
+      
+      console.log(`🔍 Buscando contatos: offset=${vidOffset}, count=${count}`);
       
       const response = await fetch(contactsUrl, {
         method: 'GET',
@@ -116,12 +136,29 @@ serve(async (req) => {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`❌ Erro ao buscar contatos: ${response.status} - ${errorText}`);
         throw new Error(`Erro ao buscar contatos: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log(`📦 Recebidos ${data.contacts?.length || 0} contatos nesta página`);
+      
       if (data.contacts && data.contacts.length > 0) {
-        allContacts = allContacts.concat(data.contacts);
+        // Extrair valores das propriedades (HubSpot retorna properties.propertyName.value)
+        const processedContacts = data.contacts.map((contact: any) => {
+          const properties: Record<string, any> = {};
+          if (contact.properties) {
+            for (const [key, propData] of Object.entries(contact.properties)) {
+              // A API v1 retorna { value: "...", versions: [...] }
+              properties[key] = (propData as any)?.value || null;
+            }
+          }
+          return {
+            vid: contact.vid,
+            properties,
+          };
+        });
+        allContacts = allContacts.concat(processedContacts);
       }
 
       if (!data['has-more']) {
