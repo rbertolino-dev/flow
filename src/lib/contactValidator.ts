@@ -244,7 +244,7 @@ function normalizePhoneForComparison(phone: string): string {
 }
 
 /**
- * Verifica quais números têm WhatsApp ativo via Evolution API
+ * Verifica quais números têm WhatsApp ativo via Edge Function
  */
 export async function validateWhatsAppNumbers(
   contacts: ParsedContact[],
@@ -262,94 +262,57 @@ export async function validateWhatsAppNumbers(
   }
 
   try {
-    // Montar URL da API
-    const apiUrl = evolutionConfig.api_url.replace(/\/+$/, "");
-    const endpoint = `${apiUrl}/chat/whatsappNumbers/${evolutionConfig.instance_name}`;
+    // Importar supabase client dinamicamente para evitar dependências circulares
+    const { supabase } = await import("@/integrations/supabase/client");
+    
+    // Extrair apenas os números de telefone normalizados
+    const phones = validContacts.map(c => {
+      // Remover + e manter apenas dígitos
+      return c.phone.replace(/\D/g, "");
+    });
 
-    // Criar mapa de números normalizados para contatos originais
-    // Isso garante que possamos mapear corretamente a resposta da API
-    const phoneToContactMap = new Map<string, ParsedContact>();
-    const normalizedNumbers: string[] = [];
+    console.log(`📞 Validando ${phones.length} números via Edge Function`);
 
-    for (const contact of validContacts) {
-      // Normalizar número (remover + e manter apenas dígitos)
-      const normalized = normalizePhoneForComparison(contact.phone);
-      if (normalized && !phoneToContactMap.has(normalized)) {
-        phoneToContactMap.set(normalized, contact);
-        normalizedNumbers.push(normalized);
-      }
+    // Chamar edge function para validação
+    const { data, error } = await supabase.functions.invoke('validate-whatsapp-number', {
+      body: {
+        instanceId: instanceId,
+        phones: phones,
+        batchSize: 10,
+        delayBetweenBatches: 2000,
+      },
+    });
+
+    if (error) {
+      console.error("❌ Erro na edge function:", error);
+      throw new Error(`Erro na validação: ${error.message}`);
     }
 
-    // Remover duplicados mantendo ordem
-    const uniqueNumbers = Array.from(new Set(normalizedNumbers));
-
-    console.log(`📞 Validando ${uniqueNumbers.length} números únicos via Evolution API`);
-
-    // A Evolution API costuma limitar o tamanho do lote. Enviar em batches para evitar 400.
-    const chunkSize = 50;
-    const chunks: string[][] = [];
-    for (let i = 0; i < uniqueNumbers.length; i += chunkSize) {
-      chunks.push(uniqueNumbers.slice(i, i + chunkSize));
+    if (!data || !data.results) {
+      console.error("❌ Resposta inválida da edge function:", data);
+      throw new Error("Resposta inválida da API de validação");
     }
 
-    const aggregated: any[] = [];
-    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-      const chunk = chunks[chunkIndex];
-      console.log(`📦 Processando lote ${chunkIndex + 1}/${chunks.length} com ${chunk.length} números`);
+    console.log(`📊 Resultados recebidos: ${data.results.length} números processados`);
+    console.log(`📊 Summary:`, data.summary);
 
-      const resp = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "apikey": evolutionConfig.api_key
-        },
-        body: JSON.stringify({ numbers: chunk })
-      });
-
-      if (!resp.ok) {
-        const preview = await resp.text().catch(() => "");
-        // Se o método não estiver disponível, considerar todos válidos
-        if (preview.includes("Method not available") || preview.includes("method not available")) {
-          console.warn("⚠️ Validação WhatsApp indisponível neste canal Evolution - todos números serão aceitos");
-          return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
-        }
-        console.error(`❌ Erro na validação (lote ${chunkIndex + 1}):`, resp.status, preview.slice(0, 200));
-        throw new Error(`Evolution API retornou erro: ${resp.status}${preview ? ` - ${preview.slice(0,120)}` : ''}`);
-      }
-
-      const data = await resp.json().catch(() => null);
-      
-      if (data && Array.isArray(data)) {
-        console.log(`✅ Lote ${chunkIndex + 1} retornou ${data.length} resultados`);
-        aggregated.push(...data);
-      } else if (data && typeof data === 'object') {
-        // Algumas versões da API podem retornar objeto com array dentro
-        const dataArray = data.data || data.results || data.numbers || [];
-        if (Array.isArray(dataArray)) {
-          console.log(`✅ Lote ${chunkIndex + 1} retornou ${dataArray.length} resultados (formato objeto)`);
-          aggregated.push(...dataArray);
-        } else {
-          console.warn(`⚠️ Formato de resposta inesperado no lote ${chunkIndex + 1}:`, typeof data);
-        }
-      } else {
-        console.warn(`⚠️ Resposta vazia ou inválida no lote ${chunkIndex + 1}`);
-      }
-    }
-
-    console.log(`📊 Total de ${aggregated.length} resultados recebidos da API`);
-
-    // Criar mapa de resultados da API normalizados
+    // Criar mapa de resultados da API
     const apiResultsMap = new Map<string, any>();
-    for (const result of aggregated) {
-      if (result && result.number) {
-        const normalizedApiNumber = normalizePhoneForComparison(result.number);
-        if (normalizedApiNumber) {
-          // Se já existe, manter o que tem exists: true (priorizar validação positiva)
-          if (!apiResultsMap.has(normalizedApiNumber) || result.exists === true) {
-            apiResultsMap.set(normalizedApiNumber, result);
-          }
-        }
+    for (const result of data.results) {
+      if (result && result.phone) {
+        const normalized = result.phone.replace(/\D/g, "");
+        apiResultsMap.set(normalized, result);
+        
+        // Também mapear pelos últimos dígitos para matching flexível
+        const last8 = normalized.slice(-8);
+        const last9 = normalized.slice(-9);
+        const last10 = normalized.slice(-10);
+        const last11 = normalized.slice(-11);
+        
+        if (!apiResultsMap.has(last8)) apiResultsMap.set(last8, result);
+        if (!apiResultsMap.has(last9)) apiResultsMap.set(last9, result);
+        if (!apiResultsMap.has(last10)) apiResultsMap.set(last10, result);
+        if (!apiResultsMap.has(last11)) apiResultsMap.set(last11, result);
       }
     }
 
@@ -358,37 +321,38 @@ export async function validateWhatsAppNumbers(
     let rejectedCount = 0;
 
     for (const contact of validContacts) {
-      const normalized = normalizePhoneForComparison(contact.phone);
-      const apiResult = apiResultsMap.get(normalized);
+      const normalized = contact.phone.replace(/\D/g, "");
+      
+      // Tentar encontrar resultado por várias estratégias
+      let apiResult = apiResultsMap.get(normalized);
+      
+      if (!apiResult) {
+        // Tentar pelos últimos dígitos
+        apiResult = apiResultsMap.get(normalized.slice(-11)) ||
+                   apiResultsMap.get(normalized.slice(-10)) ||
+                   apiResultsMap.get(normalized.slice(-9)) ||
+                   apiResultsMap.get(normalized.slice(-8));
+      }
 
       if (apiResult) {
-        // Verificar múltiplas formas de indicar que existe WhatsApp
-        const hasWhatsApp = 
-          apiResult.exists === true || 
-          apiResult.exists === "true" ||
-          apiResult.hasWhatsApp === true ||
-          (apiResult.jid && apiResult.jid.length > 0) ||
-          apiResult.status === "valid";
-
-        if (hasWhatsApp) {
+        if (apiResult.hasWhatsApp && !apiResult.error) {
           validated.push(contact);
           validatedCount++;
         } else {
           rejected.push({
             ...contact,
             valid: false,
-            error: "Número não tem WhatsApp ativo"
+            error: apiResult.error || "Número não tem WhatsApp ativo"
           });
           rejectedCount++;
         }
       } else {
-        // Número não encontrado na resposta da API
-        // Isso pode acontecer se a API não retornou o número ou se houve problema na correspondência
-        console.warn(`⚠️ Número não encontrado na resposta da API: ${contact.phone} (normalizado: ${normalized})`);
+        // Número não encontrado na resposta
+        console.warn(`⚠️ Número não encontrado na resposta: ${contact.phone}`);
         rejected.push({
           ...contact,
           valid: false,
-          error: "Número não retornado pela API ou sem WhatsApp"
+          error: "Número não retornado pela API"
         });
         rejectedCount++;
       }
@@ -401,12 +365,7 @@ export async function validateWhatsAppNumbers(
     rejected.push(...invalidContacts);
 
   } catch (error: any) {
-    console.error("❌ Erro ao validar WhatsApp via Evolution API:", error);
-    // Se a validação falhar por qualquer motivo relacionado ao método indisponível, aceitar todos
-    if (error.message?.includes("Method not available") || error.message?.includes("method not available")) {
-      console.warn("⚠️ Validação WhatsApp indisponível - aceitando todos os números válidos");
-      return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
-    }
+    console.error("❌ Erro ao validar WhatsApp:", error);
     throw new Error(`Falha na validação WhatsApp: ${error.message}`);
   }
 
