@@ -1900,6 +1900,50 @@ export type Database = {
           },
         ]
       }
+      hubspot_configs: {
+        Row: {
+          access_token: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          organization_id: string
+          portal_id: string | null
+          sync_settings: Json | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          organization_id: string
+          portal_id?: string | null
+          sync_settings?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          organization_id?: string
+          portal_id?: string | null
+          sync_settings?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hubspot_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instance_groups: {
         Row: {
           created_at: string
