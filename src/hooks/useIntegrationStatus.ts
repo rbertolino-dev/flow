@@ -8,6 +8,7 @@ import { useAsaasConfig } from "@/hooks/useAsaasConfig";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useChatwootConfig } from "@/hooks/useChatwootConfig";
+import { useHubSpotConfigs } from "@/hooks/useHubSpotConfigs";
 
 export interface IntegrationStatus {
   id: string;
@@ -27,6 +28,7 @@ export function useIntegrationStatus() {
   const { config: bubbleConfig } = useBubbleConfig();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const { config: chatwootConfig } = useChatwootConfig(activeOrgId);
+  const { config: hubspotConfig } = useHubSpotConfigs();
 
   // Verificar Facebook/Instagram
   const { data: facebookConfig } = useQuery({
@@ -107,6 +109,14 @@ export function useIntegrationStatus() {
       isConfigured: !!facebookConfig,
       isActive: !!facebookConfig,
       tabValue: "facebook",
+    },
+    {
+      id: "hubspot",
+      name: "HubSpot",
+      description: "Sincronize contatos do HubSpot CRM",
+      isConfigured: !!hubspotConfig,
+      isActive: !!hubspotConfig?.is_active,
+      tabValue: "integrations",
     },
   ];
 

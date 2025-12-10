@@ -32,6 +32,8 @@ import { AsaasIntegrationPanel } from "@/components/crm/AsaasIntegrationPanel";
 import { GmailIntegrationPanel } from "@/components/crm/GmailIntegrationPanel";
 import { BubbleIntegrationPanel } from "@/components/crm/BubbleIntegrationPanel";
 import { BubbleLeadsSyncPanel } from "@/components/crm/BubbleLeadsSyncPanel";
+import { HubSpotIntegrationPanel } from "@/components/crm/HubSpotIntegrationPanel";
+import { HubSpotListsImportPanel } from "@/components/crm/HubSpotListsImportPanel";
 import { UsersPanel } from "@/components/users/UsersPanel";
 import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding";
 
@@ -249,6 +251,9 @@ export default function Settings() {
 
                 {/* Bubble.io */}
                 <BubbleIntegrationPanel />
+
+                {/* HubSpot */}
+                <HubSpotIntegrationPanel />
               </div>
 
               <div className="mt-6">
@@ -256,6 +261,9 @@ export default function Settings() {
                 <div className="grid gap-6 md:grid-cols-1">
                   {/* Sincronização de Leads do Bubble */}
                   <BubbleLeadsSyncPanel />
+                  
+                  {/* Importação de Listas do HubSpot */}
+                  <HubSpotListsImportPanel />
                 </div>
               </div>
 
