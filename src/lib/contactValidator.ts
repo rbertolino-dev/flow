@@ -345,13 +345,17 @@ export async function validateWhatsAppNumbers(
       }
 
       if (apiResult) {
-        // Verificar múltiplas formas de indicar que existe WhatsApp
-        const hasWhatsApp = 
-          apiResult.exists === true || 
-          apiResult.exists === "true" ||
-          apiResult.hasWhatsApp === true ||
-          (apiResult.jid && apiResult.jid.length > 0 && apiResult.jid.includes('@s.whatsapp.net')) ||
-          apiResult.status === "valid";
+        // PRIORIZAR o campo "exists" - é o indicador real de WhatsApp ativo
+        // O campo "jid" sempre vem preenchido, mesmo quando não tem WhatsApp
+        let hasWhatsApp = false;
+        
+        // Se exists está explicitamente definido, usar esse valor
+        if (apiResult.exists !== undefined && apiResult.exists !== null) {
+          hasWhatsApp = apiResult.exists === true || apiResult.exists === "true";
+        } else {
+          // Fallback apenas se exists não estiver definido
+          hasWhatsApp = apiResult.hasWhatsApp === true || apiResult.status === "valid";
+        }
 
         console.log(`🔍 ${contact.phone}: exists=${apiResult.exists}, jid=${apiResult.jid}, hasWhatsApp=${hasWhatsApp}`);
 
