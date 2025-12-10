@@ -12,9 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useHubSpotConfigs } from "@/hooks/useHubSpotConfigs";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, RefreshCw, Upload, List, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, Send, Database } from "lucide-react";
+import { Loader2, RefreshCw, Upload, List, CheckCircle2, AlertCircle, Plus, Trash2, Edit3, Send, Database, Eye, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface HubSpotList {
   id: string;
@@ -29,6 +31,11 @@ interface FieldMapping {
   hubspot_field: string;
   system_field: string;
   default_value?: string;
+}
+
+interface PreviewContact {
+  id: string;
+  properties: Record<string, any>;
 }
 
 const SYSTEM_FIELDS: { value: string; label: string }[] = [
@@ -72,6 +79,11 @@ export function HubSpotListsImportPanel() {
   const [newListName, setNewListName] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
+  
+  // Preview state
+  const [previewContacts, setPreviewContacts] = useState<PreviewContact[]>([]);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Buscar listas do HubSpot
   const fetchHubSpotLists = async () => {
@@ -128,8 +140,68 @@ export function HubSpotListsImportPanel() {
       if (list && !newListName) {
         setNewListName(list.name);
       }
+      // Limpar preview quando mudar de lista
+      setPreviewContacts([]);
+      setShowPreview(false);
     }
   }, [selectedListId, hubspotLists]);
+
+  // Buscar preview dos contatos da lista
+  const fetchPreviewContacts = async () => {
+    if (!selectedListId || !hubspotConfig) return;
+
+    setIsLoadingPreview(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não autenticado");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hubspot-get-list-contacts`,
+        {
+          method: 'POST',
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            list_id: selectedListId,
+            count: 100,
+            properties: ['firstname', 'lastname', 'email', 'phone', 'mobilephone', 'company', 'lifecyclestage']
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Erro ao buscar contatos");
+      }
+
+      const data = await response.json();
+      setPreviewContacts(data.contacts || []);
+      setShowPreview(true);
+
+      if (data.contacts?.length === 0) {
+        toast({
+          title: "Lista vazia",
+          description: "Nenhum contato encontrado nesta lista do HubSpot",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Contatos carregados",
+          description: `${data.contacts.length} contatos encontrados${data.has_more ? ' (mais contatos disponíveis)' : ''}`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao buscar contatos",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
 
   const handleAddMapping = () => {
     setFieldMappings([...fieldMappings, { hubspot_field: '', system_field: 'name' }]);
@@ -293,11 +365,78 @@ export function HubSpotListsImportPanel() {
                 </SelectContent>
               </Select>
               {selectedList && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedList.size} contatos • {selectedList.dynamic ? 'Lista dinâmica' : 'Lista estática'}
-                </p>
+                <div className="flex gap-2 items-center mt-2">
+                  <p className="text-xs text-muted-foreground flex-1">
+                    {selectedList.size} contatos • {selectedList.dynamic ? 'Lista dinâmica' : 'Lista estática'}
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={fetchPreviewContacts}
+                    disabled={isLoadingPreview}
+                  >
+                    {isLoadingPreview ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Carregando...
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Pré-visualizar Contatos
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
+
+            {/* Preview dos Contatos */}
+            {showPreview && previewContacts.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Pré-visualização ({previewContacts.length} contatos)
+                  </Label>
+                  <Button variant="ghost" size="sm" onClick={() => setShowPreview(false)}>
+                    Ocultar
+                  </Button>
+                </div>
+                <ScrollArea className="h-64 border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>E-mail</TableHead>
+                        <TableHead>Telefone</TableHead>
+                        <TableHead>Empresa</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewContacts.map((contact) => (
+                        <TableRow key={contact.id}>
+                          <TableCell className="font-medium">
+                            {[contact.properties.firstname, contact.properties.lastname].filter(Boolean).join(' ') || '-'}
+                          </TableCell>
+                          <TableCell>{contact.properties.email || '-'}</TableCell>
+                          <TableCell>{contact.properties.phone || contact.properties.mobilephone || '-'}</TableCell>
+                          <TableCell>{contact.properties.company || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+                {previewContacts.some(c => !c.properties.phone && !c.properties.mobilephone && !c.properties.email) && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Alguns contatos não possuem telefone ou e-mail e serão ignorados na importação.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
 
             {selectedList && (
               <>

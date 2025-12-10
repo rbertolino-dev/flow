@@ -118,11 +118,19 @@ serve(async (req) => {
 
     const data: HubSpotListContactsResponse = await response.json();
 
-    // Formatar contatos
-    const formattedContacts = (data.contacts || []).map(contact => ({
-      id: contact.vid.toString(),
-      properties: contact.properties,
-    }));
+    // Formatar contatos - extrair valores das propriedades (HubSpot v1 retorna { value: "...", versions: [...] })
+    const formattedContacts = (data.contacts || []).map(contact => {
+      const extractedProps: Record<string, any> = {};
+      if (contact.properties) {
+        for (const [key, propData] of Object.entries(contact.properties)) {
+          extractedProps[key] = (propData as any)?.value || null;
+        }
+      }
+      return {
+        id: contact.vid.toString(),
+        properties: extractedProps,
+      };
+    });
 
     return new Response(
       JSON.stringify({
