@@ -15,7 +15,7 @@ export default function Assistant() {
 
       if (user) {
         const { data: org } = await supabase
-          .from("user_organizations")
+          .from("organization_members")
           .select("organization_id")
           .eq("user_id", user.id)
           .limit(1)

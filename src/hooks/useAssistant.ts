@@ -35,7 +35,7 @@ export function useAssistant(organizationId?: string) {
         let orgId = organizationId;
         if (!orgId) {
           const { data: org } = await supabase
-            .from("user_organizations")
+            .from("organization_members")
             .select("organization_id")
             .eq("user_id", session.user.id)
             .limit(1)
@@ -98,7 +98,8 @@ export function useAssistant(organizationId?: string) {
 
   const loadConversation = useCallback(async (convId: string) => {
     try {
-      const { data, error } = await supabase
+      // Using any to bypass type checking until types are regenerated
+      const { data, error } = await (supabase as any)
         .from("assistant_conversations")
         .select("messages, id")
         .eq("id", convId)
