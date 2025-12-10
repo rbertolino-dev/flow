@@ -18,43 +18,55 @@ export interface ValidationResult {
 }
 
 /**
- * Normaliza um número de telefone brasileiro para o formato +55DD9XXXXXXXX
+ * Normaliza um número de telefone brasileiro para o formato 55DDXXXXXXXXX
+ * MENOS RESTRITIVO - aceita números de 10 e 11 dígitos
  */
 export function normalizePhoneNumber(phone: string): { normalized: string; valid: boolean; error?: string } {
   // Remove todos os caracteres não numéricos
   let digits = phone.replace(/\D/g, "");
 
-  // Regras de normalização
-  if (digits.startsWith("55") && digits.length === 13) {
-    // Já está no formato correto: 55DD9XXXXXXXX
-    digits = "+" + digits;
-  } else if (digits.startsWith("55") && digits.length === 11) {
-    // Caso especial: DDD 55 (Rio Grande do Sul)
-    digits = "+55" + digits;
-  } else if (digits.length === 11) {
-    // Apenas DDD + número: DD9XXXXXXXX
-    digits = "+55" + digits;
-  } else if (digits.length === 10) {
-    // Número fixo: DD8XXXXXXXX ou DD9XXXXXXX (sem o 9 inicial)
-    digits = "+55" + digits;
-  } else if (digits.length < 10 || digits.length > 13) {
-    // Fora do padrão aceitável
+  // Se já começa com 55 e tem tamanho correto
+  if (digits.startsWith("55")) {
+    if (digits.length === 12 || digits.length === 13) {
+      // Formato válido: 55 + DDD (2) + número (8 ou 9)
+      return { normalized: digits, valid: true };
+    }
+  }
+
+  // Se tem 10 dígitos: DDD + 8 números (formato antigo ou fixo)
+  if (digits.length === 10) {
+    digits = "55" + digits;
+    return { normalized: digits, valid: true };
+  }
+
+  // Se tem 11 dígitos: DDD + 9 + 8 números (celular)
+  if (digits.length === 11) {
+    digits = "55" + digits;
+    return { normalized: digits, valid: true };
+  }
+
+  // Se tem 8 ou 9 dígitos (sem DDD) - não podemos processar
+  if (digits.length === 8 || digits.length === 9) {
     return {
       normalized: phone,
       valid: false,
-      error: "Número deve ter entre 10 e 13 dígitos"
-    };
-  } else {
-    // Outros formatos não suportados
-    return {
-      normalized: phone,
-      valid: false,
-      error: "Formato de número não reconhecido"
+      error: "Número precisa incluir o DDD"
     };
   }
 
-  // Validação final
-  return validateBrazilianPhone(digits);
+  // Fora do padrão aceitável
+  if (digits.length < 10 || digits.length > 13) {
+    return {
+      normalized: phone,
+      valid: false,
+      error: `Número com ${digits.length} dígitos - deve ter entre 10 e 13`
+    };
+  }
+
+  return {
+    normalized: digits,
+    valid: true
+  };
 }
 
 /**
@@ -84,60 +96,6 @@ export function normalizeLatamPhoneNumber(phone: string): { normalized: string; 
     normalized: phone,
     valid: false,
     error: "Número LATAM deve incluir código do país (ex: +54, +57, +52, etc.)"
-  };
-}
-
-/**
- * Valida se um número normalizado está no formato correto
- */
-function validateBrazilianPhone(phone: string): { normalized: string; valid: boolean; error?: string } {
-  // Deve começar com +55
-  if (!phone.startsWith("+55")) {
-    return {
-      normalized: phone,
-      valid: false,
-      error: "Número deve ser brasileiro (+55)"
-    };
-  }
-
-  // Extrair DDD (posições 3-4)
-  const ddd = phone.substring(3, 5);
-  const dddNum = parseInt(ddd);
-
-  // DDD deve estar entre 11 e 99
-  if (dddNum < 11 || dddNum > 99) {
-    return {
-      normalized: phone,
-      valid: false,
-      error: `DDD inválido: ${ddd}`
-    };
-  }
-
-  // Extrair nono dígito (posição 5)
-  const ninthDigit = phone.substring(5, 6);
-
-  // Para celular, o nono dígito deve ser 9
-  // Números fixos (8) não podem receber WhatsApp, então rejeitamos
-  if (ninthDigit !== "9") {
-    return {
-      normalized: phone,
-      valid: false,
-      error: "Apenas números de celular (com 9 inicial) são aceitos"
-    };
-  }
-
-  // Validar comprimento total: +55 (3) + DD (2) + 9XXXXXXXX (9) = 14 caracteres
-  if (phone.length !== 14) {
-    return {
-      normalized: phone,
-      valid: false,
-      error: `Comprimento inválido: ${phone.length} caracteres`
-    };
-  }
-
-  return {
-    normalized: phone,
-    valid: true
   };
 }
 
@@ -244,7 +202,7 @@ function normalizePhoneForComparison(phone: string): string {
 }
 
 /**
- * Verifica quais números têm WhatsApp ativo via Edge Function
+ * Verifica quais números têm WhatsApp ativo via Evolution API
  */
 export async function validateWhatsAppNumbers(
   contacts: ParsedContact[],
@@ -262,66 +220,118 @@ export async function validateWhatsAppNumbers(
   }
 
   try {
-    // Importar supabase client dinamicamente para evitar dependências circulares
-    const { supabase } = await import("@/integrations/supabase/client");
-    
-    // Extrair apenas os números de telefone normalizados
-    const phones = validContacts.map(c => {
-      // Remover + e manter apenas dígitos
-      return c.phone.replace(/\D/g, "");
-    });
+    // Montar URL da API
+    const apiUrl = evolutionConfig.api_url.replace(/\/+$/, "");
+    const endpoint = `${apiUrl}/chat/whatsappNumbers/${evolutionConfig.instance_name}`;
 
-    console.log(`📞 Validando ${phones.length} números via Edge Function`);
+    // Criar mapa de números normalizados para contatos originais
+    const phoneToContactMap = new Map<string, ParsedContact>();
+    const normalizedNumbers: string[] = [];
 
-    // Chamar edge function para validação
-    const { data, error } = await supabase.functions.invoke('validate-whatsapp-number', {
-      body: {
-        instanceId: instanceId,
-        phones: phones,
-        batchSize: 10,
-        delayBetweenBatches: 2000,
-      },
-    });
-
-    if (error) {
-      console.error("❌ Erro na edge function:", error);
-      throw new Error(`Erro na validação: ${error.message}`);
-    }
-
-    if (!data || !data.results) {
-      console.error("❌ Resposta inválida da edge function:", data);
-      throw new Error("Resposta inválida da API de validação");
-    }
-
-    console.log(`📊 Resultados recebidos: ${data.results.length} números processados`);
-    console.log(`📊 Summary:`, data.summary);
-
-    // Criar mapa de resultados da API
-    const apiResultsMap = new Map<string, any>();
-    for (const result of data.results) {
-      if (result && result.phone) {
-        const normalized = result.phone.replace(/\D/g, "");
-        apiResultsMap.set(normalized, result);
-        
-        // Também mapear pelos últimos dígitos para matching flexível
-        const last8 = normalized.slice(-8);
-        const last9 = normalized.slice(-9);
-        const last10 = normalized.slice(-10);
-        const last11 = normalized.slice(-11);
-        
-        if (!apiResultsMap.has(last8)) apiResultsMap.set(last8, result);
-        if (!apiResultsMap.has(last9)) apiResultsMap.set(last9, result);
-        if (!apiResultsMap.has(last10)) apiResultsMap.set(last10, result);
-        if (!apiResultsMap.has(last11)) apiResultsMap.set(last11, result);
+    for (const contact of validContacts) {
+      // Normalizar número (remover + e manter apenas dígitos)
+      const normalized = normalizePhoneForComparison(contact.phone);
+      if (normalized && !phoneToContactMap.has(normalized)) {
+        phoneToContactMap.set(normalized, contact);
+        normalizedNumbers.push(normalized);
       }
     }
+
+    // Remover duplicados mantendo ordem
+    const uniqueNumbers = Array.from(new Set(normalizedNumbers));
+
+    console.log(`📞 Validando ${uniqueNumbers.length} números únicos via Evolution API`);
+    console.log(`📞 Números a validar:`, uniqueNumbers);
+
+    // A Evolution API costuma limitar o tamanho do lote. Enviar em batches para evitar 400.
+    const chunkSize = 50;
+    const chunks: string[][] = [];
+    for (let i = 0; i < uniqueNumbers.length; i += chunkSize) {
+      chunks.push(uniqueNumbers.slice(i, i + chunkSize));
+    }
+
+    const aggregated: any[] = [];
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex];
+      console.log(`📦 Processando lote ${chunkIndex + 1}/${chunks.length} com ${chunk.length} números`);
+
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "apikey": evolutionConfig.api_key
+        },
+        body: JSON.stringify({ numbers: chunk })
+      });
+
+      if (!resp.ok) {
+        const preview = await resp.text().catch(() => "");
+        console.error(`❌ Erro na validação (lote ${chunkIndex + 1}):`, resp.status, preview.slice(0, 500));
+        
+        // Se o método não estiver disponível, considerar todos válidos
+        if (preview.includes("Method not available") || preview.includes("method not available")) {
+          console.warn("⚠️ Validação WhatsApp indisponível neste canal Evolution - todos números serão aceitos");
+          return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
+        }
+        throw new Error(`Evolution API retornou erro: ${resp.status}${preview ? ` - ${preview.slice(0,120)}` : ''}`);
+      }
+
+      const data = await resp.json().catch(() => null);
+      console.log(`📥 Resposta do lote ${chunkIndex + 1}:`, JSON.stringify(data, null, 2));
+      
+      if (data && Array.isArray(data)) {
+        console.log(`✅ Lote ${chunkIndex + 1} retornou ${data.length} resultados`);
+        aggregated.push(...data);
+      } else if (data && typeof data === 'object') {
+        // Algumas versões da API podem retornar objeto com array dentro
+        const dataArray = data.data || data.results || data.numbers || [];
+        if (Array.isArray(dataArray)) {
+          console.log(`✅ Lote ${chunkIndex + 1} retornou ${dataArray.length} resultados (formato objeto)`);
+          aggregated.push(...dataArray);
+        } else {
+          console.warn(`⚠️ Formato de resposta inesperado no lote ${chunkIndex + 1}:`, typeof data);
+        }
+      } else {
+        console.warn(`⚠️ Resposta vazia ou inválida no lote ${chunkIndex + 1}`);
+      }
+    }
+
+    console.log(`📊 Total de ${aggregated.length} resultados recebidos da API`);
+
+    // Criar mapa de resultados da API normalizados
+    const apiResultsMap = new Map<string, any>();
+    for (const result of aggregated) {
+      if (result && result.number) {
+        const normalizedApiNumber = normalizePhoneForComparison(result.number);
+        if (normalizedApiNumber) {
+          // Se já existe, manter o que tem exists: true (priorizar validação positiva)
+          if (!apiResultsMap.has(normalizedApiNumber) || result.exists === true) {
+            apiResultsMap.set(normalizedApiNumber, result);
+          }
+          
+          // Também mapear pelos últimos dígitos para matching flexível
+          const last8 = normalizedApiNumber.slice(-8);
+          const last9 = normalizedApiNumber.slice(-9);
+          const last10 = normalizedApiNumber.slice(-10);
+          const last11 = normalizedApiNumber.slice(-11);
+          
+          if (!apiResultsMap.has(last8)) apiResultsMap.set(last8, result);
+          if (!apiResultsMap.has(last9)) apiResultsMap.set(last9, result);
+          if (!apiResultsMap.has(last10)) apiResultsMap.set(last10, result);
+          if (!apiResultsMap.has(last11)) apiResultsMap.set(last11, result);
+        }
+      }
+    }
+
+    console.log(`🗺️ Mapa de resultados criado com ${apiResultsMap.size} entradas`);
 
     // Processar cada contato e verificar na resposta da API
     let validatedCount = 0;
     let rejectedCount = 0;
 
     for (const contact of validContacts) {
-      const normalized = contact.phone.replace(/\D/g, "");
+      const normalized = normalizePhoneForComparison(contact.phone);
       
       // Tentar encontrar resultado por várias estratégias
       let apiResult = apiResultsMap.get(normalized);
@@ -335,24 +345,34 @@ export async function validateWhatsAppNumbers(
       }
 
       if (apiResult) {
-        if (apiResult.hasWhatsApp && !apiResult.error) {
+        // Verificar múltiplas formas de indicar que existe WhatsApp
+        const hasWhatsApp = 
+          apiResult.exists === true || 
+          apiResult.exists === "true" ||
+          apiResult.hasWhatsApp === true ||
+          (apiResult.jid && apiResult.jid.length > 0 && apiResult.jid.includes('@s.whatsapp.net')) ||
+          apiResult.status === "valid";
+
+        console.log(`🔍 ${contact.phone}: exists=${apiResult.exists}, jid=${apiResult.jid}, hasWhatsApp=${hasWhatsApp}`);
+
+        if (hasWhatsApp) {
           validated.push(contact);
           validatedCount++;
         } else {
           rejected.push({
             ...contact,
             valid: false,
-            error: apiResult.error || "Número não tem WhatsApp ativo"
+            error: "Número não tem WhatsApp ativo"
           });
           rejectedCount++;
         }
       } else {
-        // Número não encontrado na resposta
-        console.warn(`⚠️ Número não encontrado na resposta: ${contact.phone}`);
+        // Número não encontrado na resposta da API
+        console.warn(`⚠️ Número não encontrado na resposta da API: ${contact.phone} (normalizado: ${normalized})`);
         rejected.push({
           ...contact,
           valid: false,
-          error: "Número não retornado pela API"
+          error: "Número não retornado pela API ou sem WhatsApp"
         });
         rejectedCount++;
       }
@@ -365,7 +385,12 @@ export async function validateWhatsAppNumbers(
     rejected.push(...invalidContacts);
 
   } catch (error: any) {
-    console.error("❌ Erro ao validar WhatsApp:", error);
+    console.error("❌ Erro ao validar WhatsApp via Evolution API:", error);
+    // Se a validação falhar por qualquer motivo relacionado ao método indisponível, aceitar todos
+    if (error.message?.includes("Method not available") || error.message?.includes("method not available")) {
+      console.warn("⚠️ Validação WhatsApp indisponível - aceitando todos os números válidos");
+      return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
+    }
     throw new Error(`Falha na validação WhatsApp: ${error.message}`);
   }
 
