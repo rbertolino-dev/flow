@@ -102,6 +102,17 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Erro HubSpot API (${response.status}):`, errorText);
+      
+      // Parse error for better messaging
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.category === 'EXPIRED_AUTHENTICATION' || response.status === 401) {
+          throw new Error('Token HubSpot expirado ou inválido. Por favor, gere um novo Access Token no Portal do Desenvolvedor HubSpot e atualize a configuração.');
+        }
+      } catch (parseError) {
+        // If can't parse, continue with generic message
+      }
+      
       throw new Error(`Erro HubSpot API: ${response.status} - ${errorText}`);
     }
 
