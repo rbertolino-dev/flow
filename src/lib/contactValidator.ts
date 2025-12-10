@@ -424,7 +424,11 @@ export async function validateContactsComplete(
   if (validContacts.length > 0) {
     const result = await validateWhatsAppNumbers(validContacts, instanceId, evolutionConfig);
     whatsappValidated = result.validated;
-    whatsappRejected = result.rejected.filter(c => c.valid); // Apenas os que eram válidos mas foram rejeitados pelo WhatsApp
+    // Contatos rejeitados pelo WhatsApp = validContacts - whatsappValidated
+    // NÃO usar result.rejected.filter(c => c.valid) pois valid é alterado para false nos rejeitados
+    whatsappRejected = result.rejected.filter(r => 
+      validContacts.some(v => v.phone === r.phone)
+    );
   }
 
   return {
