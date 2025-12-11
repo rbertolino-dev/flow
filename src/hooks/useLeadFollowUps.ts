@@ -194,13 +194,21 @@ export function useLeadFollowUps(leadId: string) {
       }
 
       if (completed) {
+        console.log(`[LeadFollowUp] Marcando etapa ${stepId} como concluída...`);
+        
         // Buscar automações da etapa antes de marcar como concluída
-        const { data: automationsData } = await (supabase as any)
+        const { data: automationsData, error: automationsError } = await (supabase as any)
           .from('follow_up_step_automations')
           .select('*')
           .eq('step_id', stepId)
           .eq('is_active', true)
           .order('execution_order', { ascending: true });
+
+        if (automationsError) {
+          console.error("[LeadFollowUp] Erro ao buscar automações:", automationsError);
+        }
+
+        console.log(`[LeadFollowUp] Encontradas ${automationsData?.length || 0} automações ativas`);
 
         // Marcar como concluído
         const { error } = await (supabase as any)
@@ -214,24 +222,53 @@ export function useLeadFollowUps(leadId: string) {
         if (error) {
           // Se já existe, não é erro
           if (error.code !== '23505') throw error;
+          console.log("[LeadFollowUp] Etapa já estava concluída");
         }
 
         // Executar automações se houver
         if (automationsData && automationsData.length > 0) {
           const followUp = followUps.find(fu => fu.id === followUpId);
           if (followUp) {
+            console.log(`[LeadFollowUp] Executando ${automationsData.length} automações para lead ${followUp.leadId}...`);
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
             for (const automation of automationsData) {
               try {
-                await executeFollowUpAutomation({
+                console.log(`[LeadFollowUp] Executando automação: ${automation.action_type}`);
+                const success = await executeFollowUpAutomation({
                   leadId: followUp.leadId,
                   stepId: stepId,
                   actionType: automation.action_type,
                   actionConfig: automation.action_config || {},
                 });
+                
+                if (success) {
+                  successCount++;
+                  console.log(`[LeadFollowUp] Automação ${automation.action_type} executada com sucesso`);
+                } else {
+                  errorCount++;
+                  console.error(`[LeadFollowUp] Automação ${automation.action_type} falhou`);
+                }
               } catch (autoError) {
-                console.error("Erro ao executar automação:", autoError);
-                // Continuar executando outras automações mesmo se uma falhar
+                errorCount++;
+                console.error("[LeadFollowUp] Erro ao executar automação:", autoError);
               }
+            }
+            
+            // Feedback para o usuário
+            if (successCount > 0) {
+              toast({
+                title: "Automações executadas",
+                description: `${successCount} automação(ões) executada(s) com sucesso${errorCount > 0 ? `, ${errorCount} com erro` : ''}`,
+              });
+            } else if (errorCount > 0) {
+              toast({
+                title: "Erro nas automações",
+                description: `${errorCount} automação(ões) falharam. Verifique o console para detalhes.`,
+                variant: "destructive",
+              });
             }
           }
         }
