@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import agilizeLogo from "@/assets/agilize-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
@@ -53,6 +54,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const [isPubdigitalUser, setIsPubdigitalUser] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   const handleLogout = async () => {
     try {
@@ -410,7 +412,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       </main>
       
       {/* Floating Chat Widget */}
-      <FloatingChatWidget />
+      <FloatingChatWidget organizationId={activeOrgId || undefined} />
     </div>
   );
 }
