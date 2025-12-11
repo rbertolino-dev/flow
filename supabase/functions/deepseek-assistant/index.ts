@@ -819,16 +819,18 @@ serve(async (req) => {
       );
     }
 
-    // Obter organização do usuário
+    // Obter organização do usuário logado
     let organizationId = organization_id;
     if (!organizationId) {
-      const { data: org } = await supabase
-        .from("user_organizations")
+      const { data: orgMember } = await supabase
+        .from("organization_members")
         .select("organization_id")
         .eq("user_id", user.id)
         .limit(1)
         .maybeSingle();
-      organizationId = org?.organization_id;
+      organizationId = orgMember?.organization_id;
+      
+      console.log(`📍 Organização do usuário ${user.id}: ${organizationId}`);
     }
 
     if (!organizationId) {
