@@ -252,64 +252,36 @@ async function executeFunction(
           stageId = firstStage?.id;
         }
 
-        // Usar função create_lead_secure se disponível, senão inserir diretamente
-        const { data: leadId, error: leadError } = await supabase.rpc(
-          "create_lead_secure",
-          {
-            p_org_id: organizationId,
-            p_name: parameters.name,
-            p_phone: normalizedPhone,
-            p_email: parameters.email || null,
-            p_company: parameters.company || null,
-            p_value: parameters.value || null,
-            p_stage_id: stageId || null,
-            p_notes: parameters.notes || null,
-            p_source: parameters.source || "assistant",
-          }
-        );
-
-        if (leadError) {
-          // Se a função RPC não existir, inserir diretamente
-          if (leadError.message?.includes("function") || leadError.code === "42883") {
-            const { data: newLead, error: insertError } = await supabase
-              .from("leads")
-              .insert({
-                organization_id: organizationId,
-                user_id: userId,
-                name: parameters.name,
-                phone: normalizedPhone,
-                email: parameters.email || null,
-                company: parameters.company || null,
-                value: parameters.value || null,
-                stage_id: stageId || null,
-                notes: parameters.notes || null,
-                source: parameters.source || "assistant",
-                status: "novo",
-                created_by: userId,
-                updated_by: userId,
-              })
-              .select()
-              .single();
-
-            if (insertError) throw insertError;
-            return { success: true, lead: newLead, message: "Lead criado com sucesso" };
-          }
-          throw leadError;
-        }
-
-        // Buscar lead criado (a função retorna apenas o ID)
-        const { data: createdLead, error: fetchError } = await supabase
+        // Inserir diretamente usando service role (bypass RLS)
+        const { data: newLead, error: insertError } = await supabase
           .from("leads")
-          .select("*")
-          .eq("id", leadId)
+          .insert({
+            organization_id: organizationId,
+            user_id: userId,
+            name: parameters.name,
+            phone: normalizedPhone,
+            email: parameters.email || null,
+            company: parameters.company || null,
+            value: parameters.value || null,
+            stage_id: stageId || null,
+            notes: parameters.notes || null,
+            source: parameters.source || "assistant",
+            status: "novo",
+            created_by: userId,
+            updated_by: userId,
+          })
+          .select()
           .single();
 
-        if (fetchError) throw fetchError;
+        if (insertError) {
+          console.error("Erro ao criar lead:", insertError);
+          throw insertError;
+        }
 
-        return {
-          success: true,
-          lead: createdLead,
-          message: "Lead criado com sucesso",
+        return { 
+          success: true, 
+          lead: newLead, 
+          message: `Lead "${parameters.name}" criado com sucesso na etapa ${stageId ? 'especificada' : 'inicial'}` 
         };
       }
 
