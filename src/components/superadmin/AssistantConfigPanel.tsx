@@ -55,8 +55,8 @@ export function AssistantConfigPanel({ organizationId, organizationName }: Assis
   const loadConfig = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from("assistant_config")
+      let query = (supabase
+        .from("assistant_config") as any)
         .select("*");
 
       if (organizationId) {
@@ -109,16 +109,16 @@ export function AssistantConfigPanel({ organizationId, organizationName }: Assis
 
       if (config.id) {
         // Atualizar
-        const { error } = await supabase
-          .from("assistant_config")
+        const { error } = await (supabase
+          .from("assistant_config") as any)
           .update(configData)
           .eq("id", config.id);
 
         if (error) throw error;
       } else {
         // Criar
-        const { error } = await supabase
-          .from("assistant_config")
+        const { error } = await (supabase
+          .from("assistant_config") as any)
           .insert(configData);
 
         if (error) throw error;

@@ -75,8 +75,8 @@ export function InstanceDisconnectionAlerts({
       
       if (qrCode) {
         // Atualizar QR code no banco
-        await supabase
-          .from('instance_disconnection_notifications')
+        await (supabase
+          .from('instance_disconnection_notifications') as any)
           .update({
             qr_code: qrCode,
             qr_code_fetched_at: new Date().toISOString(),

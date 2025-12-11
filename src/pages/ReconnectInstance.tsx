@@ -73,8 +73,8 @@ export default function ReconnectInstance() {
 
         // Se tem notificationId, buscar pela notificação
         if (notificationId) {
-          const { data: notif, error: notifError } = await supabase
-            .from('instance_disconnection_notifications')
+          const { data: notif, error: notifError } = await (supabase
+            .from('instance_disconnection_notifications') as any)
             .select(`
               *,
               evolution_config:instance_id (
@@ -101,8 +101,8 @@ export default function ReconnectInstance() {
           }
 
           setNotification(notif);
-          setInstance(notif.evolution_config);
-          setQrCode(notif.qr_code);
+          setInstance((notif as any).evolution_config);
+          setQrCode((notif as any).qr_code);
         } 
         // Se tem instanceId, buscar pela instância
         else if (instanceId) {
@@ -191,8 +191,8 @@ export default function ReconnectInstance() {
 
             // Marcar notificação como resolvida
             if (notificationId) {
-              await supabase
-                .from('instance_disconnection_notifications')
+              await (supabase
+                .from('instance_disconnection_notifications') as any)
                 .update({
                   resolved_at: new Date().toISOString(),
                 })
@@ -244,8 +244,8 @@ export default function ReconnectInstance() {
           .eq('id', instance.id);
 
         if (notificationId) {
-          await supabase
-            .from('instance_disconnection_notifications')
+          await (supabase
+            .from('instance_disconnection_notifications') as any)
             .update({
               qr_code: qr,
               qr_code_fetched_at: new Date().toISOString(),
@@ -307,8 +307,8 @@ export default function ReconnectInstance() {
             .eq('id', instance.id);
 
           if (notificationId) {
-            await supabase
-              .from('instance_disconnection_notifications')
+            await (supabase
+              .from('instance_disconnection_notifications') as any)
               .update({
                 resolved_at: new Date().toISOString(),
               })

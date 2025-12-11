@@ -87,7 +87,7 @@ export function CalendarEventsReport() {
         };
       }
       grouped[stageId].count++;
-      if (event.status === 'completed') {
+      if ((event as any).status === 'completed') {
         grouped[stageId].completed++;
       }
       grouped[stageId].events.push(event);
@@ -96,9 +96,11 @@ export function CalendarEventsReport() {
     return Object.values(grouped).sort((a, b) => b.count - a.count);
   }, [events, stages]);
 
+  const totalEvents = events.length;
+
   // Estatísticas de reuniões realizadas
   const completedEvents = useMemo(() => {
-    return events.filter(e => e.status === 'completed');
+    return events.filter(e => (e as any).status === 'completed');
   }, [events]);
 
   const completedPercentage = totalEvents > 0 ? Math.round((completedEvents.length / totalEvents) * 100) : 0;
@@ -122,7 +124,6 @@ export function CalendarEventsReport() {
     }));
   }, [eventsByStage]);
 
-  const totalEvents = events.length;
   const totalStages = eventsByStage.filter(item => item.count > 0).length;
 
   const chartConfig = {

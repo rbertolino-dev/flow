@@ -69,8 +69,8 @@ export function MarkEventCompletedDialog({
     setLoading(true);
     try {
       // Atualizar status do evento
-      const { error: updateError } = await supabase
-        .from("calendar_events")
+      const { error: updateError } = await (supabase
+        .from("calendar_events") as any)
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
