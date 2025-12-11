@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Lead } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { ColumnWidth, getColumnWidthClass } from "@/hooks/useKanbanSettings";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown, Loader2 } from "lucide-react";
+
+const LEADS_PER_PAGE = 100;
 
 interface KanbanColumnProps {
   stage: PipelineStage;
@@ -27,11 +31,18 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false }: KanbanColumnProps) {
+  const [displayLimit, setDisplayLimit] = useState(LEADS_PER_PAGE);
+  const [isExpanding, setIsExpanding] = useState(false);
+
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
   });
 
   const totalValue = leads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+  const totalLeads = leads.length;
+  const visibleLeads = leads.slice(0, displayLimit);
+  const hasMoreLeads = totalLeads > displayLimit;
+  const remainingLeads = totalLeads - displayLimit;
   
   // Verificar se todos os leads da etapa estão selecionados
   const allSelected = leads.length > 0 && leads.every(lead => selectedLeadIds?.has(lead.id));
@@ -42,6 +53,15 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
       const leadIds = leads.map(lead => lead.id);
       onToggleAllInStage(stage.id, leadIds);
     }
+  };
+
+  const handleExpandMore = () => {
+    setIsExpanding(true);
+    // Pequeno delay para mostrar loading
+    setTimeout(() => {
+      setDisplayLimit(prev => prev + LEADS_PER_PAGE);
+      setIsExpanding(false);
+    }, 200);
   };
 
   return (
@@ -75,7 +95,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
               color: stage.color,
             }}
           >
-            {leads.length}
+            {displayLimit < totalLeads ? `${displayLimit}/${totalLeads}` : totalLeads}
           </Badge>
         </div>
         {totalValue > 0 && (
@@ -92,11 +112,11 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
 
       <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
         <SortableContext
-          items={leads.map((lead) => lead.id)}
+          items={visibleLeads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="p-4 pl-3 pr-4 space-y-3 min-h-full min-w-max">
-            {leads.map((lead) => {
+            {visibleLeads.map((lead) => {
               const instanceName = lead.sourceInstanceId && instanceMap 
                 ? instanceMap.get(lead.sourceInstanceId) 
                 : undefined;
@@ -120,6 +140,32 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                 </div>
               );
             })}
+            
+            {/* Botão para expandir mais leads */}
+            {hasMoreLeads && (
+              <Button
+                onClick={handleExpandMore}
+                disabled={isExpanding}
+                variant="outline"
+                className="w-full mt-4 py-6 border-2 border-dashed border-primary/50 bg-primary/5 hover:bg-primary/10 hover:border-primary text-primary font-semibold transition-all"
+              >
+                {isExpanding ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Carregando...
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-5 w-5 mr-2" />
+                    Expandir +{Math.min(remainingLeads, LEADS_PER_PAGE)} contatos
+                    <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary">
+                      {remainingLeads} restantes
+                    </Badge>
+                  </>
+                )}
+              </Button>
+            )}
+            
             {leads.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 Nenhum lead nesta etapa
