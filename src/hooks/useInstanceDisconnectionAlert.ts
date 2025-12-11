@@ -98,8 +98,8 @@ export function useInstanceDisconnectionAlert({
       }
 
       // Criar notificação no banco
-      const { data: notification, error: notificationError } = await supabase
-        .from('instance_disconnection_notifications')
+      const { data: notification, error: notificationError } = await (supabase
+        .from('instance_disconnection_notifications') as any)
         .insert({
           organization_id: instance.organization_id,
           instance_id: instance.id,
@@ -156,8 +156,8 @@ export function useInstanceDisconnectionAlert({
             });
 
             // Atualizar notificação com info do WhatsApp
-            await supabase
-              .from('instance_disconnection_notifications')
+            await (supabase
+              .from('instance_disconnection_notifications') as any)
               .update({
                 whatsapp_notification_sent_at: new Date().toISOString(),
                 whatsapp_notification_to: whatsappNotificationPhone,
@@ -170,8 +170,8 @@ export function useInstanceDisconnectionAlert({
       }
 
       // Marcar como notificação enviada
-      await supabase
-        .from('instance_disconnection_notifications')
+      await (supabase
+        .from('instance_disconnection_notifications') as any)
         .update({
           notification_sent_at: new Date().toISOString(),
         })
@@ -214,8 +214,8 @@ export function useInstanceDisconnectionAlert({
 
     try {
       // Marcar notificação como resolvida
-      await supabase
-        .from('instance_disconnection_notifications')
+      await (supabase
+        .from('instance_disconnection_notifications') as any)
         .update({
           resolved_at: new Date().toISOString(),
         })

@@ -320,6 +320,65 @@ export type Database = {
           },
         ]
       }
+      assistant_config: {
+        Row: {
+          created_at: string
+          examples: string | null
+          id: string
+          is_active: boolean | null
+          is_global: boolean | null
+          max_tokens: number | null
+          model: string | null
+          organization_id: string | null
+          restrictions: string | null
+          rules: string | null
+          system_prompt: string | null
+          temperature: number | null
+          tone_of_voice: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          examples?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_global?: boolean | null
+          max_tokens?: number | null
+          model?: string | null
+          organization_id?: string | null
+          restrictions?: string | null
+          rules?: string | null
+          system_prompt?: string | null
+          temperature?: number | null
+          tone_of_voice?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          examples?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_global?: boolean | null
+          max_tokens?: number | null
+          model?: string | null
+          organization_id?: string | null
+          restrictions?: string | null
+          rules?: string | null
+          system_prompt?: string | null
+          temperature?: number | null
+          tone_of_voice?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_config_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assistant_conversations: {
         Row: {
           created_at: string
@@ -837,6 +896,8 @@ export type Database = {
       }
       calendar_events: {
         Row: {
+          completed_at: string | null
+          completion_notes: string | null
           created_at: string | null
           description: string | null
           end_datetime: string
@@ -847,10 +908,13 @@ export type Database = {
           location: string | null
           organization_id: string
           start_datetime: string
+          status: string | null
           summary: string
           updated_at: string | null
         }
         Insert: {
+          completed_at?: string | null
+          completion_notes?: string | null
           created_at?: string | null
           description?: string | null
           end_datetime: string
@@ -861,10 +925,13 @@ export type Database = {
           location?: string | null
           organization_id: string
           start_datetime: string
+          status?: string | null
           summary: string
           updated_at?: string | null
         }
         Update: {
+          completed_at?: string | null
+          completion_notes?: string | null
           created_at?: string | null
           description?: string | null
           end_datetime?: string
@@ -875,6 +942,7 @@ export type Database = {
           location?: string | null
           organization_id?: string
           start_datetime?: string
+          status?: string | null
           summary?: string
           updated_at?: string | null
         }
@@ -1975,6 +2043,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "hubspot_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instance_disconnection_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          instance_id: string
+          instance_name: string
+          notification_sent_at: string | null
+          organization_id: string
+          qr_code: string | null
+          resolved_at: string | null
+          updated_at: string
+          whatsapp_notification_sent_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_id: string
+          instance_name: string
+          notification_sent_at?: string | null
+          organization_id: string
+          qr_code?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+          whatsapp_notification_sent_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_id?: string
+          instance_name?: string
+          notification_sent_at?: string | null
+          organization_id?: string
+          qr_code?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+          whatsapp_notification_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instance_disconnection_notifications_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instance_disconnection_notifications_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
