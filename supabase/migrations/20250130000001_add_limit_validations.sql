@@ -134,3 +134,4 @@ EXECUTE FUNCTION public.validate_evolution_instance_limit();
 COMMENT ON FUNCTION public.create_lead_secure IS 'Cria um lead de forma segura, validando limites e permissões';
 COMMENT ON FUNCTION public.validate_evolution_instance_limit IS 'Valida limites antes de permitir criação de instância Evolution';
 
+

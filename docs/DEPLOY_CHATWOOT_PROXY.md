@@ -102,3 +102,4 @@ supabase functions logs chatwoot-proxy --tail
 supabase functions list
 ```
 
+

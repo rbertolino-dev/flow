@@ -36,6 +36,7 @@ import { HubSpotIntegrationPanel } from "@/components/crm/HubSpotIntegrationPane
 import { HubSpotListsImportPanel } from "@/components/crm/HubSpotListsImportPanel";
 import { UsersPanel } from "@/components/users/UsersPanel";
 import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding";
+import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -184,6 +185,11 @@ export default function Settings() {
             <p className="text-sm sm:text-base text-muted-foreground">
               Gerencie suas integrações e configurações do sistema
             </p>
+          </div>
+
+          {/* Alertas de desconexão */}
+          <div className="p-3 sm:p-4 lg:p-6">
+            <InstanceDisconnectionAlerts instances={configs} enabled={true} />
           </div>
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">

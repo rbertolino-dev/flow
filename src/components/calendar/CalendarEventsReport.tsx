@@ -66,10 +66,11 @@ export function CalendarEventsReport() {
 
   // Agrupar eventos por etapa
   const eventsByStage = useMemo(() => {
-    const grouped: Record<string, { stage: any; count: number; events: any[] }> = {
+    const grouped: Record<string, { stage: any; count: number; completed: number; events: any[] }> = {
       'sem-etiqueta': {
         stage: { id: 'sem-etiqueta', name: 'Sem Etiqueta', color: '#9ca3af' },
         count: 0,
+        completed: 0,
         events: [],
       },
     };
@@ -81,21 +82,33 @@ export function CalendarEventsReport() {
         grouped[stageId] = {
           stage: stage || { id: stageId, name: 'Etiqueta Removida', color: '#9ca3af' },
           count: 0,
+          completed: 0,
           events: [],
         };
       }
       grouped[stageId].count++;
+      if (event.status === 'completed') {
+        grouped[stageId].completed++;
+      }
       grouped[stageId].events.push(event);
     });
 
     return Object.values(grouped).sort((a, b) => b.count - a.count);
   }, [events, stages]);
 
+  // Estatísticas de reuniões realizadas
+  const completedEvents = useMemo(() => {
+    return events.filter(e => e.status === 'completed');
+  }, [events]);
+
+  const completedPercentage = totalEvents > 0 ? Math.round((completedEvents.length / totalEvents) * 100) : 0;
+
   // Dados para gráfico de barras
   const barChartData = useMemo(() => {
     return eventsByStage.map((item) => ({
       name: item.stage.name,
       quantidade: item.count,
+      realizadas: item.completed,
       cor: item.stage.color,
     }));
   }, [eventsByStage]);
@@ -265,15 +278,15 @@ export function CalendarEventsReport() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Média por Etiqueta</CardTitle>
+            <CardTitle className="text-sm font-medium">Reuniões Realizadas</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {totalStages > 0 ? Math.round(totalEvents / totalStages) : 0}
+            <div className="text-2xl font-bold text-green-600">
+              {completedEvents.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Reuniões por etiqueta
+              {completedPercentage}% do total
             </p>
           </CardContent>
         </Card>
@@ -306,7 +319,8 @@ export function CalendarEventsReport() {
                   <YAxis />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />
-                  <Bar dataKey="quantidade" fill="hsl(var(--primary))" name="Quantidade" />
+                  <Bar dataKey="quantidade" fill="hsl(var(--primary))" name="Total" />
+                  <Bar dataKey="realizadas" fill="#10b981" name="Realizadas" />
                 </BarChart>
               </ChartContainer>
             ) : (
@@ -385,6 +399,11 @@ export function CalendarEventsReport() {
                         />
                         <h3 className="font-semibold">{item.stage.name}</h3>
                         <Badge variant="secondary">{item.count} reunião{item.count !== 1 ? 'ões' : ''}</Badge>
+                        {item.completed > 0 && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                            {item.completed} realizada{item.completed !== 1 ? 's' : ''}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {item.count > 0 ? `${((item.count / totalEvents) * 100).toFixed(1)}%` : '0%'} do total

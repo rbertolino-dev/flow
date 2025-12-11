@@ -90,3 +90,4 @@ COMMENT ON COLUMN public.products.category IS 'Categoria do produto ou serviço'
 COMMENT ON COLUMN public.products.active IS 'Indica se o produto está ativo e disponível para venda';
 COMMENT ON COLUMN public.leads.product_id IS 'Referência ao produto/serviço vinculado ao lead';
 
+

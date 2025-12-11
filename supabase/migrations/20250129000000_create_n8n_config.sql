@@ -81,3 +81,4 @@ CREATE POLICY "n8n config: members can delete"
     OR public.is_pubdigital_user(auth.uid())
   );
 
+

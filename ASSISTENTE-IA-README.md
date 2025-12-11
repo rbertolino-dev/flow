@@ -150,3 +150,4 @@ Para problemas ou dúvidas, consulte:
 - Documentação do DeepSeek: https://platform.deepseek.com/docs
 - Logs do Supabase: Dashboard > Edge Functions > Logs
 
+

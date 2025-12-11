@@ -91,3 +91,4 @@ COMMENT ON COLUMN public.seller_goals.target_leads IS 'Meta de quantidade de lea
 COMMENT ON COLUMN public.seller_goals.target_value IS 'Meta de valor total em vendas';
 COMMENT ON COLUMN public.seller_goals.target_commission IS 'Meta de comissão total';
 
+

@@ -90,3 +90,4 @@ Write-Host '   2. Verifique se as funções aparecem em Edge Functions' -Foregro
 Write-Host '   3. Teste a aba "Status" na página de Disparo em Massa' -ForegroundColor White
 Write-Host ''
 
+

@@ -88,7 +88,6 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "agents" as const, label: "Agentes IA", icon: Bot },
-    { id: "assistant" as const, label: "Assistente IA", icon: Sparkles },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
@@ -196,8 +195,6 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/automation-flows');
               } else if (item.id === 'agents') {
                 navigate('/agents');
-              } else if (item.id === 'assistant') {
-                navigate('/assistant');
               } else if (item.id === 'calendar') {
                 navigate('/calendar');
               } else if (item.id === 'agilizechat') {

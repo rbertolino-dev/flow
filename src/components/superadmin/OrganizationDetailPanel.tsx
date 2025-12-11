@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package } from "lucide-react";
+import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package, Sparkles } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -16,6 +16,7 @@ import { AddExistingUserDialog } from "./AddExistingUserDialog";
 import { DeleteUserDialog } from "./DeleteUserDialog";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
 import { OrganizationPermissionsPanel } from "./OrganizationPermissionsPanel";
+import { AssistantConfigPanel } from "./AssistantConfigPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -237,7 +238,7 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
 
         <CardContent className="p-4 sm:p-6">
           <Tabs defaultValue="members" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="members">
                 <Users className="h-4 w-4 mr-2" />
                 Membros
@@ -249,6 +250,10 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
               <TabsTrigger value="limits">
                 <Settings className="h-4 w-4 mr-2" />
                 Limites
+              </TabsTrigger>
+              <TabsTrigger value="assistant">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Assistente IA
               </TabsTrigger>
             </TabsList>
             
@@ -363,6 +368,13 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                 organizationId={organization.id}
                 organizationName={organization.name}
                 onUpdate={onUpdate}
+              />
+            </TabsContent>
+            
+            <TabsContent value="assistant" className="mt-6">
+              <AssistantConfigPanel
+                organizationId={organization.id}
+                organizationName={organization.name}
               />
             </TabsContent>
           </Tabs>

@@ -232,3 +232,4 @@ Se encontrar problemas:
 4. Verifique se as funções foram deployadas
 5. Me avise qual erro específico está aparecendo!
 
+

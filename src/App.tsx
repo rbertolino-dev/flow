@@ -30,6 +30,7 @@ import GoogleBusinessPosts from "./pages/GoogleBusinessPosts";
 import PostSale from "./pages/PostSale";
 import AgilizeEmbed from "./pages/AgilizeEmbed";
 import Assistant from "./pages/Assistant";
+import ReconnectInstance from "./pages/ReconnectInstance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +74,8 @@ const App = () => (
           <Route path="/post-sale" element={<PostSale />} />
           <Route path="/agilize" element={<AgilizeEmbed />} />
           <Route path="/assistant" element={<Assistant />} />
+          <Route path="/reconnect/:notificationId" element={<ReconnectInstance />} />
+          <Route path="/reconnect-instance/:instanceId" element={<ReconnectInstance />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

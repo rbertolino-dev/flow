@@ -616,20 +616,85 @@ serve(async (req) => {
       }
       const { data: configs } = await supabase
         .from('evolution_config')
-        .select('id')
+        .select('id, is_connected, organization_id, api_url, api_key, instance_name')
         .eq('webhook_secret', providedSecret)
         .maybeSingle();
 
       if (configs && payload.state) {
+        const wasConnected = configs.is_connected;
+        const isNowConnected = payload.state === 'open';
+        
         await supabase
           .from('evolution_config')
           .update({ 
-            is_connected: payload.state === 'open',
+            is_connected: isNowConnected,
             updated_at: new Date().toISOString()
           })
           .eq('id', configs.id);
         
-        console.log(`✅ Status atualizado: ${payload.state === 'open' ? 'conectado' : 'desconectado'}`);
+        console.log(`✅ Status atualizado: ${isNowConnected ? 'conectado' : 'desconectado'}`);
+        
+        // Se desconectou (estava conectado e agora não está), criar notificação
+        if (wasConnected && !isNowConnected && configs.organization_id) {
+          console.log(`🔔 Detectada desconexão via webhook para instância ${instance}`);
+          
+          // Buscar QR code se disponível
+          let qrCode = payload.qrcode || null;
+          
+          // Se não veio no payload, tentar buscar da API
+          if (!qrCode && configs.api_url && configs.api_key && configs.instance_name) {
+            try {
+              const baseUrl = configs.api_url.replace(/\/+$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+              const qrResponse = await fetch(`${baseUrl}/instance/qrcode/${configs.instance_name}`, {
+                headers: { 'apikey': configs.api_key || '' },
+                signal: AbortSignal.timeout(10000),
+              });
+              
+              if (qrResponse.ok) {
+                const qrData = await qrResponse.json();
+                qrCode = qrData.base64 || qrData.qrcode || qrData.code || null;
+                if (qrCode && !qrCode.startsWith('data:image')) {
+                  qrCode = `data:image/png;base64,${qrCode}`;
+                }
+              }
+            } catch (qrError) {
+              console.error('❌ Erro ao buscar QR code:', qrError);
+            }
+          }
+          
+          // Criar notificação de desconexão
+          const { data: notification, error: notificationError } = await supabase
+            .from('instance_disconnection_notifications')
+            .insert({
+              organization_id: configs.organization_id,
+              instance_id: configs.id,
+              instance_name: configs.instance_name || instance,
+              qr_code: qrCode,
+              qr_code_fetched_at: qrCode ? new Date().toISOString() : null,
+              notification_sent_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+          
+          if (notificationError) {
+            console.error('❌ Erro ao criar notificação de desconexão:', notificationError);
+          } else {
+            console.log('✅ Notificação de desconexão criada:', notification.id);
+          }
+        }
+        
+        // Se reconectou, marcar notificações pendentes como resolvidas
+        if (!wasConnected && isNowConnected) {
+          console.log(`✅ Detectada reconexão via webhook para instância ${instance}`);
+          
+          await supabase
+            .from('instance_disconnection_notifications')
+            .update({
+              resolved_at: new Date().toISOString(),
+            })
+            .eq('instance_id', configs.id)
+            .is('resolved_at', null);
+        }
       }
     }
 

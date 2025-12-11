@@ -68,3 +68,4 @@ Se a sua versão não suporta esse endpoint, a função agora usa automaticament
    - Se status é suportado na sua versão
    - Configuração da instância (número de telefone)
 
+

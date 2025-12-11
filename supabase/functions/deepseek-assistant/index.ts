@@ -278,6 +278,25 @@ async function executeFunction(
           throw insertError;
         }
 
+        // Publicar evento realtime para atualização imediata
+        try {
+          const channel = supabase.channel('crm-leads');
+          await channel.send({
+            type: 'broadcast',
+            event: 'lead_updated',
+            payload: {
+              organizationId,
+              leadId: newLead.id,
+              action: 'created',
+              timestamp: new Date().toISOString(),
+            }
+          });
+          console.log('📡 Lead criado publicado no Realtime');
+        } catch (realtimeError) {
+          console.error('⚠️ Erro ao publicar no Realtime:', realtimeError);
+          // Não bloqueia o fluxo
+        }
+
         return { 
           success: true, 
           lead: newLead, 
@@ -344,6 +363,25 @@ async function executeFunction(
 
         if (error) throw error;
         if (!updatedLead) throw new Error("Lead não encontrado");
+
+        // Publicar evento realtime para atualização imediata
+        try {
+          const channel = supabase.channel('crm-leads');
+          await channel.send({
+            type: 'broadcast',
+            event: 'lead_updated',
+            payload: {
+              organizationId,
+              leadId: updatedLead.id,
+              action: 'updated',
+              timestamp: new Date().toISOString(),
+            }
+          });
+          console.log('📡 Lead atualizado publicado no Realtime');
+        } catch (realtimeError) {
+          console.error('⚠️ Erro ao publicar no Realtime:', realtimeError);
+          // Não bloqueia o fluxo
+        }
 
         return {
           success: true,
@@ -843,25 +881,101 @@ serve(async (req) => {
       );
     }
 
+    // VALIDAÇÃO DE SEGURANÇA: Verificar se o usuário pertence à organização
+    const { data: orgMember, error: orgError } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (orgError) {
+      console.error("Erro ao verificar membro da organização:", orgError);
+      return new Response(
+        JSON.stringify({ error: "Erro ao verificar permissões" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Verificar se é admin ou pubdigital (podem acessar qualquer organização)
+    const { data: adminRole } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    const { data: isPubdigital } = await supabase.rpc("is_pubdigital_user", {
+      _user_id: user.id,
+    });
+
+    // Se não é membro da organização E não é admin/pubdigital, negar acesso
+    if (!orgMember && !adminRole && !isPubdigital) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Acesso negado: você não pertence a esta organização" 
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Buscar ou criar conversa
     let conversationId = conversation_id;
     let conversationMessages: any[] = [];
 
-    if (conversationId) {
+      if (conversationId) {
+      // VALIDAÇÃO DE SEGURANÇA: Verificar se a conversa pertence ao usuário e organização
       const { data: conv } = await supabase
         .from("assistant_conversations")
-        .select("messages")
+        .select("messages, user_id, organization_id")
         .eq("id", conversationId)
         .eq("organization_id", organizationId)
         .eq("user_id", user.id)
         .single();
 
       if (conv) {
+        // Verificação adicional de segurança
+        if (conv.user_id !== user.id || conv.organization_id !== organizationId) {
+          return new Response(
+            JSON.stringify({ 
+              error: "Acesso negado: conversa não pertence a você" 
+            }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
         conversationMessages = Array.isArray(conv.messages)
           ? conv.messages
           : [];
       }
     }
+
+    // Buscar configurações do assistente (organização específica ou global)
+    const { data: orgConfig } = await supabase
+      .from("assistant_config")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    const { data: globalConfig } = await supabase
+      .from("assistant_config")
+      .select("*")
+      .is("organization_id", null)
+      .eq("is_global", true)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    // Usar configuração da organização se existir, senão usar global
+    const config = orgConfig || globalConfig || {};
 
     // Buscar contexto da organização (etapas, tags)
     const { data: stages } = await supabase
@@ -876,10 +990,39 @@ serve(async (req) => {
       .eq("organization_id", organizationId)
       .limit(20);
 
-    // Montar contexto do sistema
-    const systemContext = `Você é um assistente de CRM especializado em gerenciar leads, contatos e vendas.
+    // Montar contexto do sistema baseado nas configurações
+    let systemContext = config.system_prompt || `Você é um assistente de CRM especializado em gerenciar leads, contatos e vendas.`;
 
-ETAPAS DO FUNIL DISPONÍVEIS:
+    // Adicionar tom de voz
+    if (config.tone_of_voice) {
+      const toneInstructions: Record<string, string> = {
+        profissional: "Mantenha um tom profissional e respeitoso em todas as respostas.",
+        amigável: "Seja amigável, caloroso e acessível nas respostas.",
+        formal: "Use linguagem formal e polida em todas as comunicações.",
+        casual: "Use um tom casual e descontraído, mas ainda profissional.",
+        técnico: "Use terminologia técnica quando apropriado e seja preciso.",
+        vendedor: "Seja persuasivo, entusiasmado e focado em resultados de vendas.",
+      };
+      systemContext += `\n\nTOM DE VOZ: ${toneInstructions[config.tone_of_voice] || config.tone_of_voice}`;
+    }
+
+    // Adicionar regras
+    if (config.rules) {
+      systemContext += `\n\nREGRAS DE COMPORTAMENTO:\n${config.rules}`;
+    }
+
+    // Adicionar restrições
+    if (config.restrictions) {
+      systemContext += `\n\nRESTRIÇÕES (NÃO FAÇA):\n${config.restrictions}`;
+    }
+
+    // Adicionar exemplos
+    if (config.examples) {
+      systemContext += `\n\nEXEMPLOS DE BOAS RESPOSTAS:\n${config.examples}`;
+    }
+
+    // Adicionar contexto do sistema (etapas e tags)
+    systemContext += `\n\nETAPAS DO FUNIL DISPONÍVEIS:
 ${(stages || [])
   .map((s: any) => `- ${s.name} (ID: ${s.id})`)
   .join("\n")}
@@ -889,7 +1032,7 @@ ${(tags || [])
   .map((t: any) => `- ${t.name} (ID: ${t.id})`)
   .join("\n")}
 
-INSTRUÇÕES:
+INSTRUÇÕES ADICIONAIS:
 - Seja claro e objetivo nas respostas
 - Sempre confirme ações importantes antes de executar
 - Use as funções disponíveis para realizar ações no sistema
@@ -926,11 +1069,12 @@ INSTRUÇÕES:
         Authorization: `Bearer ${deepseekApiKey}`,
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: config.model || "deepseek-chat",
         messages,
         tools: AVAILABLE_TOOLS,
         tool_choice: "auto",
-        temperature: 0.7,
+        temperature: config.temperature || 0.7,
+        max_tokens: config.max_tokens || 2000,
       }),
     });
 
@@ -1001,9 +1145,10 @@ INSTRUÇÕES:
           Authorization: `Bearer ${deepseekApiKey}`,
         },
         body: JSON.stringify({
-          model: "deepseek-chat",
+          model: config.model || "deepseek-chat",
           messages: secondMessages,
-          temperature: 0.7,
+          temperature: config.temperature || 0.7,
+          max_tokens: config.max_tokens || 2000,
         }),
       });
 

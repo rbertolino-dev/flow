@@ -308,6 +308,22 @@ export function useCallQueue() {
         .update({ call_count: newCallCount })
         .eq('id', queueItem.lead_id);
 
+      // Criar atividade no histórico do lead
+      const activityContent = callNotes 
+        ? `Ligação realizada${callNotes ? `: ${callNotes}` : ''}`
+        : 'Ligação realizada';
+      
+      await (supabase as any)
+        .from('activities')
+        .insert({
+          lead_id: queueItem.lead_id,
+          organization_id: activeOrgId,
+          type: 'call',
+          content: activityContent,
+          user_name: user.email || 'Usuário',
+          direction: 'outgoing',
+        });
+
       // Update call queue item
       const { error } = await (supabase as any)
         .from('call_queue')

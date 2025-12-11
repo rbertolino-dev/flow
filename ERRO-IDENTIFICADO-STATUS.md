@@ -95,3 +95,4 @@ Se após todas as tentativas ainda não funcionar, pode ser que:
 - O recurso de status não está habilitado
 - É necessário usar uma versão mais recente da Evolution API
 
+

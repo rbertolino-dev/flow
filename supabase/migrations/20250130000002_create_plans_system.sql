@@ -239,3 +239,4 @@ COMMENT ON COLUMN public.plans.max_evolution_instances IS 'Número máximo de in
 COMMENT ON COLUMN public.plans.enabled_features IS 'Array de funcionalidades habilitadas no plano';
 COMMENT ON COLUMN public.organizations.plan_id IS 'Plano associado à organização. NULL = sem plano (ilimitado)';
 
+

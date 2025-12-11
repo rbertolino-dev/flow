@@ -140,3 +140,4 @@ Se ainda não funcionar:
 3. **Verificar logs do Nginx:** `sudo tail -f /var/log/nginx/error.log`
 4. **Verificar logs do Chatwoot:** `docker-compose logs rails` (se usar Docker)
 
+

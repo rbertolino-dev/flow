@@ -9,6 +9,8 @@ export interface CalendarMessageTemplate {
   name: string;
   template: string;
   is_active: boolean;
+  media_url: string | null;
+  media_type: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -18,6 +20,8 @@ export interface CreateCalendarMessageTemplateInput {
   name: string;
   template: string;
   is_active?: boolean;
+  media_url?: string | null;
+  media_type?: string | null;
 }
 
 export function useCalendarMessageTemplates() {
@@ -56,6 +60,8 @@ export function useCalendarMessageTemplates() {
           name: input.name,
           template: input.template,
           is_active: input.is_active ?? true,
+          media_url: input.media_url || null,
+          media_type: input.media_type || null,
         })
         .select()
         .single();
@@ -89,7 +95,11 @@ export function useCalendarMessageTemplates() {
     }) => {
       const { data, error } = await supabase
         .from("calendar_message_templates")
-        .update(updates)
+        .update({
+          ...updates,
+          media_url: updates.media_url !== undefined ? updates.media_url : undefined,
+          media_type: updates.media_type !== undefined ? updates.media_type : undefined,
+        })
         .eq("id", id)
         .select()
         .single();
@@ -150,6 +160,7 @@ export function useCalendarMessageTemplates() {
     isDeleting: deleteMutation.isPending,
   };
 }
+
 
 
 

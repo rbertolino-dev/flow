@@ -106,3 +106,4 @@ FOREACH v_permission_text IN ARRAY v_permissions_array
 - ✅ Código limpo e documentado
 - ✅ Validações em múltiplas camadas
 
+

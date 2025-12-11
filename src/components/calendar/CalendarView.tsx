@@ -14,6 +14,7 @@ import { EventCard } from "./EventCard";
 import { CreateEventDialog } from "./CreateEventDialog";
 import { EditEventDialog } from "./EditEventDialog";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
+import { MarkEventCompletedDialog } from "./MarkEventCompletedDialog";
 import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,8 @@ export function CalendarView() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [schedulingEvent, setSchedulingEvent] = useState<CalendarEvent | null>(null);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [completingEvent, setCompletingEvent] = useState<CalendarEvent | null>(null);
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [calendarSize, setCalendarSize] = useState<"full" | "compact">("full");
   const [viewMode, setViewMode] = useState<"month" | "week" | "day" | "list">("month");
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
@@ -186,6 +189,11 @@ export function CalendarView() {
   const handleScheduleMessage = (event: CalendarEvent) => {
     setSchedulingEvent(event);
     setShowScheduleDialog(true);
+  };
+
+  const handleMarkCompleted = (event: CalendarEvent) => {
+    setCompletingEvent(event);
+    setShowCompleteDialog(true);
   };
 
   const navigateWeek = (direction: "prev" | "next") => {
@@ -507,6 +515,7 @@ export function CalendarView() {
                         onEdit={() => handleEditEvent(event)}
                         onDelete={() => handleDeleteEvent(event)}
                         onScheduleMessage={() => handleScheduleMessage(event)}
+                        onMarkCompleted={() => handleMarkCompleted(event)}
                       />
                     ))}
                   </div>
@@ -568,6 +577,7 @@ export function CalendarView() {
                       onEdit={() => handleEditEvent(event)}
                       onDelete={() => handleDeleteEvent(event)}
                       onScheduleMessage={() => handleScheduleMessage(event)}
+                      onMarkCompleted={() => handleMarkCompleted(event)}
                     />
                   ))}
                 </div>
@@ -608,6 +618,15 @@ export function CalendarView() {
         event={schedulingEvent}
         onMessageScheduled={() => {
           // Mensagem agendada com sucesso
+        }}
+      />
+
+      <MarkEventCompletedDialog
+        open={showCompleteDialog}
+        onOpenChange={setShowCompleteDialog}
+        event={completingEvent}
+        onEventCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
         }}
       />
     </div>

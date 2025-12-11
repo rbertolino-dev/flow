@@ -522,3 +522,4 @@ Esta lista é viva e deve ser atualizada com base em:
 - Novas necessidades do negócio
 - Evolução do n8n
 
+

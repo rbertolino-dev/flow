@@ -45,11 +45,16 @@ ALTER TABLE public.assistant_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assistant_actions ENABLE ROW LEVEL SECURITY;
 
 -- Policies RLS para assistant_conversations
+-- Usuários só podem ver conversas da sua organização E que foram criadas por eles
+-- (ou são admin/pubdigital que podem ver todas)
 CREATE POLICY "Users can view conversations of their organization"
 ON public.assistant_conversations
 FOR SELECT
 USING (
-  user_belongs_to_org(auth.uid(), organization_id)
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
   OR has_role(auth.uid(), 'admin'::app_role)
   OR is_pubdigital_user(auth.uid())
 );
@@ -58,7 +63,10 @@ CREATE POLICY "Users can create conversations for their organization"
 ON public.assistant_conversations
 FOR INSERT
 WITH CHECK (
-  user_belongs_to_org(auth.uid(), organization_id)
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
   OR has_role(auth.uid(), 'admin'::app_role)
   OR is_pubdigital_user(auth.uid())
 );
@@ -67,7 +75,18 @@ CREATE POLICY "Users can update conversations of their organization"
 ON public.assistant_conversations
 FOR UPDATE
 USING (
-  user_belongs_to_org(auth.uid(), organization_id)
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
+  OR has_role(auth.uid(), 'admin'::app_role)
+  OR is_pubdigital_user(auth.uid())
+)
+WITH CHECK (
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
   OR has_role(auth.uid(), 'admin'::app_role)
   OR is_pubdigital_user(auth.uid())
 );
@@ -76,17 +95,25 @@ CREATE POLICY "Users can delete conversations of their organization"
 ON public.assistant_conversations
 FOR DELETE
 USING (
-  user_belongs_to_org(auth.uid(), organization_id)
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
   OR has_role(auth.uid(), 'admin'::app_role)
   OR is_pubdigital_user(auth.uid())
 );
 
 -- Policies RLS para assistant_actions
+-- Usuários só podem ver ações da sua organização E que foram executadas por eles
+-- (ou são admin/pubdigital que podem ver todas)
 CREATE POLICY "Users can view actions of their organization"
 ON public.assistant_actions
 FOR SELECT
 USING (
-  user_belongs_to_org(auth.uid(), organization_id)
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
   OR has_role(auth.uid(), 'admin'::app_role)
   OR is_pubdigital_user(auth.uid())
 );
@@ -95,7 +122,10 @@ CREATE POLICY "Users can create actions for their organization"
 ON public.assistant_actions
 FOR INSERT
 WITH CHECK (
-  user_belongs_to_org(auth.uid(), organization_id)
+  (
+    user_belongs_to_org(auth.uid(), organization_id)
+    AND user_id = auth.uid()
+  )
   OR has_role(auth.uid(), 'admin'::app_role)
   OR is_pubdigital_user(auth.uid())
 );

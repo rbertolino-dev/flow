@@ -68,3 +68,4 @@ BEFORE UPDATE ON public.whatsapp_status_posts
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
+
