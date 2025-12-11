@@ -3,8 +3,9 @@ import { CRMLayout } from "@/components/crm/CRMLayout";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
+import { CalendarMessageTemplatesPanel } from "@/components/calendar/CalendarMessageTemplatesPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Settings, BarChart3 } from "lucide-react";
+import { Calendar, Settings, BarChart3, MessageSquare } from "lucide-react";
 import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
 
 export default function CalendarPage() {
@@ -30,6 +31,10 @@ export default function CalendarPage() {
                   <Calendar className="h-4 w-4" />
                   Agenda
                 </TabsTrigger>
+                <TabsTrigger value="templates" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Templates
+                </TabsTrigger>
                 <TabsTrigger value="reports" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   Relatórios
@@ -42,6 +47,10 @@ export default function CalendarPage() {
 
               <TabsContent value="calendar" className="mt-6">
                 <CalendarView />
+              </TabsContent>
+
+              <TabsContent value="templates" className="mt-6">
+                <CalendarMessageTemplatesPanel />
               </TabsContent>
 
               <TabsContent value="reports" className="mt-6">
