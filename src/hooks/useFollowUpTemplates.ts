@@ -22,6 +22,7 @@ export function useFollowUpTemplates() {
           table: 'follow_up_templates'
         },
         () => {
+          console.log('[FollowUp] Template changed, refetching...');
           fetchTemplates();
         }
       )
@@ -37,6 +38,24 @@ export function useFollowUpTemplates() {
           table: 'follow_up_template_steps'
         },
         () => {
+          console.log('[FollowUp] Step changed, refetching...');
+          fetchTemplates();
+        }
+      )
+      .subscribe();
+
+    // Adicionar listener para automações
+    const automationsChannel = supabase
+      .channel('follow-up-step-automations-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'follow_up_step_automations'
+        },
+        () => {
+          console.log('[FollowUp] Automation changed, refetching...');
           fetchTemplates();
         }
       )
@@ -45,6 +64,7 @@ export function useFollowUpTemplates() {
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(stepsChannel);
+      supabase.removeChannel(automationsChannel);
     };
   }, []);
 

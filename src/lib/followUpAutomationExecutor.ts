@@ -15,18 +15,22 @@ export async function executeFollowUpAutomation({
   actionType,
   actionConfig,
 }: ExecuteAutomationParams): Promise<boolean> {
+  console.log(`[FollowUp Automation] Executando: ${actionType}`, { leadId, stepId, actionConfig });
+  
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error("Usuário não autenticado");
+      console.error("[FollowUp Automation] Usuário não autenticado");
       return false;
     }
 
     const organizationId = await getUserOrganizationId();
     if (!organizationId) {
-      console.error("Organização não encontrada");
+      console.error("[FollowUp Automation] Organização não encontrada");
       return false;
     }
+
+    console.log(`[FollowUp Automation] OrganizationId: ${organizationId}`);
 
     // Buscar dados do lead
     const { data: lead, error: leadError } = await (supabase as any)
@@ -36,16 +40,20 @@ export async function executeFollowUpAutomation({
       .single();
 
     if (leadError || !lead) {
-      console.error("Erro ao buscar lead:", leadError);
+      console.error("[FollowUp Automation] Erro ao buscar lead:", leadError);
       return false;
     }
+
+    console.log(`[FollowUp Automation] Lead encontrado: ${lead.name}`);
 
     switch (actionType) {
       case 'send_whatsapp':
         if (!actionConfig.message || !actionConfig.instance_id) {
-          console.error("Configuração inválida para send_whatsapp");
+          console.error("[FollowUp Automation] Configuração inválida para send_whatsapp");
           return false;
         }
+
+        console.log(`[FollowUp Automation] Enviando WhatsApp para ${lead.phone}...`);
 
         // Chamar função edge para enviar mensagem
         const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp-message', {
@@ -58,16 +66,19 @@ export async function executeFollowUpAutomation({
         });
 
         if (whatsappError) {
-          console.error("Erro ao enviar WhatsApp:", whatsappError);
+          console.error("[FollowUp Automation] Erro ao enviar WhatsApp:", whatsappError);
           return false;
         }
+        console.log("[FollowUp Automation] WhatsApp enviado com sucesso!");
         break;
 
       case 'add_tag':
         if (!actionConfig.tag_id) {
-          console.error("Configuração inválida para add_tag");
+          console.error("[FollowUp Automation] Configuração inválida para add_tag");
           return false;
         }
+
+        console.log(`[FollowUp Automation] Adicionando tag ${actionConfig.tag_id}...`);
 
         // Verificar se tag já existe
         const { data: existingTag } = await (supabase as any)
@@ -86,17 +97,22 @@ export async function executeFollowUpAutomation({
             });
 
           if (tagError) {
-            console.error("Erro ao adicionar tag:", tagError);
+            console.error("[FollowUp Automation] Erro ao adicionar tag:", tagError);
             return false;
           }
+          console.log("[FollowUp Automation] Tag adicionada com sucesso!");
+        } else {
+          console.log("[FollowUp Automation] Lead já possui essa tag");
         }
         break;
 
       case 'move_stage':
         if (!actionConfig.stage_id) {
-          console.error("Configuração inválida para move_stage");
+          console.error("[FollowUp Automation] Configuração inválida para move_stage");
           return false;
         }
+
+        console.log(`[FollowUp Automation] Movendo lead para etapa ${actionConfig.stage_id}...`);
 
         const { error: stageError } = await (supabase as any)
           .from('leads')
@@ -107,7 +123,7 @@ export async function executeFollowUpAutomation({
           .eq('id', leadId);
 
         if (stageError) {
-          console.error("Erro ao mover lead:", stageError);
+          console.error("[FollowUp Automation] Erro ao mover lead:", stageError);
           return false;
         }
 
@@ -121,13 +137,17 @@ export async function executeFollowUpAutomation({
             content: 'Lead movido automaticamente pelo follow-up',
             user_name: 'Sistema',
           });
+        
+        console.log("[FollowUp Automation] Lead movido com sucesso!");
         break;
 
       case 'add_note':
         if (!actionConfig.content) {
-          console.error("Configuração inválida para add_note");
+          console.error("[FollowUp Automation] Configuração inválida para add_note");
           return false;
         }
+
+        console.log("[FollowUp Automation] Adicionando nota...");
 
         const { error: noteError } = await (supabase as any)
           .from('activities')
@@ -140,9 +160,11 @@ export async function executeFollowUpAutomation({
           });
 
         if (noteError) {
-          console.error("Erro ao adicionar nota:", noteError);
+          console.error("[FollowUp Automation] Erro ao adicionar nota:", noteError);
           return false;
         }
+        
+        console.log("[FollowUp Automation] Nota adicionada com sucesso!");
         break;
 
       case 'add_to_call_queue':
@@ -162,16 +184,21 @@ export async function executeFollowUpAutomation({
             .from('call_queue')
             .insert({
               lead_id: leadId,
+              organization_id: organizationId, // CRÍTICO: sempre incluir organization_id
               scheduled_for: scheduledFor.toISOString(),
               priority: actionConfig.priority || 'medium',
               notes: actionConfig.notes || null,
               status: 'pending',
+              created_by: user.id,
             });
 
           if (queueError) {
-            console.error("Erro ao adicionar à fila:", queueError);
+            console.error("[FollowUp Automation] Erro ao adicionar à fila:", queueError);
             return false;
           }
+          console.log("[FollowUp Automation] Lead adicionado à fila de ligações");
+        } else {
+          console.log("[FollowUp Automation] Lead já está na fila de ligações");
         }
         break;
 
