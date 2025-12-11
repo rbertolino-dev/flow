@@ -969,6 +969,8 @@ export type Database = {
           created_by: string | null
           id: string
           is_active: boolean
+          media_type: string | null
+          media_url: string | null
           name: string
           organization_id: string
           template: string
@@ -979,6 +981,8 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          media_type?: string | null
+          media_url?: string | null
           name: string
           organization_id: string
           template: string
@@ -989,6 +993,8 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          media_type?: string | null
+          media_url?: string | null
           name?: string
           organization_id?: string
           template?: string
