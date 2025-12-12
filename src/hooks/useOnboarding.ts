@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
 import { useToast } from "@/hooks/use-toast";
 
 export type OnboardingStep = 'organization' | 'users' | 'pipeline' | 'products' | 'evolution';
@@ -166,15 +166,8 @@ export function useOnboarding() {
 
   const markStepAsComplete = useCallback(async (step: OnboardingStep): Promise<boolean> => {
     try {
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
-        toast({
-          title: "Erro",
-          description: "Organização não encontrada",
-          variant: "destructive",
-        });
-        return false;
-      }
+      // Garantir que o usuário tenha uma organização
+      const organizationId = await ensureUserOrganization();
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
@@ -231,15 +224,8 @@ export function useOnboarding() {
     expectations?: string;
   }): Promise<boolean> => {
     try {
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
-        toast({
-          title: "Erro",
-          description: "Organização não encontrada",
-          variant: "destructive",
-        });
-        return false;
-      }
+      // Garantir que o usuário tenha uma organização (cria se não existir)
+      const organizationId = await ensureUserOrganization();
 
       // Usar abordagem que ignora cache de tipos
       const { error } = await (supabase as any)
