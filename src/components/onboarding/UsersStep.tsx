@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { ensureUserOrganization } from "@/lib/organizationUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { UserPlus, X, Users, SkipForward } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,10 +67,8 @@ export function UsersStep({ onComplete, onSkip }: UsersStepProps) {
     setLoading(true);
 
     try {
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
-        throw new Error("Organização não encontrada");
-      }
+      // Garantir que o usuário tenha uma organização
+      const organizationId = await ensureUserOrganization();
 
       // Criar todos os usuários usando a edge function
       for (const user of users) {

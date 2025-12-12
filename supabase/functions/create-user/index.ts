@@ -32,7 +32,7 @@ serve(async (req) => {
       throw new Error('Não autorizado');
     }
 
-    // Verificar se é admin OU pubdigital
+    // Verificar se é admin OU pubdigital OU owner/admin de alguma organização
     const { data: isAdmin } = await supabaseAdmin.rpc('has_role', {
       _user_id: user.id,
       _role: 'admin'
@@ -42,7 +42,18 @@ serve(async (req) => {
       _user_id: user.id
     });
 
-    if (!isAdmin && !isPubdigital) {
+    // Verificar se é owner ou admin de alguma organização
+    const { data: orgMembership } = await supabaseAdmin
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user.id)
+      .in('role', ['owner', 'admin'])
+      .limit(1)
+      .maybeSingle();
+
+    const isOrgAdmin = !!orgMembership;
+
+    if (!isAdmin && !isPubdigital && !isOrgAdmin) {
       throw new Error('Apenas administradores podem criar usuários');
     }
 
