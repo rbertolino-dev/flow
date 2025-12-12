@@ -249,12 +249,13 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           <div className="space-y-2">
             <Label htmlFor="product">Produto/Serviço</Label>
             <Select 
-              value={formData.productId} 
+              value={formData.productId || "none"} 
               onValueChange={(value) => {
-                const product = activeProducts.find(p => p.id === value);
+                const productValue = value === "none" ? "" : value;
+                const product = activeProducts.find(p => p.id === productValue);
                 setFormData({ 
                   ...formData, 
-                  productId: value,
+                  productId: productValue,
                   value: product ? product.price.toString() : formData.value
                 });
               }}
@@ -263,7 +264,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
                 <SelectValue placeholder="Selecione um produto (opcional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhum produto</SelectItem>
+                <SelectItem value="none">Nenhum produto</SelectItem>
                 {activeProducts.map((product) => (
                   <SelectItem key={product.id} value={product.id}>
                     {product.name} - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
