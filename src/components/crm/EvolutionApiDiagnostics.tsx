@@ -36,7 +36,7 @@ export const EvolutionApiDiagnostics = () => {
       if (!configs) {
         toast({
           title: "Erro",
-          description: "Nenhuma instância Evolution encontrada",
+          description: "Nenhuma instância WhatsApp encontrada",
           variant: "destructive",
         });
         setLoading(false);
@@ -159,9 +159,9 @@ export const EvolutionApiDiagnostics = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Diagnóstico Evolution API</CardTitle>
+        <CardTitle>Diagnóstico WhatsApp</CardTitle>
         <CardDescription>
-          Testa a disponibilidade dos endpoints da Evolution API
+          Testa a disponibilidade dos endpoints da API WhatsApp
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -217,10 +217,10 @@ export const EvolutionApiDiagnostics = () => {
               <AlertDescription>
                 <div className="font-semibold mb-2">Interpretação dos Resultados:</div>
                 <ul className="text-sm space-y-1 list-disc list-inside">
-                  <li><strong>Status 400 "Method not available"</strong>: O endpoint não está disponível neste tipo de canal Evolution (provavelmente WhatsApp Web/Baileys)</li>
+                  <li><strong>Status 400 "Method not available"</strong>: O endpoint não está disponível neste tipo de canal WhatsApp</li>
                   <li><strong>Status 200</strong>: Endpoint funcional e disponível</li>
                   <li><strong>Status 401</strong>: Problema de autenticação (API key inválida)</li>
-                  <li><strong>Status 404</strong>: Endpoint não existe nesta versão da Evolution API</li>
+                  <li><strong>Status 404</strong>: Endpoint não existe nesta versão da API</li>
                 </ul>
               </AlertDescription>
             </Alert>

@@ -58,7 +58,7 @@ export function WhatsAppNumberValidator({ configs }: WhatsAppNumberValidatorProp
     if (!selectedInstance) {
       toast({
         title: "Instância obrigatória",
-        description: "Selecione uma instância Evolution",
+        description: "Selecione uma instância WhatsApp",
         variant: "destructive",
       });
       return;
@@ -146,7 +146,7 @@ export function WhatsAppNumberValidator({ configs }: WhatsAppNumberValidatorProp
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="validator-instance">Instância Evolution</Label>
+            <Label htmlFor="validator-instance">Instância WhatsApp</Label>
             <Select value={selectedInstance} onValueChange={setSelectedInstance}>
               <SelectTrigger id="validator-instance">
                 <SelectValue placeholder="Selecione" />

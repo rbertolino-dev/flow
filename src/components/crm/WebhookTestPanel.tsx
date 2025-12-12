@@ -26,9 +26,9 @@ export function WebhookTestPanel({ config }: { config: any }) {
     setTesting(true);
     const diagnosticSteps: DiagnosticStep[] = [
       { name: "1. Verificar configuração local", status: 'pending' },
-      { name: "2. Testar conexão com Evolution API", status: 'pending' },
+      { name: "2. Testar conexão com WhatsApp", status: 'pending' },
       { name: "3. Verificar status do WhatsApp", status: 'pending' },
-      { name: "4. Verificar configuração do webhook na Evolution", status: 'pending' },
+      { name: "4. Verificar configuração do webhook no WhatsApp", status: 'pending' },
       { name: "5. Simular recebimento de webhook", status: 'pending' },
     ];
     setSteps(diagnosticSteps);
@@ -54,7 +54,7 @@ export function WebhookTestPanel({ config }: { config: any }) {
         details: `Instância: ${config.instance_name}`
       });
 
-      // Step 2: Test Evolution API connection
+      // Step 2: Test WhatsApp API connection
       updateStep(1, { status: 'running' });
       const baseUrl = config.api_url.replace(/\/(manager|dashboard|app)$/, '');
       
@@ -270,7 +270,7 @@ export function WebhookTestPanel({ config }: { config: any }) {
         <Alert>
           <AlertDescription className="text-xs">
             💡 <strong>Dica:</strong> Se o webhook não estiver configurado, clique em "Salvar Configuração" 
-            na seção acima. Isso configurará automaticamente o webhook na Evolution API.
+            na seção acima. Isso configurará automaticamente o webhook no WhatsApp.
           </AlertDescription>
         </Alert>
       </CardContent>

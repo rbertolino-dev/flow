@@ -91,7 +91,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
           </Button>
         </div>
         <CardDescription>
-          Verificação automática da configuração Evolution + Chatwoot
+          Verificação automática da configuração WhatsApp + Chatwoot
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -105,7 +105,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
                   ✓ Sistema configurado corretamente!
                 </p>
                 <p className="text-sm text-green-600/80 dark:text-green-400/80">
-                  Evolution API com webhook ativo e Chatwoot habilitado. Mensagens em tempo real funcionando!
+                  WhatsApp com webhook ativo e Chatwoot habilitado. Mensagens em tempo real funcionando!
                 </p>
               </div>
             </AlertDescription>
@@ -157,7 +157,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
                 <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
               )}
               <div className="flex-1 space-y-1 min-w-0">
-                <p className="font-medium text-sm">Evolution API com Webhook</p>
+                <p className="font-medium text-sm">WhatsApp com Webhook</p>
                 {hasEvolutionWithWebhook ? (
                   <>
                     <p className="text-xs text-muted-foreground">
@@ -171,7 +171,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
                   </>
                 ) : (
                   <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                    Nenhuma instância Evolution com webhook habilitado. Configure em Configurações → WhatsApp
+                    Nenhuma instância WhatsApp com webhook habilitado. Configure em Configurações → WhatsApp
                   </p>
                 )}
               </div>
@@ -215,7 +215,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
               )}
             </div>
 
-            {/* Conexão Evolution + Chatwoot */}
+            {/* Conexão WhatsApp + Chatwoot */}
             <div className="flex items-start gap-3 p-3 rounded-lg border bg-card">
               {areConnected ? (
                 <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -226,7 +226,7 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
                 <p className="font-medium text-sm">Integração Ativa</p>
                 {areConnected ? (
                   <p className="text-xs text-muted-foreground">
-                    Evolution e Chatwoot estão conectados e funcionando em tempo real
+                    WhatsApp e Chatwoot estão conectados e funcionando em tempo real
                   </p>
                 ) : (
                   <p className="text-xs text-yellow-600 dark:text-yellow-400">
@@ -257,15 +257,15 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">2️⃣</span>
-                  <span>Evolution API recebe a mensagem</span>
+                  <span>WhatsApp recebe a mensagem</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">3️⃣</span>
-                  <span>Evolution API notifica o Chatwoot</span>
+                  <span>WhatsApp notifica o Chatwoot</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">4️⃣</span>
-                  <span>Evolution API também notifica nosso webhook</span>
+                  <span>WhatsApp também notifica nosso webhook</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">✅</span>
@@ -302,11 +302,11 @@ export const ChatwootWebhookSetup = ({ organizationId }: ChatwootWebhookSetupPro
                   <code className="bg-background px-2 py-0.5 rounded text-[10px]">{organizationId}</code>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>Instâncias Evolution:</span>
+                  <span>Instâncias WhatsApp:</span>
                   <Badge variant="outline" className="text-[10px] h-5">{evolutionConfigs?.length || 0}</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>Webhook Evolution:</span>
+                  <span>Webhook WhatsApp:</span>
                   <code className="bg-background px-2 py-0.5 rounded text-[10px]">
                     /v1/evolution-webhook
                   </code>

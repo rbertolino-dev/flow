@@ -31,14 +31,14 @@ export function EvolutionBotConfigFields({ values, onChange }: EvolutionBotConfi
     <div className="space-y-4">
       <div className="border-t pt-4">
         <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-          Configuração do Bot Evolution
+          Configuração do Bot WhatsApp
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
                 <Info className="h-4 w-4 text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent>
-                <p className="max-w-xs">Configurações de comportamento do bot na Evolution API</p>
+                <p className="max-w-xs">Configurações de comportamento do bot no WhatsApp</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

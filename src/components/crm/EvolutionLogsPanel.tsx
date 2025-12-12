@@ -101,9 +101,9 @@ export function EvolutionLogsPanel() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Logs da Evolution API</CardTitle>
+            <CardTitle>Logs do WhatsApp</CardTitle>
             <CardDescription>
-              Últimos 50 eventos da Evolution API e importações
+              Últimos 50 eventos do WhatsApp e importações
             </CardDescription>
           </div>
           <Button

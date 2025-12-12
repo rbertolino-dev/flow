@@ -199,7 +199,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       <div className="p-6 border-b border-border">
         <h1 className="text-3xl font-bold mb-2">Configurações</h1>
         <p className="text-muted-foreground">
-          Configure a integração com Evolution API para receber mensagens do WhatsApp
+          Configure a integração com WhatsApp para receber mensagens
         </p>
       </div>
 
@@ -212,7 +212,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               Tutorial de Configuração
             </CardTitle>
             <CardDescription>
-              Siga este guia passo a passo para configurar a Evolution API e começar a receber leads automaticamente via WhatsApp
+              Siga este guia passo a passo para configurar o WhatsApp e começar a receber leads automaticamente
             </CardDescription>
           </CardHeader>
           <CardContent>

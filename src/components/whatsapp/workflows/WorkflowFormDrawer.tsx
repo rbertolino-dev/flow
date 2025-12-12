@@ -550,7 +550,7 @@ export function WorkflowFormDrawer({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Instância Evolution" />
+                    <SelectValue placeholder="Instância WhatsApp" />
                   </SelectTrigger>
                   <SelectContent>
                     {instances.map((instance) => (

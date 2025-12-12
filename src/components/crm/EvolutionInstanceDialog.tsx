@@ -133,7 +133,7 @@ export function EvolutionInstanceDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {editingConfig ? "Editar Instância" : "Nova Instância Evolution API"}
+            {editingConfig ? "Editar Instância" : "Nova Instância WhatsApp"}
           </DialogTitle>
         </DialogHeader>
 

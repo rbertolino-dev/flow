@@ -202,7 +202,7 @@ export default function UnifiedMessages() {
                 <Tabs value={selectedSource} onValueChange={(v) => setSelectedSource(v as any)}>
                   <TabsList className="w-full">
                     <TabsTrigger value="all" className="flex-1">Todas</TabsTrigger>
-                    <TabsTrigger value="evolution" className="flex-1">Evolution</TabsTrigger>
+                    <TabsTrigger value="evolution" className="flex-1">WhatsApp</TabsTrigger>
                     <TabsTrigger value="chatwoot" className="flex-1">Chatwoot</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -270,7 +270,7 @@ export default function UnifiedMessages() {
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <Badge variant="outline" className="h-4 px-1 text-[10px]">
                                       {conv.source === 'evolution' ? (
-                                        <><Zap className="h-3 w-3 mr-1" /> Evolution</>
+                                        <><Zap className="h-3 w-3 mr-1" /> WhatsApp</>
                                       ) : (
                                         <><MessageCircle className="h-3 w-3 mr-1" /> Chatwoot</>
                                       )}
@@ -409,7 +409,7 @@ export default function UnifiedMessages() {
                     <MessageSquare className="h-24 w-24 mx-auto mb-4 opacity-20" />
                     <h2 className="text-2xl font-semibold mb-2">Todas as Conversas</h2>
                     <p className="text-sm mb-4">
-                      Visualização unificada de todas as instâncias Evolution e Chatwoot.
+                      Visualização unificada de todas as instâncias WhatsApp e Chatwoot.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Selecione uma conversa para visualizar as mensagens.

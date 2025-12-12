@@ -35,7 +35,7 @@ interface OrganizationLimitsPanelProps {
 
 const AVAILABLE_FEATURES = [
   { value: 'leads', label: 'Leads', description: 'Gerenciamento de leads' },
-  { value: 'evolution_instances', label: 'Instâncias Evolution', description: 'Conexão com WhatsApp via Evolution API' },
+  { value: 'evolution_instances', label: 'Instâncias WhatsApp', description: 'Conexão com WhatsApp' },
   { value: 'broadcast', label: 'Disparos', description: 'Campanhas de disparo em massa' },
   { value: 'scheduled_messages', label: 'Mensagens Agendadas', description: 'Agendar mensagens para envio futuro' },
   { value: 'agents', label: 'Agentes IA', description: 'Agentes inteligentes com OpenAI' },
@@ -286,7 +286,7 @@ export function OrganizationLimitsPanel({
               <div className="flex items-center justify-between">
                 <Label htmlFor="max_instances" className="flex items-center gap-2">
                   <Smartphone className="h-4 w-4" />
-                  Limite de Instâncias Evolution
+                  Limite de Instâncias WhatsApp
                 </Label>
                 <Badge variant={instancesStatus.color}>
                   {currentCounts.instances} / {limits.max_instances ?? '∞'}
