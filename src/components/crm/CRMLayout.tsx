@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
 import { useOrganizationFeatures, FeatureKey } from "@/hooks/useOrganizationFeatures";
-
+import { EditOrganizationDialog } from "./EditOrganizationDialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 export type CRMView = 
   | "kanban" 
   | "calls" 
@@ -50,6 +51,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPubdigitalUser, setIsPubdigitalUser] = useState(false);
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
@@ -157,8 +160,19 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
       // Check if user is pubdigital via DB function
       const { data: isPubdigFn } = await supabase.rpc('is_pubdigital_user', { _user_id: userId });
-      console.log('Pubdigital check via RPC:', { isPubdigFn });
       setIsPubdigitalUser(!!isPubdigFn);
+
+      // Check if user is org admin/owner
+      if (activeOrgId) {
+        const { data: memberData } = await supabase
+          .from('organization_members')
+          .select('role')
+          .eq('user_id', userId)
+          .eq('organization_id', activeOrgId)
+          .maybeSingle();
+        
+        setIsOrgAdmin(memberData?.role === 'owner' || memberData?.role === 'admin');
+      }
     };
 
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -176,10 +190,11 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       } else {
         setIsAdmin(false);
         setIsPubdigitalUser(false);
+        setIsOrgAdmin(false);
       }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [activeOrgId]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -285,6 +300,33 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
               </div>
             )}
           </div>
+          
+          {/* Botão discreto para editar organização (só para admins da org) */}
+          {isOrgAdmin && activeOrgId && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditOrgDialogOpen(true)}
+                    className={cn(
+                      "w-full text-sidebar-foreground/70 hover:text-sidebar-foreground",
+                      !sidebarOpen && "px-2"
+                    )}
+                  >
+                    <Building2 className="h-4 w-4" />
+                    {sidebarOpen && <span className="ml-2">Editar Organização</span>}
+                  </Button>
+                </TooltipTrigger>
+                {!sidebarOpen && (
+                  <TooltipContent side="right">
+                    Editar Organização
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
           
           <Button
             variant="outline"
@@ -436,6 +478,19 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       
       {/* Floating Chat Widget */}
       <FloatingChatWidget organizationId={activeOrgId || undefined} />
+      
+      {/* Edit Organization Dialog */}
+      {activeOrgId && (
+        <EditOrganizationDialog
+          open={editOrgDialogOpen}
+          onOpenChange={setEditOrgDialogOpen}
+          organizationId={activeOrgId}
+          onSuccess={() => {
+            // Recarregar a página para atualizar o nome da organização
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }
