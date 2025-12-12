@@ -37,11 +37,11 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
       // Buscar limite da organização
       const { data: limits } = await supabase
         .from('organization_limits' as any)
-        .select('max_evolution_instances')
+        .select('max_instances')
         .eq('organization_id', organizationId)
         .single();
 
-      const maxInstances = (limits as any)?.max_evolution_instances;
+      const maxInstances = (limits as any)?.max_instances;
       const currentInstances = configs?.length || 0;
 
       setLimitInfo({
