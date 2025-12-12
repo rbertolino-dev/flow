@@ -2810,6 +2810,38 @@ export type Database = {
           },
         ]
       }
+      organization_onboarding_progress: {
+        Row: {
+          completed_at: string
+          id: string
+          organization_id: string
+          step_completed: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          organization_id: string
+          step_completed: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          organization_id?: string
+          step_completed?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_onboarding_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string

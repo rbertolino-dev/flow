@@ -55,22 +55,33 @@ export function useOnboarding() {
 
       // Buscar progresso do onboarding
       const { data: progressData, error: progressError } = await supabase
-        .from('organization_onboarding_progress')
+        .from('organization_onboarding_progress' as any)
         .select('step_completed')
         .eq('organization_id', organizationId);
 
       if (progressError) throw progressError;
 
-      const completedSteps = (progressData || []).map(p => p.step_completed as OnboardingStep);
+      const completedSteps = (progressData || []).map((p: any) => p.step_completed as OnboardingStep);
+
+      // Cast para tipo com campos de onboarding
+      const orgWithOnboarding = orgData as typeof orgData & {
+        company_profile?: string;
+        state?: string;
+        city?: string;
+        tax_regime?: string;
+        business_type?: string;
+        expectations?: string;
+        onboarding_completed?: boolean;
+      };
 
       // Verificar etapa de organização (dados preenchidos)
       const orgStepComplete = !!(
-        orgData.name &&
-        orgData.company_profile &&
-        orgData.state &&
-        orgData.city &&
-        orgData.tax_regime &&
-        orgData.business_type
+        orgWithOnboarding.name &&
+        orgWithOnboarding.company_profile &&
+        orgWithOnboarding.state &&
+        orgWithOnboarding.city &&
+        orgWithOnboarding.tax_regime &&
+        orgWithOnboarding.business_type
       );
 
       // Verificar etapa de pipeline (mínimo 3 etapas)
@@ -134,14 +145,14 @@ export function useOnboarding() {
         progress,
         completedSteps,
         pendingSteps,
-        organizationData: orgData ? {
-          name: orgData.name,
-          company_profile: orgData.company_profile,
-          state: orgData.state,
-          city: orgData.city,
-          tax_regime: orgData.tax_regime,
-          business_type: orgData.business_type,
-          expectations: orgData.expectations,
+        organizationData: orgWithOnboarding ? {
+          name: orgWithOnboarding.name,
+          company_profile: orgWithOnboarding.company_profile,
+          state: orgWithOnboarding.state,
+          city: orgWithOnboarding.city,
+          tax_regime: orgWithOnboarding.tax_regime,
+          business_type: orgWithOnboarding.business_type,
+          expectations: orgWithOnboarding.expectations,
         } : undefined,
         pipelineStagesCount,
         productsCount,
@@ -165,10 +176,14 @@ export function useOnboarding() {
         return false;
       }
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
       const { error } = await supabase
-        .from('organization_onboarding_progress')
+        .from('organization_onboarding_progress' as any)
         .upsert({
           organization_id: organizationId,
+          user_id: user.id,
           step_completed: step,
           completed_at: new Date().toISOString(),
         }, {
@@ -184,8 +199,7 @@ export function useOnboarding() {
           .from('organizations')
           .update({
             onboarding_completed: true,
-            onboarding_completed_at: new Date().toISOString(),
-          })
+          } as any)
           .eq('id', organizationId);
       }
 
@@ -229,7 +243,7 @@ export function useOnboarding() {
 
       const { error } = await supabase
         .from('organizations')
-        .update(data)
+        .update(data as any)
         .eq('id', organizationId);
 
       if (error) throw error;

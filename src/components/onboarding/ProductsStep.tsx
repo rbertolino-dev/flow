@@ -69,7 +69,7 @@ export function ProductsStep({ onComplete, onSkip, businessType }: ProductsStepP
         description: formData.description || null,
         price: price,
         category: formData.category || getCategoryLabel(),
-        active: true,
+        is_active: true,
       });
 
       setFormData({
