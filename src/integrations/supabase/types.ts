@@ -4274,6 +4274,7 @@ export type Database = {
           organization_id: string
           periodicity: string
           recipient_mode: string
+          recipient_type: string | null
           requires_approval: boolean | null
           send_time: string
           start_date: string
@@ -4308,6 +4309,7 @@ export type Database = {
           organization_id: string
           periodicity: string
           recipient_mode?: string
+          recipient_type?: string | null
           requires_approval?: boolean | null
           send_time: string
           start_date: string
@@ -4342,6 +4344,7 @@ export type Database = {
           organization_id?: string
           periodicity?: string
           recipient_mode?: string
+          recipient_type?: string | null
           requires_approval?: boolean | null
           send_time?: string
           start_date?: string
