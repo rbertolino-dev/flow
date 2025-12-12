@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
@@ -12,6 +12,7 @@ import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
 import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
 import { PlansManagementPanel } from "./PlansManagementPanel";
 import { AssistantConfigPanel } from "./AssistantConfigPanel";
+import { EvolutionProvidersPanel } from "./EvolutionProvidersPanel";
 import { useNavigate } from "react-router-dom";
 
 interface OrganizationWithMembers {
@@ -45,6 +46,7 @@ export function SuperAdminDashboard() {
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithMembers | null>(null);
   const [showPlansManagement, setShowPlansManagement] = useState(false);
   const [showAssistantConfig, setShowAssistantConfig] = useState(false);
+  const [showEvolutionProviders, setShowEvolutionProviders] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -191,6 +193,19 @@ export function SuperAdminDashboard() {
     );
   }
 
+  if (showEvolutionProviders) {
+    return (
+      <div className="h-full overflow-auto bg-background p-6">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => setShowEvolutionProviders(false)}>
+            ← Voltar para Organizações
+          </Button>
+        </div>
+        <EvolutionProvidersPanel />
+      </div>
+    );
+  }
+
   if (selectedOrg) {
     return (
       <div className="h-full overflow-auto bg-background p-6">
@@ -253,6 +268,14 @@ export function SuperAdminDashboard() {
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Configurar Assistente
+              </Button>
+              <Button 
+                onClick={() => setShowEvolutionProviders(!showEvolutionProviders)} 
+                variant="secondary" 
+                className="w-full sm:w-auto"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Providers Evolution
               </Button>
               <Button onClick={() => setCreateUserOpen(true)} variant="outline" className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />

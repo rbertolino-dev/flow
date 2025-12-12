@@ -23,10 +23,30 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
   const [checkingLimit, setCheckingLimit] = useState(false);
   const [canCreateInstance, setCanCreateInstance] = useState(true);
   const [limitInfo, setLimitInfo] = useState<{ current: number; max: number | null } | null>(null);
+  const [hasProvider, setHasProvider] = useState(false);
 
   useEffect(() => {
     checkInstanceLimit();
+    checkHasProvider();
   }, []);
+
+  const checkHasProvider = async () => {
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) return;
+
+      const { data, error } = await supabase.rpc('organization_has_evolution_provider', {
+        _org_id: orgId,
+      });
+
+      if (!error && data) {
+        setHasProvider(true);
+      }
+    } catch (error) {
+      // Silenciosamente falhar
+      console.error('Erro ao verificar provider:', error);
+    }
+  };
 
   const checkInstanceLimit = async () => {
     setCheckingLimit(true);
@@ -191,9 +211,16 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
                 >
                   <div>
                     <p className="font-medium">{config.instance_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {config.api_url}
-                    </p>
+                    {!hasProvider && (
+                      <p className="text-sm text-muted-foreground">
+                        {config.api_url}
+                      </p>
+                    )}
+                    {hasProvider && (
+                      <p className="text-sm text-muted-foreground italic">
+                        Provider gerenciado pela administração
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {config.is_connected ? (

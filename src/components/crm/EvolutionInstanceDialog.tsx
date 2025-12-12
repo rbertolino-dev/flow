@@ -42,6 +42,8 @@ export function EvolutionInstanceDialog({
   const [createWithQR, setCreateWithQR] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [createdInstance, setCreatedInstance] = useState<EvolutionConfig | null>(null);
+  const [organizationProvider, setOrganizationProvider] = useState<{ api_url: string; api_key: string; provider_name: string } | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,14 +53,67 @@ export function EvolutionInstanceDialog({
         api_key: editingConfig.api_key || "",
         instance_name: editingConfig.instance_name || "",
       });
+      // Verificar se há provider configurado mesmo na edição
+      if (open) {
+        fetchOrganizationProvider();
+      }
     } else {
       setFormData({
         api_url: "",
         api_key: "",
         instance_name: "",
       });
+      // Buscar provider da organização quando abrir para criar nova instância
+      if (open) {
+        fetchOrganizationProvider();
+      }
     }
   }, [editingConfig, open]);
+
+  const fetchOrganizationProvider = async () => {
+    try {
+      setLoadingProvider(true);
+      const orgId = await getUserOrganizationId();
+      if (!orgId) return;
+
+      const { data, error } = await supabase.rpc('get_organization_evolution_provider', {
+        _org_id: orgId,
+      });
+
+      if (error && error.code !== 'PGRST116') {
+        // Se for erro de permissão, apenas não definir provider
+        if (error.message?.includes('não pertence') || error.message?.includes('autenticado')) {
+          setOrganizationProvider(null);
+          return;
+        }
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        const provider = data[0];
+        setOrganizationProvider({
+          api_url: provider.api_url,
+          api_key: provider.api_key,
+          provider_name: provider.provider_name,
+        });
+        // Preencher automaticamente os campos apenas se não estiver editando
+        if (!editingConfig) {
+          setFormData(prev => ({
+            ...prev,
+            api_url: provider.api_url,
+            api_key: provider.api_key,
+          }));
+        }
+      } else {
+        setOrganizationProvider(null);
+      }
+    } catch (error: any) {
+      console.error('Erro ao buscar provider:', error);
+      setOrganizationProvider(null);
+    } finally {
+      setLoadingProvider(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,8 +121,18 @@ export function EvolutionInstanceDialog({
 
     try {
       if (editingConfig && onUpdate) {
-        // Modo edição
-        const success = await onUpdate(editingConfig.id, formData);
+        // Modo edição - se há provider configurado, não permitir alterar URL/API key
+        const updateData: any = {
+          instance_name: formData.instance_name,
+        };
+        
+        // Só permitir atualizar URL/API key se NÃO houver provider configurado
+        if (!organizationProvider) {
+          updateData.api_url = formData.api_url;
+          updateData.api_key = formData.api_key;
+        }
+        
+        const success = await onUpdate(editingConfig.id, updateData);
         if (success) {
           onOpenChange(false);
           setFormData({ api_url: "", api_key: "", instance_name: "" });
@@ -126,6 +191,7 @@ export function EvolutionInstanceDialog({
     setQrCode(null);
     setCreatedInstance(null);
     setCreateWithQR(false);
+    setOrganizationProvider(null);
   };
 
   return (
@@ -177,28 +243,57 @@ export function EvolutionInstanceDialog({
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="api_url">URL da API</Label>
-              <Input
-                id="api_url"
-                placeholder="https://api.evolution.com"
-                value={formData.api_url}
-                onChange={(e) => setFormData({ ...formData, api_url: e.target.value })}
-                required
-              />
-            </div>
+            {organizationProvider && !editingConfig && (
+              <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                  Provider pré-configurado: {organizationProvider.provider_name}
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                  O link e API key foram configurados automaticamente pela administração. 
+                  Você só precisa informar o nome da instância.
+                </p>
+              </div>
+            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="api_key">API Key</Label>
-              <Input
-                id="api_key"
-                type="password"
-                placeholder="Sua API Key"
-                value={formData.api_key}
-                onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                required
-              />
-            </div>
+            {/* Esconder campos de URL e API Key quando há provider configurado (não permitir edição) */}
+            {!organizationProvider && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="api_url">URL da API</Label>
+                  <Input
+                    id="api_url"
+                    placeholder="https://api.evolution.com"
+                    value={formData.api_url}
+                    onChange={(e) => setFormData({ ...formData, api_url: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="api_key">API Key</Label>
+                  <Input
+                    id="api_key"
+                    type="password"
+                    placeholder="Sua API Key"
+                    value={formData.api_key}
+                    onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {organizationProvider && editingConfig && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Provider gerenciado pela administração
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  A URL e API Key são gerenciadas pelo super admin e não podem ser alteradas. 
+                  Você pode editar apenas o nome da instância.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="instance_name">Nome da Instância</Label>

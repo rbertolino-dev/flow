@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp, RefreshCw, Key } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { supabase } from "@/integrations/supabase/client";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface EvolutionInstanceCardProps {
   config: EvolutionConfig;
@@ -34,7 +35,30 @@ export function EvolutionInstanceCard({
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [realStatus, setRealStatus] = useState<boolean | null>(null);
+  const [hasProvider, setHasProvider] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    checkHasProvider();
+  }, []);
+
+  const checkHasProvider = async () => {
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) return;
+
+      const { data, error } = await supabase.rpc('organization_has_evolution_provider', {
+        _org_id: orgId,
+      });
+
+      if (!error && data) {
+        setHasProvider(true);
+      }
+    } catch (error) {
+      // Silenciosamente falhar - não é crítico
+      console.error('Erro ao verificar provider:', error);
+    }
+  };
 
   const syncApiKey = async () => {
     setSyncing(true);
@@ -218,7 +242,15 @@ export function EvolutionInstanceCard({
                 </Badge>
               )}
             </CardTitle>
-            <p className="text-xs sm:text-sm text-muted-foreground truncate">{config.api_url}</p>
+            {/* Esconder URL quando há provider configurado pelo super admin */}
+            {!hasProvider && (
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">{config.api_url}</p>
+            )}
+            {hasProvider && (
+              <p className="text-xs sm:text-sm text-muted-foreground italic">
+                Provider gerenciado pela administração
+              </p>
+            )}
             {config.phone_number && (
               <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
             )}
