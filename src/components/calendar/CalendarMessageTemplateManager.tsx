@@ -29,6 +29,7 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { compressImage, validateImageFile } from "@/lib/imageCompression";
 
 const BUCKET_ID = "whatsapp-workflow-media";
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_FILE_SIZE_BEFORE_COMPRESSION = 16 * 1024 * 1024; // 16MB (antes da compressão)
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
