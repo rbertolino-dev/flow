@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import agilizeLogo from "@/assets/agilize-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
+import { useOrganizationFeatures, FeatureKey } from "@/hooks/useOrganizationFeatures";
 
 export type CRMView = 
   | "kanban" 
@@ -52,6 +53,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const navigate = useNavigate();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
+  const { hasFeature, loading: featuresLoading, data: featuresData } = useOrganizationFeatures();
 
   const handleLogout = async () => {
     try {
@@ -73,7 +75,27 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     }
   };
 
-  const baseMenuItems = [
+  // Mapeamento de menu item para feature key
+  const menuToFeatureMap: Record<string, FeatureKey | null> = {
+    'crm': 'leads',
+    'kanban': 'leads',
+    'post-sale': 'post_sale',
+    'calls': 'call_queue',
+    'calendar': 'calendar',
+    'broadcast': 'broadcast',
+    'workflows': 'automations',
+    'automation-flows': 'automations',
+    'form-builder': 'form_builder',
+    'settings': null, // sempre visível
+    'superadmin': null, // controlado por role
+    'users': null, // sempre visível para admins
+    'phonebook': 'leads',
+    'unified-messages': 'whatsapp_messages',
+    'attention': 'leads',
+    'assistant': null,
+  };
+
+  const allBaseMenuItems = [
     { id: "crm" as const, label: "CRM", icon: Users },
     { id: "kanban" as const, label: "Funil de Vendas", icon: LayoutDashboard },
     { id: "post-sale" as const, label: "Pós-Venda", icon: ShoppingBag },
@@ -86,7 +108,30 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
-  const adminMenuItems: typeof baseMenuItems = [];
+  // Filtrar menus baseado nas features disponíveis
+  // Super admins e usuários PubDigital têm acesso total
+  const baseMenuItems = useMemo(() => {
+    // Se é super admin ou pubdigital, mostra todos os menus
+    if (isPubdigitalUser || isAdmin) {
+      console.log('[CRMLayout] Super admin/Pubdigital - showing all menus');
+      return allBaseMenuItems;
+    }
+
+    console.log('[CRMLayout] Filtering menu items, featuresLoading:', featuresLoading, 'featuresData:', featuresData);
+    return allBaseMenuItems.filter(item => {
+      const featureKey = menuToFeatureMap[item.id];
+      // Se não há feature associada, sempre mostra
+      if (featureKey === null) return true;
+      // Se ainda está carregando, mostra tudo temporariamente
+      if (featuresLoading) return true;
+      // Verifica se tem permissão
+      const allowed = hasFeature(featureKey);
+      console.log(`[CRMLayout] Menu ${item.id} -> Feature ${featureKey} -> Allowed: ${allowed}`);
+      return allowed;
+    });
+  }, [hasFeature, featuresLoading, featuresData, isPubdigitalUser, isAdmin]);
+
+  const adminMenuItems: typeof allBaseMenuItems = [];
 
   // Super Admin só para usuários PubDigital ou admins do sistema
   const superAdminMenuItems = (isPubdigitalUser || isAdmin) ? [

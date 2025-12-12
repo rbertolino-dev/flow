@@ -144,25 +144,34 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
 
   // Verifica se a organização tem acesso a uma feature específica
   const hasFeature = useCallback((feature: FeatureKey): boolean => {
-    if (!data) return false;
+    if (!data) {
+      console.log(`[hasFeature] No data available for feature: ${feature}`);
+      return false;
+    }
 
     // Durante trial, tudo liberado (exceto se explicitamente desabilitado)
     if (data.isInTrial) {
-      return !data.disabledFeatures.includes(feature);
+      const isDisabled = data.disabledFeatures.includes(feature);
+      console.log(`[hasFeature] Trial mode - Feature: ${feature}, Disabled: ${isDisabled}`);
+      return !isDisabled;
     }
 
     // Verificar se está explicitamente desabilitado (override)
     if (data.disabledFeatures.includes(feature)) {
+      console.log(`[hasFeature] Feature ${feature} is explicitly DISABLED`);
       return false;
     }
 
     // Verificar se está explicitamente habilitado (override)
     if (data.enabledFeatures.includes(feature)) {
+      console.log(`[hasFeature] Feature ${feature} is explicitly ENABLED`);
       return true;
     }
 
     // Herdar do plano
-    return data.planFeatures.includes(feature);
+    const fromPlan = data.planFeatures.includes(feature);
+    console.log(`[hasFeature] Feature ${feature} from plan: ${fromPlan}`);
+    return fromPlan;
   }, [data]);
 
   // Retorna lista de todas as features disponíveis para a organização
