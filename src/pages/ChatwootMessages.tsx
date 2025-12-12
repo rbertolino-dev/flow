@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { MessageSquare, Inbox, CheckCircle2, XCircle, Search, ChevronDown, ChevronUp, Tag, User, Clock, CheckCircle, X, Layers, Grid3x3, Loader2, ChevronDown as ChevronDownIcon } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useChatwootChats } from "@/hooks/useChatwootChats";
@@ -138,13 +138,9 @@ export default function ChatwootMessages() {
     }
   }, [hasPrevPage]);
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
+  const handleViewChange = (view: CRMView) => {
+    if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else {
@@ -163,7 +159,7 @@ export default function ChatwootMessages() {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="agilizechat" onViewChange={handleViewChange}>
+      <CRMLayout activeView="settings" onViewChange={handleViewChange}>
         <div className="h-screen flex flex-col bg-background">
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar de inboxes */}

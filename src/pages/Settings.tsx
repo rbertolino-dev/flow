@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { ChatwootConfigPanel } from "@/components/crm/ChatwootConfigPanel";
 import { FacebookConfigPanel } from "@/components/crm/FacebookConfigPanel";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
@@ -152,11 +152,9 @@ export default function Settings() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "broadcast" | "agilizechat") => {
+  const handleViewChange = (view: CRMView) => {
     if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "settings") {
       // já estamos aqui
     } else {

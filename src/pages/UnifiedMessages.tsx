@@ -161,12 +161,8 @@ export default function UnifiedMessages() {
   const { data: leadsMap } = useLeadsByPhones(phoneNumbers);
 
   const handleViewChange = (view: CRMView) => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
+    if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "unified-messages") {
       navigate('/unified-messages');
     } else if (view === "settings") {

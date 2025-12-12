@@ -67,14 +67,8 @@ export default function PeriodicWorkflows() {
     view: CRMView,
   ) => {
     switch (view) {
-      case "users":
-        navigate("/users");
-        break;
       case "broadcast":
         navigate("/broadcast");
-        break;
-      case "agilizechat":
-        navigate("/agilizechat");
         break;
       case "settings":
         navigate("/settings");

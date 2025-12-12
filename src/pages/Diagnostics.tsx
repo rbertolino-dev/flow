@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { Loader2, Shield } from "lucide-react";
 
 export default function Diagnostics() {
@@ -66,10 +66,8 @@ export default function Diagnostics() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
-    if (view === "users") window.location.href = '/users';
-    else if (view === "broadcast") window.location.href = '/broadcast';
-    else if (view === "agilizechat") window.location.href = '/agilizechat';
+  const handleViewChange = (view: CRMView) => {
+    if (view === "broadcast") window.location.href = '/broadcast';
     else if (view === "settings") window.location.href = '/settings';
     else window.location.href = '/';
   };
