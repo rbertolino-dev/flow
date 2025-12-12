@@ -236,29 +236,7 @@ export function OrganizationLimitsPanel({
 
       if (limitsError) throw limitsError;
 
-      // Salvar ou atualizar provider Evolution
-      if (selectedProviderId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const { error: providerError } = await supabase
-          .from('organization_evolution_provider')
-          .upsert({
-            organization_id: organizationId,
-            evolution_provider_id: selectedProviderId,
-            created_by: user?.id || null,
-          }, {
-            onConflict: 'organization_id',
-          });
-
-        if (providerError) throw providerError;
-      } else {
-        // Remover provider se nenhum foi selecionado
-        const { error: deleteError } = await supabase
-          .from('organization_evolution_provider')
-          .delete()
-          .eq('organization_id', organizationId);
-
-        if (deleteError && deleteError.code !== 'PGRST116') throw deleteError;
-      }
+      // O evolution_provider_id já foi salvo no limitsToSave acima
 
       toast({
         title: "Sucesso!",
