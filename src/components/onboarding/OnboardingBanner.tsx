@@ -41,7 +41,7 @@ export function OnboardingBanner() {
     users: 'Usuários',
     pipeline: 'Funil de Vendas',
     products: 'Produtos/Serviços',
-    evolution: 'Integração Evolution',
+    evolution: 'Integração WhatsApp',
   };
 
   return (

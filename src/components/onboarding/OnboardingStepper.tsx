@@ -14,7 +14,7 @@ const STEPS: Step[] = [
   { id: 'users', label: 'Usuários', description: 'Equipe' },
   { id: 'pipeline', label: 'Funil', description: 'Etapas de vendas' },
   { id: 'products', label: 'Produtos', description: 'Catálogo' },
-  { id: 'evolution', label: 'Evolution', description: 'Integração WhatsApp' },
+  { id: 'evolution', label: 'WhatsApp', description: 'Integração WhatsApp' },
 ];
 
 interface OnboardingStepperProps {
