@@ -2844,21 +2844,42 @@ export type Database = {
       }
       organizations: {
         Row: {
+          business_type: string | null
+          city: string | null
+          company_profile: string | null
           created_at: string
+          expectations: string | null
           id: string
           name: string
+          onboarding_completed: boolean | null
+          state: string | null
+          tax_regime: string | null
           updated_at: string
         }
         Insert: {
+          business_type?: string | null
+          city?: string | null
+          company_profile?: string | null
           created_at?: string
+          expectations?: string | null
           id?: string
           name: string
+          onboarding_completed?: boolean | null
+          state?: string | null
+          tax_regime?: string | null
           updated_at?: string
         }
         Update: {
+          business_type?: string | null
+          city?: string | null
+          company_profile?: string | null
           created_at?: string
+          expectations?: string | null
           id?: string
           name?: string
+          onboarding_completed?: boolean | null
+          state?: string | null
+          tax_regime?: string | null
           updated_at?: string
         }
         Relationships: []
