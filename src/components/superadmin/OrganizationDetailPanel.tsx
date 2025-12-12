@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package, Sparkles } from "lucide-react";
+import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package, Sparkles, Pencil } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -17,6 +17,7 @@ import { DeleteUserDialog } from "./DeleteUserDialog";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
 import { OrganizationPermissionsPanel } from "./OrganizationPermissionsPanel";
 import { AssistantConfigPanel } from "./AssistantConfigPanel";
+import { EditOrganizationDialog } from "@/components/crm/EditOrganizationDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -75,6 +76,7 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState(false);
+  const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -198,7 +200,18 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                 <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <CardTitle className="text-xl sm:text-2xl truncate">{organization.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-xl sm:text-2xl truncate">{organization.name}</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => setEditOrgDialogOpen(true)}
+                    title="Editar organização"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
                 <CardDescription className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
                   <Calendar className="h-3 w-3 shrink-0" />
                   <span className="truncate">
@@ -423,6 +436,13 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditOrganizationDialog
+        open={editOrgDialogOpen}
+        onOpenChange={setEditOrgDialogOpen}
+        organizationId={organization.id}
+        onSuccess={onUpdate}
+      />
     </>
   );
 }
