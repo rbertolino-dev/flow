@@ -197,7 +197,7 @@ export function OrganizationLimitsPanel({
   const fetchOrganizationProvider = async () => {
     try {
       const { data, error } = await supabase
-        .from('organization_evolution_provider')
+        .from('organization_limits')
         .select('evolution_provider_id')
         .eq('organization_id', organizationId)
         .maybeSingle();
@@ -225,6 +225,7 @@ export function OrganizationLimitsPanel({
         disabled_features: limits.disabled_features || [],
         trial_ends_at: limits.trial_ends_at,
         features_override_mode: limits.features_override_mode,
+        evolution_provider_id: selectedProviderId || null,
       };
 
       const { error: limitsError } = await supabase
