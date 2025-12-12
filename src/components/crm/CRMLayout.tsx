@@ -113,21 +113,20 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const baseMenuItems = useMemo(() => {
     // Se é super admin ou pubdigital, mostra todos os menus
     if (isPubdigitalUser || isAdmin) {
-      console.log('[CRMLayout] Super admin/Pubdigital - showing all menus');
       return allBaseMenuItems;
     }
 
-    console.log('[CRMLayout] Filtering menu items, featuresLoading:', featuresLoading, 'featuresData:', featuresData);
+    // Se ainda está carregando features, mostrar apenas items sem restrição
+    if (featuresLoading || !featuresData) {
+      return allBaseMenuItems.filter(item => menuToFeatureMap[item.id] === null);
+    }
+
     return allBaseMenuItems.filter(item => {
       const featureKey = menuToFeatureMap[item.id];
       // Se não há feature associada, sempre mostra
       if (featureKey === null) return true;
-      // Se ainda está carregando, mostra tudo temporariamente
-      if (featuresLoading) return true;
       // Verifica se tem permissão
-      const allowed = hasFeature(featureKey);
-      console.log(`[CRMLayout] Menu ${item.id} -> Feature ${featureKey} -> Allowed: ${allowed}`);
-      return allowed;
+      return hasFeature(featureKey);
     });
   }, [hasFeature, featuresLoading, featuresData, isPubdigitalUser, isAdmin]);
 

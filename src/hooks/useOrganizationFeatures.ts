@@ -73,20 +73,20 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao buscar features:', error);
+        console.error('[useOrganizationFeatures] Erro ao buscar features:', error);
         throw error;
       }
 
       if (!limitsData) {
-        // Organização sem configuração - assumir trial ativo (será criado pelo trigger)
+        // Organização sem configuração - NEGAR TUDO por padrão (segurança)
         setData({
           planId: null,
           planName: null,
           planFeatures: [],
           enabledFeatures: [],
           disabledFeatures: [],
-          trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
-          isInTrial: true,
+          trialEndsAt: null,
+          isInTrial: false,
           featuresOverrideMode: 'inherit',
         });
         return;
@@ -96,12 +96,19 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
       const trialEndsAt = limitsData.trial_ends_at ? new Date(limitsData.trial_ends_at) : null;
       const isInTrial = trialEndsAt !== null && trialEndsAt > new Date();
 
+      const enabledFeatures = Array.isArray(limitsData.enabled_features) 
+        ? limitsData.enabled_features as string[]
+        : [];
+      const disabledFeatures = Array.isArray(limitsData.disabled_features)
+        ? limitsData.disabled_features as string[]
+        : [];
+
       setData({
         planId: limitsData.plan_id,
         planName: planData?.name || null,
         planFeatures: (planData?.features as string[]) || [],
-        enabledFeatures: (limitsData.enabled_features as string[]) || [],
-        disabledFeatures: (limitsData.disabled_features as string[]) || [],
+        enabledFeatures,
+        disabledFeatures,
         trialEndsAt,
         isInTrial,
         featuresOverrideMode: (limitsData.features_override_mode as 'inherit' | 'override') || 'inherit',
@@ -131,7 +138,6 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
           filter: `organization_id=eq.${activeOrgId}`,
         },
         () => {
-          console.log('🔄 Atualizando features da organização em tempo real');
           fetchFeatures();
         }
       )
@@ -145,33 +151,26 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
   // Verifica se a organização tem acesso a uma feature específica
   const hasFeature = useCallback((feature: FeatureKey): boolean => {
     if (!data) {
-      console.log(`[hasFeature] No data available for feature: ${feature}`);
       return false;
     }
 
     // Durante trial, tudo liberado (exceto se explicitamente desabilitado)
     if (data.isInTrial) {
-      const isDisabled = data.disabledFeatures.includes(feature);
-      console.log(`[hasFeature] Trial mode - Feature: ${feature}, Disabled: ${isDisabled}`);
-      return !isDisabled;
+      return !data.disabledFeatures.includes(feature);
     }
 
     // Verificar se está explicitamente desabilitado (override)
     if (data.disabledFeatures.includes(feature)) {
-      console.log(`[hasFeature] Feature ${feature} is explicitly DISABLED`);
       return false;
     }
 
     // Verificar se está explicitamente habilitado (override)
     if (data.enabledFeatures.includes(feature)) {
-      console.log(`[hasFeature] Feature ${feature} is explicitly ENABLED`);
       return true;
     }
 
     // Herdar do plano
-    const fromPlan = data.planFeatures.includes(feature);
-    console.log(`[hasFeature] Feature ${feature} from plan: ${fromPlan}`);
-    return fromPlan;
+    return data.planFeatures.includes(feature);
   }, [data]);
 
   // Retorna lista de todas as features disponíveis para a organização
