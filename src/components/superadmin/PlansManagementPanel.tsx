@@ -61,7 +61,7 @@ interface PlanFormData {
 
 const AVAILABLE_FEATURES = [
   { value: 'leads', label: 'Leads', description: 'Gerenciamento de leads' },
-  { value: 'evolution_instances', label: 'Instâncias Evolution', description: 'Conexão com WhatsApp via Evolution API' },
+  { value: 'evolution_instances', label: 'Instâncias WhatsApp', description: 'Conexão com WhatsApp' },
   { value: 'broadcast', label: 'Disparos', description: 'Campanhas de disparo em massa' },
   { value: 'scheduled_messages', label: 'Mensagens Agendadas', description: 'Agendar mensagens para envio futuro' },
   { value: 'agents', label: 'Agentes IA', description: 'Agentes inteligentes com OpenAI' },

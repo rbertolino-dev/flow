@@ -82,9 +82,9 @@ export function WebhookLogsPanel() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Logs da Evolution API</CardTitle>
+            <CardTitle>Logs do WhatsApp</CardTitle>
             <CardDescription>
-              Últimos 50 eventos recebidos da Evolution API
+              Últimos 50 eventos recebidos do WhatsApp
             </CardDescription>
           </div>
           <Button
@@ -128,7 +128,7 @@ export function WebhookLogsPanel() {
             <p>Nenhum log encontrado</p>
             <p className="text-sm mt-2">
               {logs.length === 0
-                ? "Aguardando eventos da Evolution API"
+                ? "Aguardando eventos do WhatsApp"
                 : "Nenhum log corresponde aos filtros aplicados"}
             </p>
           </div>

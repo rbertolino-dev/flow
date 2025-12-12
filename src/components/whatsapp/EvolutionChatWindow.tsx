@@ -99,7 +99,7 @@ export function EvolutionChatWindow({ instanceId, remoteJid, contactName, onBack
         </div>
         <div className="flex-1">
           <h2 className="font-semibold text-white">{contactName}</h2>
-          <p className="text-xs text-white/80">Online • Evolution API</p>
+          <p className="text-xs text-white/80">Online • WhatsApp</p>
         </div>
       </div>
 
@@ -113,7 +113,7 @@ export function EvolutionChatWindow({ instanceId, remoteJid, contactName, onBack
       >
         {loading ? (
           <div className="text-center py-12 text-[#667781]">
-            Carregando mensagens direto da Evolution API...
+            Carregando mensagens do WhatsApp...
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-12 text-[#667781]">

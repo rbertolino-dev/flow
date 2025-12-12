@@ -1123,7 +1123,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
               </div>
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="instance-select">Instância Evolution</Label>
+                  <Label htmlFor="instance-select">Instância WhatsApp</Label>
                   <Select 
                     value={selectedInstanceId} 
                     onValueChange={setSelectedInstanceId}
@@ -1161,7 +1161,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                   </Select>
                   {!hasInstances && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Vá em Configurações → Evolution API para conectar uma instância
+                      Vá em Configurações → WhatsApp para conectar uma instância
                     </p>
                   )}
                   {hasInstances && connectedInstances.length === 0 && (

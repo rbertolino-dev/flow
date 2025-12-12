@@ -556,7 +556,7 @@ const AgentsDashboard = () => {
               </div>
               <div className="grid gap-2">
                 <Label className="flex items-center gap-2">
-                  <span>Instância Evolution (opcional)</span>
+                  <span>Instância WhatsApp (opcional)</span>
                   <Badge variant="outline" className="text-xs">WhatsApp</Badge>
                 </Label>
                 <Select
@@ -624,8 +624,8 @@ const AgentsDashboard = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">3️⃣ Sincronizar com Evolution (WhatsApp)</p>
-                    <p className="text-sm">Na tabela, clique no botão <strong>"Evolution"</strong>. Isso adiciona o assistente OpenAI ao campo <code>integrations.openai</code> da sua instância Evolution, vinculando o agente ao WhatsApp.</p>
+                    <p className="font-medium mb-1">3️⃣ Sincronizar com WhatsApp</p>
+                    <p className="text-sm">Na tabela, clique no botão <strong>"WhatsApp"</strong>. Isso adiciona o assistente OpenAI à sua instância WhatsApp, vinculando o agente.</p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">4️⃣ Pronto! Agente Ativo</p>
@@ -700,7 +700,7 @@ const AgentsDashboard = () => {
                   <TableHead>Agente</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Modelo</TableHead>
-                  <TableHead>Instância Evolution</TableHead>
+                  <TableHead>Instância WhatsApp</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -763,7 +763,7 @@ const AgentsDashboard = () => {
                           console.log(`📋 [Dashboard] openai_assistant_id:`, agent.openai_assistant_id);
                           
                           if (!agent.evolution_config_id) {
-                            alert(`⚠️ ATENÇÃO!\n\nEste agente não tem uma instância Evolution vinculada.\n\nVá em "Editar agente" e selecione uma instância no campo "Instância Evolution (opcional)" no final do formulário.`);
+                            alert(`⚠️ ATENÇÃO!\n\nEste agente não tem uma instância WhatsApp vinculada.\n\nVá em "Editar agente" e selecione uma instância no campo "Instância WhatsApp (opcional)" no final do formulário.`);
                             return;
                           }
                           

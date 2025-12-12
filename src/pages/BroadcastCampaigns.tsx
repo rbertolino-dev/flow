@@ -3210,7 +3210,7 @@ export default function BroadcastCampaigns() {
                 {instances.length === 0 ? (
                   <Card>
                     <CardContent className="p-6 text-center text-muted-foreground">
-                      Nenhuma instância configurada. Configure uma instância Evolution API primeiro.
+                      Nenhuma instância configurada. Configure uma instância WhatsApp primeiro.
                     </CardContent>
                   </Card>
                 ) : (

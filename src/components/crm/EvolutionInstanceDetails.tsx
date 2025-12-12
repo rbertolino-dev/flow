@@ -81,7 +81,7 @@ export function EvolutionInstanceDetails({ config }: EvolutionInstanceDetailsPro
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground">
-                Configure esta URL no webhook da sua instância Evolution API
+                Configure esta URL no webhook da sua instância WhatsApp
               </p>
             </div>
 

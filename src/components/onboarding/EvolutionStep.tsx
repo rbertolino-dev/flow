@@ -53,7 +53,7 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
         setCanCreateInstance(false);
         toast({
           title: "Limite atingido",
-          description: `Você atingiu o limite de ${maxInstances} instância(s) Evolution`,
+          description: `Você atingiu o limite de ${maxInstances} instância(s) WhatsApp`,
           variant: "destructive",
         });
       } else {
@@ -92,7 +92,7 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
 
       toast({
         title: "Instância criada!",
-        description: "A instância Evolution foi configurada com sucesso",
+        description: "A instância WhatsApp foi configurada com sucesso",
       });
 
       setDialogOpen(false);
@@ -145,10 +145,10 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
       <div className="space-y-2">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
-          Integração com Evolution API
+          Integração com WhatsApp
         </h3>
         <p className="text-sm text-muted-foreground">
-          Configure sua instância Evolution para integrar com WhatsApp. Esta etapa é opcional.
+          Configure sua instância WhatsApp. Esta etapa é opcional.
         </p>
       </div>
 
@@ -157,7 +157,7 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Instâncias Evolution</p>
+                <p className="text-sm font-medium">Instâncias WhatsApp</p>
                 <p className="text-xs text-muted-foreground">
                   {limitInfo.current} de {limitInfo.max === null ? '∞' : limitInfo.max} utilizadas
                 </p>
@@ -214,7 +214,7 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
           <CardHeader>
             <CardTitle className="text-base">Nova Instância</CardTitle>
             <CardDescription>
-              Configure uma nova instância Evolution API
+              Configure uma nova instância WhatsApp
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -224,7 +224,7 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
               className="w-full"
             >
               <MessageSquare className="h-4 w-4 mr-2" />
-              Configurar Instância Evolution
+              Configurar Instância WhatsApp
             </Button>
           </CardContent>
         </Card>
