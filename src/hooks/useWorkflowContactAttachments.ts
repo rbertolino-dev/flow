@@ -52,7 +52,7 @@ export function useWorkflowContactAttachments(workflowId?: string) {
       const path = `${activeOrgId}/${workflowId}/contacts/${leadId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_ID)
-        .upload(path, file, { upsert: false, cacheControl: "3600" });
+        .upload(path, file, { upsert: false, cacheControl: "86400" }); // 24 horas (otimização de cache)
 
       if (uploadError) throw uploadError;
 

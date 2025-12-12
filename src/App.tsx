@@ -8,8 +8,9 @@ import Login from "./pages/Login";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
-import ChatwootMessages from "./pages/ChatwootMessages";
-import UnifiedMessages from "./pages/UnifiedMessages";
+// DESATIVADO: Funcionalidades não disponibilizadas para clientes ainda
+// import ChatwootMessages from "./pages/ChatwootMessages";
+// import UnifiedMessages from "./pages/UnifiedMessages";
 import PeriodicWorkflows from "./pages/PeriodicWorkflows";
 import AuthLogs from "./pages/AuthLogs";
 import Diagnostics from "./pages/Diagnostics";
@@ -56,8 +57,9 @@ const App = () => (
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />
-          <Route path="/agilizechat" element={<ChatwootMessages />} />
-          <Route path="/unified-messages" element={<UnifiedMessages />} />
+          {/* DESATIVADO: Funcionalidades não disponibilizadas para clientes ainda */}
+          {/* <Route path="/agilizechat" element={<ChatwootMessages />} /> */}
+          {/* <Route path="/unified-messages" element={<UnifiedMessages />} /> */}
           <Route path="/workflows" element={<PeriodicWorkflows />} />
           <Route path="/auth-logs" element={<AuthLogs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />

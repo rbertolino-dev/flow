@@ -48,13 +48,12 @@ export function useWhatsAppWorkflows() {
           `
             *,
             list:whatsapp_workflow_lists(*),
-            attachments:whatsapp_workflow_attachments(*),
-            contact_attachments:whatsapp_workflow_contact_attachments(*),
             template:message_templates(id, name, content, media_url, media_type)
           `,
         )
         .eq("organization_id", activeOrgId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       if (error) {
         console.error("Erro ao buscar workflows", error);
@@ -77,10 +76,49 @@ export function useWhatsAppWorkflows() {
       })) as unknown as WorkflowEnvio[];
       return workflows;
     },
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos (otimização de cache)
   });
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["whatsapp-workflows", activeOrgId] });
+
+  // Função para carregar attachments sob demanda (lazy loading)
+  const fetchWorkflowAttachments = async (workflowId: string): Promise<WorkflowAttachment[]> => {
+    if (!activeOrgId) return [];
+
+    const { data, error } = await supabase
+      .from("whatsapp_workflow_attachments")
+      .select("*")
+      .eq("workflow_id", workflowId)
+      .eq("organization_id", activeOrgId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar attachments do workflow:", error);
+      return [];
+    }
+
+    return (data || []) as WorkflowAttachment[];
+  };
+
+  // Função para carregar contact attachments sob demanda
+  const fetchWorkflowContactAttachments = async (workflowId: string): Promise<any[]> => {
+    if (!activeOrgId) return [];
+
+    const { data, error } = await supabase
+      .from("whatsapp_workflow_contact_attachments")
+      .select("*")
+      .eq("workflow_id", workflowId)
+      .eq("organization_id", activeOrgId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar contact attachments do workflow:", error);
+      return [];
+    }
+
+    return data || [];
+  };
 
   const persistAttachments = async (
     workflowId: string,
@@ -93,7 +131,7 @@ export function useWhatsAppWorkflows() {
       const path = `${activeOrgId}/${workflowId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_ID)
-        .upload(path, file, { upsert: false, cacheControl: "3600" });
+        .upload(path, file, { upsert: false, cacheControl: "86400" }); // 24 horas (otimização de cache)
 
       if (uploadError) throw uploadError;
 
@@ -194,7 +232,7 @@ export function useWhatsAppWorkflows() {
       const path = `${activeOrgId}/${workflowId}/contacts/${leadId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_ID)
-        .upload(path, file, { upsert: false, cacheControl: "3600" });
+        .upload(path, file, { upsert: false, cacheControl: "86400" }); // 24 horas (otimização de cache)
 
       if (uploadError) throw uploadError;
 
@@ -245,7 +283,7 @@ export function useWhatsAppWorkflows() {
         const path = `${activeOrgId}/${workflowId}/contacts/${leadId}/${month_reference.replace(/\//g, '-')}/${crypto.randomUUID()}-${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from(BUCKET_ID)
-          .upload(path, file, { upsert: false, cacheControl: "3600" });
+          .upload(path, file, { upsert: false, cacheControl: "86400" }); // 24 horas (otimização de cache)
 
         if (uploadError) throw uploadError;
 
@@ -554,6 +592,8 @@ export function useWhatsAppWorkflows() {
     updateWorkflow: updateWorkflow.mutateAsync,
     toggleWorkflowStatus: toggleWorkflowStatus.mutateAsync,
     deleteWorkflow: deleteWorkflow.mutateAsync,
+    fetchWorkflowAttachments,
+    fetchWorkflowContactAttachments,
   };
 }
 

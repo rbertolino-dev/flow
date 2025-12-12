@@ -8,8 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
+import { compressImage, validateImageFile } from "@/lib/imageCompression";
+
 const BUCKET_ID = "whatsapp-workflow-media";
-const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (após compressão)
+const MAX_FILE_SIZE_BEFORE_COMPRESSION = 16 * 1024 * 1024; // 16MB (antes da compressão)
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
 
@@ -52,25 +55,55 @@ export function StatusMediaUpload({
       return;
     }
 
-    // Validar tamanho
-    if (file.size > MAX_FILE_SIZE) {
+    // Validar tamanho antes da compressão
+    if (file.size > MAX_FILE_SIZE_BEFORE_COMPRESSION) {
       toast({
         title: "Arquivo muito grande",
-        description: `O arquivo deve ter no máximo ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+        description: `O arquivo deve ter no máximo ${MAX_FILE_SIZE_BEFORE_COMPRESSION / 1024 / 1024}MB antes da compressão`,
         variant: "destructive",
       });
       return;
     }
 
-    setSelectedFile(file);
+    // Para imagens, validar e comprimir
+    let fileToUpload = file;
+    if (isImage) {
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        toast({
+          title: "Erro na validação",
+          description: validation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Comprimir imagem
+      try {
+        setUploading(true);
+        fileToUpload = await compressImage(file);
+      } catch (error: any) {
+        console.error('Erro ao comprimir imagem:', error);
+        toast({
+          title: "Erro ao comprimir imagem",
+          description: "Tentando fazer upload do arquivo original...",
+          variant: "default",
+        });
+        fileToUpload = file; // Usar original em caso de erro
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    setSelectedFile(fileToUpload);
     setMediaType(isImage ? 'image' : 'video');
 
-    // Criar preview
+    // Criar preview com arquivo original para melhor visualização
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
 
-    // Fazer upload
-    await uploadFile(file, isImage ? 'image' : 'video');
+    // Fazer upload do arquivo (comprimido se for imagem)
+    await uploadFile(fileToUpload, isImage ? 'image' : 'video');
   };
 
   const uploadFile = async (file: File, type: 'image' | 'video') => {
@@ -95,7 +128,7 @@ export function StatusMediaUpload({
         .from(BUCKET_ID)
         .upload(filePath, file, {
           upsert: false,
-          cacheControl: '3600',
+          cacheControl: '86400', // 24 horas (otimização de cache)
         });
 
       if (uploadError) {
@@ -180,7 +213,7 @@ export function StatusMediaUpload({
               Clique ou arraste uma imagem ou vídeo aqui
             </p>
             <p className="text-xs text-gray-500">
-              JPG, PNG, WEBP ou MP4 (máx. 16MB)
+              JPG, PNG, WEBP ou MP4 (máx. 16MB - imagens serão comprimidas automaticamente)
             </p>
             <input
               ref={fileInputRef}

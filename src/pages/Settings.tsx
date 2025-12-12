@@ -24,7 +24,8 @@ import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
-import { ChatwootConfigPanel } from "@/components/crm/ChatwootConfigPanel";
+// DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
+// import { ChatwootConfigPanel } from "@/components/crm/ChatwootConfigPanel";
 import { FacebookConfigPanel } from "@/components/crm/FacebookConfigPanel";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { MercadoPagoIntegrationPanel } from "@/components/mercado-pago/MercadoPagoIntegrationPanel";
@@ -37,6 +38,8 @@ import { HubSpotListsImportPanel } from "@/components/crm/HubSpotListsImportPane
 import { UsersPanel } from "@/components/users/UsersPanel";
 import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
+import { ConditionalIntegration } from "@/components/integrations/ConditionalIntegration";
+import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -56,6 +59,11 @@ export default function Settings() {
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages } = usePipelineStages();
   const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
+
+  // Verificar acesso às integrações para controlar visibilidade das tabs
+  const hasEvolutionAccess = useIntegrationAccess('evolution');
+  const hasChatwootAccess = useIntegrationAccess('chatwoot');
+  const hasFacebookAccess = useIntegrationAccess('facebook');
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<EvolutionConfig | null>(null);
@@ -197,18 +205,25 @@ export default function Settings() {
               <span className="hidden sm:inline">Integrações</span>
               <span className="sm:hidden">Integrações</span>
             </TabsTrigger>
-            <TabsTrigger value="evolution" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">WhatsApp</span>
-              <span className="sm:hidden">WhatsApp</span>
-            </TabsTrigger>
-            <TabsTrigger value="chatwoot" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Chatwoot</span>
-              <span className="sm:hidden">Chat</span>
-            </TabsTrigger>
-            <TabsTrigger value="facebook" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Facebook/Instagram</span>
-              <span className="sm:hidden">FB/IG</span>
-            </TabsTrigger>
+            {hasEvolutionAccess && (
+              <TabsTrigger value="evolution" className="text-xs sm:text-sm">
+                <span className="hidden sm:inline">WhatsApp</span>
+                <span className="sm:hidden">WhatsApp</span>
+              </TabsTrigger>
+            )}
+            {/* DESATIVADO: Funcionalidade não disponibilizada para clientes ainda */}
+            {/* {hasChatwootAccess && (
+              <TabsTrigger value="chatwoot" className="text-xs sm:text-sm">
+                <span className="hidden sm:inline">Chatwoot</span>
+                <span className="sm:hidden">Chat</span>
+              </TabsTrigger>
+            )} */}
+            {hasFacebookAccess && (
+              <TabsTrigger value="facebook" className="text-xs sm:text-sm">
+                <span className="hidden sm:inline">Facebook/Instagram</span>
+                <span className="sm:hidden">FB/IG</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="pipeline" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Funil & Etiquetas</span>
               <span className="sm:hidden">Funil</span>
@@ -242,32 +257,48 @@ export default function Settings() {
 
               <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
                 {/* Google Calendar */}
-                <GoogleCalendarIntegrationPanel />
+                <ConditionalIntegration integrationId="google-calendar">
+                  <GoogleCalendarIntegrationPanel />
+                </ConditionalIntegration>
 
                 {/* Gmail */}
-                <GmailIntegrationPanel />
+                <ConditionalIntegration integrationId="gmail">
+                  <GmailIntegrationPanel />
+                </ConditionalIntegration>
 
                 {/* Mercado Pago */}
-                <MercadoPagoIntegrationPanel />
+                <ConditionalIntegration integrationId="mercado-pago">
+                  <MercadoPagoIntegrationPanel />
+                </ConditionalIntegration>
 
                 {/* Asaas */}
-                <AsaasIntegrationPanel />
+                <ConditionalIntegration integrationId="asaas">
+                  <AsaasIntegrationPanel />
+                </ConditionalIntegration>
 
                 {/* Bubble.io */}
-                <BubbleIntegrationPanel />
+                <ConditionalIntegration integrationId="bubble">
+                  <BubbleIntegrationPanel />
+                </ConditionalIntegration>
 
                 {/* HubSpot */}
-                <HubSpotIntegrationPanel />
+                <ConditionalIntegration integrationId="hubspot">
+                  <HubSpotIntegrationPanel />
+                </ConditionalIntegration>
               </div>
 
               <div className="mt-6">
                 <h3 className="text-lg font-semibold mb-4">Sincronização de Dados</h3>
                 <div className="grid gap-6 md:grid-cols-1">
                   {/* Sincronização de Leads do Bubble */}
-                  <BubbleLeadsSyncPanel />
+                  <ConditionalIntegration integrationId="bubble">
+                    <BubbleLeadsSyncPanel />
+                  </ConditionalIntegration>
                   
                   {/* Importação de Listas do HubSpot */}
-                  <HubSpotListsImportPanel />
+                  <ConditionalIntegration integrationId="hubspot">
+                    <HubSpotListsImportPanel />
+                  </ConditionalIntegration>
                 </div>
               </div>
 
@@ -280,10 +311,11 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
-            <EvolutionApiDiagnostics />
-            
-            <WhatsAppNumberValidator configs={configs} />
+          {hasEvolutionAccess && (
+            <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
+              <EvolutionApiDiagnostics />
+              
+              <WhatsAppNumberValidator configs={configs} />
 
             <Card>
               <CardHeader>
@@ -332,21 +364,27 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Alert>
-              <AlertDescription className="text-xs sm:text-sm">
-                <strong>Dica:</strong> Você pode ativar ou desativar o webhook para cada instância individualmente. 
-                Quando desativado, mensagens recebidas naquela instância não serão processadas pelo CRM.
-              </AlertDescription>
-            </Alert>
-          </TabsContent>
+              <Alert>
+                <AlertDescription className="text-xs sm:text-sm">
+                  <strong>Dica:</strong> Você pode ativar ou desativar o webhook para cada instância individualmente. 
+                  Quando desativado, mensagens recebidas naquela instância não serão processadas pelo CRM.
+                </AlertDescription>
+              </Alert>
+            </TabsContent>
+          )}
 
-          <TabsContent value="chatwoot" className="space-y-6">
-            <ChatwootConfigPanel />
-          </TabsContent>
+          {/* DESATIVADO: Funcionalidade não disponibilizada para clientes ainda */}
+          {/* {hasChatwootAccess && (
+            <TabsContent value="chatwoot" className="space-y-6">
+              <ChatwootConfigPanel />
+            </TabsContent>
+          )} */}
 
-          <TabsContent value="facebook" className="space-y-6">
-            <FacebookConfigPanel />
-          </TabsContent>
+          {hasFacebookAccess && (
+            <TabsContent value="facebook" className="space-y-6">
+              <FacebookConfigPanel />
+            </TabsContent>
+          )}
 
           <TabsContent value="pipeline" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">

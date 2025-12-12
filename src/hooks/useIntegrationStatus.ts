@@ -7,7 +7,8 @@ import { useMercadoPago } from "@/hooks/useMercadoPago";
 import { useAsaasConfig } from "@/hooks/useAsaasConfig";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
-import { useChatwootConfig } from "@/hooks/useChatwootConfig";
+// DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
+// import { useChatwootConfig } from "@/hooks/useChatwootConfig";
 import { useHubSpotConfigs } from "@/hooks/useHubSpotConfigs";
 
 export interface IntegrationStatus {
@@ -27,7 +28,8 @@ export function useIntegrationStatus() {
   const { config: asaasConfig } = useAsaasConfig();
   const { config: bubbleConfig } = useBubbleConfig();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
-  const { config: chatwootConfig } = useChatwootConfig(activeOrgId);
+  // DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
+  // const { config: chatwootConfig } = useChatwootConfig(activeOrgId);
   const { config: hubspotConfig } = useHubSpotConfigs();
 
   // Verificar Facebook/Instagram
@@ -94,14 +96,15 @@ export function useIntegrationStatus() {
       isActive: (evolutionConfigs?.length || 0) > 0,
       tabValue: "evolution",
     },
-    {
-      id: "chatwoot",
-      name: "Chatwoot",
-      description: "Integre com plataforma de atendimento",
-      isConfigured: !!chatwootConfig,
-      isActive: !!chatwootConfig,
-      tabValue: "chatwoot",
-    },
+    // DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
+    // {
+    //   id: "chatwoot",
+    //   name: "Chatwoot",
+    //   description: "Integre com plataforma de atendimento",
+    //   isConfigured: !!chatwootConfig,
+    //   isActive: !!chatwootConfig,
+    //   tabValue: "chatwoot",
+    // },
     {
       id: "facebook",
       name: "Facebook/Instagram",

@@ -14,12 +14,12 @@ export const AVAILABLE_FEATURES = [
   { value: 'call_queue', label: 'Fila de Chamadas', description: 'Gerenciar fila de ligações' },
   { value: 'reports', label: 'Relatórios', description: 'Acessar relatórios e análises' },
   { value: 'api_access', label: 'Acesso API', description: 'Integração via API' },
-  { value: 'post_sale', label: 'Pós-Venda', description: 'CRM de pós-venda' },
-  { value: 'automations', label: 'Automações', description: 'Fluxos de automação' },
-  { value: 'calendar', label: 'Calendário', description: 'Integração Google Calendar' },
-  { value: 'gmail', label: 'Gmail', description: 'Integração Gmail' },
-  { value: 'hubspot', label: 'HubSpot', description: 'Integração HubSpot' },
-  { value: 'n8n', label: 'N8N', description: 'Integração N8N' },
+  { value: 'calendar_integration', label: 'Integração Google Calendar', description: 'Sincronizar eventos e agendamentos' },
+  { value: 'gmail_integration', label: 'Integração Gmail', description: 'Enviar e receber emails' },
+  { value: 'payment_integration', label: 'Integração Pagamentos', description: 'Mercado Pago e Asaas' },
+  { value: 'bubble_integration', label: 'Integração Bubble.io', description: 'Conectar com aplicativos Bubble' },
+  { value: 'hubspot_integration', label: 'Integração HubSpot', description: 'Sincronizar contatos e listas' },
+  { value: 'chatwoot_integration', label: 'Integração Chatwoot', description: 'Plataforma de atendimento' },
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];

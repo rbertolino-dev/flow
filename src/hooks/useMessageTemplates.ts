@@ -34,6 +34,7 @@ export function useMessageTemplates() {
       if (error) throw error;
       return data as MessageTemplate[];
     },
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos (otimização de cache)
   });
 
   const createTemplate = useMutation({

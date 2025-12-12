@@ -26,9 +26,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Image as ImageIcon, X, Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { compressImage, validateImageFile } from "@/lib/imageCompression";
 
 const BUCKET_ID = "whatsapp-workflow-media";
-const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16MB
+const MAX_FILE_SIZE_BEFORE_COMPRESSION = 16 * 1024 * 1024; // 16MB (antes da compressão)
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 export function CalendarMessageTemplateManager() {
@@ -142,7 +143,7 @@ export function CalendarMessageTemplateManager() {
         .from(BUCKET_ID)
         .upload(filePath, file, {
           upsert: false,
-          cacheControl: '3600',
+          cacheControl: '86400', // 24 horas (otimização de cache)
         });
 
       if (uploadError) {

@@ -110,7 +110,8 @@ export function useWorkflowStats() {
         nextExecutions: nextExecutionsCount || 0,
       };
     },
-    refetchInterval: 30000, // Atualizar a cada 30 segundos
+    staleTime: 2 * 60 * 1000, // Cache por 2 minutos (otimização de cache)
+    refetchInterval: 60000, // Atualizar a cada 60 segundos (reduzido de 30s para economizar)
   });
 
   return {
