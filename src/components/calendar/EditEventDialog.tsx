@@ -26,7 +26,9 @@ import { format } from "date-fns";
 import { CalendarEvent } from "@/hooks/useCalendarEvents";
 import { Switch } from "@/components/ui/switch";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { parseSaoPauloDateTime, formatSaoPauloTime } from "@/lib/dateUtils";
+import { Badge } from "@/components/ui/badge";
 
 interface EditEventDialogProps {
   open: boolean;
@@ -46,6 +48,7 @@ export function EditEventDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { stages } = usePipelineStages();
+  const { users: organizationUsers } = useOrganizationUsers();
   
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -59,6 +62,9 @@ export function EditEventDialog({
     colorId: "",
     stageId: "",
     addGoogleMeet: false,
+    organizerUserId: "",
+    attendees: [] as Array<{ email: string; displayName?: string }>,
+    attendeeEmail: "",
   });
 
   // Preencher formulário quando evento mudar
@@ -81,6 +87,9 @@ export function EditEventDialog({
         colorId: "",
         stageId: event.stage_id || "",
         addGoogleMeet: false, // Verificar se já tem Meet link
+        organizerUserId: (event as any).organizer_user_id || "",
+        attendees: (event as any).attendees || [],
+        attendeeEmail: "",
       });
     }
   }, [event]);
@@ -127,6 +136,8 @@ export function EditEventDialog({
           colorId: formData.colorId || undefined,
           stageId: formData.stageId || undefined,
           addGoogleMeet: formData.addGoogleMeet || false,
+          organizerUserId: formData.organizerUserId || undefined,
+          attendees: formData.attendees.length > 0 ? formData.attendees : undefined,
         },
       });
 
@@ -328,6 +339,88 @@ export function EditEventDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="organizer">Usuário Responsável</Label>
+            <Select
+              value={formData.organizerUserId || undefined}
+              onValueChange={(value) => setFormData({ ...formData, organizerUserId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {organizationUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.full_name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="attendees">Convidados (emails separados por vírgula)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="attendee-email"
+                type="email"
+                placeholder="email@example.com"
+                value={formData.attendeeEmail}
+                onChange={(e) => setFormData({ ...formData, attendeeEmail: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && formData.attendeeEmail.trim()) {
+                    e.preventDefault();
+                    const email = formData.attendeeEmail.trim();
+                    if (email && !formData.attendees.some(a => a.email === email)) {
+                      setFormData({
+                        ...formData,
+                        attendees: [...formData.attendees, { email }],
+                        attendeeEmail: "",
+                      });
+                    }
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const email = formData.attendeeEmail.trim();
+                  if (email && !formData.attendees.some(a => a.email === email)) {
+                    setFormData({
+                      ...formData,
+                      attendees: [...formData.attendees, { email }],
+                      attendeeEmail: "",
+                    });
+                  }
+                }}
+              >
+                Adicionar
+              </Button>
+            </div>
+            {formData.attendees.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.attendees.map((attendee, index) => (
+                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                    {attendee.email}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          attendees: formData.attendees.filter((_, i) => i !== index),
+                        });
+                      }}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">

@@ -22,11 +22,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar, Loader2, Video, MessageSquare, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { format, addHours, parse } from "date-fns";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
 import { useCalendarMessageTemplates } from "@/hooks/useCalendarMessageTemplates";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { extractContactFromEventTitle, applyMessageTemplate } from "@/lib/eventUtils";
 import { Switch } from "@/components/ui/switch";
 import { ptBR } from "date-fns/locale";
@@ -53,9 +55,27 @@ export function CreateEventDialog({
   const { templates, isLoading: templatesLoading } = useCalendarMessageTemplates();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const { stages } = usePipelineStages();
+  const { users: organizationUsers } = useOrganizationUsers();
   const queryClient = useQueryClient();
   const activeConfigs = configs.filter((c) => c.is_active);
   const activeEvolutionConfigs = evolutionConfigs.filter((c) => c.is_connected);
+  
+  // Obter usuário atual
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.id) {
+        setCurrentUserId(user.id);
+        // Definir como organizador padrão se não tiver sido definido
+        setFormData(prev => {
+          if (!prev.organizerUserId) {
+            return { ...prev, organizerUserId: user.id };
+          }
+          return prev;
+        });
+      }
+    });
+  }, []);
   
   const [loading, setLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -78,6 +98,9 @@ export function CreateEventDialog({
     selectedTemplateId: "",
     selectedInstanceId: "",
     messageText: "",
+    organizerUserId: "",
+    attendees: [] as Array<{ email: string; displayName?: string }>,
+    attendeeEmail: "",
   });
   
   // Extrair nome e telefone do título quando mudar
@@ -263,6 +286,8 @@ export function CreateEventDialog({
           colorId: formData.colorId || undefined,
           stageId: formData.stageId || undefined,
           addGoogleMeet: formData.addGoogleMeet || false,
+          organizerUserId: formData.organizerUserId || undefined,
+          attendees: formData.attendees.length > 0 ? formData.attendees : undefined,
         },
       });
 
@@ -388,6 +413,9 @@ export function CreateEventDialog({
         selectedTemplateId: "",
         selectedInstanceId: "",
         messageText: "",
+        organizerUserId: currentUserId || "",
+        attendees: [],
+        attendeeEmail: "",
       });
       setMeetLink("");
 
@@ -581,6 +609,88 @@ export function CreateEventDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="organizer">Usuário Responsável</Label>
+            <Select
+              value={formData.organizerUserId || undefined}
+              onValueChange={(value) => setFormData({ ...formData, organizerUserId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={currentUserId ? "Selecione um usuário (opcional)" : "Carregando..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {organizationUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.full_name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="attendees">Convidados (emails separados por vírgula)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="attendee-email"
+                type="email"
+                placeholder="email@example.com"
+                value={formData.attendeeEmail}
+                onChange={(e) => setFormData({ ...formData, attendeeEmail: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && formData.attendeeEmail.trim()) {
+                    e.preventDefault();
+                    const email = formData.attendeeEmail.trim();
+                    if (email && !formData.attendees.some(a => a.email === email)) {
+                      setFormData({
+                        ...formData,
+                        attendees: [...formData.attendees, { email }],
+                        attendeeEmail: "",
+                      });
+                    }
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const email = formData.attendeeEmail.trim();
+                  if (email && !formData.attendees.some(a => a.email === email)) {
+                    setFormData({
+                      ...formData,
+                      attendees: [...formData.attendees, { email }],
+                      attendeeEmail: "",
+                    });
+                  }
+                }}
+              >
+                Adicionar
+              </Button>
+            </div>
+            {formData.attendees.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.attendees.map((attendee, index) => (
+                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                    {attendee.email}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          attendees: formData.attendees.filter((_, i) => i !== index),
+                        });
+                      }}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">

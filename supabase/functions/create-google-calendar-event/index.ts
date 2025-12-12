@@ -17,6 +17,8 @@ interface CreateEventPayload {
   colorId?: string;
   stageId?: string;
   addGoogleMeet?: boolean;
+  organizerUserId?: string;
+  attendees?: Array<{ email: string; displayName?: string }>;
 }
 
 serve(async (req) => {
@@ -34,7 +36,9 @@ serve(async (req) => {
       location,
       colorId,
       stageId,
-      addGoogleMeet = false
+      addGoogleMeet = false,
+      organizerUserId,
+      attendees = []
     } = await req.json() as CreateEventPayload;
 
     // Validar parâmetros
@@ -135,6 +139,14 @@ serve(async (req) => {
       event.colorId = colorId;
     }
 
+    // Adicionar convidados se fornecidos
+    if (attendees && attendees.length > 0) {
+      event.attendees = attendees.map(attendee => ({
+        email: attendee.email,
+        displayName: attendee.displayName || attendee.email.split('@')[0],
+      }));
+    }
+
     // Adicionar Google Meet se solicitado
     if (addGoogleMeet) {
       event.conferenceData = {
@@ -194,6 +206,8 @@ serve(async (req) => {
           location: eventData.location || location || null,
           html_link: eventData.htmlLink || null,
           stage_id: stageId || null,
+          organizer_user_id: organizerUserId || null,
+          attendees: attendees.length > 0 ? attendees : null,
         },
         {
           onConflict: 'google_calendar_config_id,google_event_id',

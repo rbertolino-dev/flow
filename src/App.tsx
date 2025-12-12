@@ -32,6 +32,8 @@ import AgilizeEmbed from "./pages/AgilizeEmbed";
 import Assistant from "./pages/Assistant";
 import ReconnectInstance from "./pages/ReconnectInstance";
 import NotFound from "./pages/NotFound";
+import Cadastro from "./pages/Cadastro";
+import Onboarding from "./pages/Onboarding";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +51,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/cadastro" element={<Cadastro />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/broadcast" element={<BroadcastCampaigns />} />

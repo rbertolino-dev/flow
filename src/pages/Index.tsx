@@ -17,6 +17,7 @@ import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useFlowTriggers } from "@/hooks/useFlowTriggers";
+import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays } from "lucide-react";
 import Settings from "./Settings";
 import { Input } from "@/components/ui/input";
@@ -200,6 +201,7 @@ const Index = () => {
         onViewChange={handleViewChange}
         syncInfo={{ lastSync, nextSync, isSyncing }}
       >
+      <OnboardingBanner />
       {activeView === "kanban" && (
         <div className="h-full bg-background flex flex-col">
           <div className="p-3 sm:p-4 lg:p-6 border-b border-border space-y-3 sm:space-y-4">

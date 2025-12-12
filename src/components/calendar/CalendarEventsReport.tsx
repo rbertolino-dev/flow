@@ -5,6 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, BarChart3, TrendingUp, Calendar as CalendarIcon2, Filter } from "lucide-react";
@@ -12,7 +20,9 @@ import { format, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { supabase } from "@/integrations/supabase/client";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend, Cell, Pie, PieChart } from "recharts";
 import { formatSaoPauloDateTime } from "@/lib/dateUtils";
 
@@ -20,7 +30,9 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 export function CalendarEventsReport() {
   const { stages } = usePipelineStages();
+  const { users: organizationUsers } = useOrganizationUsers();
   const [dateFilterMode, setDateFilterMode] = useState<'thisMonth' | 'last30Days' | 'last90Days' | 'custom'>('thisMonth');
+  const [userStats, setUserStats] = useState<Record<string, { name: string; total: number; completed: number }>>({});
   const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date | undefined>(endOfMonth(new Date()));
   const [showStartCalendar, setShowStartCalendar] = useState(false);
@@ -104,6 +116,40 @@ export function CalendarEventsReport() {
   }, [events]);
 
   const completedPercentage = totalEvents > 0 ? Math.round((completedEvents.length / totalEvents) * 100) : 0;
+
+  // Estatísticas por usuário
+  const eventsByUser = useMemo(() => {
+    const grouped: Record<string, { user: any; total: number; completed: number; events: any[] }> = {};
+
+    events.forEach((event) => {
+      const userId = (event as any).organizer_user_id || 'sem-usuario';
+      if (!grouped[userId]) {
+        const user = organizationUsers.find(u => u.id === userId);
+        grouped[userId] = {
+          user: user || { id: userId, full_name: 'Sem usuário', email: '' },
+          total: 0,
+          completed: 0,
+          events: [],
+        };
+      }
+      grouped[userId].total++;
+      if ((event as any).status === 'completed') {
+        grouped[userId].completed++;
+      }
+      grouped[userId].events.push(event);
+    });
+
+    return Object.values(grouped).sort((a, b) => b.total - a.total);
+  }, [events, organizationUsers]);
+
+  // Dados para gráfico de usuários
+  const userChartData = useMemo(() => {
+    return eventsByUser.map((item) => ({
+      name: item.user.full_name || item.user.email || 'Sem usuário',
+      total: item.total,
+      realizadas: item.completed,
+    }));
+  }, [eventsByUser]);
 
   // Dados para gráfico de barras
   const barChartData = useMemo(() => {
@@ -429,6 +475,102 @@ export function CalendarEventsReport() {
                 ))}
               </div>
             </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Relatório por Usuário */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Relatório de Reuniões por Usuário
+          </CardTitle>
+          <CardDescription>
+            Estatísticas de reuniões realizadas por cada usuário da organização
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground">Carregando dados...</p>
+            </div>
+          ) : eventsByUser.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground">Nenhuma reunião encontrada no período selecionado</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Gráfico de Barras por Usuário */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Reuniões por Usuário</h3>
+                <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                  <BarChart data={userChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Legend />
+                    <Bar dataKey="total" fill="hsl(var(--primary))" name="Total" />
+                    <Bar dataKey="realizadas" fill="#10b981" name="Realizadas" />
+                  </BarChart>
+                </ChartContainer>
+              </div>
+
+              {/* Tabela Detalhada por Usuário */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Detalhamento por Usuário</h3>
+                <ScrollArea className="h-[400px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Usuário</TableHead>
+                        <TableHead>Total de Reuniões</TableHead>
+                        <TableHead>Realizadas</TableHead>
+                        <TableHead>Taxa de Conclusão</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {eventsByUser.map((item) => {
+                        const completionRate = item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0;
+                        return (
+                          <TableRow key={item.user.id}>
+                            <TableCell className="font-medium">
+                              {item.user.full_name || item.user.email || 'Sem usuário'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{item.total}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                                {item.completed}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-muted rounded-full h-2">
+                                  <div
+                                    className="bg-green-600 h-2 rounded-full transition-all"
+                                    style={{ width: `${completionRate}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm font-medium">{completionRate}%</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

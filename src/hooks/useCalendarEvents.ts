@@ -17,6 +17,8 @@ export interface CalendarEvent {
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
   completed_at: string | null;
   completion_notes: string | null;
+  organizer_user_id: string | null;
+  attendees: Array<{ email: string; displayName?: string }> | null;
   created_at: string;
   updated_at: string;
 }

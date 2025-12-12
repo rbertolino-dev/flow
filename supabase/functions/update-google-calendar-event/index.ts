@@ -14,6 +14,8 @@ interface UpdateEventPayload {
   colorId?: string;
   stageId?: string;
   addGoogleMeet?: boolean;
+  organizerUserId?: string;
+  attendees?: Array<{ email: string; displayName?: string }>;
 }
 
 serve(async (req) => {
@@ -59,7 +61,9 @@ serve(async (req) => {
       location,
       colorId,
       stageId,
-      addGoogleMeet = false
+      addGoogleMeet = false,
+      organizerUserId,
+      attendees = []
     } = payload;
 
     if (!google_calendar_config_id || !google_event_id) {
@@ -176,6 +180,19 @@ serve(async (req) => {
       };
     }
 
+    // Atualizar convidados se fornecidos
+    if (attendees !== undefined) {
+      if (attendees.length > 0) {
+        eventUpdate.attendees = attendees.map(attendee => ({
+          email: attendee.email,
+          displayName: attendee.displayName || attendee.email.split('@')[0],
+        }));
+      } else {
+        // Se array vazio, remover todos os convidados
+        eventUpdate.attendees = [];
+      }
+    }
+
     // Adicionar Google Meet se solicitado e não existir
     if (addGoogleMeet && !existingEvent.conferenceData) {
       eventUpdate.conferenceData = {
@@ -231,6 +248,8 @@ serve(async (req) => {
           location: updatedEvent.location || location || null,
           html_link: updatedEvent.htmlLink || null,
           stage_id: stageId !== undefined ? (stageId || null) : undefined,
+          organizer_user_id: organizerUserId !== undefined ? (organizerUserId || null) : undefined,
+          attendees: attendees !== undefined ? (attendees.length > 0 ? attendees : null) : undefined,
         })
         .eq('google_calendar_config_id', google_calendar_config_id)
         .eq('google_event_id', google_event_id);

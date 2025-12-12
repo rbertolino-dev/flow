@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,15 +31,43 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     company: "",
     value: "",
     productId: "",
-    stageId: stages[0]?.id || "",
+    stageId: "",
     notes: "",
   });
+
+  // Resetar formulário quando o dialog abrir ou quando stages mudar
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        name: "",
+        phone: "",
+        email: "",
+        company: "",
+        value: "",
+        productId: "",
+        stageId: stages[0]?.id || "",
+        notes: "",
+      });
+      setAddToQueue(true);
+      setLoading(false);
+    }
+  }, [open, stages]);
 
   const activeProducts = getActiveProducts();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validar se há etapas disponíveis
+    if (stages.length === 0) {
+      toast({
+        title: "Nenhuma etapa disponível",
+        description: "Crie pelo menos uma etapa no funil antes de adicionar contatos",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!formData.name || !formData.phone) {
       toast({
         title: "Campos obrigatórios",
@@ -56,6 +84,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         variant: "destructive",
       });
       return;
+    }
+
+    // Garantir que stageId está definido
+    if (!formData.stageId) {
+      setFormData(prev => ({ ...prev, stageId: stages[0]?.id || "" }));
     }
 
     setLoading(true);
@@ -134,6 +167,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         description: "O lead foi adicionado ao funil com sucesso",
       });
 
+      // Resetar formulário
       setFormData({
         name: "",
         phone: "",
@@ -144,6 +178,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         stageId: stages[0]?.id || "",
         notes: "",
       });
+      setAddToQueue(true);
 
       onLeadCreated();
       onOpenChange(false);
@@ -261,18 +296,30 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
 
           <div className="space-y-2">
             <Label htmlFor="stage">Etapa Inicial</Label>
-            <Select value={formData.stageId} onValueChange={(value) => setFormData({ ...formData, stageId: value })}>
+            <Select 
+              value={formData.stageId || stages[0]?.id || ""} 
+              onValueChange={(value) => setFormData({ ...formData, stageId: value })}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione a etapa" />
+                <SelectValue placeholder={stages.length > 0 ? "Selecione a etapa" : "Nenhuma etapa disponível"} />
               </SelectTrigger>
               <SelectContent>
-                {stages.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    {stage.name}
-                  </SelectItem>
-                ))}
+                {stages.length > 0 ? (
+                  stages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>Nenhuma etapa disponível</SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {stages.length === 0 && (
+              <p className="text-xs text-amber-600">
+                ⚠️ Crie pelo menos uma etapa no funil antes de adicionar contatos
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -295,8 +342,8 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Criando..." : "Criar Lead"}
+            <Button type="submit" disabled={loading || stages.length === 0}>
+              {loading ? "Criando..." : "Criar Contato"}
             </Button>
           </DialogFooter>
         </form>

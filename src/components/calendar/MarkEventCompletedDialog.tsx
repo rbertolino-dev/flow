@@ -57,11 +57,8 @@ export function MarkEventCompletedDialog({
   if (!event) return null;
 
   const contactInfo = extractContactFromEventTitle(event.summary || "");
-  const completedTemplates = templates.filter(t => 
-    t.name.toLowerCase().includes('realizada') || 
-    t.name.toLowerCase().includes('reunião') ||
-    t.name.toLowerCase().includes('completa')
-  );
+  // Mostrar todos os templates ativos (removido filtro restritivo)
+  const availableTemplates = templates;
 
   const handleMarkCompleted = async () => {
     if (!event) return;
@@ -69,8 +66,8 @@ export function MarkEventCompletedDialog({
     setLoading(true);
     try {
       // Atualizar status do evento
-      const { error: updateError } = await (supabase
-        .from("calendar_events") as any)
+      const { error: updateError } = await supabase
+        .from("calendar_events")
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
@@ -260,15 +257,15 @@ export function MarkEventCompletedDialog({
                         <SelectValue placeholder="Selecione um template" />
                       </SelectTrigger>
                       <SelectContent>
-                        {completedTemplates.length > 0 ? (
-                          completedTemplates.map((template) => (
+                        {availableTemplates.length > 0 ? (
+                          availableTemplates.map((template) => (
                             <SelectItem key={template.id} value={template.id}>
                               {template.name}
                             </SelectItem>
                           ))
                         ) : (
                           <SelectItem value="none" disabled>
-                            Nenhum template encontrado
+                            Nenhum template encontrado. Crie templates na aba "Templates".
                           </SelectItem>
                         )}
                       </SelectContent>

@@ -1,9 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarEvent } from "@/hooks/useCalendarEvents";
-import { ExternalLink, MapPin, Edit, Trash2, MessageSquare, CheckCircle2 } from "lucide-react";
+import { ExternalLink, MapPin, Edit, Trash2, MessageSquare, CheckCircle2, Users, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatSaoPauloDateTime, formatSaoPauloTime, formatSaoPauloDate } from "@/lib/dateUtils";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -20,6 +22,23 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
   const isAllDay = !event.start_datetime.includes("T");
   const isCompleted = event.status === 'completed';
   const isPast = startDate < new Date();
+  const [organizerName, setOrganizerName] = useState<string | null>(null);
+
+  // Buscar nome do organizador
+  useEffect(() => {
+    if (event.organizer_user_id) {
+      supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', event.organizer_user_id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setOrganizerName(data.full_name || data.email);
+          }
+        });
+    }
+  }, [event.organizer_user_id]);
 
   return (
     <Card className={`cursor-pointer hover:bg-accent transition-colors ${isCompleted ? 'border-green-500 bg-green-50/50' : ''}`} onClick={onClick}>
@@ -130,6 +149,22 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
 
             {event.description && (
               <p className="line-clamp-2 mt-1">{event.description}</p>
+            )}
+
+            {organizerName && (
+              <div className="flex items-center gap-1 mt-1">
+                <User className="h-3 w-3" />
+                <span className="text-xs text-muted-foreground">Responsável: {organizerName}</span>
+              </div>
+            )}
+
+            {event.attendees && event.attendees.length > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                <Users className="h-3 w-3" />
+                <span className="text-xs text-muted-foreground">
+                  {event.attendees.length} convidado{event.attendees.length !== 1 ? 's' : ''}
+                </span>
+              </div>
             )}
           </div>
         </div>
