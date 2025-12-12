@@ -116,7 +116,31 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
 
   useEffect(() => {
     fetchFeatures();
-  }, [fetchFeatures]);
+
+    // Subscrição realtime para mudanças em organization_limits
+    if (!activeOrgId) return;
+
+    const channel = supabase
+      .channel(`org-features-${activeOrgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'organization_limits',
+          filter: `organization_id=eq.${activeOrgId}`,
+        },
+        () => {
+          console.log('🔄 Atualizando features da organização em tempo real');
+          fetchFeatures();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchFeatures, activeOrgId]);
 
   // Verifica se a organização tem acesso a uma feature específica
   const hasFeature = useCallback((feature: FeatureKey): boolean => {
