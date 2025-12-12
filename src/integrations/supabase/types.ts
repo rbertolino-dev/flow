@@ -4531,6 +4531,15 @@ export type Database = {
           risk_score: number
         }[]
       }
+      get_organization_evolution_provider: {
+        Args: { _org_id: string }
+        Returns: {
+          api_key: string
+          api_url: string
+          provider_id: string
+          provider_name: string
+        }[]
+      }
       get_organization_metrics: {
         Args: {
           current_month_end: string
@@ -4597,6 +4606,10 @@ export type Database = {
         Returns: undefined
       }
       is_pubdigital_user: { Args: { _user_id: string }; Returns: boolean }
+      organization_has_evolution_provider: {
+        Args: { _org_id: string }
+        Returns: boolean
+      }
       organization_has_feature: {
         Args: { _feature: string; _organization_id: string }
         Returns: boolean

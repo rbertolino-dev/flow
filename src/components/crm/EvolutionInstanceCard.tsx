@@ -47,7 +47,7 @@ export function EvolutionInstanceCard({
       const orgId = await getUserOrganizationId();
       if (!orgId) return;
 
-      const { data, error } = await supabase.rpc('organization_has_evolution_provider', {
+      const { data, error } = await supabase.rpc('organization_has_evolution_provider' as any, {
         _org_id: orgId,
       });
 

@@ -76,9 +76,9 @@ export function EvolutionInstanceDialog({
       const orgId = await getUserOrganizationId();
       if (!orgId) return;
 
-      const { data, error } = await supabase.rpc('get_organization_evolution_provider', {
+      const { data, error } = await supabase.rpc('get_organization_evolution_provider' as any, {
         _org_id: orgId,
-      });
+      }) as { data: any[] | null; error: any };
 
       if (error && error.code !== 'PGRST116') {
         // Se for erro de permissão, apenas não definir provider
