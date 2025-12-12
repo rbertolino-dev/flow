@@ -200,8 +200,8 @@ export default function Settings() {
               <span className="sm:hidden">Integrações</span>
             </TabsTrigger>
             <TabsTrigger value="evolution" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Evolution API</span>
-              <span className="sm:hidden">Evolution</span>
+              <span className="hidden sm:inline">WhatsApp</span>
+              <span className="sm:hidden">WhatsApp</span>
             </TabsTrigger>
             <TabsTrigger value="chatwoot" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Chatwoot</span>
@@ -291,9 +291,9 @@ export default function Settings() {
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
                   <div>
-                    <CardTitle className="text-lg sm:text-xl">Instâncias Evolution API</CardTitle>
+                    <CardTitle className="text-lg sm:text-xl">Instâncias WhatsApp</CardTitle>
                     <CardDescription className="text-xs sm:text-sm mt-1">
-                      Gerencie suas conexões com o WhatsApp via Evolution API
+                      Gerencie suas conexões com o WhatsApp
                     </CardDescription>
                   </div>
                   <Button onClick={() => {
