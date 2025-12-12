@@ -44,8 +44,8 @@ export function useOnboarding() {
         return null;
       }
 
-      // Buscar dados da organização
-      const { data: orgData, error: orgError } = await supabase
+      // Buscar dados da organização (usando cast para ignorar cache de tipos)
+      const { data: orgData, error: orgError } = await (supabase as any)
         .from('organizations')
         .select('*')
         .eq('id', organizationId)
@@ -241,9 +241,10 @@ export function useOnboarding() {
         return false;
       }
 
-      const { error } = await supabase
+      // Usar abordagem que ignora cache de tipos
+      const { error } = await (supabase as any)
         .from('organizations')
-        .update(data as any)
+        .update(data)
         .eq('id', organizationId);
 
       if (error) throw error;
