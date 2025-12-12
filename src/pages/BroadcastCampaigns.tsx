@@ -18,7 +18,7 @@ import { format as formatDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
@@ -513,12 +513,10 @@ export default function BroadcastCampaigns() {
   const [searchSimulation, setSearchSimulation] = useState("");
   const [filterInstanceSimulation, setFilterInstanceSimulation] = useState<string>("all");
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
+  const handleViewChange = (view: CRMView) => {
     if (view === "kanban") navigate('/');
     else if (view === "calls") navigate('/');
     else if (view === "settings") navigate('/settings');
-    else if (view === "users") navigate('/users');
-    else if (view === "agilizechat") navigate('/agilizechat');
     else if (view === "broadcast") navigate('/broadcast');
   };
 

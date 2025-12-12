@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
 import { LeadsListView } from "@/components/crm/LeadsListView";
 import { CalendarView } from "@/components/crm/CalendarView";
@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeView, setActiveView] = useState<"kanban" | "calls" | "settings" | "users" | "broadcast">("kanban");
+  const [activeView, setActiveView] = useState<CRMView>("kanban");
   
   // Lê o state da navegação para definir a view inicial
   useEffect(() => {
@@ -182,13 +182,9 @@ const Index = () => {
     );
   }
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
+  const handleViewChange = (view: CRMView) => {
+    if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else {
       setActiveView(view);
     }

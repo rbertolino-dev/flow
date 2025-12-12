@@ -16,11 +16,9 @@ export default function AgilizeEmbed() {
   const [loading, setLoading] = useState(true);
   const [useProxy, setUseProxy] = useState(true); // Toggle para usar proxy ou direto
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "broadcast" | "agilizechat" | "agilize" | "crm" | "calendar" | "workflows" | "automation-flows" | "agents" | "form-builder" | "post-sale") => {
+  const handleViewChange = (view: "kanban" | "calls" | "settings" | "broadcast" | "crm" | "calendar" | "workflows" | "automation-flows" | "form-builder" | "post-sale") => {
     if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else if (view === "crm") {
@@ -31,8 +29,6 @@ export default function AgilizeEmbed() {
       navigate('/workflows');
     } else if (view === "automation-flows") {
       navigate('/automation-flows');
-    } else if (view === "agents") {
-      navigate('/agents');
     } else if (view === "form-builder") {
       navigate('/form-builder');
     } else if (view === "post-sale") {
@@ -111,7 +107,7 @@ export default function AgilizeEmbed() {
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="agilize" onViewChange={handleViewChange}>
+      <CRMLayout activeView="settings" onViewChange={handleViewChange}>
         <div style={{ 
           width: '100%', 
           height: 'calc(100vh - 120px)', 

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, XCircle, Loader2, ShieldAlert } from "lucide-react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -82,13 +82,9 @@ export default function AuthLogs() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
+  const handleViewChange = (view: CRMView) => {
+    if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else {

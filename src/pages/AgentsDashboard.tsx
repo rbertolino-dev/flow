@@ -342,17 +342,14 @@ const AgentsDashboard = () => {
     if (view === "kanban") navigate('/');
     else if (view === "calls") navigate('/');
     else if (view === "settings") navigate('/settings');
-    else if (view === "users") navigate('/users');
     else if (view === "broadcast") navigate('/broadcast');
-    else if (view === "agilizechat") navigate('/agilizechat');
     else if (view === "phonebook") navigate('/lista-telefonica');
     else if (view === "workflows") navigate('/workflows');
-    else if (view === "agents") navigate('/agents');
   };
 
   return (
     <AuthGuard>
-      <CRMLayout activeView="agents" onViewChange={handleViewChange}>
+      <CRMLayout activeView="settings" onViewChange={handleViewChange}>
         <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>

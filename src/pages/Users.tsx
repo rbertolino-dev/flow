@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2, ShieldAlert } from "lucide-react";
 import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { CRMLayout } from "@/components/crm/CRMLayout";
+import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { DeleteUserDialog } from "@/components/superadmin/DeleteUserDialog";
 import {
@@ -316,13 +316,9 @@ export default function Users() {
     }
   };
 
-  const handleViewChange = (view: "kanban" | "calls" | "settings" | "users" | "broadcast" | "agilizechat") => {
-    if (view === "users") {
-      // já estamos aqui
-    } else if (view === "broadcast") {
+  const handleViewChange = (view: CRMView) => {
+    if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else {

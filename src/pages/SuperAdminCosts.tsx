@@ -7,12 +7,8 @@ export default function SuperAdminCosts() {
   const navigate = useNavigate();
 
   const handleViewChange = (view: CRMView) => {
-    if (view === "users") {
-      navigate('/users');
-    } else if (view === "broadcast") {
+    if (view === "broadcast") {
       navigate('/broadcast');
-    } else if (view === "agilizechat") {
-      navigate('/agilizechat');
     } else if (view === "settings") {
       navigate('/settings');
     } else if (view === "phonebook") {
