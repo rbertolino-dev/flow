@@ -2709,6 +2709,9 @@ export type Database = {
           current_month_scheduled: number | null
           current_storage_used_gb: number | null
           current_users_count: number | null
+          disabled_features: Json | null
+          enabled_features: Json | null
+          features_override_mode: string | null
           id: string
           last_reset_at: string | null
           max_broadcasts_per_month: number | null
@@ -2719,6 +2722,7 @@ export type Database = {
           max_users: number | null
           organization_id: string
           plan_id: string | null
+          trial_ends_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2729,6 +2733,9 @@ export type Database = {
           current_month_scheduled?: number | null
           current_storage_used_gb?: number | null
           current_users_count?: number | null
+          disabled_features?: Json | null
+          enabled_features?: Json | null
+          features_override_mode?: string | null
           id?: string
           last_reset_at?: string | null
           max_broadcasts_per_month?: number | null
@@ -2739,6 +2746,7 @@ export type Database = {
           max_users?: number | null
           organization_id: string
           plan_id?: string | null
+          trial_ends_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2749,6 +2757,9 @@ export type Database = {
           current_month_scheduled?: number | null
           current_storage_used_gb?: number | null
           current_users_count?: number | null
+          disabled_features?: Json | null
+          enabled_features?: Json | null
+          features_override_mode?: string | null
           id?: string
           last_reset_at?: string | null
           max_broadcasts_per_month?: number | null
@@ -2759,6 +2770,7 @@ export type Database = {
           max_users?: number | null
           organization_id?: string
           plan_id?: string | null
+          trial_ends_at?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -4534,7 +4546,15 @@ export type Database = {
         Args: { lead_id_param: string }
         Returns: undefined
       }
+      initialize_organization_trial: {
+        Args: { _organization_id: string }
+        Returns: undefined
+      }
       is_pubdigital_user: { Args: { _user_id: string }; Returns: boolean }
+      organization_has_feature: {
+        Args: { _feature: string; _organization_id: string }
+        Returns: boolean
+      }
       transfer_user_data_to_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: undefined

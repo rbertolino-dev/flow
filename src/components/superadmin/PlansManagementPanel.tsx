@@ -59,19 +59,7 @@ interface PlanFormData {
   features: string[];
 }
 
-const AVAILABLE_FEATURES = [
-  { value: 'leads', label: 'Leads', description: 'Gerenciamento de leads' },
-  { value: 'evolution_instances', label: 'Instâncias WhatsApp', description: 'Conexão com WhatsApp' },
-  { value: 'broadcast', label: 'Disparos', description: 'Campanhas de disparo em massa' },
-  { value: 'scheduled_messages', label: 'Mensagens Agendadas', description: 'Agendar mensagens para envio futuro' },
-  { value: 'agents', label: 'Agentes IA', description: 'Agentes inteligentes com OpenAI' },
-  { value: 'form_builder', label: 'Formulários', description: 'Criar e gerenciar formulários' },
-  { value: 'facebook_integration', label: 'Integração Facebook', description: 'Conectar com Facebook/Instagram' },
-  { value: 'whatsapp_messages', label: 'Mensagens WhatsApp', description: 'Enviar e receber mensagens' },
-  { value: 'call_queue', label: 'Fila de Chamadas', description: 'Gerenciar fila de ligações' },
-  { value: 'reports', label: 'Relatórios', description: 'Acessar relatórios e análises' },
-  { value: 'api_access', label: 'Acesso API', description: 'Integração via API' },
-] as const;
+import { AVAILABLE_FEATURES } from "@/hooks/useOrganizationFeatures";
 
 export function PlansManagementPanel() {
   const [plans, setPlans] = useState<Plan[]>([]);
