@@ -1451,6 +1451,39 @@ export type Database = {
           },
         ]
       }
+      evolution_providers: {
+        Row: {
+          api_key: string
+          api_url: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          api_url: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          api_url?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       facebook_configs: {
         Row: {
           account_name: string
@@ -2711,6 +2744,7 @@ export type Database = {
           current_users_count: number | null
           disabled_features: Json | null
           enabled_features: Json | null
+          evolution_provider_id: string | null
           features_override_mode: string | null
           id: string
           last_reset_at: string | null
@@ -2735,6 +2769,7 @@ export type Database = {
           current_users_count?: number | null
           disabled_features?: Json | null
           enabled_features?: Json | null
+          evolution_provider_id?: string | null
           features_override_mode?: string | null
           id?: string
           last_reset_at?: string | null
@@ -2759,6 +2794,7 @@ export type Database = {
           current_users_count?: number | null
           disabled_features?: Json | null
           enabled_features?: Json | null
+          evolution_provider_id?: string | null
           features_override_mode?: string | null
           id?: string
           last_reset_at?: string | null
@@ -2774,6 +2810,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "organization_limits_evolution_provider_id_fkey"
+            columns: ["evolution_provider_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_providers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "organization_limits_organization_id_fkey"
             columns: ["organization_id"]
