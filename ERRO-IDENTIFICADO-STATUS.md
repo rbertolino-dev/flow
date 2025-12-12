@@ -96,3 +96,4 @@ Se após todas as tentativas ainda não funcionar, pode ser que:
 - É necessário usar uma versão mais recente da Evolution API
 
 
+

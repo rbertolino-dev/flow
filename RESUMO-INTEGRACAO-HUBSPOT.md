@@ -246,3 +246,4 @@ No Supabase Dashboard, faça deploy das funções:
 **Data:** 2024-01-31
 
 
+

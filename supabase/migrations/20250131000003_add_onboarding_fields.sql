@@ -23,3 +23,4 @@ COMMENT ON COLUMN public.organizations.expectations IS 'O que a empresa espera d
 COMMENT ON COLUMN public.organizations.onboarding_completed IS 'Indica se o onboarding foi completado';
 COMMENT ON COLUMN public.organizations.onboarding_completed_at IS 'Data e hora de conclusão do onboarding';
 
+

@@ -90,3 +90,4 @@ COMMENT ON COLUMN public.assistant_config.restrictions IS 'O que o assistente N�
 COMMENT ON COLUMN public.assistant_config.is_global IS 'Se true, esta configuração se aplica a todas as organizações';
 
 
+

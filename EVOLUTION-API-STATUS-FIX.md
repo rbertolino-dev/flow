@@ -119,3 +119,4 @@ curl -X POST "https://sua-evolution-api.com/message/sendStatus/sua-instancia" \
 ```
 
 
+

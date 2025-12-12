@@ -103,3 +103,4 @@
 - `agilize/src/components/whatsapp/StatusMediaUpload.tsx` - Compressão + cache
 - `agilize/src/components/calendar/CalendarMessageTemplateManager.tsx` - Compressão + cache
 
+

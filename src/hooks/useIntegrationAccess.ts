@@ -36,3 +36,4 @@ export function useIntegrationAccess(integrationId: string): boolean {
   return hasFeature(feature as any);
 }
 
+

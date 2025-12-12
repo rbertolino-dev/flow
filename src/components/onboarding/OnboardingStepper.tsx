@@ -100,3 +100,4 @@ export function OnboardingStepper({ currentStep, completedSteps }: OnboardingSte
   );
 }
 
+

@@ -60,3 +60,4 @@ WITH CHECK (
 COMMENT ON TABLE public.organization_onboarding_progress IS 'Rastreia o progresso do onboarding por organização';
 COMMENT ON COLUMN public.organization_onboarding_progress.step_completed IS 'Etapa completada: organization, users, pipeline, products, evolution';
 
+

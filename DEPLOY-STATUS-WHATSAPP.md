@@ -175,3 +175,4 @@ Após o deploy, verifique:
 Após seguir todos os passos, a funcionalidade de Status do WhatsApp estará disponível na aba "Status" da página de Disparo em Massa.
 
 
+

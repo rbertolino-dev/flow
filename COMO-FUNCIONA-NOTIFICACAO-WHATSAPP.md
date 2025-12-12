@@ -193,3 +193,4 @@ Para a notificação WhatsApp funcionar:
 
 **Última atualização:** 2025-01-22
 
+

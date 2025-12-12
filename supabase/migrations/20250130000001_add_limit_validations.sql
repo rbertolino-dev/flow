@@ -135,3 +135,4 @@ COMMENT ON FUNCTION public.create_lead_secure IS 'Cria um lead de forma segura, 
 COMMENT ON FUNCTION public.validate_evolution_instance_limit IS 'Valida limites antes de permitir criação de instância Evolution';
 
 
+

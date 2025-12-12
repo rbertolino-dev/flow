@@ -142,3 +142,4 @@ No HTML, todas as URLs são modificadas para apontar de volta ao proxy:
 4. **Monitoramento:** Adicionar métricas de performance
 
 
+

@@ -259,3 +259,4 @@ export function ProductsStep({ onComplete, onSkip, businessType }: ProductsStepP
   );
 }
 
+

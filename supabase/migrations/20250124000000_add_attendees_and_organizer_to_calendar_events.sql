@@ -10,3 +10,4 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_organizer ON public.calendar_even
 COMMENT ON COLUMN public.calendar_events.organizer_user_id IS 'Usuário responsável pela reunião';
 COMMENT ON COLUMN public.calendar_events.attendees IS 'Lista de convidados em formato JSON: [{"email": "email@example.com", "displayName": "Nome"}]';
 
+

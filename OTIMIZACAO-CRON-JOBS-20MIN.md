@@ -71,3 +71,4 @@ SELECT cron.schedule(
 
 As funções já têm verificação automática: se não houver itens pendentes, retornam imediatamente sem processar nada (economia adicional).
 
+

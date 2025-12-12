@@ -16,3 +16,4 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_status ON public.calendar_events(
 -- Índice para buscar eventos completados
 CREATE INDEX IF NOT EXISTS idx_calendar_events_completed ON public.calendar_events(completed_at) WHERE status = 'completed';
 
+

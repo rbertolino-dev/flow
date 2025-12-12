@@ -151,3 +151,4 @@ Para problemas ou dúvidas, consulte:
 - Logs do Supabase: Dashboard > Edge Functions > Logs
 
 
+

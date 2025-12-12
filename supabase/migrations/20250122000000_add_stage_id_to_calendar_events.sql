@@ -11,3 +11,4 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_stage_id
 COMMENT ON COLUMN public.calendar_events.stage_id IS 'Etiqueta/etapa do funil associada à reunião';
 
 
+

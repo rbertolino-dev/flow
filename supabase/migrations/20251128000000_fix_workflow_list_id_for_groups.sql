@@ -24,3 +24,4 @@ COMMENT ON COLUMN public.whatsapp_workflows.workflow_list_id IS
   'ID da lista de contatos (obrigatório para list e single, NULL para group)';
 
 
+

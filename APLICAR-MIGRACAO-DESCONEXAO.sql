@@ -94,3 +94,4 @@ BEGIN
   RAISE NOTICE '✅ Migração aplicada com sucesso!';
 END $$;
 
+

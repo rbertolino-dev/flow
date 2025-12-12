@@ -141,3 +141,4 @@ Se ainda não funcionar:
 4. **Verificar logs do Chatwoot:** `docker-compose logs rails` (se usar Docker)
 
 
+

@@ -452,3 +452,4 @@ Alto Impacto + Alto Esforço:
 Essas 3 funcionalidades sozinhas já vão agregar MUITO valor e podem ser implementadas em ~1 mês!
 
 
+

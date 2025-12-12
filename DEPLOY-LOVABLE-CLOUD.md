@@ -149,3 +149,5 @@ response_format: { type: "json_object" }, // ❌ ERRADO - hardcoded
 
 
 
+
+

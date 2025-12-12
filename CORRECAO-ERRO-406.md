@@ -69,3 +69,4 @@ Se a sua versão não suporta esse endpoint, a função agora usa automaticament
    - Configuração da instância (número de telefone)
 
 
+

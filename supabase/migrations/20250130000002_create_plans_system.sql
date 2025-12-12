@@ -240,3 +240,4 @@ COMMENT ON COLUMN public.plans.enabled_features IS 'Array de funcionalidades hab
 COMMENT ON COLUMN public.organizations.plan_id IS 'Plano associado à organização. NULL = sem plano (ilimitado)';
 
 
+

@@ -91,3 +91,4 @@ COMMENT ON COLUMN public.products.active IS 'Indica se o produto está ativo e d
 COMMENT ON COLUMN public.leads.product_id IS 'Referência ao produto/serviço vinculado ao lead';
 
 
+

@@ -62,3 +62,4 @@ BEFORE UPDATE ON public.instance_disconnection_notifications
 FOR EACH ROW
 EXECUTE FUNCTION update_instance_disconnection_notifications_updated_at();
 
+
