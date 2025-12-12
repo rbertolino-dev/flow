@@ -15,11 +15,14 @@ export const AVAILABLE_FEATURES = [
   { value: 'reports', label: 'Relatórios', description: 'Acessar relatórios e análises' },
   { value: 'api_access', label: 'Acesso API', description: 'Integração via API' },
   { value: 'calendar_integration', label: 'Integração Google Calendar', description: 'Sincronizar eventos e agendamentos' },
+  { value: 'calendar', label: 'Calendário', description: 'Funcionalidade de agendamento' },
   { value: 'gmail_integration', label: 'Integração Gmail', description: 'Enviar e receber emails' },
   { value: 'payment_integration', label: 'Integração Pagamentos', description: 'Mercado Pago e Asaas' },
   { value: 'bubble_integration', label: 'Integração Bubble.io', description: 'Conectar com aplicativos Bubble' },
   { value: 'hubspot_integration', label: 'Integração HubSpot', description: 'Sincronizar contatos e listas' },
   { value: 'chatwoot_integration', label: 'Integração Chatwoot', description: 'Plataforma de atendimento' },
+  { value: 'post_sale', label: 'Pós-Venda', description: 'CRM de pós-venda' },
+  { value: 'automations', label: 'Automações', description: 'Fluxos de automação' },
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];
