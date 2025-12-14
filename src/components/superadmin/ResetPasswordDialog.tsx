@@ -36,7 +36,6 @@ export function ResetPasswordDialog({
   const { toast } = useToast();
 
   const handleReset = async () => {
-    // Validações
     if (!newPassword) {
       toast({
         title: "Senha obrigatória",
@@ -66,19 +65,18 @@ export function ResetPasswordDialog({
 
     setResetting(true);
     try {
-      // Usar admin API para atualizar a senha do usuário
-      const { error } = await supabase.auth.admin.updateUserById(userId, {
-        password: newPassword,
+      const { data, error } = await supabase.functions.invoke('update-user-password', {
+        body: { userId, newPassword },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Senha resetada com sucesso!",
         description: `A senha de ${userName || userEmail} foi atualizada.`,
       });
 
-      // Limpar campos e fechar dialog
       setNewPassword("");
       setConfirmPassword("");
       onOpenChange(false);
