@@ -1259,9 +1259,6 @@ export type Database = {
           cost_per_realtime_message: number | null
           cost_per_scheduled_message: number | null
           cost_per_storage_gb: number | null
-          cost_per_workflow_execution: number | null
-          cost_per_form_submission: number | null
-          cost_per_agent_ai_call: number | null
           created_at: string
           id: string
           notes: string | null
@@ -1279,9 +1276,6 @@ export type Database = {
           cost_per_realtime_message?: number | null
           cost_per_scheduled_message?: number | null
           cost_per_storage_gb?: number | null
-          cost_per_workflow_execution?: number | null
-          cost_per_form_submission?: number | null
-          cost_per_agent_ai_call?: number | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1299,9 +1293,6 @@ export type Database = {
           cost_per_realtime_message?: number | null
           cost_per_scheduled_message?: number | null
           cost_per_storage_gb?: number | null
-          cost_per_workflow_execution?: number | null
-          cost_per_form_submission?: number | null
-          cost_per_agent_ai_call?: number | null
           created_at?: string
           id?: string
           notes?: string | null

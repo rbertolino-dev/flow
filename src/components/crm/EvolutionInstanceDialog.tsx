@@ -145,10 +145,18 @@ export function EvolutionInstanceDialog({
         const orgId = await getUserOrganizationId();
         if (!orgId) throw new Error("Organização não encontrada");
 
+        // Usar provider se disponível, senão usar formData
+        const apiUrl = organizationProvider?.api_url || formData.api_url;
+        const apiKey = organizationProvider?.api_key || formData.api_key;
+
+        if (!apiUrl || !apiKey) {
+          throw new Error("URL e API Key são obrigatórios");
+        }
+
         const { data, error } = await supabase.functions.invoke('create-evolution-instance', {
           body: {
-            apiUrl: formData.api_url,
-            apiKey: formData.api_key,
+            apiUrl,
+            apiKey,
             instanceName: formData.instance_name,
             organizationId: orgId,
             userId: user.id,
