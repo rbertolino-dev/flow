@@ -140,12 +140,17 @@ export function useInstanceDisconnectionAlert({
               ? window.location.origin 
               : 'https://seu-dominio.com'; // Fallback se não estiver no browser
             const reconnectUrl = `${baseUrl}/reconnect/${notification.id}`;
+            const settingsUrl = `${baseUrl}/settings?tab=evolution`;
+            const broadcastUrl = `${baseUrl}/broadcast?tab=reconnect`;
             
             const message = `⚠️ *ALERTA DE DESCONEXÃO*\n\n` +
               `A instância *${instance.instance_name}* foi desconectada.\n\n` +
-              `🔗 Acesse o link abaixo para reconectar escaneando o QR Code:\n` +
+              `🔗 Reconecte agora:\n` +
               `${reconnectUrl}\n\n` +
-              `Ou acesse o sistema e vá em Configurações → Instâncias WhatsApp.`;
+              `Ou acesse:\n` +
+              `• Configurações: ${settingsUrl}\n` +
+              `• Disparos → Reconexão: ${broadcastUrl}\n\n` +
+              `Você pode reconectar usando QR Code ou número de telefone.`;
 
             await supabase.functions.invoke('send-whatsapp-message', {
               body: {

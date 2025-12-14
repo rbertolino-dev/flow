@@ -15,6 +15,12 @@ interface DailyCost {
   incomingMessages: number;
   broadcastMessages: number;
   scheduledMessages: number;
+  storageGB: number;
+  edgeFunctionCalls: number;
+  realtimeMessages: number;
+  workflowExecutions: number;
+  formSubmissions: number;
+  agentAICalls: number;
   databaseReads: number;
   databaseWrites: number;
   leadsStored: number;
@@ -26,6 +32,12 @@ interface CostConfig {
   cost_per_scheduled_message: number;
   cost_per_database_read: number;
   cost_per_database_write: number;
+  cost_per_storage_gb: number;
+  cost_per_edge_function_call: number;
+  cost_per_realtime_message: number;
+  cost_per_workflow_execution: number;
+  cost_per_form_submission: number;
+  cost_per_agent_ai_call: number;
 }
 
 export function DailyCostChart() {
@@ -60,6 +72,12 @@ export function DailyCostChart() {
         cost_per_scheduled_message: Number(data.cost_per_scheduled_message),
         cost_per_database_read: Number(data.cost_per_database_read),
         cost_per_database_write: Number(data.cost_per_database_write),
+        cost_per_storage_gb: Number(data.cost_per_storage_gb || 0),
+        cost_per_edge_function_call: Number(data.cost_per_edge_function_call || 0),
+        cost_per_realtime_message: Number(data.cost_per_realtime_message || 0),
+        cost_per_workflow_execution: Number(data.cost_per_workflow_execution || 0),
+        cost_per_form_submission: Number(data.cost_per_form_submission || 0),
+        cost_per_agent_ai_call: Number(data.cost_per_agent_ai_call || 0),
       });
     }
   };
@@ -70,102 +88,133 @@ export function DailyCostChart() {
     try {
       setLoading(true);
 
-      // OTIMIZAÇÃO: Usar função SQL agregada em vez de múltiplas queries
-      // Reduz de 120 queries (30 dias × 4) para 1 query apenas
-      // A função SQL retorna todos os dias do intervalo, mesmo sem dados
-      
-      const { data: metricsData, error } = await supabase.rpc('get_daily_metrics', {
-        start_date: dateRange.start.toISOString(),
-        end_date: dateRange.end.toISOString()
-      });
+      // Usar daily_usage_metrics diretamente - dados já agregados e calculados
+      const startDateStr = format(dateRange.start, 'yyyy-MM-dd');
+      const endDateStr = format(dateRange.end, 'yyyy-MM-dd');
+
+      const { data: metricsData, error } = await supabase
+        .from('daily_usage_metrics')
+        .select('date, metric_type, metric_value, total_cost')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .order('date', { ascending: true });
 
       if (error) {
         console.error('Erro ao buscar métricas diárias:', error);
-        // Fallback: se a função SQL não existir, usar método antigo
-        // Isso garante compatibilidade durante migração
-        const days = eachDayOfInterval({
-          start: dateRange.start,
-          end: dateRange.end
-        });
-
-        const dailyData = await Promise.all(
-          days.map(async (day) => {
-            const dayStart = new Date(day);
-            dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(day);
-            dayEnd.setHours(23, 59, 59, 999);
-
-            const [
-              { count: incoming },
-              { count: broadcast },
-              { count: scheduled },
-              { count: leads }
-            ] = await Promise.all([
-              supabase.from('whatsapp_messages')
-                .select('*', { count: 'exact', head: true })
-                .eq('direction', 'incoming')
-                .gte('timestamp', dayStart.toISOString())
-                .lte('timestamp', dayEnd.toISOString()),
-              supabase.from('broadcast_queue')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'sent')
-                .gte('sent_at', dayStart.toISOString())
-                .lte('sent_at', dayEnd.toISOString()),
-              supabase.from('scheduled_messages')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'sent')
-                .gte('sent_at', dayStart.toISOString())
-                .lte('sent_at', dayEnd.toISOString()),
-              supabase.from('leads')
-                .select('*', { count: 'exact', head: true })
-                .is('deleted_at', null)
-                .lte('created_at', dayEnd.toISOString())
-            ]);
-
-            const incomingCost = (incoming || 0) * costConfig.cost_per_incoming_message;
-            const broadcastCost = (broadcast || 0) * costConfig.cost_per_broadcast_message;
-            const scheduledCost = (scheduled || 0) * costConfig.cost_per_scheduled_message;
-            const totalCost = incomingCost + broadcastCost + scheduledCost;
-
-            return {
-              date: format(day, 'dd/MM'),
-              totalCost,
-              incomingMessages: incoming || 0,
-              broadcastMessages: broadcast || 0,
-              scheduledMessages: scheduled || 0,
-              databaseReads: 0,
-              databaseWrites: 0,
-              leadsStored: leads || 0
-            };
-          })
-        );
-
-        setDailyCosts(dailyData);
+        setDailyCosts([]);
         return;
       }
 
-      // Transformar dados da função SQL para o formato esperado (MESMA ESTRUTURA)
-      const dailyData = (metricsData || []).map((row: any) => {
-        // Converter string de data para objeto Date
-        const day = new Date(row.date);
-        
-        // MESMOS CÁLCULOS DE CUSTO (lógica idêntica)
-        const incomingCost = (row.incoming_count || 0) * costConfig.cost_per_incoming_message;
-        const broadcastCost = (row.broadcast_count || 0) * costConfig.cost_per_broadcast_message;
-        const scheduledCost = (row.scheduled_count || 0) * costConfig.cost_per_scheduled_message;
-        const totalCost = incomingCost + broadcastCost + scheduledCost;
+      // Agregar métricas por dia
+      const dailyMap = new Map<string, DailyCost>();
 
-        return {
-          date: format(day, 'dd/MM'), // MESMO FORMATO DE DATA
-          totalCost, // MESMO CÁLCULO
-          incomingMessages: row.incoming_count || 0,
-          broadcastMessages: row.broadcast_count || 0,
-          scheduledMessages: row.scheduled_count || 0,
-          databaseReads: 0, // MANTIDO (mesmo valor)
-          databaseWrites: 0, // MANTIDO (mesmo valor)
-          leadsStored: row.leads_count || 0
-        };
+      // Inicializar todos os dias do intervalo
+      const days = eachDayOfInterval({
+        start: dateRange.start,
+        end: dateRange.end
       });
+
+      days.forEach(day => {
+        const dateKey = format(day, 'yyyy-MM-dd');
+        dailyMap.set(dateKey, {
+          date: format(day, 'dd/MM'),
+          totalCost: 0,
+          incomingMessages: 0,
+          broadcastMessages: 0,
+          scheduledMessages: 0,
+          storageGB: 0,
+          edgeFunctionCalls: 0,
+          realtimeMessages: 0,
+          workflowExecutions: 0,
+          formSubmissions: 0,
+          agentAICalls: 0,
+          databaseReads: 0,
+          databaseWrites: 0,
+          leadsStored: 0
+        });
+      });
+
+      // Processar métricas
+      metricsData?.forEach((metric) => {
+        const dateKey = metric.date;
+        const dayData = dailyMap.get(dateKey) || {
+          date: format(new Date(dateKey), 'dd/MM'),
+          totalCost: 0,
+          incomingMessages: 0,
+          broadcastMessages: 0,
+          scheduledMessages: 0,
+          storageGB: 0,
+          edgeFunctionCalls: 0,
+          realtimeMessages: 0,
+          workflowExecutions: 0,
+          formSubmissions: 0,
+          agentAICalls: 0,
+          databaseReads: 0,
+          databaseWrites: 0,
+          leadsStored: 0
+        };
+
+        const value = metric.metric_value || 0;
+        const cost = metric.total_cost || 0;
+
+        switch (metric.metric_type) {
+          case 'incoming_messages':
+            dayData.incomingMessages = value;
+            dayData.totalCost += cost;
+            break;
+          case 'broadcast_messages':
+            dayData.broadcastMessages = value;
+            dayData.totalCost += cost;
+            break;
+          case 'scheduled_messages':
+            dayData.scheduledMessages = value;
+            dayData.totalCost += cost;
+            break;
+          case 'storage_gb':
+            dayData.storageGB = value;
+            dayData.totalCost += cost;
+            break;
+          case 'edge_function_calls':
+            dayData.edgeFunctionCalls = value;
+            dayData.totalCost += cost;
+            break;
+          case 'realtime_messages':
+            dayData.realtimeMessages = value;
+            dayData.totalCost += cost;
+            break;
+          case 'workflow_executions':
+            dayData.workflowExecutions = value;
+            dayData.totalCost += cost;
+            break;
+          case 'form_submissions':
+            dayData.formSubmissions = value;
+            dayData.totalCost += cost;
+            break;
+          case 'agent_ai_calls':
+            dayData.agentAICalls = value;
+            dayData.totalCost += cost;
+            break;
+          case 'database_reads':
+            dayData.databaseReads = value;
+            dayData.totalCost += cost;
+            break;
+          case 'database_writes':
+            dayData.databaseWrites = value;
+            dayData.totalCost += cost;
+            break;
+          case 'leads_stored':
+            dayData.leadsStored = value;
+            dayData.totalCost += cost;
+            break;
+        }
+
+        dailyMap.set(dateKey, dayData);
+      });
+
+      // Converter para array e ordenar por data original
+      const dailyData = Array.from(dailyMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0])) // Ordenar por chave (yyyy-MM-dd)
+        .map(([_, value]) => value); // Extrair apenas o valor
 
       setDailyCosts(dailyData);
     } catch (err) {
@@ -274,6 +323,22 @@ export function DailyCostChart() {
               strokeWidth={2}
               name="Custo Total ($)"
               dot={{ fill: 'hsl(var(--primary))' }}
+            />
+            <Line 
+              type="monotone" 
+              dataKey="storageGB" 
+              stroke="hsl(var(--chart-2))" 
+              strokeWidth={1}
+              name="Storage (GB)"
+              dot={false}
+            />
+            <Line 
+              type="monotone" 
+              dataKey="edgeFunctionCalls" 
+              stroke="hsl(var(--chart-3))" 
+              strokeWidth={1}
+              name="Edge Functions"
+              dot={false}
             />
           </LineChart>
         </ResponsiveContainer>

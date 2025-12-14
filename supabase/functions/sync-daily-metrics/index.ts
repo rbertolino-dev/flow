@@ -17,6 +17,10 @@ interface CostConfig {
   cost_per_auth_user: number;
   cost_per_gmail_sync: number;
   cost_per_calendar_sync: number;
+  cost_per_realtime_message: number;
+  cost_per_workflow_execution: number;
+  cost_per_form_submission: number;
+  cost_per_agent_ai_call: number;
 }
 
 Deno.serve(async (req) => {
@@ -230,6 +234,232 @@ Deno.serve(async (req) => {
           metric_value: calendarSyncsCount,
           cost_per_unit: config.cost_per_calendar_sync || 0,
           total_cost: calendarSyncsCount * (config.cost_per_calendar_sync || 0)
+        });
+      }
+
+      // 3.9. Storage GB - calcular tamanho total de arquivos por organização
+      // Listar recursivamente pastas conhecidas: status, workflows, calendar-templates
+      try {
+        let totalSizeBytes = 0;
+        
+        // Listar pasta raiz da organização
+        const { data: rootFiles, error: rootError } = await supabase.storage
+          .from('whatsapp-workflow-media')
+          .list(org.id, {
+            limit: 1000
+          });
+
+        if (!rootError && rootFiles) {
+          // Processar arquivos na raiz
+          for (const item of rootFiles) {
+            if (item.id && item.metadata?.size) {
+              totalSizeBytes += item.metadata.size;
+            }
+          }
+
+          // Listar subpastas conhecidas
+          const subfolders = ['status'];
+          
+          // Buscar workflows para listar suas pastas
+          const { data: workflows } = await supabase
+            .from('whatsapp_workflows')
+            .select('id')
+            .eq('organization_id', org.id)
+            .limit(100); // Limitar para não sobrecarregar
+
+          if (workflows) {
+            for (const workflow of workflows) {
+              try {
+                const { data: workflowFiles } = await supabase.storage
+                  .from('whatsapp-workflow-media')
+                  .list(`${org.id}/${workflow.id}`, { limit: 1000 });
+                
+                if (workflowFiles) {
+                  for (const file of workflowFiles) {
+                    if (file.id && file.metadata?.size) {
+                      totalSizeBytes += file.metadata.size;
+                    }
+                  }
+                }
+              } catch (err) {
+                // Ignorar erros de pastas que não existem
+              }
+            }
+          }
+
+          // Listar calendar-templates
+          try {
+            const { data: calendarFiles } = await supabase.storage
+              .from('whatsapp-workflow-media')
+              .list(`${org.id}/calendar-templates`, { limit: 1000 });
+            
+            if (calendarFiles) {
+              for (const file of calendarFiles) {
+                if (file.id && file.metadata?.size) {
+                  totalSizeBytes += file.metadata.size;
+                }
+              }
+            }
+          } catch (err) {
+            // Ignorar se pasta não existir
+          }
+
+          // Listar status
+          try {
+            const { data: statusFiles } = await supabase.storage
+              .from('whatsapp-workflow-media')
+              .list(`${org.id}/status`, { limit: 1000 });
+            
+            if (statusFiles) {
+              for (const file of statusFiles) {
+                if (file.id && file.metadata?.size) {
+                  totalSizeBytes += file.metadata.size;
+                }
+              }
+            }
+          } catch (err) {
+            // Ignorar se pasta não existir
+          }
+
+          const totalSizeGB = totalSizeBytes / (1024 * 1024 * 1024); // Converter para GB
+
+          if (totalSizeGB > 0) {
+            metrics.push({
+              date: targetDate,
+              organization_id: org.id,
+              metric_type: 'storage_gb',
+              metric_value: totalSizeGB,
+              cost_per_unit: config.cost_per_storage_gb || 0,
+              total_cost: totalSizeGB * (config.cost_per_storage_gb || 0)
+            });
+          }
+        }
+      } catch (storageErr) {
+        console.error(`Erro ao calcular storage para org ${org.id}:`, storageErr);
+      }
+
+      // 3.10. Workflow Executions - contar execuções bem-sucedidas
+      const { count: workflowExecutionsCount } = await supabase
+        .from('scheduled_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', org.id)
+        .eq('status', 'sent')
+        .not('workflow_id', 'is', null)
+        .gte('sent_at', startOfDay.toISOString())
+        .lt('sent_at', endOfDay.toISOString());
+
+      if (workflowExecutionsCount && workflowExecutionsCount > 0) {
+        metrics.push({
+          date: targetDate,
+          organization_id: org.id,
+          metric_type: 'workflow_executions',
+          metric_value: workflowExecutionsCount,
+          cost_per_unit: config.cost_per_workflow_execution || 0,
+          total_cost: workflowExecutionsCount * (config.cost_per_workflow_execution || 0)
+        });
+      }
+
+      // 3.11. Form Submissions - contar submissões do dia
+      let formSubmissionsCount = 0;
+      try {
+        const { count: formSubmissions } = await supabase
+          .from('form_submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+          .gte('created_at', startOfDay.toISOString())
+          .lt('created_at', endOfDay.toISOString());
+
+        formSubmissionsCount = formSubmissions || 0;
+
+        if (formSubmissionsCount > 0) {
+          metrics.push({
+            date: targetDate,
+            organization_id: org.id,
+            metric_type: 'form_submissions',
+            metric_value: formSubmissionsCount,
+            cost_per_unit: config.cost_per_form_submission || 0,
+            total_cost: formSubmissionsCount * (config.cost_per_form_submission || 0)
+          });
+        }
+      } catch (formErr) {
+        // Tabela pode não existir ainda, ignorar erro
+        console.log(`Tabela form_submissions não encontrada para org ${org.id}`);
+      }
+
+      // 3.12. Agent AI Calls - contar chamadas do dia usando agent_usage_metrics
+      let agentAICallsCount = 0;
+      try {
+        // Buscar agentes da organização
+        const { data: orgAgents } = await supabase
+          .from('agents')
+          .select('id')
+          .eq('organization_id', org.id);
+
+        if (orgAgents && orgAgents.length > 0) {
+          const agentIds = orgAgents.map(a => a.id);
+          
+          // Somar total_requests de todos os agentes da organização no dia
+          const { data: agentMetrics } = await supabase
+            .from('agent_usage_metrics')
+            .select('total_requests')
+            .in('agent_id', agentIds)
+            .eq('metric_date', targetDate);
+
+          if (agentMetrics && agentMetrics.length > 0) {
+            agentAICallsCount = agentMetrics.reduce((sum, m) => sum + (m.total_requests || 0), 0);
+            
+            if (agentAICallsCount > 0) {
+              metrics.push({
+                date: targetDate,
+                organization_id: org.id,
+                metric_type: 'agent_ai_calls',
+                metric_value: agentAICallsCount,
+                cost_per_unit: config.cost_per_agent_ai_call || 0,
+                total_cost: agentAICallsCount * (config.cost_per_agent_ai_call || 0)
+              });
+            }
+          }
+        }
+      } catch (agentErr) {
+        // Tabela pode não existir ainda, ignorar erro
+        console.log(`Erro ao buscar métricas de agentes para org ${org.id}:`, agentErr);
+      }
+
+      // 3.13. Edge Function Calls (estimado) - baseado em operações conhecidas
+      const estimatedEdgeFunctionCalls = 
+        (workflowExecutionsCount || 0) + // Workflow executions
+        formSubmissionsCount + // Form submissions
+        (gmailConfigsCount || 0) + // Gmail syncs
+        (calendarSyncsCount || 0) + // Calendar syncs
+        agentAICallsCount + // Agent AI calls
+        Math.round((incomingCount || 0) * 0.1); // Webhooks (10% das mensagens recebidas)
+
+      if (estimatedEdgeFunctionCalls > 0) {
+        metrics.push({
+          date: targetDate,
+          organization_id: org.id,
+          metric_type: 'edge_function_calls',
+          metric_value: estimatedEdgeFunctionCalls,
+          cost_per_unit: config.cost_per_edge_function_call || 0,
+          total_cost: estimatedEdgeFunctionCalls * (config.cost_per_edge_function_call || 0)
+        });
+      }
+
+      // 3.14. Realtime Messages (estimado) - baseado em subscriptions ativas
+      // Estimativa: cada organização ativa tem ~3 subscriptions (leads, messages, call_queue)
+      // Cada subscription recebe ~10 mensagens por dia em média
+      const estimatedRealtimeMessages = (incomingCount || 0) * 2 + // Mensagens geram eventos realtime
+        (broadcastCount || 0) * 0.5 + // Broadcasts geram alguns eventos
+        (scheduledCount || 0) * 0.5; // Scheduled messages geram eventos
+
+      if (estimatedRealtimeMessages > 0) {
+        metrics.push({
+          date: targetDate,
+          organization_id: org.id,
+          metric_type: 'realtime_messages',
+          metric_value: Math.round(estimatedRealtimeMessages),
+          cost_per_unit: config.cost_per_realtime_message || 0,
+          total_cost: Math.round(estimatedRealtimeMessages) * (config.cost_per_realtime_message || 0)
         });
       }
     }

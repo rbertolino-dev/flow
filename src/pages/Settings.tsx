@@ -41,6 +41,8 @@ import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding"
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { ConditionalIntegration } from "@/components/integrations/ConditionalIntegration";
 import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
+import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
+import { Wifi, AlertTriangle } from "lucide-react";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -68,6 +70,7 @@ export default function Settings() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<EvolutionConfig | null>(null);
+  const [reconnectingInstance, setReconnectingInstance] = useState<EvolutionConfig | null>(null);
 
   // Stage management
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
@@ -322,6 +325,50 @@ export default function Settings() {
               <EvolutionApiDiagnostics />
               
               <WhatsAppNumberValidator configs={configs} />
+
+              {/* Seção de Instâncias Desconectadas */}
+              {configs.filter(c => !c.is_connected).length > 0 && (
+                <Card className="border-destructive/50 bg-destructive/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-destructive">
+                      <AlertTriangle className="h-5 w-5" />
+                      Instâncias Desconectadas
+                    </CardTitle>
+                    <CardDescription>
+                      {configs.filter(c => !c.is_connected).length} instância(s) desconectada(s). 
+                      Reconecte para continuar usando o WhatsApp.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {configs
+                        .filter(c => !c.is_connected)
+                        .map((config) => (
+                          <div
+                            key={config.id}
+                            className="flex items-center justify-between p-3 border border-destructive/20 rounded-lg bg-background"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{config.instance_name}</p>
+                              {config.phone_number && (
+                                <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => setReconnectingInstance(config)}
+                              className="ml-2"
+                            >
+                              <Wifi className="h-4 w-4 mr-2" />
+                              Reconectar
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
             <Card>
               <CardHeader>
@@ -633,6 +680,20 @@ export default function Settings() {
         }}
         onRefetch={refetch}
       />
+
+      {reconnectingInstance && (
+        <ReconnectInstanceDialog
+          open={!!reconnectingInstance}
+          onOpenChange={(open) => {
+            if (!open) setReconnectingInstance(null);
+          }}
+          instance={reconnectingInstance}
+          onReconnected={() => {
+            setReconnectingInstance(null);
+            refetch();
+          }}
+        />
+      )}
         </div>
       </CRMLayout>
     </AuthGuard>

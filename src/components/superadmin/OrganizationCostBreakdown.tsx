@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, TrendingUp, Users, Database, Send, Calendar } from "lucide-react";
+import { Loader2, TrendingUp, Users, Database, Send, Calendar, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -15,6 +15,10 @@ interface OrgMetrics {
   messageCount: number;
   broadcastCount: number;
   scheduledCount: number;
+  totalCost: number;
+  storageGB: number;
+  edgeFunctionCalls: number;
+  workflowExecutions: number;
   activityScore: number;
 }
 
@@ -38,46 +42,127 @@ export function OrganizationCostBreakdown() {
 
       if (orgsError) throw orgsError;
 
-      // Fetch metrics for each organization
+      // Buscar métricas dos últimos 30 dias de daily_usage_metrics
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDate = thirtyDaysAgo.toISOString().split('T')[0];
+
+      const { data: dailyMetrics, error: metricsError } = await supabase
+        .from('daily_usage_metrics')
+        .select('organization_id, metric_type, metric_value, total_cost')
+        .gte('date', startDate)
+        .not('organization_id', 'is', null);
+
+      if (metricsError) {
+        console.error('Error fetching daily metrics:', metricsError);
+      }
+
+      // Agregar métricas por organização
+      const orgMetricsMap = new Map<string, {
+        incoming: number;
+        broadcast: number;
+        scheduled: number;
+        storage: number;
+        edgeFunctions: number;
+        workflows: number;
+        totalCost: number;
+      }>();
+
+      dailyMetrics?.forEach((metric) => {
+        if (!metric.organization_id) return;
+        
+        const orgId = metric.organization_id;
+        const current = orgMetricsMap.get(orgId) || {
+          incoming: 0,
+          broadcast: 0,
+          scheduled: 0,
+          storage: 0,
+          edgeFunctions: 0,
+          workflows: 0,
+          totalCost: 0
+        };
+
+        const value = metric.metric_value || 0;
+        const cost = metric.total_cost || 0;
+
+        switch (metric.metric_type) {
+          case 'incoming_messages':
+            current.incoming += value;
+            current.totalCost += cost;
+            break;
+          case 'broadcast_messages':
+            current.broadcast += value;
+            current.totalCost += cost;
+            break;
+          case 'scheduled_messages':
+            current.scheduled += value;
+            current.totalCost += cost;
+            break;
+          case 'storage_gb':
+            current.storage += value;
+            current.totalCost += cost;
+            break;
+          case 'edge_function_calls':
+            current.edgeFunctions += value;
+            current.totalCost += cost;
+            break;
+          case 'workflow_executions':
+            current.workflows += value;
+            current.totalCost += cost;
+            break;
+        }
+
+        orgMetricsMap.set(orgId, current);
+      });
+
+      // Fetch basic counts for each organization (para activity score)
       const metricsPromises = (orgs || []).map(async (org) => {
         const [
           { count: users },
-          { count: leads },
-          { count: messages },
-          { count: broadcasts },
-          { count: scheduled }
+          { count: leads }
         ] = await Promise.all([
           supabase.from('organization_members').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-          supabase.from('leads').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).is('deleted_at', null),
-          supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-          supabase.from('broadcast_campaigns').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-          supabase.from('scheduled_messages').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
+          supabase.from('leads').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).is('deleted_at', null)
         ]);
+
+        const aggregated = orgMetricsMap.get(org.id) || {
+          incoming: 0,
+          broadcast: 0,
+          scheduled: 0,
+          storage: 0,
+          edgeFunctions: 0,
+          workflows: 0,
+          totalCost: 0
+        };
 
         // Calculate activity score (weighted sum)
         const activityScore = 
           (users || 0) * 1 +
           (leads || 0) * 2 +
-          (messages || 0) * 5 +
-          (broadcasts || 0) * 10 +
-          (scheduled || 0) * 3;
+          aggregated.incoming * 5 +
+          aggregated.broadcast * 10 +
+          aggregated.scheduled * 3;
 
         return {
           id: org.id,
           name: org.name,
           userCount: users || 0,
           leadCount: leads || 0,
-          messageCount: messages || 0,
-          broadcastCount: broadcasts || 0,
-          scheduledCount: scheduled || 0,
+          messageCount: aggregated.incoming,
+          broadcastCount: aggregated.broadcast,
+          scheduledCount: aggregated.scheduled,
+          totalCost: aggregated.totalCost,
+          storageGB: aggregated.storage,
+          edgeFunctionCalls: aggregated.edgeFunctions,
+          workflowExecutions: aggregated.workflows,
           activityScore
         };
       });
 
       const metrics = await Promise.all(metricsPromises);
       
-      // Sort by activity score descending
-      metrics.sort((a, b) => b.activityScore - a.activityScore);
+      // Sort by total cost descending (mais relevante que activity score)
+      metrics.sort((a, b) => b.totalCost - a.totalCost);
       
       setOrgMetrics(metrics);
     } catch (error) {
@@ -199,13 +284,19 @@ export function OrganizationCostBreakdown() {
                       Agendadas
                     </div>
                   </TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <DollarSign className="h-4 w-4" />
+                      Custo Total
+                    </div>
+                  </TableHead>
                   <TableHead className="text-center">Score</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orgMetrics.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                       Nenhuma organização encontrada
                     </TableCell>
                   </TableRow>
@@ -218,6 +309,11 @@ export function OrganizationCostBreakdown() {
                       <TableCell className="text-center">{org.messageCount}</TableCell>
                       <TableCell className="text-center">{org.broadcastCount}</TableCell>
                       <TableCell className="text-center">{org.scheduledCount}</TableCell>
+                      <TableCell className="text-center">
+                        <span className="font-semibold text-success">
+                          ${org.totalCost.toFixed(2)}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-center">
                         <Badge variant={org.activityScore > 1000 ? "destructive" : org.activityScore > 500 ? "default" : "secondary"}>
                           {org.activityScore}

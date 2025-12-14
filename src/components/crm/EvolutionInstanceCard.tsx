@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp, RefreshCw, Key } from "lucide-react";
+import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp, RefreshCw, Key, Wifi } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { ReconnectInstanceDialog } from "./ReconnectInstanceDialog";
 
 interface EvolutionInstanceCardProps {
   config: EvolutionConfig;
@@ -36,6 +37,7 @@ export function EvolutionInstanceCard({
   const [syncing, setSyncing] = useState(false);
   const [realStatus, setRealStatus] = useState<boolean | null>(null);
   const [hasProvider, setHasProvider] = useState(false);
+  const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -236,7 +238,7 @@ export function EvolutionInstanceCard({
                   Conectado
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="gap-1 w-fit">
+                <Badge variant="destructive" className="gap-1 w-fit">
                   <XCircle className="h-3 w-3" />
                   Desconectado
                 </Badge>
@@ -288,6 +290,18 @@ export function EvolutionInstanceCard({
             onCheckedChange={(checked) => onToggleWebhook(config.id, checked)}
           />
         </div>
+
+        {!displayStatus && (
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full text-xs sm:text-sm bg-primary"
+            onClick={() => setShowReconnectDialog(true)}
+          >
+            <Wifi className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+            Reconectar Instância
+          </Button>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
@@ -379,6 +393,16 @@ export function EvolutionInstanceCard({
     </Card>
 
     {expanded && <EvolutionInstanceDetails config={config} />}
+
+    <ReconnectInstanceDialog
+      open={showReconnectDialog}
+      onOpenChange={setShowReconnectDialog}
+      instance={config}
+      onReconnected={() => {
+        setShowReconnectDialog(false);
+        onRefresh?.();
+      }}
+    />
     </div>
   );
 }

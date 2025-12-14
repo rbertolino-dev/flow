@@ -20,6 +20,9 @@ interface CostConfig {
   cost_per_broadcast_message: number;
   cost_per_scheduled_message: number;
   cost_per_lead_storage: number;
+  cost_per_workflow_execution: number;
+  cost_per_form_submission: number;
+  cost_per_agent_ai_call: number;
   notes: string | null;
 }
 
@@ -55,6 +58,9 @@ export function CloudCostConfiguration() {
           cost_per_broadcast_message: Number(data.cost_per_broadcast_message),
           cost_per_scheduled_message: Number(data.cost_per_scheduled_message),
           cost_per_lead_storage: Number(data.cost_per_lead_storage),
+          cost_per_workflow_execution: Number(data.cost_per_workflow_execution || 0.0001),
+          cost_per_form_submission: Number(data.cost_per_form_submission || 0.0001),
+          cost_per_agent_ai_call: Number(data.cost_per_agent_ai_call || 0.001),
           notes: data.notes
         });
       }
@@ -350,6 +356,77 @@ export function CloudCostConfiguration() {
                 placeholder="0.00001"
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Custos de Operações e Funcionalidades */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Operações e Funcionalidades
+          </CardTitle>
+          <CardDescription>
+            Custos por operação específica
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="cost_workflow_execution">Execução de Workflow</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="cost_workflow_execution"
+                type="number"
+                step="0.000001"
+                value={config.cost_per_workflow_execution}
+                onChange={(e) => updateField('cost_per_workflow_execution', e.target.value)}
+                className="pl-9"
+                placeholder="0.0001"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Por execução de workflow periódico
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cost_form_submission">Submissão de Formulário</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="cost_form_submission"
+                type="number"
+                step="0.000001"
+                value={config.cost_per_form_submission}
+                onChange={(e) => updateField('cost_per_form_submission', e.target.value)}
+                className="pl-9"
+                placeholder="0.0001"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Por submissão de formulário
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cost_agent_ai_call">Chamada de Assistente IA</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="cost_agent_ai_call"
+                type="number"
+                step="0.000001"
+                value={config.cost_per_agent_ai_call}
+                onChange={(e) => updateField('cost_per_agent_ai_call', e.target.value)}
+                className="pl-9"
+                placeholder="0.001"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Por chamada de assistente IA
+            </p>
           </div>
         </CardContent>
       </Card>

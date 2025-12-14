@@ -102,18 +102,28 @@ export function InstanceDisconnectionAlerts({
     return null;
   }
 
+  const handleReconnected = () => {
+    // Recarregar alertas após reconexão
+    window.location.reload();
+  };
+
   return (
     <div className="space-y-2">
-      {activeAlerts.map((alert) => (
-        <InstanceDisconnectionAlert
-          key={alert.instanceId}
-          instanceName={alert.instanceName}
-          qrCode={alert.qrCode}
-          notificationId={alert.notificationId}
-          onDismiss={() => dismissAlert(alert.instanceId)}
-          onRefreshQrCode={() => handleRefreshQrCode(alert.instanceId, alert.notificationId)}
-        />
-      ))}
+      {activeAlerts.map((alert) => {
+        const instance = instances.find(i => i.id === alert.instanceId);
+        return (
+          <InstanceDisconnectionAlert
+            key={alert.instanceId}
+            instanceName={alert.instanceName}
+            qrCode={alert.qrCode}
+            notificationId={alert.notificationId}
+            instance={instance}
+            onDismiss={() => dismissAlert(alert.instanceId)}
+            onRefreshQrCode={() => handleRefreshQrCode(alert.instanceId, alert.notificationId)}
+            onReconnected={handleReconnected}
+          />
+        );
+      })}
     </div>
   );
 }

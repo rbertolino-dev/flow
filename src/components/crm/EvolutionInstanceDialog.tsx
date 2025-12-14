@@ -39,7 +39,7 @@ export function EvolutionInstanceDialog({
     instance_name: "",
   });
   const [saving, setSaving] = useState(false);
-  const [createWithQR, setCreateWithQR] = useState(false);
+  const [createWithQR, setCreateWithQR] = useState(true); // QR code ativado por padrão
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [createdInstance, setCreatedInstance] = useState<EvolutionConfig | null>(null);
   const [organizationProvider, setOrganizationProvider] = useState<{ api_url: string; api_key: string; provider_name: string } | null>(null);

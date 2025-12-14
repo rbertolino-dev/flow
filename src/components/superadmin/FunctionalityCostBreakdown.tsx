@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
-import { Send, MessageSquare, Calendar, Database, Users, Activity } from "lucide-react";
+import { Send, MessageSquare, Calendar, Database, Users, Activity, HardDrive, Zap, Radio, Workflow, FileText, Bot } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -26,6 +26,12 @@ interface CostConfig {
   cost_per_scheduled_message: number;
   cost_per_lead_storage: number;
   cost_per_auth_user: number;
+  cost_per_storage_gb: number;
+  cost_per_edge_function_call: number;
+  cost_per_realtime_message: number;
+  cost_per_workflow_execution: number;
+  cost_per_form_submission: number;
+  cost_per_agent_ai_call: number;
 }
 
 interface FunctionalityCostBreakdownProps {
@@ -34,10 +40,37 @@ interface FunctionalityCostBreakdownProps {
 
 export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdownProps) {
   const [costConfig, setCostConfig] = useState<CostConfig | null>(null);
+  const [dailyMetrics, setDailyMetrics] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchCostConfig();
+    fetchDailyMetrics();
   }, []);
+
+  const fetchDailyMetrics = async () => {
+    try {
+      // Buscar métricas agregadas dos últimos 30 dias
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data, error } = await supabase
+        .from('daily_usage_metrics')
+        .select('metric_type, metric_value')
+        .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+      if (error) throw error;
+
+      // Agregar métricas por tipo
+      const aggregated: Record<string, number> = {};
+      data?.forEach((metric) => {
+        aggregated[metric.metric_type] = (aggregated[metric.metric_type] || 0) + (metric.metric_value || 0);
+      });
+
+      setDailyMetrics(aggregated);
+    } catch (error) {
+      console.error('Error fetching daily metrics:', error);
+    }
+  };
 
   const fetchCostConfig = async () => {
     try {
@@ -52,7 +85,13 @@ export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdo
           cost_per_broadcast_message: Number(data.cost_per_broadcast_message),
           cost_per_scheduled_message: Number(data.cost_per_scheduled_message),
           cost_per_lead_storage: Number(data.cost_per_lead_storage),
-          cost_per_auth_user: Number(data.cost_per_auth_user)
+          cost_per_auth_user: Number(data.cost_per_auth_user),
+          cost_per_storage_gb: Number(data.cost_per_storage_gb || 0),
+          cost_per_edge_function_call: Number(data.cost_per_edge_function_call || 0),
+          cost_per_realtime_message: Number(data.cost_per_realtime_message || 0),
+          cost_per_workflow_execution: Number(data.cost_per_workflow_execution || 0),
+          cost_per_form_submission: Number(data.cost_per_form_submission || 0),
+          cost_per_agent_ai_call: Number(data.cost_per_agent_ai_call || 0)
         });
       }
     } catch (error) {
@@ -84,20 +123,62 @@ export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdo
       icon: MessageSquare
     },
     {
+      name: "Storage (GB)",
+      value: dailyMetrics.storage_gb || 0,
+      cost: (dailyMetrics.storage_gb || 0) * costConfig.cost_per_storage_gb,
+      color: "hsl(var(--chart-2))",
+      icon: HardDrive
+    },
+    {
+      name: "Edge Functions",
+      value: dailyMetrics.edge_function_calls || 0,
+      cost: (dailyMetrics.edge_function_calls || 0) * costConfig.cost_per_edge_function_call,
+      color: "hsl(var(--chart-3))",
+      icon: Zap
+    },
+    {
+      name: "Realtime Messages",
+      value: dailyMetrics.realtime_messages || 0,
+      cost: (dailyMetrics.realtime_messages || 0) * costConfig.cost_per_realtime_message,
+      color: "hsl(var(--chart-4))",
+      icon: Radio
+    },
+    {
+      name: "Workflow Executions",
+      value: dailyMetrics.workflow_executions || 0,
+      cost: (dailyMetrics.workflow_executions || 0) * costConfig.cost_per_workflow_execution,
+      color: "hsl(var(--chart-5))",
+      icon: Workflow
+    },
+    {
+      name: "Form Submissions",
+      value: dailyMetrics.form_submissions || 0,
+      cost: (dailyMetrics.form_submissions || 0) * costConfig.cost_per_form_submission,
+      color: "hsl(var(--chart-1))",
+      icon: FileText
+    },
+    {
+      name: "Agent AI Calls",
+      value: dailyMetrics.agent_ai_calls || 0,
+      cost: (dailyMetrics.agent_ai_calls || 0) * costConfig.cost_per_agent_ai_call,
+      color: "hsl(var(--chart-2))",
+      icon: Bot
+    },
+    {
       name: "Armazenamento de Leads",
       value: metrics.totalLeads,
       cost: metrics.totalLeads * costConfig.cost_per_lead_storage,
-      color: "hsl(var(--chart-4))",
+      color: "hsl(var(--chart-3))",
       icon: Database
     },
     {
       name: "Usuários Autenticados",
       value: metrics.totalUsers,
       cost: metrics.totalUsers * costConfig.cost_per_auth_user,
-      color: "hsl(var(--chart-5))",
+      color: "hsl(var(--chart-4))",
       icon: Users
     }
-  ];
+  ].filter(item => item.value > 0 || item.cost > 0); // Filtrar apenas itens com dados
 
   const totalCost = functionalityData.reduce((sum, item) => sum + item.cost, 0);
 

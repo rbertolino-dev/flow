@@ -25,6 +25,8 @@ import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCamp
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
+import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
+import { Wifi, AlertTriangle } from "lucide-react";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
@@ -458,6 +460,7 @@ export default function BroadcastCampaigns() {
   const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<any[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
+  const [reconnectingInstance, setReconnectingInstance] = useState<any | null>(null);
   const [campaignTemplates, setCampaignTemplates] = useState<any[]>([]);
   const [activeTimeWindow, setActiveTimeWindow] = useState<TimeWindow | null>(null);
   const [instanceGroups, setInstanceGroups] = useState<any[]>([]);
@@ -1987,6 +1990,10 @@ export default function BroadcastCampaigns() {
                 <ImageIcon className="h-5 w-5 mr-2" />
                 Status
               </TabsTrigger>
+              <TabsTrigger value="reconnect" className="text-base font-semibold px-6 py-2.5 h-10">
+                <Wifi className="h-5 w-5 mr-2" />
+                Reconexão
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="templates">
@@ -2109,6 +2116,65 @@ export default function BroadcastCampaigns() {
 
             <TabsContent value="status">
               <WhatsAppStatusTab instances={instances} />
+            </TabsContent>
+
+            <TabsContent value="reconnect">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wifi className="h-5 w-5" />
+                    Reconectar Instâncias WhatsApp
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Reconecte suas instâncias WhatsApp desconectadas usando QR code ou número de telefone
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {instances.filter((i: any) => !i.is_connected).length === 0 ? (
+                    <div className="text-center py-8">
+                      <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                      <p className="text-lg font-medium">Todas as instâncias estão conectadas!</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Não há instâncias desconectadas no momento.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {instances
+                        .filter((i: any) => !i.is_connected)
+                        .map((instance: any) => (
+                          <div
+                            key={instance.id}
+                            className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <AlertTriangle className="h-4 w-4 text-destructive" />
+                                <p className="font-medium">{instance.instance_name}</p>
+                                <Badge variant="destructive" className="ml-2">
+                                  Desconectado
+                                </Badge>
+                              </div>
+                              {instance.phone_number && (
+                                <p className="text-sm text-muted-foreground">
+                                  Tel: {instance.phone_number}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              variant="default"
+                              onClick={() => setReconnectingInstance(instance)}
+                              className="ml-4"
+                            >
+                              <Wifi className="h-4 w-4 mr-2" />
+                              Reconectar
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="campaigns">
@@ -3811,6 +3877,19 @@ export default function BroadcastCampaigns() {
           onDeleteList={deleteList}
         />
       </CRMLayout>
+      {reconnectingInstance && (
+        <ReconnectInstanceDialog
+          open={!!reconnectingInstance}
+          onOpenChange={(open) => {
+            if (!open) setReconnectingInstance(null);
+          }}
+          instance={reconnectingInstance}
+          onReconnected={() => {
+            setReconnectingInstance(null);
+            fetchInstances();
+          }}
+        />
+      )}
     </AuthGuard>
   );
 }

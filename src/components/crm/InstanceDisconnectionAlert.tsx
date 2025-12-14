@@ -1,33 +1,31 @@
 import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { X, QrCode, AlertTriangle, RefreshCw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { X, QrCode, AlertTriangle, RefreshCw, Wifi } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ReconnectInstanceDialog } from './ReconnectInstanceDialog';
+import { EvolutionConfig } from '@/hooks/useEvolutionConfigs';
 
 interface InstanceDisconnectionAlertProps {
   instanceName: string;
   qrCode: string | null;
   notificationId: string;
+  instance?: EvolutionConfig;
   onDismiss: () => void;
   onRefreshQrCode?: () => Promise<void>;
+  onReconnected?: () => void;
 }
 
 export function InstanceDisconnectionAlert({
   instanceName,
   qrCode,
   notificationId,
+  instance,
   onDismiss,
   onRefreshQrCode,
+  onReconnected,
 }: InstanceDisconnectionAlertProps) {
-  const [showDialog, setShowDialog] = useState(false);
+  const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
@@ -68,17 +66,19 @@ export function InstanceDisconnectionAlert({
           </Button>
         </AlertTitle>
         <AlertDescription className="space-y-2">
-          <p>A instância WhatsApp foi desconectada. Escaneie o QR Code para reconectar.</p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDialog(true)}
-              className="flex items-center gap-2"
-            >
-              <QrCode className="h-4 w-4" />
-              Ver QR Code
-            </Button>
+          <p>A instância WhatsApp foi desconectada. Reconecte para continuar usando o WhatsApp.</p>
+          <div className="flex gap-2 flex-wrap">
+            {instance && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowReconnectDialog(true)}
+                className="flex items-center gap-2"
+              >
+                <Wifi className="h-4 w-4" />
+                Reconectar Agora
+              </Button>
+            )}
             {onRefreshQrCode && (
               <Button
                 variant="outline"
@@ -95,60 +95,17 @@ export function InstanceDisconnectionAlert({
         </AlertDescription>
       </Alert>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Reconectar Instância: {instanceName}
-            </DialogTitle>
-            <DialogDescription>
-              Escaneie o QR Code abaixo com o WhatsApp para reconectar a instância.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {qrCode ? (
-              <div className="flex flex-col items-center space-y-4">
-                <div className="p-4 bg-muted rounded-lg">
-                  <img
-                    src={qrCode}
-                    alt="QR Code para reconexão"
-                    className="max-w-full h-auto max-h-[400px]"
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground text-center">
-                  Abra o WhatsApp no celular, vá em Configurações → Aparelhos conectados → Conectar um aparelho
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-4 p-8">
-                <AlertTriangle className="h-12 w-12 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground text-center">
-                  Não foi possível obter o QR Code. Tente atualizar ou verifique a conexão com a API.
-                </p>
-                {onRefreshQrCode && (
-                  <Button
-                    variant="outline"
-                    onClick={handleRefreshQrCode}
-                    disabled={refreshing}
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                    Tentar Novamente
-                  </Button>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>
-                Fechar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {instance && (
+        <ReconnectInstanceDialog
+          open={showReconnectDialog}
+          onOpenChange={setShowReconnectDialog}
+          instance={instance}
+          onReconnected={() => {
+            setShowReconnectDialog(false);
+            onReconnected?.();
+          }}
+        />
+      )}
     </>
   );
 }
