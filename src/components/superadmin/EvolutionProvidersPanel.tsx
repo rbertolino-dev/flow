@@ -162,7 +162,6 @@ export function EvolutionProvidersPanel() {
             api_key: formData.api_key,
             description: formData.description || null,
             is_active: formData.is_active,
-            created_by: user.id,
           });
 
         if (error) throw error;
