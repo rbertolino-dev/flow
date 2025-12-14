@@ -47,6 +47,7 @@ export function CloudCostConfiguration() {
       if (error) throw error;
 
       if (data) {
+        const extendedData = data as Record<string, any>;
         setConfig({
           cost_per_database_read: Number(data.cost_per_database_read),
           cost_per_database_write: Number(data.cost_per_database_write),
@@ -58,9 +59,9 @@ export function CloudCostConfiguration() {
           cost_per_broadcast_message: Number(data.cost_per_broadcast_message),
           cost_per_scheduled_message: Number(data.cost_per_scheduled_message),
           cost_per_lead_storage: Number(data.cost_per_lead_storage),
-          cost_per_workflow_execution: Number(data.cost_per_workflow_execution || 0.0001),
-          cost_per_form_submission: Number(data.cost_per_form_submission || 0.0001),
-          cost_per_agent_ai_call: Number(data.cost_per_agent_ai_call || 0.001),
+          cost_per_workflow_execution: Number(extendedData.cost_per_workflow_execution || 0.0001),
+          cost_per_form_submission: Number(extendedData.cost_per_form_submission || 0.0001),
+          cost_per_agent_ai_call: Number(extendedData.cost_per_agent_ai_call || 0.001),
           notes: data.notes
         });
       }

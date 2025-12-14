@@ -1249,16 +1249,19 @@ export type Database = {
       }
       cloud_cost_config: {
         Row: {
+          cost_per_agent_ai_call: number | null
           cost_per_auth_user: number | null
           cost_per_broadcast_message: number | null
           cost_per_database_read: number | null
           cost_per_database_write: number | null
           cost_per_edge_function_call: number | null
+          cost_per_form_submission: number | null
           cost_per_incoming_message: number | null
           cost_per_lead_storage: number | null
           cost_per_realtime_message: number | null
           cost_per_scheduled_message: number | null
           cost_per_storage_gb: number | null
+          cost_per_workflow_execution: number | null
           created_at: string
           id: string
           notes: string | null
@@ -1266,16 +1269,19 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          cost_per_agent_ai_call?: number | null
           cost_per_auth_user?: number | null
           cost_per_broadcast_message?: number | null
           cost_per_database_read?: number | null
           cost_per_database_write?: number | null
           cost_per_edge_function_call?: number | null
+          cost_per_form_submission?: number | null
           cost_per_incoming_message?: number | null
           cost_per_lead_storage?: number | null
           cost_per_realtime_message?: number | null
           cost_per_scheduled_message?: number | null
           cost_per_storage_gb?: number | null
+          cost_per_workflow_execution?: number | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1283,16 +1289,19 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          cost_per_agent_ai_call?: number | null
           cost_per_auth_user?: number | null
           cost_per_broadcast_message?: number | null
           cost_per_database_read?: number | null
           cost_per_database_write?: number | null
           cost_per_edge_function_call?: number | null
+          cost_per_form_submission?: number | null
           cost_per_incoming_message?: number | null
           cost_per_lead_storage?: number | null
           cost_per_realtime_message?: number | null
           cost_per_scheduled_message?: number | null
           cost_per_storage_gb?: number | null
+          cost_per_workflow_execution?: number | null
           created_at?: string
           id?: string
           notes?: string | null
