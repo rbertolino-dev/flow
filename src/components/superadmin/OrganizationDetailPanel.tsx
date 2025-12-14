@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package, Sparkles, Pencil } from "lucide-react";
+import { UserPlus, Building2, Calendar, Users, Mail, Shield, X, UserCheck, Trash2, Settings, Package, Sparkles, Pencil, Key } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,6 +14,7 @@ import {
 import { CreateUserDialog } from "./CreateUserDialog";
 import { AddExistingUserDialog } from "./AddExistingUserDialog";
 import { DeleteUserDialog } from "./DeleteUserDialog";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { OrganizationLimitsPanel } from "./OrganizationLimitsPanel";
 import { OrganizationPermissionsPanel } from "./OrganizationPermissionsPanel";
 import { AssistantConfigPanel } from "./AssistantConfigPanel";
@@ -73,6 +74,8 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
   const [removing, setRemoving] = useState(false);
   const [deleteUserOpen, setDeleteUserOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [userToResetPassword, setUserToResetPassword] = useState<{ id: string; email: string; name: string | null } | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState(false);
@@ -344,21 +347,41 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
                               </p>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setUserToDelete({
-                                id: member.user_id,
-                                name: member.profiles.full_name || member.profiles.email,
-                              });
-                              setDeleteUserOpen(true);
-                            }}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto shrink-0"
-                          >
-                            <Trash2 className="h-4 w-4 sm:mr-2" />
-                            <span className="hidden sm:inline">Excluir</span>
-                          </Button>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setUserToResetPassword({
+                                  id: member.user_id,
+                                  email: member.profiles.email,
+                                  name: member.profiles.full_name,
+                                });
+                                setResetPasswordOpen(true);
+                              }}
+                              className="text-primary hover:text-primary hover:bg-primary/10 w-full sm:w-auto"
+                            >
+                              <Key className="h-4 w-4 sm:mr-2" />
+                              <span className="hidden sm:inline">Resetar Senha</span>
+                              <span className="sm:hidden">Senha</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setUserToDelete({
+                                  id: member.user_id,
+                                  name: member.profiles.full_name || member.profiles.email,
+                                });
+                                setDeleteUserOpen(true);
+                              }}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+                            >
+                              <Trash2 className="h-4 w-4 sm:mr-2" />
+                              <span className="hidden sm:inline">Excluir</span>
+                              <span className="sm:hidden">Excluir</span>
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </Card>
@@ -416,6 +439,16 @@ export function OrganizationDetailPanel({ organization, onClose, onUpdate }: Org
           userId={userToDelete.id}
           userName={userToDelete.name}
           organizationId={organization.id}
+        />
+      )}
+
+      {userToResetPassword && (
+        <ResetPasswordDialog
+          open={resetPasswordOpen}
+          onOpenChange={setResetPasswordOpen}
+          userId={userToResetPassword.id}
+          userEmail={userToResetPassword.email}
+          userName={userToResetPassword.name}
         />
       )}
 

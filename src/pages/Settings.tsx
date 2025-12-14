@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog } from "lucide-react";
+import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
@@ -36,6 +36,7 @@ import { BubbleLeadsSyncPanel } from "@/components/crm/BubbleLeadsSyncPanel";
 import { HubSpotIntegrationPanel } from "@/components/crm/HubSpotIntegrationPanel";
 import { HubSpotListsImportPanel } from "@/components/crm/HubSpotListsImportPanel";
 import { UsersPanel } from "@/components/users/UsersPanel";
+import { UserProfilePanel } from "@/components/users/UserProfilePanel";
 import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { ConditionalIntegration } from "@/components/integrations/ConditionalIntegration";
@@ -200,7 +201,7 @@ export default function Settings() {
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-1 overflow-x-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-10 gap-1 overflow-x-auto">
             <TabsTrigger value="integrations" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Integrações</span>
               <span className="sm:hidden">Integrações</span>
@@ -241,6 +242,11 @@ export default function Settings() {
               <UserCog className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Usuários</span>
               <span className="sm:hidden">Usuários</span>
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs sm:text-sm">
+              <User className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Perfil</span>
+              <span className="sm:hidden">Perfil</span>
             </TabsTrigger>
           </TabsList>
 
@@ -594,6 +600,10 @@ export default function Settings() {
 
               <TabsContent value="users" className="space-y-6">
                 <UsersPanel />
+              </TabsContent>
+
+              <TabsContent value="profile" className="space-y-6">
+                <UserProfilePanel />
               </TabsContent>
         </Tabs>
       </div>
