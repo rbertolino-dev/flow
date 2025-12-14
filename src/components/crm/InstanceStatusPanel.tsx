@@ -64,6 +64,61 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     });
   }, [instances.map(i => `${i.id}-${i.is_connected}`).join(',')]);
 
+  // Realtime: atualizar status quando evolution_config mudar
+  useEffect(() => {
+    const instanceIds = instances.map(i => i.id);
+    if (instanceIds.length === 0) return;
+
+    const channel = supabase
+      .channel('instance-status-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'evolution_config',
+        },
+        (payload) => {
+          const updatedInstance = payload.new as { id: string; is_connected: boolean | null };
+          
+          // Só atualiza se for uma das instâncias que estamos monitorando
+          if (instanceIds.includes(updatedInstance.id)) {
+            console.log('📡 Realtime: status atualizado', updatedInstance.id, updatedInstance.is_connected);
+            
+            setStatusMap(prev => ({
+              ...prev,
+              [updatedInstance.id]: {
+                isConnected: updatedInstance.is_connected,
+                checking: false,
+                lastCheck: Date.now()
+              }
+            }));
+
+            // Mostrar toast se reconectou
+            if (updatedInstance.is_connected === true) {
+              const instance = instances.find(i => i.id === updatedInstance.id);
+              if (instance) {
+                toast({
+                  title: "✅ Instância Conectada",
+                  description: `${instance.instance_name} está conectada.`,
+                });
+              }
+            }
+
+            // Atualizar lista para refletir mudanças
+            if (onRefresh) {
+              onRefresh();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [instances.map(i => i.id).join(','), onRefresh, toast]);
+
   const checkInstanceStatus = useCallback(async (instance: Instance, skipDbUpdate = false) => {
     // Prevenir verificações duplicadas simultâneas
     if (checkingRef.current.has(instance.id)) {
