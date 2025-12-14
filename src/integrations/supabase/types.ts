@@ -4452,6 +4452,10 @@ export type Database = {
         }
         Returns: string
       }
+      can_create_evolution_instance: {
+        Args: { _org_id: string }
+        Returns: boolean
+      }
       can_manage_user: {
         Args: { _manager_id: string; _target_user_id: string }
         Returns: boolean
