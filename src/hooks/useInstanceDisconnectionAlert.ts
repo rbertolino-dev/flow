@@ -30,18 +30,22 @@ const normalizeApiUrl = (url: string) => {
   }
 };
 
-// Buscar QR code da Evolution API
+// Buscar QR code da Evolution API (endpoint correto: /instance/connect/)
 const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string): Promise<string | null> => {
   try {
     const base = normalizeApiUrl(apiUrl);
-    const url = `${base}/instance/qrcode/${instanceName}`;
+    const url = `${base}/instance/connect/${instanceName}`;
+    
+    console.log(`🔍 Buscando QR code: ${url}`);
     
     const response = await fetch(url, {
       headers: {
         'apikey': apiKey || '',
       },
-      signal: AbortSignal.timeout(10000), // 10s timeout
+      signal: AbortSignal.timeout(10000),
     });
+
+    console.log(`📡 Resposta: ${response.status}`);
 
     if (!response.ok) {
       console.warn(`⚠️ Erro ao buscar QR code: HTTP ${response.status}`);
@@ -49,6 +53,8 @@ const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string)
     }
 
     const data = await response.json();
+    console.log('📦 Dados recebidos:', data);
+    
     let qrCode = data.base64 || data.qrcode || data.code || null;
     
     if (qrCode && !qrCode.startsWith('data:image')) {
