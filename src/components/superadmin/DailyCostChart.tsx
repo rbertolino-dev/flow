@@ -66,6 +66,7 @@ export function DailyCostChart() {
       .single();
     
     if (data) {
+      const extendedData = data as Record<string, any>;
       setCostConfig({
         cost_per_incoming_message: Number(data.cost_per_incoming_message),
         cost_per_broadcast_message: Number(data.cost_per_broadcast_message),
@@ -75,9 +76,9 @@ export function DailyCostChart() {
         cost_per_storage_gb: Number(data.cost_per_storage_gb || 0),
         cost_per_edge_function_call: Number(data.cost_per_edge_function_call || 0),
         cost_per_realtime_message: Number(data.cost_per_realtime_message || 0),
-        cost_per_workflow_execution: Number(data.cost_per_workflow_execution || 0),
-        cost_per_form_submission: Number(data.cost_per_form_submission || 0),
-        cost_per_agent_ai_call: Number(data.cost_per_agent_ai_call || 0),
+        cost_per_workflow_execution: Number(extendedData.cost_per_workflow_execution || 0),
+        cost_per_form_submission: Number(extendedData.cost_per_form_submission || 0),
+        cost_per_agent_ai_call: Number(extendedData.cost_per_agent_ai_call || 0),
       });
     }
   };
