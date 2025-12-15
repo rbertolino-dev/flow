@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2 } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +31,8 @@ export type CRMView =
   | "attention"
   | "automation-flows"
   | "post-sale"
-  | "assistant";
+  | "assistant"
+  | "contracts";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -89,6 +90,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'workflows': 'automations',
     'automation-flows': 'automations',
     'form-builder': 'form_builder',
+    'contracts': null, // sempre visível
     'settings': null, // sempre visível
     'superadmin': null, // controlado por role
     'users': null, // sempre visível para admins
@@ -108,6 +110,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
+    { id: "contracts" as const, label: "Contratos", icon: FileSignature },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
@@ -256,6 +259,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/form-builder');
               } else if (item.id === 'post-sale') {
                 navigate('/post-sale');
+              } else if (item.id === 'contracts') {
+                navigate('/contracts');
               } else if (item.id === 'kanban' || item.id === 'calls') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });
