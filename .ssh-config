@@ -1,0 +1,15 @@
+# 🔐 Configuração SSH do Servidor
+# Este arquivo contém as configurações para acesso SSH automático
+
+# Informações do Servidor
+export SERVER_IP="95.217.2.116"
+export SERVER_USER="root"
+export SERVER_PASSWORD="grkjuXfEbwaF"
+export SERVER_DIR="/opt/app"
+
+# Para usar esta configuração, execute:
+# source .ssh-config
+
+# ⚠️ IMPORTANTE: Este arquivo contém credenciais sensíveis
+# NUNCA commite este arquivo no repositório!
+

@@ -1,0 +1,207 @@
+# 🧪 Regras para Testes Automáticos E2E
+
+## 🎯 Regra Principal: Entender Contexto e Testar Automaticamente
+
+**SEMPRE** entender o contexto da tarefa e executar testes E2E automatizados quando:
+- Implementar nova funcionalidade
+- Corrigir bug
+- Fazer mudanças em funcionalidades críticas
+- Antes de fazer deploy
+- Quando usuário pedir para testar
+
+**O Cursor DEVE** executar testes automaticamente baseado no contexto, sem pedir confirmação.
+
+### Fluxo Obrigatório:
+
+1. **PRIMEIRO**: Executar testes automatizados
+2. **SEGUNDO**: Analisar erros capturados
+3. **TERCEIRO**: Aplicar correções sugeridas
+4. **QUARTO**: Re-executar testes para validar
+
+---
+
+## 🚀 Executar Testes Automáticos
+
+### Comando Principal:
+
+```bash
+# Executar todos os testes e capturar erros
+npm run test:e2e:auto
+
+# Executar com análise de erros
+npm run test:e2e:analyze
+
+# Executar e gerar relatório de correções
+npm run test:e2e:fix-suggestions
+```
+
+### Quando Executar:
+
+- ✅ Antes de fazer deploy
+- ✅ Após mudanças em funcionalidades críticas
+- ✅ Após adicionar novas features
+- ✅ Após correções de bugs
+- ✅ Periodicamente (CI/CD)
+
+---
+
+## 📊 Captura e Análise de Erros
+
+### O Que É Capturado:
+
+1. **Screenshots** de falhas
+2. **Vídeos** das execuções que falharam
+3. **Logs** detalhados de erros
+4. **Stack traces** completos
+5. **Seletores** que falharam
+6. **Tempo de resposta** de elementos
+
+### Análise Automática:
+
+Os testes automaticamente:
+- ✅ Identificam padrões de erro
+- ✅ Sugerem correções baseadas em erros comuns
+- ✅ Geram relatório de problemas encontrados
+- ✅ Priorizam erros por criticidade
+
+---
+
+## 🔧 Correções Automáticas Sugeridas
+
+### Tipos de Correções:
+
+1. **Seletores quebrados:**
+   - Sugestão: Atualizar seletores
+   - Ação: Script gera novos seletores baseados na estrutura atual
+
+2. **Timeouts:**
+   - Sugestão: Aumentar timeout ou otimizar performance
+   - Ação: Ajustar timeouts no playwright.config.ts
+
+3. **Elementos não encontrados:**
+   - Sugestão: Verificar se elemento existe ou se mudou
+   - Ação: Atualizar seletores ou adicionar waits
+
+4. **Validações falhando:**
+   - Sugestão: Ajustar validações ou dados de teste
+   - Ação: Atualizar helpers de teste
+
+---
+
+## 📝 Padrões de Teste
+
+### Estrutura de Teste:
+
+```typescript
+test('nome do teste', async ({ authenticatedPage }) => {
+  // 1. Navegar
+  await navigateTo(authenticatedPage, '/');
+  
+  // 2. Interagir
+  await createLead(authenticatedPage, { name: 'Teste' });
+  
+  // 3. Validar
+  expect(await leadExists(authenticatedPage, 'Teste')).toBe(true);
+});
+```
+
+### Tratamento de Erros:
+
+```typescript
+test('teste com captura de erro', async ({ authenticatedPage }) => {
+  try {
+    await createLead(authenticatedPage, { name: 'Teste' });
+  } catch (error) {
+    // Erro é automaticamente capturado e analisado
+    // Screenshot e vídeo são salvos
+    throw error; // Re-lança para o Playwright processar
+  }
+});
+```
+
+---
+
+## 🔄 Fluxo de Correção Automática
+
+```
+Teste falha
+    ↓
+Erro capturado (screenshot, vídeo, logs)
+    ↓
+Análise automática do erro
+    ↓
+Sugestões de correção geradas
+    ↓
+Relatório criado (test-results/fix-suggestions.json)
+    ↓
+Desenvolvedor revisa e aplica correções
+    ↓
+Re-executa testes
+    ↓
+✅ Testes passam
+```
+
+---
+
+## 📋 Checklist de Testes
+
+Antes de fazer deploy:
+
+- [ ] Executar testes: `npm run test:e2e:auto`
+- [ ] Revisar erros capturados
+- [ ] Aplicar correções sugeridas
+- [ ] Re-executar testes
+- [ ] Verificar que todos passam
+- [ ] Fazer deploy
+
+---
+
+## 🎯 Prioridades de Teste
+
+### Alta Prioridade (Sempre Testar):
+
+- Login/Autenticação
+- CRUD de Leads
+- CRUD de Organizações
+- Fluxos de pagamento
+- Integrações críticas
+
+### Média Prioridade (Testar Regularmente):
+
+- Formulários
+- Navegação
+- Filtros e buscas
+- Relatórios
+
+### Baixa Prioridade (Testar Ocasionalmente):
+
+- UI/UX
+- Performance
+- Acessibilidade
+
+---
+
+## ⚠️ Regras Importantes
+
+1. **NUNCA** fazer deploy sem executar testes primeiro
+2. **SEMPRE** revisar erros capturados
+3. **SEMPRE** aplicar correções críticas antes de deploy
+4. **SEMPRE** manter testes atualizados com mudanças no código
+5. **NUNCA** ignorar erros de teste sem investigar
+
+---
+
+## 🔍 Análise de Erros
+
+Após executar testes, sempre:
+
+1. Verificar relatório: `test-results/fix-suggestions.json`
+2. Revisar screenshots: `test-results/`
+3. Assistir vídeos de falhas: `test-results/`
+4. Aplicar correções sugeridas
+5. Re-executar testes
+
+---
+
+**🎯 Objetivo:** Garantir qualidade e estabilidade através de testes automatizados que capturam erros e sugerem correções.
+

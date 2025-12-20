@@ -22,6 +22,7 @@ interface AssistantConfig {
   temperature?: number;
   max_tokens?: number;
   model?: string;
+  api_key?: string | null;
   is_active?: boolean;
   is_global?: boolean;
 }
@@ -41,6 +42,7 @@ export function AssistantConfigPanel({ organizationId, organizationName }: Assis
     temperature: 0.7,
     max_tokens: 2000,
     model: "deepseek-chat",
+    api_key: "",
     is_active: true,
     is_global: false,
   });
@@ -99,6 +101,7 @@ export function AssistantConfigPanel({ organizationId, organizationName }: Assis
         temperature: config.temperature || 0.7,
         max_tokens: config.max_tokens || 2000,
         model: config.model || "deepseek-chat",
+        api_key: config.api_key || null,
         is_active: config.is_active ?? true,
         is_global: organizationId ? false : (config.is_global ?? false),
       };
@@ -363,6 +366,22 @@ export function AssistantConfigPanel({ organizationId, organizationName }: Assis
               </Select>
               <p className="text-xs text-muted-foreground">
                 Modelo do DeepSeek a ser usado
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="api-key">API Key do DeepSeek</Label>
+              <Input
+                id="api-key"
+                type="password"
+                value={config.api_key || ""}
+                onChange={(e) =>
+                  setConfig({ ...config, api_key: e.target.value })
+                }
+                placeholder="sk-..."
+              />
+              <p className="text-xs text-muted-foreground">
+                API Key específica para esta organização. Se deixar em branco, usará a variável de ambiente global DEEPSEEK_API_KEY.
               </p>
             </div>
           </TabsContent>

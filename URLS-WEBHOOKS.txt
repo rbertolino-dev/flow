@@ -1,0 +1,52 @@
+# URLs dos Webhooks - Novo Projeto Supabase
+
+Projeto: flow
+Project ID: ogeljmbhqxpfjbpnbwog
+Project URL: https://ogeljmbhqxpfjbpnbwog.supabase.co
+
+============================================
+WEBHOOKS PARA ATUALIZAR
+============================================
+
+1. EVOLUTION API WEBHOOK
+   URL: https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/evolution-webhook
+   Método: POST
+   Eventos: messages.upsert, messages.update, connection.update, qrcode.updated
+
+2. CHATWOOT WEBHOOK
+   URL: https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/chatwoot-webhook
+   Método: POST
+   Eventos: message_created, conversation_created, etc.
+
+3. FACEBOOK WEBHOOK
+   URL: https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/facebook-webhook
+   Método: POST
+   Verify Token: [Configurado nas secrets]
+   Eventos: messages, messaging_postbacks, messaging_optins
+
+4. MERCADO PAGO WEBHOOK
+   URL: https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/mercado-pago-webhook
+   Método: POST
+   Eventos: payment, merchant_order, subscription
+
+============================================
+COMO TESTAR
+============================================
+
+# Ver logs de cada webhook:
+supabase functions logs evolution-webhook
+supabase functions logs chatwoot-webhook
+supabase functions logs facebook-webhook
+supabase functions logs mercado-pago-webhook
+
+============================================
+NOTAS
+============================================
+
+- Todos os webhooks já estão deployados
+- Service Role Key pode ser necessário em alguns casos
+- Verificar CORS se houver problemas
+- Timeout: 30 segundos máximo
+
+
+

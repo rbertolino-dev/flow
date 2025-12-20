@@ -1,0 +1,306 @@
+==========================================
+RELATÓRIO DE ARQUIVOS LOCAIS
+==========================================
+Data: Mon Dec 15 12:19:31 PM UTC 2025
+Diretório: /root/kanban-buzz-95241
+
+==========================================
+1. ESTRUTURA DE DIRETÓRIOS PRINCIPAIS
+==========================================
+
+Diretórios de primeiro nível:
+backups
+docs
+.git
+.github
+.lovable
+migrations-lotes
+public
+scripts
+src
+supabase
+
+==========================================
+2. ARQUIVOS DE CONFIGURAÇÃO
+==========================================
+
+✅ package.json
+   Tamanho: 4.0K
+   Última modificação: 2025-12-14 16:16:44.214887049 +0000
+
+✅ docker-compose.yml
+   Tamanho: 4.0K
+   Última modificação: 2025-12-15 12:04:05.471512309 +0000
+
+✅ Dockerfile
+   Tamanho: 4.0K
+   Última modificação: 2025-12-15 12:04:05.415509836 +0000
+
+✅ vite.config.ts
+   Tamanho: 4.0K
+   Última modificação: 2025-12-14 16:16:44.299889767 +0000
+
+✅ tsconfig.json
+   Tamanho: 4.0K
+   Última modificação: 2025-12-14 16:16:44.299889767 +0000
+
+✅ tailwind.config.ts
+   Tamanho: 4.0K
+   Última modificação: 2025-12-14 16:16:44.299889767 +0000
+
+✅ postcss.config.js
+   Tamanho: 4.0K
+   Última modificação: 2025-12-14 16:16:44.214887049 +0000
+
+✅ eslint.config.js
+   Tamanho: 4.0K
+   Última modificação: 2025-12-14 16:16:44.212886985 +0000
+
+==========================================
+3. ESTRUTURA src/
+==========================================
+
+Subdiretórios em src/:
+assets
+components
+data
+hooks
+integrations
+lib
+pages
+services
+types
+utils
+
+Arquivos principais em src/:
+App.css
+App.tsx
+index.css
+main.tsx
+vite-env.d.ts
+
+Total de arquivos em src/:
+409
+
+Tamanho total de src/:
+4.7M	src
+
+==========================================
+4. ESTRUTURA supabase/
+==========================================
+
+Conteúdo de supabase/:
+total 112
+drwxr-xr-x  6 root root  4096 Dec 14 21:28 .
+drwxr-xr-x 12 root root 20480 Dec 15 12:09 ..
+-rw-r--r--  1 root root  4737 Dec 14 17:29 config.toml
+drwxr-xr-x 88 root root  4096 Dec 14 16:16 functions
+drwxr-xr-x  2 root root 45056 Dec 14 21:28 migrations
+drwxr-xr-x  2 root root 24576 Dec 14 21:28 migrations-backup
+drwxr-xr-x  2 root root  4096 Dec 15 01:03 .temp
+
+Edge Functions encontradas:
+  Total: 86 funções
+
+Lista de Edge Functions:
+agents-sync-evolution
+agents-sync-openai
+apply-fix-recipient-type
+asaas-create-boleto
+asaas-create-charge
+asaas-sync-boleto-status
+bubble-check-status
+bubble-list-data-types
+bubble-list-instances
+bubble-query-data
+bubble-send-whatsapp
+bubble-sync-leads
+chatwoot-add-private-note
+chatwoot-apply-label
+chatwoot-create-canned-response
+chatwoot-create-contact
+chatwoot-create-conversation
+chatwoot-create-label
+chatwoot-execute-macro
+chatwoot-get-conversations
+chatwoot-get-messages
+chatwoot-list-canned-responses
+chatwoot-list-inboxes
+chatwoot-list-labels
+chatwoot-merge-contacts
+chatwoot-proxy
+chatwoot-send-message
+chatwoot-test-connection
+chatwoot-webhook
+create-evolution-instance
+create-google-business-post
+create-google-calendar-event
+create-user
+deepseek-assistant
+delete-google-calendar-event
+evolution-fetch-chats
+evolution-fetch-messages
+evolution-send-message-direct
+evolution-webhook
+facebook-oauth-callback
+facebook-oauth-init
+facebook-test-connection
+facebook-webhook
+get-form
+get-google-business-access-token
+get-google-calendar-access-token
+gmail-oauth-callback
+gmail-oauth-init
+gmail-send-reply
+google-business-oauth-callback
+google-business-oauth-init
+google-calendar-oauth-callback
+google-calendar-oauth-init
+hubspot-get-list-contacts
+hubspot-import-list
+hubspot-list-lists
+hubspot-sync-contacts
+hubspot-test-connection
+hubspot-webhook
+import-contacts
+list-gmail-messages
+list-google-calendars
+log-auth-attempt
+mercado-pago-create-boleto
+mercado-pago-create-payment
+mercado-pago-webhook
+n8n-generate-workflow
+n8n-proxy
+notify-instance-disconnection
+openai-list-models
+patch-call-queue-org
+process-broadcast-queue
+process-google-business-posts
+process-scheduled-messages
+process-status-schedule
+process-whatsapp-workflows
+publish-whatsapp-status
+reconnect-evolution-instance
+send-whatsapp-message
+_shared
+submit-form
+sync-daily-metrics
+sync-google-calendar-events
+update-google-calendar-event
+update-user-password
+validate-whatsapp-number
+
+Migrations encontradas:
+  Total: 220 migrations
+
+Primeiras 20 migrations:
+20250101000000_add_chatwoot_create_leads_option.sql
+20250101000001_create_profiles.sql
+20250101000002_create_helper_functions.sql
+20250101000003_create_base_tables.sql
+20250101000004_create_app_role_type.sql
+20250115000000_create_instance_health_metrics.sql
+20250115000001_create_instance_risk_score_function.sql
+20250120000000_create_google_calendar_tables.sql
+20250121000000_create_gmail_configs.sql
+20250121000001_create_calendar_message_templates.sql
+20250122000000_add_stage_id_to_calendar_events.sql
+20250122000000_create_follow_up_templates.sql
+20250122000001_create_follow_up_templates.sql
+20250122000002_create_instance_disconnection_notifications.sql
+20250122000003_add_follow_up_step_automations.sql
+20250123000000_add_mercado_pago_config.sql
+20250123000000_add_status_to_calendar_events.sql
+20250123000001_add_media_to_calendar_templates.sql
+20250123000001_add_mercado_pago_payments.sql
+20250124000000_add_attendees_and_organizer_to_calendar_events.sql
+
+✅ supabase/config.toml existe
+   Tamanho: 8.0K
+
+==========================================
+5. ESTRUTURA public/
+==========================================
+
+Conteúdo de public/:
+total 40
+drwxr-xr-x  2 root root  4096 Dec 14 16:16 .
+drwxr-xr-x 12 root root 20480 Dec 15 12:09 ..
+-rw-r--r--  1 root root  7645 Dec 14 16:16 favicon.ico
+-rw-r--r--  1 root root  3253 Dec 14 16:16 placeholder.svg
+-rw-r--r--  1 root root   160 Dec 14 16:16 robots.txt
+
+Total de arquivos em public/:
+3
+
+Tamanho total de public/:
+20K	public
+
+==========================================
+6. SCRIPTS
+==========================================
+
+Total de scripts:
+48
+
+Scripts principais:
+scripts/migracao-inteligente-final.sh
+scripts/verificar-login.sh
+scripts/gerar-sql-com-lotes.sh
+scripts/migracao-robusta-infinita.sh
+scripts/deploy-todas-funcoes.sh
+scripts/marcar-migrations-aplicadas.sh
+scripts/migracao_helper.sh
+scripts/migracao-inteligente-auto-correcao.sh
+scripts/verificar-servidor-hetzner.sh
+scripts/migracao-automatica.sh
+scripts/checklist-migracao.sh
+scripts/hetzner/monitorar-dns-e-configurar-ssl.sh
+scripts/hetzner/backup-app.sh
+scripts/hetzner/deploy-app.sh
+scripts/hetzner/configurar-nginx.sh
+scripts/hetzner/configurar-dominio-completo.sh
+scripts/hetzner/preparar-servidor.sh
+scripts/hetzner/migrar-para-novo-supabase.sh
+scripts/hetzner/configurar-ssl.sh
+scripts/hetzner/instalar-portainer.sh
+
+==========================================
+7. TAMANHOS E ESTATÍSTICAS
+==========================================
+
+Tamanho total do projeto:
+26M	.
+
+Tamanho por diretório principal:
+20K	public
+348K	scripts
+3.5M	supabase
+4.7M	src
+
+Total de arquivos:
+1312
+
+Total de diretórios:
+170
+
+==========================================
+8. ARQUIVOS IMPORTANTES PARA DEPLOY
+==========================================
+
+✅ package.json
+✅ package-lock.json
+✅ bun.lockb
+✅ docker-compose.yml
+✅ Dockerfile
+✅ vite.config.ts
+✅ tsconfig.json
+✅ tailwind.config.ts
+✅ postcss.config.js
+✅ eslint.config.js
+✅ index.html
+✅ supabase/config.toml
+
+==========================================
+FIM DO RELATÓRIO
+==========================================

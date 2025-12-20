@@ -1,0 +1,307 @@
+// Função para gerar PDF do contrato usando jsPDF
+// Nota: jsPDF precisa ser instalado: npm install jspdf
+
+export interface ContractPdfOptions {
+  content: string;
+  contractNumber: string;
+  leadName?: string;
+  fileName?: string;
+  coverPageUrl?: string; // URL da folha de rosto (imagem de fundo)
+  signatures?: Array<{
+    name: string;
+    signatureData: string; // base64 PNG
+    signedAt?: string; // Data/hora da assinatura
+    ipAddress?: string; // IP do signatário
+    userAgent?: string; // User Agent
+    signedIpCountry?: string; // País do IP
+    validationHash?: string; // Hash de validação
+  }>; // Assinaturas a serem adicionadas ao PDF
+}
+
+import { jsPDF } from 'jspdf';
+
+export async function generateContractPDF(options: ContractPdfOptions): Promise<Blob> {
+  
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4', // 210 x 297 mm
+  });
+
+  // Configurações de página
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 20;
+  const maxWidth = pageWidth - (margin * 2);
+  const lineHeight = 7;
+  let yPosition = margin;
+
+  // Adicionar folha de rosto como fundo (se fornecida)
+  if (options.coverPageUrl) {
+    try {
+      console.log('🖼️ Carregando folha de rosto:', options.coverPageUrl);
+      
+      // Usar a função loadImage que já trata CORS
+      const imageDataUrl = await loadImage(options.coverPageUrl);
+      
+      if (imageDataUrl) {
+        console.log('✅ Imagem carregada com sucesso');
+        
+        // Adicionar imagem como fundo na primeira página
+        // A imagem será redimensionada para encaixar exatamente na página A4 (210x297mm)
+        doc.addImage(
+          imageDataUrl,
+          'PNG', // Usar PNG para suportar transparência
+          0, // x: começa no canto superior esquerdo
+          0, // y: começa no canto superior esquerdo
+          pageWidth, // largura: exatamente a largura da página
+          pageHeight, // altura: exatamente a altura da página
+          undefined, // alias (opcional)
+          'FAST' // compressão rápida
+        );
+        console.log('✅ Imagem adicionada ao PDF');
+      } else {
+        console.warn('⚠️ Não foi possível carregar a imagem da folha de rosto');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar folha de rosto:', error);
+      // Continua sem a folha de rosto se houver erro
+    }
+  }
+
+  // Função para adicionar nova página se necessário
+  const checkNewPage = (requiredHeight: number) => {
+    if (yPosition + requiredHeight > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+      return true;
+    }
+    return false;
+  };
+
+  // Título do contrato
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONTRATO', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += lineHeight * 2;
+
+  // Número do contrato
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Nº ${options.contractNumber}`, pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += lineHeight * 2;
+
+  // Linha separadora
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += lineHeight * 2;
+
+  // Conteúdo do contrato
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+
+  // Dividir conteúdo em parágrafos
+  const paragraphs = options.content.split('\n\n').filter(p => p.trim());
+
+  // Função auxiliar para adicionar rodapé em uma página
+  const addFooter = (pageY: number) => {
+    const currentDate = new Date().toLocaleDateString('pt-BR');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.text(
+      `Documento gerado em ${currentDate}`,
+      pageWidth / 2,
+      pageY,
+      { align: 'center' }
+    );
+  };
+
+  for (const paragraph of paragraphs) {
+    // Verificar se precisa de nova página
+    if (checkNewPage(lineHeight * 3)) {
+      // Adicionar rodapé na página anterior antes de criar nova página
+      addFooter(pageHeight - margin);
+    }
+
+    // Dividir parágrafo em linhas que cabem na largura
+    const lines = doc.splitTextToSize(paragraph.trim(), maxWidth);
+    
+    for (const line of lines) {
+      if (checkNewPage(lineHeight)) {
+        // Adicionar rodapé na página anterior antes de criar nova página
+        addFooter(pageHeight - margin);
+      }
+      doc.text(line, margin, yPosition);
+      yPosition += lineHeight;
+    }
+
+    // Espaço entre parágrafos
+    yPosition += lineHeight * 0.5;
+  }
+
+  // Adicionar rodapé na última página de conteúdo
+  addFooter(pageHeight - margin);
+
+  // Adicionar assinaturas no final (DEPOIS do rodapé)
+  console.log('📝 Gerando PDF - Assinaturas recebidas:', options.signatures?.length || 0);
+  
+  if (options.signatures && options.signatures.length > 0) {
+    console.log('📝 Adicionando página de assinaturas com', options.signatures.length, 'assinatura(s)');
+    // Criar nova página dedicada para assinaturas
+    doc.addPage();
+    yPosition = margin;
+
+    // Título da seção de assinaturas
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ASSINATURAS', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += lineHeight * 2;
+
+    // Linha separadora
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += lineHeight * 2;
+
+    // Adicionar cada assinatura
+    const signatureHeight = 40; // Altura estimada para cada assinatura
+    
+    for (let i = 0; i < options.signatures.length; i++) {
+      const signature = options.signatures[i];
+      console.log(`📝 Processando assinatura ${i + 1}/${options.signatures.length}:`, signature.name);
+      
+      // Verificar se precisa de nova página para próxima assinatura
+      if (yPosition + signatureHeight + lineHeight * 3 > pageHeight - margin - 10) {
+        // Adicionar rodapé na página atual antes de criar nova
+        addFooter(pageHeight - margin);
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      // Nome do signatário
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(signature.name, margin, yPosition);
+      yPosition += lineHeight;
+
+      // Data e hora da assinatura
+      if (signature.signedAt) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const signedDate = new Date(signature.signedAt);
+        const dateStr = signedDate.toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        doc.text(`Assinado em: ${dateStr}`, margin, yPosition);
+        yPosition += lineHeight * 1.5;
+      }
+
+      // Adicionar imagem da assinatura
+      try {
+        const signatureImg = new Image();
+        signatureImg.crossOrigin = 'anonymous';
+        
+        await new Promise<void>((resolve, reject) => {
+          signatureImg.onload = () => resolve();
+          signatureImg.onerror = () => reject(new Error('Erro ao carregar imagem da assinatura'));
+          signatureImg.src = signature.signatureData;
+        });
+
+        // Adicionar assinatura (largura máxima de 60mm, altura proporcional)
+        const signatureWidth = 60;
+        const signatureHeightImg = (signatureImg.height / signatureImg.width) * signatureWidth;
+        
+        doc.addImage(
+          signatureImg,
+          'PNG',
+          margin,
+          yPosition,
+          signatureWidth,
+          signatureHeightImg
+        );
+
+        yPosition += signatureHeightImg + lineHeight * 1.5;
+      } catch (error) {
+        console.error('Erro ao adicionar assinatura ao PDF:', error);
+        yPosition += lineHeight * 3; // Espaço mesmo se falhar
+      }
+
+      // Dados de autenticação (se disponíveis)
+      const hasAuthData = !!(signature.ipAddress || signature.userAgent || signature.validationHash);
+      if (hasAuthData) {
+        // Linha separadora antes dos dados de autenticação
+        doc.setLineWidth(0.2);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += lineHeight;
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Dados de Autenticação:', margin, yPosition);
+        yPosition += lineHeight * 0.8;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        
+        if (signature.ipAddress) {
+          let ipText = `IP: ${signature.ipAddress}`;
+          if (signature.signedIpCountry) {
+            ipText += ` (${signature.signedIpCountry})`;
+          }
+          doc.text(ipText, margin + 5, yPosition);
+          yPosition += lineHeight * 0.7;
+        }
+
+        if (signature.userAgent) {
+          // Truncar user agent se muito longo
+          const maxUserAgentLength = 80;
+          let userAgentText = signature.userAgent;
+          if (userAgentText.length > maxUserAgentLength) {
+            userAgentText = userAgentText.substring(0, maxUserAgentLength) + '...';
+          }
+          const userAgentLines = doc.splitTextToSize(`Dispositivo: ${userAgentText}`, maxWidth - 10);
+          userAgentLines.forEach((line: string) => {
+            doc.text(line, margin + 5, yPosition);
+            yPosition += lineHeight * 0.7;
+          });
+        }
+
+        if (signature.validationHash) {
+          // Hash completo em linha separada
+          const hashLines = doc.splitTextToSize(
+            `Hash Validação: ${signature.validationHash}`,
+            maxWidth - 10
+          );
+          hashLines.forEach((line: string) => {
+            doc.text(line, margin + 5, yPosition);
+            yPosition += lineHeight * 0.7;
+          });
+        }
+
+        yPosition += lineHeight;
+      }
+    }
+
+    // Adicionar rodapé na última página de assinaturas
+    addFooter(pageHeight - margin);
+  }
+
+  // Gerar blob do PDF
+  const pdfBlob = doc.output('blob');
+  return pdfBlob;
+}
+
+// Função alternativa usando API externa (fallback)
+export async function generateContractPDFViaAPI(
+  content: string,
+  contractNumber: string
+): Promise<Blob> {
+  // Esta função pode ser usada como fallback se jsPDF não estiver disponível
+  // Requer uma API externa de geração de PDF (ex: Puppeteer, PDFShift, etc.)
+  
+  throw new Error('Geração de PDF via API não implementada. Use generateContractPDF com jsPDF.');
+}
+

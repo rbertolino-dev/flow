@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 
 interface DeleteUserDialogProps {
   open: boolean;
@@ -44,7 +45,12 @@ export function DeleteUserDialog({
       });
 
       onOpenChange(false);
-      onSuccess();
+      
+      // Forçar recarregamento completo do navegador após excluir usuário
+      setTimeout(() => {
+        onSuccess();
+        window.location.reload();
+      }, 500);
     } catch (error: any) {
       console.error("Erro ao excluir usuário:", error);
       toast({

@@ -1,130 +1,173 @@
-# ✅ Checklist de Deploy - Workflows Periódicos
+# ✅ Checklist de Deploy
 
-## Status Atual
-
-- [x] Build do frontend concluído
-- [x] Código commitado e sincronizado no GitHub
-- [ ] **Migrações aplicadas no banco de dados**
-- [ ] **Função Edge deployada**
-- [ ] Cron Job configurado (opcional)
+Use este checklist antes e depois de cada deploy para garantir que tudo está funcionando corretamente.
 
 ---
 
-## 📋 Passos para Finalizar o Deploy
+## 📋 Pré-Deploy
 
-### 1️⃣ Aplicar Migrações (OBRIGATÓRIO)
+### Antes de Fazer Deploy
 
-**Acesse:** https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/sql/new
+- [ ] **Código testado localmente**
+  - [ ] Aplicação funciona sem erros
+  - [ ] Console do navegador sem erros críticos
+  - [ ] Funcionalidades principais testadas
 
-**Execute na ordem:**
+- [ ] **Mudanças no código identificadas**
+  - [ ] Lista de arquivos modificados revisada
+  - [ ] Imports do React verificados (useEffect, useState, etc.)
+  - [ ] Dependências atualizadas (se necessário)
 
-#### a) Primeira migração:
-- Arquivo: `supabase/migrations/20251114130000_add_whatsapp_workflows.sql`
-- Copie TODO o conteúdo
-- Cole no SQL Editor
-- Clique em **RUN**
-
-#### b) Segunda migração:
-- Arquivo: `supabase/migrations/20251114140000_add_workflow_approval_and_contact_files.sql`
-- Copie TODO o conteúdo
-- Cole no SQL Editor
-- Clique em **RUN**
-
-**✅ Verificar:**
-- Vá em **Table Editor** → Deve aparecer:
-  - `whatsapp_workflow_lists`
-  - `whatsapp_workflows`
-  - `whatsapp_workflow_attachments`
-  - `whatsapp_workflow_contact_attachments`
-  - `whatsapp_workflow_approvals`
-- Vá em **Storage** → Deve aparecer o bucket `whatsapp-workflow-media`
+- [ ] **Ambiente preparado**
+  - [ ] Acesso ao servidor Hetzner
+  - [ ] Script de deploy disponível (`scripts/deploy-automatico.sh`)
+  - [ ] Backup realizado (se necessário)
 
 ---
 
-### 2️⃣ Deploy da Função Edge (OBRIGATÓRIO)
+## 🚀 Durante o Deploy
 
-**Acesse:** https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/functions
+### Executar Deploy
 
-**Passos:**
-1. Clique em **Create a new function**
-2. Nome: `process-whatsapp-workflows`
-3. Abra o arquivo: `supabase/functions/process-whatsapp-workflows/index.ts`
-4. Copie TODO o conteúdo
-5. Cole no editor da função
-6. Clique em **Deploy**
+- [ ] **Executar script de deploy**
+  ```bash
+  cd /root/kanban-buzz-95241
+  ./scripts/deploy-automatico.sh
+  ```
 
-**✅ Verificar:**
-- A função deve aparecer na lista com status "Active"
-- Clique na função → **Invoke** → Deve retornar `{"success": true, "processed": 0}`
+- [ ] **Verificar build**
+  - [ ] Build completou sem erros
+  - [ ] Mensagem "Build concluído com sucesso!" apareceu
+  - [ ] Nenhum erro crítico nos logs do build
+
+- [ ] **Verificar container**
+  - [ ] Container está rodando (`docker compose ps`)
+  - [ ] Container está respondendo na porta 3000
+  - [ ] Logs não mostram erros críticos
 
 ---
 
-### 3️⃣ Configurar Cron Job (OPCIONAL)
+## ✅ Pós-Deploy
 
-**Acesse:** https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/sql/new
+### Validação Obrigatória
 
-**Execute o SQL abaixo** (substitua `SEU_SERVICE_ROLE_KEY_AQUI`):
+- [ ] **Aplicação carrega corretamente**
+  - [ ] Página inicial abre sem erros
+  - [ ] Não há tela em branco
+  - [ ] Interface renderiza corretamente
 
-```sql
--- Habilitar extensao pg_cron
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+- [ ] **Console do navegador limpo**
+  - [ ] Abrir DevTools (F12)
+  - [ ] Verificar aba Console
+  - [ ] ❌ **CRÍTICO**: Não deve haver `ReferenceError: useEffect is not defined`
+  - [ ] ❌ **CRÍTICO**: Não deve haver `undefined is not a function`
+  - [ ] ⚠️ Avisos são aceitáveis, mas erros não
 
--- Criar cron job (executa a cada 5 minutos)
-SELECT cron.schedule(
-  'process-whatsapp-workflows',
-  '*/5 * * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://orcbxgajfhgmjobsjlix.supabase.co/functions/v1/process-whatsapp-workflows',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer SEU_SERVICE_ROLE_KEY_AQUI'
-    )
-  );
-  $$
-);
+- [ ] **Bundle JavaScript atualizado** ⚠️ **CRÍTICO - Previne Erro #001**
+  - [ ] Verificar Network tab no DevTools
+  - [ ] Arquivo `index-*.js` tem hash novo (não é o mesmo do deploy anterior)
+  - [ ] Arquivo carrega com status 200
+  - [ ] **Validação via terminal:**
+    ```bash
+    # Verificar hash do bundle
+    curl -s http://localhost:3000 | grep -o 'index-[^"]*\.js' | head -1
+    # Hash deve ser diferente do deploy anterior
+    ```
+  - [ ] Se hash não mudou após mudanças no código → **REBUILD OBRIGATÓRIO**
+
+- [ ] **Funcionalidades principais**
+  - [ ] Login funciona
+  - [ ] Navegação entre páginas funciona
+  - [ ] Funcionalidades críticas testadas
+  - [ ] Integrações principais funcionam
+
+- [ ] **Performance**
+  - [ ] Página carrega em tempo razoável
+  - [ ] Não há travamentos visíveis
+  - [ ] Realtime funciona (se aplicável)
+
+---
+
+## 🚨 Se Encontrar Erros
+
+### Erro: ReferenceError: useEffect is not defined (Erro #001)
+
+**⚠️ Este é o erro mais comum relacionado a build desatualizado!**
+
+**Diagnóstico Rápido:**
+```bash
+# 1. Verificar hash do bundle atual
+BUNDLE_HASH=$(curl -s http://localhost:3000 | grep -o 'index-[^"]*\.js' | head -1)
+echo "Hash atual: $BUNDLE_HASH"
+
+# 2. Se hash não mudou após mudanças no código → build desatualizado
 ```
 
-**Para pegar o SERVICE_ROLE_KEY:**
-- Acesse: https://supabase.com/dashboard/project/orcbxgajfhgmjobsjlix/settings/api
-- Role: **service_role** → Copie a key
-- Substitua `SEU_SERVICE_ROLE_KEY_AQUI` no SQL acima
+**Ação Imediata:**
+1. ✅ Verificar se rebuild foi executado com `--no-cache`
+2. ✅ Executar rebuild completo:
+   ```bash
+   docker compose down
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+3. ✅ Verificar novo hash do bundle (deve ser diferente)
+4. ✅ Limpar cache do navegador (Ctrl+Shift+Delete ou Ctrl+Shift+R)
+5. ✅ Verificar console do navegador novamente
+
+**Se persistir:**
+- Consultar `REGISTRO-ERROS-DEPLOY.md` (seção Erro #001)
+- Verificar logs do container: `docker compose logs app`
+- Verificar logs do build: `docker compose build --no-cache 2>&1 | tail -50`
+- Verificar se código-fonte tem imports corretos (todos os arquivos que usam `useEffect` devem importar de `react`)
+
+### Outros Erros
+
+- [ ] Documentar erro em `REGISTRO-ERROS-DEPLOY.md`
+- [ ] Verificar logs do container
+- [ ] Verificar logs do build
+- [ ] Consultar documentação de troubleshooting
 
 ---
 
-### 4️⃣ Testar no App
+## 📝 Documentação
 
-```powershell
-cd C:\Users\Rubens\lovable\agilize
-npm run dev
+### Após Deploy Bem-Sucedido
+
+- [ ] Deploy documentado (se necessário)
+- [ ] Mudanças principais anotadas
+- [ ] Problemas encontrados registrados em `REGISTRO-ERROS-DEPLOY.md`
+
+### Se Houve Problemas
+
+- [ ] Erro documentado em `REGISTRO-ERROS-DEPLOY.md`
+- [ ] Solução aplicada documentada
+- [ ] Prevenção para futuro adicionada ao checklist
+
+---
+
+## 🔄 Deploy Rápido (Apenas Reiniciar)
+
+**⚠️ ATENÇÃO: Use APENAS se NÃO houve mudanças no código!**
+
+Se você apenas quer reiniciar o container sem rebuild:
+
+```bash
+docker compose restart
 ```
 
-**Acesse:** http://localhost:5174/workflows
+**NUNCA use isso se:**
+- ❌ Houve mudanças no código-fonte
+- ❌ Houve mudanças em imports do React
+- ❌ Houve mudanças em dependências
+- ❌ Você não tem certeza se houve mudanças
 
-**Teste:**
-1. Criar uma lista de contatos
-2. Criar um workflow de teste
-3. Verificar se aparece na listagem
-
----
-
-## 🎯 Resumo
-
-**O que já está pronto:**
-- ✅ Código desenvolvido e testado
-- ✅ Build funcionando
-- ✅ Tudo commitado no GitHub
-
-**O que você precisa fazer AGORA:**
-1. ⏳ Aplicar as 2 migrações no Supabase Dashboard
-2. ⏳ Deploy da função Edge no Supabase Dashboard
-3. ⏳ (Opcional) Configurar Cron Job
-
-**Tempo estimado:** 10-15 minutos
+**SEMPRE use rebuild completo se:**
+- ✅ Qualquer arquivo `.tsx`, `.ts`, `.js` foi modificado
+- ✅ `package.json` foi modificado
+- ✅ Qualquer mudança no código-fonte
 
 ---
 
-## 🆘 Precisa de Ajuda?
-
-Se tiver dúvidas ou erros durante o deploy, me avise que eu ajudo a resolver!
-
+**Última atualização:** 16/12/2025
+**Versão:** 1.0

@@ -1,0 +1,202 @@
+<testsuites id="" name="" tests="2" failures="2" skipped="0" errors="0" time="83.485287">
+<testsuite name="contracts-novo-contrato.spec.ts" timestamp="2025-12-18T14:33:55.646Z" hostname="chromium" tests="2" failures="2" skipped="0" time="75.94" errors="0">
+<testcase name="Contratos - Botão Novo Contrato › deve abrir dialog de novo contrato sem erros" classname="contracts-novo-contrato.spec.ts" time="34.968">
+<failure message="contracts-novo-contrato.spec.ts:20:3 deve abrir dialog de novo contrato sem erros" type="FAILURE">
+<![CDATA[  [chromium] › contracts-novo-contrato.spec.ts:20:3 › Contratos - Botão Novo Contrato › deve abrir dialog de novo contrato sem erros 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: /novo contrato/i })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for getByRole('button', { name: /novo contrato/i })
+
+
+      36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });
+      37 |     
+    > 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });
+         |                                      ^
+      39 |     await human.humanClick(novoContratoButton);
+      40 |     await human.randomDelay(1000, 2000);
+      41 |
+        at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: /novo contrato/i })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for getByRole('button', { name: /novo contrato/i })
+        - waiting for" http://localhost:8080/contracts" navigation to finish...
+        - navigated to "http://localhost:8080/contracts"
+
+
+      36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });
+      37 |     
+    > 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });
+         |                                      ^
+      39 |     await human.humanClick(novoContratoButton);
+      40 |     await human.randomDelay(1000, 2000);
+      41 |
+        at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/video.webm]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/error-context.md]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/trace.zip]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/test-failed-1.png]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/video.webm]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/error-context.md]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Contratos - Botão Novo Contrato › deve verificar todos os SelectItems no dialog" classname="contracts-novo-contrato.spec.ts" time="40.972">
+<failure message="contracts-novo-contrato.spec.ts:106:3 deve verificar todos os SelectItems no dialog" type="FAILURE">
+<![CDATA[  [chromium] › contracts-novo-contrato.spec.ts:106:3 › Contratos - Botão Novo Contrato › deve verificar todos os SelectItems no dialog 
+
+    TimeoutError: locator.click: Timeout 15000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /novo contrato/i })
+
+
+      119 |
+      120 |     // Abrir dialog
+    > 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();
+          |                                                                ^
+      122 |     await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+      123 |     await human.randomDelay(2000, 3000);
+      124 |
+        at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    TimeoutError: locator.click: Timeout 15000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /novo contrato/i })
+
+
+      119 |
+      120 |     // Abrir dialog
+    > 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();
+          |                                                                ^
+      122 |     await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+      123 |     await human.randomDelay(2000, 3000);
+      124 |
+        at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/video.webm]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/error-context.md]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/trace.zip]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/test-failed-1.png]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/video.webm]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/error-context.md]]
+
+[[ATTACHMENT|artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/trace.zip]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

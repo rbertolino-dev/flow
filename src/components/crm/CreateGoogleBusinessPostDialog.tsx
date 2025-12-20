@@ -131,7 +131,9 @@ export function CreateGoogleBusinessPostDialog({
               </SelectTrigger>
               <SelectContent>
                 {activeConfigs.length === 0 ? (
-                  <SelectItem value="" disabled>Nenhuma conta ativa</SelectItem>
+                  <SelectItem value="no-account" disabled>
+                    Nenhuma conta ativa
+                  </SelectItem>
                 ) : (
                   activeConfigs.map((config) => (
                     <SelectItem key={config.id} value={config.id}>
@@ -234,7 +236,7 @@ export function CreateGoogleBusinessPostDialog({
                   <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   <SelectItem value="CALL">Ligar</SelectItem>
                   <SelectItem value="BOOK">Reservar</SelectItem>
                   <SelectItem value="ORDER">Pedir</SelectItem>

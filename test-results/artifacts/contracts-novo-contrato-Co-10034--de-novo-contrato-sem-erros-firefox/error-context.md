@@ -1,0 +1,47 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list [ref=e4]:
+      - status [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]: Você não está autenticado
+          - generic [ref=e8]: Faça login para visualizar seus leads conectados.
+        - button [ref=e9] [cursor=pointer]:
+          - img [ref=e10]
+  - region "Notifications alt+T"
+  - generic [ref=e14]:
+    - complementary [ref=e15]:
+      - generic [ref=e16]:
+        - button "CRM Agilize" [ref=e17] [cursor=pointer]:
+          - img "CRM Agilize" [ref=e18]
+        - button "Recolher menu" [ref=e19] [cursor=pointer]:
+          - img
+      - navigation [ref=e20]:
+        - button "Configurações" [ref=e21] [cursor=pointer]:
+          - img
+          - generic [ref=e22]: Configurações
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - generic [ref=e25]: US
+          - generic [ref=e26]:
+            - paragraph [ref=e27]: Usuário
+            - paragraph [ref=e28]: Conectado
+        - button "Sair" [ref=e29] [cursor=pointer]:
+          - img
+          - generic [ref=e30]: Sair
+    - main [ref=e31]:
+      - generic [ref=e33]:
+        - img [ref=e34]
+        - generic [ref=e39]: Realtime
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - img [ref=e45]
+            - heading "Acesso Restrito" [level=3] [ref=e48]
+          - paragraph [ref=e49]: Esta funcionalidade não está disponível para sua organização.
+        - paragraph [ref=e51]: Entre em contato com o administrador do sistema para solicitar acesso ao módulo de Contratos.
+    - button [ref=e53] [cursor=pointer]:
+      - img
+```

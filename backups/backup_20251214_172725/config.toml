@@ -1,0 +1,244 @@
+project_id = "orcbxgajfhgmjobsjlix"
+
+# ========== WhatsApp e Evolution ==========
+[functions.evolution-webhook]
+verify_jwt = false
+
+[functions.evolution-fetch-chats]
+verify_jwt = true
+
+[functions.evolution-fetch-messages]
+verify_jwt = true
+
+[functions.evolution-send-message-direct]
+verify_jwt = true
+
+[functions.send-whatsapp-message]
+verify_jwt = true
+
+[functions.validate-whatsapp-number]
+verify_jwt = true
+
+[functions.create-evolution-instance]
+verify_jwt = true
+
+# ========== Workflows WhatsApp ==========
+[functions.process-whatsapp-workflows]
+verify_jwt = false
+
+[functions.publish-whatsapp-status]
+verify_jwt = true
+
+[functions.process-status-schedule]
+verify_jwt = false
+
+# ========== Broadcast e Campanhas ==========
+[functions.process-broadcast-queue]
+verify_jwt = false
+
+[functions.process-scheduled-messages]
+verify_jwt = false
+
+# ========== Chatwoot ==========
+[functions.chatwoot-proxy]
+verify_jwt = false
+
+[functions.chatwoot-add-private-note]
+verify_jwt = true
+
+[functions.chatwoot-apply-label]
+verify_jwt = true
+
+[functions.chatwoot-create-canned-response]
+verify_jwt = true
+
+[functions.chatwoot-create-contact]
+verify_jwt = true
+
+[functions.chatwoot-create-conversation]
+verify_jwt = true
+
+[functions.chatwoot-create-label]
+verify_jwt = true
+
+[functions.chatwoot-execute-macro]
+verify_jwt = true
+
+[functions.chatwoot-get-conversations]
+verify_jwt = true
+
+[functions.chatwoot-get-messages]
+verify_jwt = true
+
+[functions.chatwoot-list-canned-responses]
+verify_jwt = true
+
+[functions.chatwoot-list-inboxes]
+verify_jwt = true
+
+[functions.chatwoot-list-labels]
+verify_jwt = true
+
+[functions.chatwoot-merge-contacts]
+verify_jwt = true
+
+[functions.chatwoot-send-message]
+verify_jwt = true
+
+[functions.chatwoot-test-connection]
+verify_jwt = true
+
+[functions.chatwoot-webhook]
+verify_jwt = false
+
+# ========== Google Calendar ==========
+[functions.google-calendar-oauth-init]
+verify_jwt = true
+
+[functions.google-calendar-oauth-callback]
+verify_jwt = false
+
+[functions.sync-google-calendar-events]
+verify_jwt = false
+
+[functions.list-google-calendars]
+verify_jwt = true
+
+[functions.get-google-calendar-access-token]
+verify_jwt = true
+
+[functions.create-google-calendar-event]
+verify_jwt = true
+
+[functions.update-google-calendar-event]
+verify_jwt = true
+
+[functions.delete-google-calendar-event]
+verify_jwt = true
+
+# ========== Gmail ==========
+[functions.gmail-oauth-init]
+verify_jwt = true
+
+[functions.gmail-oauth-callback]
+verify_jwt = false
+
+[functions.list-gmail-messages]
+verify_jwt = true
+
+[functions.gmail-send-reply]
+verify_jwt = true
+
+# ========== Facebook/Instagram ==========
+[functions.facebook-oauth-init]
+verify_jwt = true
+
+[functions.facebook-oauth-callback]
+verify_jwt = false
+
+[functions.facebook-test-connection]
+verify_jwt = true
+
+[functions.facebook-webhook]
+verify_jwt = false
+
+# ========== Google Business ==========
+[functions.google-business-oauth-init]
+verify_jwt = true
+
+[functions.google-business-oauth-callback]
+verify_jwt = false
+
+[functions.get-google-business-access-token]
+verify_jwt = true
+
+[functions.create-google-business-post]
+verify_jwt = true
+
+[functions.process-google-business-posts]
+verify_jwt = false
+
+# ========== Formulários ==========
+[functions.get-form]
+verify_jwt = false
+
+[functions.submit-form]
+verify_jwt = false
+
+# ========== Pagamentos ==========
+[functions.mercado-pago-create-boleto]
+verify_jwt = true
+
+[functions.mercado-pago-create-payment]
+verify_jwt = true
+
+[functions.mercado-pago-webhook]
+verify_jwt = false
+
+[functions.asaas-create-boleto]
+verify_jwt = true
+
+[functions.asaas-create-charge]
+verify_jwt = true
+
+[functions.asaas-sync-boleto-status]
+verify_jwt = false
+
+# ========== N8n ==========
+[functions.n8n-generate-workflow]
+verify_jwt = true
+
+[functions.n8n-proxy]
+verify_jwt = true
+
+# ========== Agentes IA ==========
+[functions.agents-sync-evolution]
+verify_jwt = true
+
+[functions.agents-sync-openai]
+verify_jwt = true
+
+[functions.openai-list-models]
+verify_jwt = true
+
+# ========== Assistente IA DeepSeek ==========
+[functions.deepseek-assistant]
+verify_jwt = true
+
+# ========== Bubble Integration ==========
+[functions.bubble-check-status]
+verify_jwt = false
+
+[functions.bubble-list-data-types]
+verify_jwt = true
+
+[functions.bubble-list-instances]
+verify_jwt = false
+
+[functions.bubble-query-data]
+verify_jwt = true
+
+[functions.bubble-send-whatsapp]
+verify_jwt = false
+
+[functions.bubble-sync-leads]
+verify_jwt = true
+
+# ========== Utilitários ==========
+[functions.create-user]
+verify_jwt = true
+
+[functions.import-contacts]
+verify_jwt = true
+
+[functions.log-auth-attempt]
+verify_jwt = false
+
+[functions.patch-call-queue-org]
+verify_jwt = true
+
+[functions.sync-daily-metrics]
+verify_jwt = false
+
+[functions.apply-fix-recipient-type]
+verify_jwt = true

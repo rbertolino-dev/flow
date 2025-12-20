@@ -9,14 +9,18 @@ import { useToast } from "@/hooks/use-toast";
 
 interface EmbedCodeGeneratorProps {
   form: FormBuilder;
+  isSurvey?: boolean;
 }
 
-export function EmbedCodeGenerator({ form }: EmbedCodeGeneratorProps) {
+export function EmbedCodeGenerator({ form, isSurvey = false }: EmbedCodeGeneratorProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const { toast } = useToast();
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://orcbxgajfhgmjobsjlix.supabase.co';
   const formId = form.id;
+  const endpoint = isSurvey ? 'submit-survey' : 'submit-form';
+  const getEndpoint = isSurvey ? 'get-survey' : 'get-form';
+  const idParam = isSurvey ? 'survey_id' : 'form_id';
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -29,57 +33,56 @@ export function EmbedCodeGenerator({ form }: EmbedCodeGeneratorProps) {
   };
 
   // Código HTML simples
-  const htmlCode = `<!-- Formulário Agilize -->
-<div id="agilize-form-${formId}"></div>
+  const htmlCode = `<!-- ${isSurvey ? 'Pesquisa' : 'Formulário'} Agilize -->
+<div id="agilize-${isSurvey ? 'survey' : 'form'}-${formId}"></div>
 <script>
   (function() {
-    var formId = '${formId}';
+    var ${isSurvey ? 'surveyId' : 'formId'} = '${formId}';
     var supabaseUrl = '${supabaseUrl}';
-    var script = document.createElement('script');
-    script.src = supabaseUrl + '/functions/v1/submit-form?form_id=' + formId;
-    script.async = true;
-    document.head.appendChild(script);
     
-    // Carregar formulário
-    fetch(supabaseUrl + '/functions/v1/get-form?form_id=' + formId)
+    // Carregar ${isSurvey ? 'pesquisa' : 'formulário'}
+    fetch(supabaseUrl + '/functions/v1/${getEndpoint}?${idParam}=' + ${isSurvey ? 'surveyId' : 'formId'})
       .then(r => r.json())
       .then(data => {
-        if (data.form) {
-          renderForm(data.form, 'agilize-form-${formId}');
+        if (data.${isSurvey ? 'survey' : 'form'}) {
+          render${isSurvey ? 'Survey' : 'Form'}(data.${isSurvey ? 'survey' : 'form'}, 'agilize-${isSurvey ? 'survey' : 'form'}-${formId}');
         }
+      })
+      .catch(err => {
+        console.error('Erro ao carregar ${isSurvey ? 'pesquisa' : 'formulário'}:', err);
       });
     
-    function renderForm(form, containerId) {
+    function render${isSurvey ? 'Survey' : 'Form'}(${isSurvey ? 'survey' : 'form'}, containerId) {
       var container = document.getElementById(containerId);
       if (!container) return;
       
-      var formHtml = '<form id="agilize-form-' + formId + '-form" style="' + 
-        'font-family: ' + form.style.fontFamily + '; ' +
-        'background-color: ' + form.style.backgroundColor + '; ' +
-        'color: ' + form.style.textColor + '; ' +
+      var formHtml = '<form id="agilize-${isSurvey ? 'survey' : 'form'}-' + ${isSurvey ? 'surveyId' : 'formId'} + '-form" style="' + 
+        'font-family: ' + ${isSurvey ? 'survey' : 'form'}.style.fontFamily + '; ' +
+        'background-color: ' + ${isSurvey ? 'survey' : 'form'}.style.backgroundColor + '; ' +
+        'color: ' + ${isSurvey ? 'survey' : 'form'}.style.textColor + '; ' +
         'padding: 24px; ' +
-        'border-radius: ' + form.style.borderRadius + ';' +
+        'border-radius: ' + ${isSurvey ? 'survey' : 'form'}.style.borderRadius + ';' +
         '">';
       
-      form.fields.forEach(function(field) {
-        formHtml += renderField(field, form.style);
+      ${isSurvey ? 'survey' : 'form'}.fields.forEach(function(field) {
+        formHtml += renderField(field, ${isSurvey ? 'survey' : 'form'}.style);
       });
       
       formHtml += '<button type="submit" style="' +
-        'background-color: ' + form.style.buttonColor + '; ' +
-        'color: ' + form.style.buttonTextColor + '; ' +
+        'background-color: ' + ${isSurvey ? 'survey' : 'form'}.style.buttonColor + '; ' +
+        'color: ' + ${isSurvey ? 'survey' : 'form'}.style.buttonTextColor + '; ' +
         'border: none; ' +
         'padding: 12px 24px; ' +
-        'border-radius: ' + form.style.borderRadius + '; ' +
+        'border-radius: ' + ${isSurvey ? 'survey' : 'form'}.style.borderRadius + '; ' +
         'cursor: pointer; ' +
         'width: 100%;' +
-        '">Enviar</button>';
+        '">${isSurvey ? 'Enviar Resposta' : 'Enviar'}</button>';
       formHtml += '</form>';
       
       container.innerHTML = formHtml;
       
       // Adicionar handler de submit
-      document.getElementById('agilize-form-' + formId + '-form').addEventListener('submit', function(e) {
+      document.getElementById('agilize-${isSurvey ? 'survey' : 'form'}-' + ${isSurvey ? 'surveyId' : 'formId'} + '-form').addEventListener('submit', function(e) {
         e.preventDefault();
         var formData = new FormData(e.target);
         var data = {};
@@ -87,10 +90,10 @@ export function EmbedCodeGenerator({ form }: EmbedCodeGeneratorProps) {
           data[key] = value;
         });
         
-        fetch(supabaseUrl + '/functions/v1/submit-form', {
+        fetch(supabaseUrl + '/functions/v1/${endpoint}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ form_id: formId, data: data })
+          body: JSON.stringify({ ${idParam}: ${isSurvey ? 'surveyId' : 'formId'}, data: data })
         })
         .then(r => r.json())
         .then(result => {
@@ -98,8 +101,11 @@ export function EmbedCodeGenerator({ form }: EmbedCodeGeneratorProps) {
             alert('${form.success_message}');
             ${form.redirect_url ? `window.location.href = '${form.redirect_url}';` : ''}
           } else {
-            alert('Erro ao enviar formulário');
+            alert('Erro ao enviar ${isSurvey ? 'resposta' : 'formulário'}: ' + (result.error || 'Erro desconhecido'));
           }
+        })
+        .catch(err => {
+          alert('Erro ao enviar ${isSurvey ? 'resposta' : 'formulário'}: ' + err.message);
         });
       });
     }
@@ -118,10 +124,24 @@ export function EmbedCodeGenerator({ form }: EmbedCodeGeneratorProps) {
         html += '<select name="' + field.name + '" ' + 
           (field.required ? 'required' : '') + 
           ' style="width: 100%; padding: 8px; border: 1px solid ' + style.inputBorderColor + '; border-radius: ' + style.borderRadius + ';">';
-        field.options.forEach(function(opt) {
-          html += '<option value="' + opt + '">' + opt + '</option>';
-        });
+        if (field.options && field.options.length > 0) {
+          field.options.forEach(function(opt) {
+            html += '<option value="' + opt + '">' + opt + '</option>';
+          });
+        }
         html += '</select>';
+      } else if (field.type === 'radio') {
+        if (field.options && field.options.length > 0) {
+          field.options.forEach(function(opt) {
+            html += '<div style="margin-bottom: 8px;">';
+            html += '<input type="radio" name="' + field.name + '" value="' + opt + '" ' + (field.required ? 'required' : '') + ' id="' + field.id + '-' + opt.replace(/\\s/g, '') + '">';
+            html += '<label for="' + field.id + '-' + opt.replace(/\\s/g, '') + '" style="margin-left: 8px; color: ' + style.textColor + ';">' + opt + '</label>';
+            html += '</div>';
+          });
+        }
+      } else if (field.type === 'checkbox') {
+        html += '<input type="checkbox" name="' + field.name + '" ' + (field.required ? 'required' : '') + ' id="' + field.id + '">';
+        html += '<label for="' + field.id + '" style="margin-left: 8px; color: ' + style.textColor + ';">' + field.label + '</label>';
       } else {
         html += '<input type="' + field.type + '" name="' + field.name + '" ' + 
           (field.required ? 'required' : '') + 
@@ -136,41 +156,78 @@ export function EmbedCodeGenerator({ form }: EmbedCodeGeneratorProps) {
 </script>`;
 
   // Código WordPress (shortcode)
-  const wordpressCode = `[agilize_form id="${formId}"]`;
+  const wordpressCode = isSurvey 
+    ? `[agilize_survey id="${formId}"]`
+    : `[agilize_form id="${formId}"]`;
 
   // Código JavaScript standalone
   const jsCode = `// Adicione este script no seu site
 (function() {
-  const formId = '${formId}';
+  const ${isSurvey ? 'surveyId' : 'formId'} = '${formId}';
   const supabaseUrl = '${supabaseUrl}';
   
-  // Função para carregar e renderizar o formulário
-  function loadForm(containerId) {
-    fetch(\`\${supabaseUrl}/functions/v1/get-form?form_id=\${formId}\`)
+  // Função para carregar e renderizar o ${isSurvey ? 'pesquisa' : 'formulário'}
+  function load${isSurvey ? 'Survey' : 'Form'}(containerId) {
+    fetch(\`\${supabaseUrl}/functions/v1/${getEndpoint}?${idParam}=\${${isSurvey ? 'surveyId' : 'formId'}}\`)
       .then(r => r.json())
       .then(data => {
-        if (data.form) {
-          renderForm(data.form, containerId);
+        if (data.${isSurvey ? 'survey' : 'form'}) {
+          render${isSurvey ? 'Survey' : 'Form'}(data.${isSurvey ? 'survey' : 'form'}, containerId);
         }
-      });
+      })
+      .catch(err => console.error('Erro ao carregar:', err));
   }
   
-  // Função para renderizar o formulário
-  function renderForm(form, containerId) {
+  // Função para renderizar o ${isSurvey ? 'pesquisa' : 'formulário'}
+  function render${isSurvey ? 'Survey' : 'Form'}(${isSurvey ? 'survey' : 'form'}, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
     
-    // Criar formulário HTML aqui (similar ao código HTML acima)
-    // ... código de renderização ...
+    // Criar ${isSurvey ? 'pesquisa' : 'formulário'} HTML aqui
+    // Similar ao código HTML acima, mas usando JavaScript moderno
+    let formHtml = '<form style="font-family: ' + ${isSurvey ? 'survey' : 'form'}.style.fontFamily + '; padding: 24px;">';
+    
+    ${isSurvey ? 'survey' : 'form'}.fields.forEach(field => {
+      formHtml += renderField(field, ${isSurvey ? 'survey' : 'form'}.style);
+    });
+    
+    formHtml += '<button type="submit">${isSurvey ? 'Enviar Resposta' : 'Enviar'}</button></form>';
+    container.innerHTML = formHtml;
+    
+    // Adicionar handler de submit
+    container.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {};
+      formData.forEach((value, key) => { data[key] = value; });
+      
+      fetch(\`\${supabaseUrl}/functions/v1/${endpoint}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ${idParam}: ${isSurvey ? 'surveyId' : 'formId'}, data })
+      })
+      .then(r => r.json())
+      .then(result => {
+        if (result.success) {
+          alert('${form.success_message}');
+          ${form.redirect_url ? `if (result.redirect_url) window.location.href = result.redirect_url;` : ''}
+        }
+      });
+    });
+  }
+  
+  function renderField(field, style) {
+    // Implementação similar ao HTML acima
+    return '<div>...</div>';
   }
   
   // Inicializar quando o DOM estiver pronto
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      loadForm('agilize-form-container');
+      load${isSurvey ? 'Survey' : 'Form'}('agilize-${isSurvey ? 'survey' : 'form'}-container');
     });
   } else {
-    loadForm('agilize-form-container');
+    load${isSurvey ? 'Survey' : 'Form'}('agilize-${isSurvey ? 'survey' : 'form'}-container');
   }
 })();`;
 

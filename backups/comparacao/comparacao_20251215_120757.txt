@@ -1,0 +1,91 @@
+==========================================
+COMPARAÇÃO: LOCAL vs SERVIDOR HETZNER
+==========================================
+Data: Mon Dec 15 12:07:57 PM UTC 2025
+Servidor: root@95.217.2.116
+Diretório local: /root/kanban-buzz-95241
+Diretório no servidor: /opt/app
+
+==========================================
+1. ARQUIVOS DE CONFIGURAÇÃO
+==========================================
+
+Arquivo: package.json
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.214887049 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: docker-compose.yml
+  ✅ Local: Existe (4.0K, 2025-12-15 12:04:05.471512309 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: Dockerfile
+  ✅ Local: Existe (4.0K, 2025-12-15 12:04:05.415509836 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: vite.config.ts
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.299889767 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: tsconfig.json
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.299889767 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: tailwind.config.ts
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.299889767 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: postcss.config.js
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.214887049 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: eslint.config.js
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.212886985 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Arquivo: index.html
+  ✅ Local: Existe (4.0K, 2025-12-14 16:16:44.212886985 +0000)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+==========================================
+2. DIRETÓRIOS PRINCIPAIS
+==========================================
+
+Diretório: src
+  ✅ Local: Existe (409 arquivos, 4.7M)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Diretório: supabase
+  ✅ Local: Existe (536 arquivos, 3.5M)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Diretório: public
+  ✅ Local: Existe (3 arquivos, 20K)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+Diretório: scripts
+  ✅ Local: Existe (53 arquivos, 328K)
+  ⚠️  Servidor: Não verificado (sem conexão)
+
+==========================================
+3. EDGE FUNCTIONS (supabase/functions)
+==========================================
+
+Local: 86 funções encontradas
+
+==========================================
+4. MIGRATIONS (supabase/migrations)
+==========================================
+
+Local: 220 migrations encontradas
+
+==========================================
+5. RESUMO E RECOMENDAÇÕES
+==========================================
+
+⚠️  Não foi possível conectar ao servidor
+
+Para fazer a comparação completa:
+  1. Conecte manualmente: ssh root@95.217.2.116
+  2. Execute este script novamente
+
+Ou execute no servidor:

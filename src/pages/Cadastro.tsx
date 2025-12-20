@@ -15,6 +15,7 @@ export default function Cadastro() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lastAttemptTime, setLastAttemptTime] = useState<number | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -43,7 +44,22 @@ export default function Cadastro() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verificar cooldown (40 segundos entre tentativas)
+    const now = Date.now();
+    if (lastAttemptTime && (now - lastAttemptTime) < 40000) {
+      const remainingSeconds = Math.ceil((40000 - (now - lastAttemptTime)) / 1000);
+      toast({
+        title: "Aguarde um momento",
+        description: `Por favor, aguarde ${remainingSeconds} segundos antes de tentar novamente.`,
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    
     setLoading(true);
+    setLastAttemptTime(now);
 
     try {
       if (!email || !password || !fullName) {
@@ -54,8 +70,15 @@ export default function Cadastro() {
         throw new Error('A senha deve ter pelo menos 6 caracteres');
       }
 
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error('Por favor, insira um email válido');
+      }
+
+      // Fazer signup
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/onboarding`,
@@ -65,8 +88,8 @@ export default function Cadastro() {
         },
       });
 
-      // Log signup attempt
-      await supabase.functions.invoke('log-auth-attempt', {
+      // Log signup attempt (não crítico se falhar)
+      supabase.functions.invoke('log-auth-attempt', {
         body: {
           email,
           success: !error,
@@ -76,56 +99,132 @@ export default function Cadastro() {
           method: 'signup',
           userId: data?.user?.id || null,
         },
-      }).catch(err => console.error('Erro ao logar tentativa:', err));
-
-      if (error) throw error;
-
-      // Auto login after signup
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      }).catch(() => {
+        // Ignorar silenciosamente - não é crítico
       });
 
-      // Log auto signin attempt
-      await supabase.functions.invoke('log-auth-attempt', {
-        body: {
-          email,
-          success: !signInError,
-          error: signInError?.message || null,
-          ip: null,
-          userAgent: navigator.userAgent,
-          method: 'auto-signin',
-          userId: signInData?.user?.id || null,
-        },
-      }).catch(err => console.error('Erro ao logar tentativa:', err));
+      if (error) throw error;
+      if (!data?.user) throw new Error('Falha ao criar usuário');
 
-      if (signInError) throw signInError;
+      // Verificar se já há sessão após signup (pode acontecer se confirmação estiver desabilitada)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      let { data: { session } } = await supabase.auth.getSession();
+      
+      // Se não houver sessão, tentar fazer login
+      if (!session) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
 
-      if (!signInData?.session) {
-        throw new Error('Sessão não foi criada');
+        // Log auto signin attempt (não crítico se falhar)
+        supabase.functions.invoke('log-auth-attempt', {
+          body: {
+            email,
+            success: !signInError,
+            error: signInError?.message || null,
+            ip: null,
+            userAgent: navigator.userAgent,
+            method: 'auto-signin',
+            userId: signInData?.user?.id || null,
+          },
+        }).catch(() => {
+          // Ignorar silenciosamente - não é crítico
+        });
+
+        if (signInError) {
+          const lowerError = signInError.message?.toLowerCase() || '';
+          // Se o erro for email não confirmado, aguardar mais e verificar novamente
+          if (lowerError.includes('email not confirmed') || lowerError.includes('email not verified')) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (retrySession) {
+              session = retrySession;
+            } else {
+              // Se ainda não houver sessão, mostrar mensagem mas não bloquear
+              toast({
+                title: "Conta criada!",
+                description: "Aguarde alguns segundos e tente fazer login manualmente.",
+                duration: 5000,
+              });
+              setLoading(false);
+              return;
+            }
+          } else {
+            throw signInError;
+          }
+        } else if (signInData?.session) {
+          session = signInData.session;
+        }
       }
 
+      // Verificar sessão uma última vez antes de redirecionar
+      if (!session) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const { data: { session: finalSession } } = await supabase.auth.getSession();
+        if (finalSession) {
+          session = finalSession;
+        } else {
+          throw new Error('Não foi possível criar sessão. Tente fazer login manualmente.');
+        }
+      }
+
+      // Login bem-sucedido - mostrar mensagem e redirecionar
       toast({
         title: "Conta criada com sucesso!",
         description: "Vamos configurar sua organização.",
       });
 
-      // Aguardar um momento para garantir que a sessão está estabelecida
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Aguardar um pouco para garantir que a sessão está salva
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Verificar novamente a sessão antes de navegar
-      const { data: { session: verifiedSession } } = await supabase.auth.getSession();
-      if (verifiedSession) {
-        // Redirecionar para onboarding
-        window.location.href = '/onboarding';
-      } else {
+      // Verificar sessão uma última vez antes de redirecionar
+      const { data: { session: finalCheck } } = await supabase.auth.getSession();
+      if (!finalCheck) {
         throw new Error('Sessão não foi estabelecida corretamente');
       }
+      
+      // Usar window.location.href para garantir redirecionamento (mais confiável)
+      window.location.href = '/onboarding';
     } catch (error: any) {
       console.error('Signup error:', error);
+      
+      // Mensagens de erro mais amigáveis
+      let errorMessage = 'Erro desconhecido ao criar conta';
+      
+      if (error.message) {
+        const lowerMessage = error.message.toLowerCase();
+        
+        if (lowerMessage.includes('too many requests') || lowerMessage.includes('429') || lowerMessage.includes('after') && lowerMessage.includes('seconds')) {
+          // Extrair o tempo de espera se disponível
+          const secondsMatch = error.message.match(/(\d+)\s*seconds?/i);
+          const waitTime = secondsMatch ? secondsMatch[1] : '40';
+          errorMessage = `Muitas tentativas. Por favor, aguarde ${waitTime} segundos antes de tentar novamente.`;
+        } else if (lowerMessage.includes('email') && lowerMessage.includes('invalid')) {
+          errorMessage = 'Por favor, insira um email válido';
+        } else if (lowerMessage.includes('already registered') || lowerMessage.includes('already exists')) {
+          errorMessage = 'Este email já está cadastrado. Tente fazer login.';
+        } else if (lowerMessage.includes('password')) {
+          errorMessage = 'A senha deve ter pelo menos 6 caracteres';
+        } else if (lowerMessage.includes('email not confirmed') || lowerMessage.includes('email not verified')) {
+          errorMessage = 'Verifique seu email para confirmar a conta antes de fazer login.';
+        } else if (lowerMessage.includes('signup') || lowerMessage.includes('sign up')) {
+          errorMessage = 'Não foi possível criar a conta. Verifique se o cadastro está habilitado.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      // Verificar se é erro 429 (rate limit)
+      if (error.status === 429 || error.message?.toLowerCase().includes('too many requests')) {
+        const secondsMatch = error.message?.match(/(\d+)\s*seconds?/i);
+        const waitTime = secondsMatch ? secondsMatch[1] : '40';
+        errorMessage = `Muitas tentativas. Por favor, aguarde ${waitTime} segundos antes de tentar novamente.`;
+      }
+      
       toast({
         title: "Erro ao criar conta",
-        description: error.message || 'Erro desconhecido ao criar conta',
+        description: errorMessage,
         variant: "destructive",
       });
       setLoading(false);

@@ -1,0 +1,91 @@
+# DNS Registro.br → Servidor Hetzner - Configuração Rápida
+
+============================================
+O QUE VOCÊ PRECISA
+============================================
+
+1. IP PÚBLICO do servidor Hetzner
+   (obter com: curl -s ifconfig.me)
+
+2. Domínio no registro.br
+
+3. Acesso ao registro.br para configurar DNS
+
+============================================
+CONFIGURAÇÃO NO REGISTRO.BR
+============================================
+
+Para SUBDOMÍNIO (ex: app.seudominio.com.br):
+--------------------------------------------
+Tipo: A
+Nome: app (ou subdomínio desejado)
+Valor: [IP_PUBLICO_HETZNER]
+TTL: 3600
+
+Para DOMÍNIO RAIZ (ex: seudominio.com.br):
+-------------------------------------------
+Tipo: A
+Nome: @ (ou vazio)
+Valor: [IP_PUBLICO_HETZNER]
+TTL: 3600
+
+============================================
+EXEMPLO PRÁTICO
+============================================
+
+Seu domínio: meusite.com.br
+IP Hetzner: 123.45.67.89
+Subdomínio desejado: app.meusite.com.br
+
+No registro.br:
+----------------
+Tipo: A
+Nome: app
+Valor: 123.45.67.89
+TTL: 3600
+
+============================================
+DEPOIS DE CONFIGURAR DNS
+============================================
+
+1. Aguardar propagação (1-2 horas)
+
+2. Configurar Nginx no servidor Hetzner:
+   - Proxy da porta 80 → porta 8000 (Supabase)
+   - Configurar SSL com Certbot
+
+3. Verificar:
+   dig app.seudominio.com.br A
+
+============================================
+COMANDOS ÚTEIS NO HETZNER
+============================================
+
+# Ver IP público
+curl -s ifconfig.me
+
+# Instalar Nginx
+sudo apt update && sudo apt install -y nginx
+
+# Configurar SSL
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d app.seudominio.com.br
+
+# Verificar Nginx
+sudo nginx -t
+sudo systemctl status nginx
+
+# Ver logs
+sudo tail -f /var/log/nginx/error.log
+
+============================================
+IMPORTANTE
+============================================
+
+- Use registro A (não CNAME) para Hetzner
+- Configure firewall (portas 80 e 443)
+- Supabase geralmente roda na porta 8000
+- Nginx faz proxy 80/443 → 8000
+
+
+

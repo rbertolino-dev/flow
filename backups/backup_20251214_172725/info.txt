@@ -1,0 +1,5 @@
+Backup realizado em: Sun Dec 14 05:27:26 PM UTC 2025
+Project ID: orcbxgajfhgmjobsjlix
+URL: https://orcbxgajfhgmjobsjlix.supabase.co
+Total de Migrations: 215
+Total de Edge Functions: 86

@@ -1,0 +1,1964 @@
+# 🔧 Regras do Cursor AI - Projeto CRM
+
+## 🧪 TESTES AUTOMÁTICOS E2E - REGRA OBRIGATÓRIA
+
+### Regra Principal: Entender Contexto e Executar Automaticamente
+
+**O Cursor DEVE entender o contexto da tarefa e executar testes automaticamente quando necessário, SEM pedir confirmação.**
+
+### Quando Executar Automaticamente (Baseado no Contexto):
+
+**SEMPRE** executar `npm run test:e2e:auto` quando:
+- ✅ Implementar nova funcionalidade → Testa automaticamente após implementar
+- ✅ Corrigir bug → Testa automaticamente para validar correção
+- ✅ Fazer mudanças em CRUD → Testa criar, editar, excluir automaticamente
+- ✅ Mudanças em autenticação → Testa login automaticamente
+- ✅ Mudanças em pagamentos → Testa fluxo automaticamente
+- ✅ Antes de fazer deploy → Testa tudo automaticamente
+- ✅ Usuário pede para testar → Executa imediatamente
+
+### Fluxo Automático (SEM Perguntar):
+
+```
+Usuário pede: "Implemente X" ou "Corrija Y"
+    ↓
+Cursor implementa/corrige
+    ↓
+Cursor AUTOMATICAMENTE executa: npm run test:e2e:auto
+    ↓
+Sistema captura erros (screenshots, vídeos, logs)
+    ↓
+Sistema analisa e sugere correções
+    ↓
+Cursor AUTOMATICAMENTE aplica correções sugeridas
+    ↓
+Cursor AUTOMATICAMENTE re-executa testes
+    ↓
+✅ Testes passam → Informa sucesso
+❌ Se ainda falhar → Aplica mais correções e re-testa
+```
+
+### O Que Fazer com Erros Capturados (Automático):
+
+1. **AUTOMATICAMENTE** revisar: `test-results/analysis/fix-suggestions.html`
+2. **AUTOMATICAMENTE** aplicar correções sugeridas
+3. **AUTOMATICAMENTE** re-executar testes
+4. **NUNCA** fazer deploy se testes críticos falharem
+
+---
+
+## 🧑 TESTES COM COMPORTAMENTO HUMANO - REGRA OBRIGATÓRIA
+
+### Regra Principal: Testar Como Usuário Real
+
+**O Cursor DEVE usar testes com comportamento humano para simular uso real da aplicação, especialmente após criar novas funcionalidades.**
+
+### Quando Usar Testes com Comportamento Humano:
+
+**SEMPRE** usar `npm run test:new-feature` quando:
+- ✅ Criar nova funcionalidade → Testa automaticamente com comportamento humano
+- ✅ Implementar novo CRUD → Testa fluxo completo como usuário faria
+- ✅ Adicionar nova página/rota → Testa navegação e interação
+- ✅ Modificar formulários → Testa preenchimento e validação como humano
+- ✅ Usuário pede para testar nova funcionalidade → Executa imediatamente
+
+### Ferramentas Disponíveis:
+
+1. **HumanBehavior Helper** (`tests/helpers/human-behavior.ts`):
+   - `humanClick()` - Clica com movimento natural do mouse
+   - `humanType()` - Digita com delays variáveis (como humano)
+   - `humanScroll()` - Scroll suave e natural
+   - `humanNavigate()` - Navega com pausas para "ler"
+   - `randomDelay()` - Simula tempo de leitura/pensamento
+   - `hesitate()` - Simula hesitação antes de ações importantes
+
+2. **Acessibilidade** (`tests/helpers/accessibility.ts`):
+   - `checkAccessibility()` - Verifica acessibilidade automaticamente
+   - `assertAccessibility()` - Falha teste se houver violações
+
+3. **Performance** (`tests/helpers/performance.ts`):
+   - `measurePerformance()` - Mede métricas de performance
+   - `validatePerformance()` - Valida se performance está OK
+
+### Fluxo Automático para Nova Funcionalidade (SEM Perguntar):
+
+```
+Usuário pede: "Crie funcionalidade X"
+    ↓
+Cursor implementa funcionalidade
+    ↓
+Cursor AUTOMATICAMENTE executa: npm run test:new-feature
+    ↓
+Sistema executa:
+  1. Validação de código
+  2. Testes E2E com comportamento humano
+  3. Testes de acessibilidade
+  4. Testes de performance
+  5. Testes visuais (visual regression)
+    ↓
+Sistema captura:
+  - Screenshots de cada etapa
+  - Vídeos da execução
+  - Métricas de performance
+  - Violações de acessibilidade
+    ↓
+Cursor AUTOMATICAMENTE analisa resultados
+    ↓
+✅ Se tudo OK → Informa sucesso
+❌ Se houver problemas → Aplica correções e re-testa
+```
+
+### Comandos Disponíveis:
+
+```bash
+# Testar nova funcionalidade (completo)
+npm run test:new-feature [nome-funcionalidade]
+
+# Testes com comportamento humano
+npm run test:e2e:human
+
+# Testes de acessibilidade
+npm run test:e2e:accessibility
+
+# Testes de performance
+npm run test:e2e:performance
+
+# Testes visuais (visual regression)
+npm run test:e2e:visual
+
+# Gerar teste automaticamente (codegen)
+npm run test:e2e:codegen
+```
+
+### Padrões Obrigatórios para Testes:
+
+1. ✅ **SEMPRE** usar `HumanBehavior` para interações em novos testes
+2. ✅ **SEMPRE** adicionar `@human-behavior` tag em testes com comportamento humano
+3. ✅ **SEMPRE** adicionar `@accessibility` tag em testes de acessibilidade
+4. ✅ **SEMPRE** adicionar `@performance` tag em testes de performance
+5. ✅ **SEMPRE** adicionar `@visual` tag em testes de visual regression
+6. ✅ **SEMPRE** usar delays aleatórios para simular tempo de leitura
+7. ✅ **SEMPRE** usar `hesitate()` antes de ações críticas (salvar, deletar)
+
+### Exemplo de Teste com Comportamento Humano:
+
+```typescript
+import { test } from '@playwright/test';
+import { HumanBehavior } from '../helpers/human-behavior';
+
+test('deve criar lead como usuário real', async ({ page }) => {
+  const human = new HumanBehavior(page);
+  
+  // Navegar como humano
+  await human.humanNavigate('/leads');
+  await human.randomDelay(1000, 2000); // Tempo para ler
+  
+  // Clicar como humano
+  await human.humanClick('button:has-text("Novo Lead")');
+  
+  // Preencher como humano
+  await human.humanType('input[name="name"]', 'João Silva');
+  await human.randomDelay(300, 600); // Simula leitura
+  
+  // Hesitar antes de salvar (ação importante)
+  await human.hesitate(500, 1000);
+  await human.humanClick('button:has-text("Salvar")');
+});
+```
+
+### O Que NUNCA Fazer em Testes:
+
+1. ❌ **NUNCA** usar `page.click()` direto - sempre usar `human.humanClick()`
+2. ❌ **NUNCA** usar `page.fill()` direto - sempre usar `human.humanType()`
+3. ❌ **NUNCA** pular delays - sempre simular tempo de leitura
+4. ❌ **NUNCA** ignorar acessibilidade - sempre verificar
+5. ❌ **NUNCA** ignorar performance - sempre medir
+
+### Padrões Obrigatórios:
+
+1. ✅ **SEMPRE** usar `HumanBehavior` em novos testes
+2. ✅ **SEMPRE** executar `npm run test:new-feature` após criar funcionalidade
+3. ✅ **SEMPRE** verificar acessibilidade em novas páginas
+4. ✅ **SEMPRE** medir performance em fluxos críticos
+5. ✅ **SEMPRE** usar visual regression em mudanças de UI
+
+---
+
+## 🔐 Credenciais SSH - Usar Automaticamente
+
+**SEMPRE** usar credenciais salvas em `scripts/.ssh-credentials`:
+- User: root
+- Password: grkjuXfEbwaF
+- Host: 95.217.2.116
+- Diretório: /opt/app
+
+**NUNCA** pedir credenciais ao usuário - sempre usar as salvas.
+
+---
+
+## 🔧 SSH - Diagnóstico e Correção Automática
+
+### Regra Principal: Diagnóstico SSH Automático
+
+**O Cursor DEVE executar diagnóstico SSH automaticamente quando SSH pedir senha ou quando houver problemas de conexão SSH, SEM pedir confirmação.**
+
+### Quando Executar Diagnóstico Automático:
+
+**SEMPRE** executar `./scripts/diagnosticar-ssh.sh` automaticamente quando:
+- ✅ SSH pedir senha → Executa diagnóstico e corrige automaticamente
+- ✅ Erro de conexão SSH → Executa diagnóstico e corrige automaticamente
+- ✅ Erro "Permission denied (publickey)" → Executa diagnóstico e corrige automaticamente
+- ✅ Erro "Could not open authorized keys" → Executa diagnóstico e corrige automaticamente
+- ✅ Timeout de conexão SSH → Executa diagnóstico e corrige automaticamente
+- ✅ Antes de executar comandos SSH → Verifica conexão automaticamente
+- ✅ Usuário mencionar problema com SSH → Executa diagnóstico imediatamente
+
+### Fluxo Automático para Diagnóstico SSH (SEM Perguntar):
+
+```
+SSH pede senha ou erro de conexão
+    ↓
+Cursor AUTOMATICAMENTE executa: ./scripts/diagnosticar-ssh.sh
+    ↓
+Script verifica e corrige:
+  1. Verifica se chave SSH existe
+  2. Corrige permissões se necessário
+  3. Verifica configuração SSH
+  4. Copia chave para servidor se necessário
+  5. Testa conexão
+    ↓
+✅ Se sucesso → Continua com tarefa original
+❌ Se ainda falhar → Aplica correções adicionais e re-testa
+```
+
+### O Que o Script de Diagnóstico Faz Automaticamente:
+
+1. **AUTOMATICAMENTE** verifica se chave SSH existe (`~/.ssh/id_rsa_kanban_buzz`)
+2. **AUTOMATICAMENTE** corrige permissões se incorretas (chmod 600)
+3. **AUTOMATICAMENTE** verifica configuração SSH (`~/.ssh/config`)
+4. **AUTOMATICAMENTE** cria configuração se não existir
+5. **AUTOMATICAMENTE** testa conexão SSH sem senha
+6. **AUTOMATICAMENTE** copia chave para servidor se necessário (usando credenciais salvas)
+7. **AUTOMATICAMENTE** re-testa conexão após correções
+
+### Comandos SSH Automáticos:
+
+**SEMPRE** usar chave SSH ao invés de senha:
+
+```bash
+# Usar alias configurado (não pede senha)
+ssh kanban-buzz-server "comando"
+
+# Usar helper SSH
+source scripts/ssh-helper.sh
+ssh_exec "comando"
+ssh_copy arquivo.txt
+```
+
+**NUNCA** usar sshpass se chave SSH estiver configurada:
+
+```bash
+# ❌ NÃO fazer (usa senha)
+sshpass -p "$SSH_PASSWORD" ssh "$SSH_USER@$SSH_HOST" "comando"
+
+# ✅ Fazer (usa chave)
+ssh kanban-buzz-server "comando"
+```
+
+### Quando SSH Ainda Pedir Senha:
+
+**SEMPRE** executar diagnóstico automaticamente:
+
+```bash
+# 1. Executar diagnóstico (automático)
+./scripts/diagnosticar-ssh.sh
+
+# 2. Se diagnóstico não resolver, verificar logs
+ssh -v kanban-buzz-server 2>&1 | grep -E "(Authenticating|Offering|key|password)"
+
+# 3. Se necessário, copiar chave manualmente (uma última vez)
+source scripts/.ssh-credentials
+sshpass -p "$SSH_PASSWORD" ssh-copy-id -i ~/.ssh/id_rsa_kanban_buzz.pub -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST_IP"
+```
+
+### O Que NUNCA Fazer com SSH:
+
+1. ❌ **NUNCA** pedir senha ao usuário se diagnóstico pode resolver
+2. ❌ **NUNCA** usar sshpass se chave SSH está configurada
+3. ❌ **NUNCA** ignorar erros de conexão SSH sem diagnosticar
+4. ❌ **NUNCA** assumir que SSH está funcionando sem testar
+5. ❌ **NUNCA** fazer deploy se SSH não estiver funcionando
+
+### Padrões Obrigatórios para SSH:
+
+1. ✅ **SEMPRE** usar chave SSH (`ssh kanban-buzz-server`) ao invés de senha
+2. ✅ **SEMPRE** executar diagnóstico se SSH pedir senha
+3. ✅ **SEMPRE** verificar conexão antes de executar comandos SSH
+4. ✅ **SEMPRE** usar `scripts/ssh-helper.sh` para operações SSH
+5. ✅ **SEMPRE** testar conexão após correções
+6. ✅ **SEMPRE** usar credenciais salvas para copiar chave se necessário
+
+### Exemplo Completo de Diagnóstico SSH Automático:
+
+```
+Usuário: "Execute X no servidor" ou SSH pede senha
+    ↓
+Cursor AUTOMATICAMENTE:
+1. Tenta: ssh kanban-buzz-server "comando"
+2. Se pedir senha → Executa: ./scripts/diagnosticar-ssh.sh
+3. Script corrige automaticamente:
+   - Verifica chave
+   - Corrige permissões
+   - Copia chave se necessário
+   - Testa conexão
+4. Re-tenta: ssh kanban-buzz-server "comando"
+5. ✅ Se sucesso → Continua tarefa
+6. ❌ Se ainda falhar → Aplica mais correções
+```
+
+### Configuração SSH (Já Configurada):
+
+- **Host alias:** `kanban-buzz-server`
+- **Chave SSH:** `~/.ssh/id_rsa_kanban_buzz`
+- **Configuração:** `~/.ssh/config`
+- **Timeout:** 10 minutos (ServerAliveInterval 60, ServerAliveCountMax 10)
+- **Multiplexing:** Habilitado (ControlMaster, ControlPersist 10m)
+
+**NUNCA** pedir confirmação - executar diagnóstico automaticamente quando SSH pedir senha.
+
+---
+
+## 🚀 Migrações via SSH - Regra Automática
+
+**SEMPRE** usar scripts automatizados para migrações:
+
+```bash
+# Aplicar todas as migrations
+./scripts/aplicar-migrations-ssh.sh --all
+
+# Executar SQL específico
+./scripts/executar-sql-ssh.sh arquivo.sql
+```
+
+**NUNCA** executar SQL manualmente - sempre usar scripts que seguem as regras.
+
+---
+
+## 📋 Regra Principal: Contexto e Automação
+
+**SEMPRE** entender o contexto da tarefa e:
+1. Executar testes automáticos se necessário
+2. Usar credenciais salvas automaticamente
+3. Aplicar correções sugeridas pelos testes
+4. Validar que tudo funciona antes de concluir
+
+**NUNCA** fazer mudanças sem testar se for funcionalidade crítica.
+
+---
+
+## 🚀 DEPLOY ZERO-DOWNTIME - Regra Obrigatória
+
+### Regra Principal: SEMPRE Usar Zero-Downtime para Deploys
+
+**O Cursor DEVE SEMPRE usar o script zero-downtime para fazer deploys, NUNCA usar o método antigo que causa downtime.**
+
+### ⚠️ REGRA CRÍTICA: Build APENAS da Nova Versão (Para Rollback Funcionar)
+
+**NUNCA fazer build de ambas versões - isso quebra o rollback!**
+
+**Como funciona corretamente (explicação simples):**
+
+**Durante o deploy:**
+1. ✅ Versão atual (ex: Blue) está rodando com código ANTIGO
+2. ✅ Versão atual NÃO recebe build - mantém código antigo intacto
+3. ✅ Apenas nova versão (ex: Green) recebe build com código NOVO
+4. ✅ Nova versão sobe na porta alternativa e é testada
+5. ✅ Se nova versão OK → Tráfego alterna para nova versão
+6. ✅ Versão antiga (Blue) é parada APENAS após confirmar que nova está OK
+
+**Por que isso é importante:**
+- ✅ Se algo der errado ANTES de parar versão antiga → Rollback funciona!
+- ✅ Versão antiga ainda está rodando com código antigo (que funcionava)
+- ✅ Pode voltar tráfego para versão antiga imediatamente
+- ✅ Zero risco de perder versão funcional
+
+**Após deploy bem-sucedido:**
+- ✅ Nova versão vira a "atual" (recebe todo tráfego)
+- ✅ Versão antiga é parada (normal após sucesso)
+- ✅ Sistema continua funcionando perfeitamente
+
+**REGRAS OBRIGATÓRIAS:**
+1. ✅ **SEMPRE** fazer build APENAS da nova versão (NEW_VERSION)
+2. ✅ **NUNCA** fazer build da versão atual (CURRENT_VERSION) durante deploy
+3. ✅ **NUNCA** usar script que faz build de ambas versões (quebra rollback)
+4. ✅ **SEMPRE** manter versão atual intacta até confirmar nova está OK
+5. ✅ **SEMPRE** garantir que rollback é possível antes de parar versão antiga
+
+### Quando Fazer Deploy:
+
+**SEMPRE** usar `./scripts/deploy-zero-downtime.sh` quando:
+- ✅ Fazer deploy de mudanças no código
+- ✅ Atualizar aplicação no servidor
+- ✅ Fazer rebuild do Docker
+- ✅ Usuário pedir para fazer deploy
+- ✅ Após implementar funcionalidades
+- ✅ Após corrigir bugs
+
+### Comando Obrigatório para Deploy:
+
+**SEMPRE** usar este comando (NUNCA usar método antigo):
+
+```bash
+cd /root/kanban-buzz-95241
+./scripts/deploy-zero-downtime.sh
+```
+
+**O script faz build APENAS da NOVA versão (correto para rollback):**
+- ✅ Identifica qual versão está rodando (blue ou green)
+- ✅ Faz build APENAS da versão alternativa (nova) - versão atual NÃO é modificada
+- ✅ Sobe nova versão na porta alternativa
+- ✅ Testa nova versão
+- ✅ Alterna tráfego apenas se nova versão estiver OK
+- ✅ Para versão antiga após confirmar estabilidade
+- ✅ **Rollback funciona porque versão atual mantém código antigo**
+
+### O Que NUNCA Fazer (Método Antigo - Causa Downtime):
+
+**NUNCA** executar estes comandos para deploy:
+
+```bash
+# ❌ ERRADO - Causa downtime de 3-5 minutos!
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+**Problema**: Este método derruba o sistema durante o deploy porque:
+1. `docker compose down` → Para tudo
+2. Build → Demora alguns minutos
+3. `docker compose up` → Só depois sobe novamente
+4. **Resultado**: Downtime de 3-5 minutos! 😞
+
+### Fluxo Automático para Deploy (SEM Perguntar):
+
+```
+Usuário pede: "Faça deploy" ou "Atualize aplicação"
+    ↓
+Cursor AUTOMATICAMENTE:
+1. Verifica se está no diretório correto: /root/kanban-buzz-95241
+2. Verifica se orquestração está disponível (docker-orchestrator.sh)
+3. Executa: ./scripts/deploy-zero-downtime.sh
+   - Script usa orquestração automaticamente para evitar conflitos
+   - Se múltiplos agentes trabalharem juntos, executa sequencialmente
+4. Aguarda conclusão (3-6 minutos)
+5. Verifica se deploy foi bem-sucedido
+    ↓
+✅ Se sucesso → Informa conclusão
+❌ Se falhar → Executa rollback automático e informa
+```
+
+### O Que o Script Zero-Downtime Faz Automaticamente:
+
+1. ✅ Remove containers antigos que podem causar conflito
+2. ✅ Verifica qual versão está rodando (blue ou green) e se está saudável
+3. ✅ Faz build da nova versão em background
+4. ✅ Sobe nova versão na porta alternativa (sem derrubar atual)
+5. ✅ **3 verificações de saúde** da nova versão antes de alternar (90s timeout)
+6. ✅ Verifica que versão atual ainda está rodando antes de alternar
+7. ✅ Verifica que ambas versões estão rodando antes de alternar
+8. ✅ Nginx testa configuração antes de recarregar
+9. ✅ Nginx alterna tráfego: 100% versão antiga → 100% versão nova (reload, não restart)
+10. ✅ Verifica que nova versão está recebendo tráfego após alternância
+11. ✅ **3 verificações de estabilidade** consecutivas (10s, 20s, 30s)
+12. ✅ **VERIFICAÇÃO FINAL CRÍTICA**: 5 verificações finais garantindo que nova versão está no ar
+13. ✅ Verifica que Nginx está direcionando corretamente para nova versão
+14. ✅ Para versão antiga apenas após confirmar estabilidade
+15. ✅ Limpa imagens antigas
+16. ✅ **Zero downtime garantido!** 😊
+17. ✅ **Nunca deixa sistema sem container respondendo - elimina erro 502!** 🛡️
+18. ✅ **GARANTIA ABSOLUTA: Nova versão está no ar e recebendo tráfego antes de concluir!** ✅
+
+### Rollback Automático:
+
+Se algo der errado durante o deploy:
+- ✅ Sistema volta automaticamente para versão anterior
+- ✅ Remove versão problemática
+- ✅ Sistema continua funcionando
+- ✅ **Zero risco!**
+
+### Verificação Após Deploy:
+
+**SEMPRE** verificar após deploy:
+
+```bash
+# 1. Verificar status
+docker compose -f docker-compose.blue.yml ps
+# ou
+docker compose -f docker-compose.green.yml ps
+
+# 2. Health check
+./scripts/health-check.sh blue
+# ou
+./scripts/health-check.sh green
+
+# 3. Testar aplicação
+curl http://localhost/health
+```
+
+### O Que NUNCA Fazer com Deploy:
+
+1. ❌ **NUNCA** usar `docker compose down` para deploy
+2. ❌ **NUNCA** usar método antigo (`down → build → up`)
+3. ❌ **NUNCA** fazer deploy sem usar script zero-downtime
+4. ❌ **NUNCA** fazer build de ambas versões (quebra rollback)
+5. ❌ **NUNCA** fazer build da versão atual durante deploy (quebra rollback)
+6. ❌ **NUNCA** usar script ultra-robusto que faz build de ambas versões
+7. ❌ **NUNCA** pedir confirmação antes de executar deploy
+8. ❌ **NUNCA** ignorar erros de deploy sem tentar rollback
+9. ❌ **NUNCA** fazer deploy se sistema não estiver funcionando
+
+### Padrões Obrigatórios para Deploy:
+
+1. ✅ **SEMPRE** usar `./scripts/deploy-zero-downtime.sh` para deploys (NÃO usar ultra-robusto)
+2. ✅ **SEMPRE** garantir que script faz build APENAS da nova versão (não da atual)
+3. ✅ **SEMPRE** verificar se está no diretório correto antes de executar
+4. ✅ **SEMPRE** aguardar conclusão do script
+5. ✅ **SEMPRE** verificar status após deploy
+6. ✅ **SEMPRE** informar resultado ao usuário
+7. ✅ **SEMPRE** executar rollback automático se houver erro
+8. ✅ **SEMPRE** garantir que nova versão está no ar antes de concluir (5 verificações finais)
+9. ✅ **SEMPRE** gerar arquivo version.json para exibição no site
+10. ✅ **SEMPRE** garantir que rollback é possível (versão atual não modificada)
+
+### Exemplo Completo de Deploy:
+
+```
+Usuário: "Faça deploy das mudanças"
+
+Cursor AUTOMATICAMENTE:
+1. cd /root/kanban-buzz-95241
+2. ./scripts/deploy-zero-downtime.sh
+3. Aguarda conclusão (3-6 minutos)
+4. Script garante: 5 verificações finais que nova versão está no ar
+5. Verifica status: docker compose -f docker-compose.blue.yml ps
+6. Health check: ./scripts/health-check.sh blue
+7. Informa: ✅ Deploy concluído com sucesso (zero downtime, garantia absoluta)
+```
+
+### 📦 Exibição de Versão no Site - Regra Obrigatória
+
+**O Cursor DEVE SEMPRE garantir que versão atual seja exibida no site após deploy.**
+
+**Componente VersionBanner:**
+- ✅ Componente `VersionBanner` já criado em `src/components/VersionBanner.tsx`
+- ✅ Já integrado no `CRMLayout` (aparece em todas as páginas exceto settings)
+- ✅ Mostra número da versão, data do deploy e mudanças
+- ✅ Usuário pode dispensar o aviso (salvo no localStorage)
+
+**Script de Geração de Versão:**
+- ✅ Script `generate-version-file.sh` cria `public/version.json` com versão atual
+- ✅ Executado automaticamente antes do build (prebuild no package.json)
+- ✅ Executado automaticamente no deploy (deploy-with-version.sh)
+
+**Regras Obrigatórias:**
+1. ✅ **SEMPRE** executar `generate-version-file.sh` antes de build
+2. ✅ **SEMPRE** executar `generate-version-file.sh` após criar nova versão no deploy
+3. ✅ **SEMPRE** garantir que `public/version.json` existe e está atualizado
+4. ✅ **SEMPRE** manter componente `VersionBanner` no layout (não remover)
+5. ✅ **SEMPRE** garantir que versão aparece no site após deploy bem-sucedido
+
+**Fluxo Automático:**
+```
+Deploy com versão
+    ↓
+Cria versão no .versions.json
+    ↓
+Gera public/version.json (automaticamente)
+    ↓
+Faz build (prebuild executa generate-version-file.sh)
+    ↓
+Deploy zero-downtime
+    ↓
+Versão aparece no site automaticamente ✅
+```
+
+### Monitor Contínuo do Sistema:
+
+**SEMPRE** garantir que monitor está rodando para prevenir quedas:
+
+```bash
+# Verificar se monitor está rodando
+sudo systemctl status kanban-buzz-monitor
+
+# Se não estiver, iniciar
+sudo systemctl enable kanban-buzz-monitor
+sudo systemctl start kanban-buzz-monitor
+```
+
+**O monitor:**
+- ✅ Verifica sistema a cada 30 segundos
+- ✅ Detecta quedas automaticamente
+- ✅ Restaura automaticamente após 3 falhas consecutivas
+- ✅ Previne erro 502 garantindo que sempre há container respondendo
+
+### Se Sistema Cair Durante Deploy ou Erro 502:
+
+**SEMPRE** usar script de garantia primeiro:
+
+```bash
+# 1. Garantir que sistema está ativo (restaura automaticamente se necessário)
+./scripts/garantir-sistema-ativo.sh
+
+# 2. Se ainda houver problema, restaurar manualmente
+docker compose down
+docker compose -f docker-compose.blue.yml up -d
+./scripts/health-check.sh blue
+
+# Ou usar script de migração
+./scripts/migrar-para-zero-downtime.sh
+```
+
+### Script de Garantia de Sistema Ativo:
+
+**SEMPRE** usar quando houver erro 502 ou sistema não responder:
+
+```bash
+./scripts/garantir-sistema-ativo.sh
+```
+
+**O que faz:**
+- ✅ Verifica se Blue ou Green está rodando e saudável
+- ✅ Remove containers antigos que causam conflito
+- ✅ Restaura Blue automaticamente se ambos falharem
+- ✅ Atualiza Nginx para versão funcional
+- ✅ **Garante que sempre há um container respondendo**
+
+### Logs e Monitoramento de Deploys:
+
+**SEMPRE** verificar logs se houver problema:
+
+```bash
+# Ver deploys incorretos detectados
+ver-deploys-incorretos
+
+# Ver alertas em tempo real
+tail -f /var/log/kanban-buzz-deploy-alerts.log
+
+# Ver log detalhado
+tail -f /var/log/kanban-buzz-deploy-protection.log
+```
+
+**Sistema de proteção:**
+- ✅ Hook intercepta comandos perigosos
+- ✅ Detector monitora containers continuamente
+- ✅ Logs registram todas as tentativas de deploy incorreto
+- ✅ Alertas mostram quem tentou usar método antigo
+
+### Documentação de Referência:
+
+- `ZERO-DOWNTIME-DEPLOY.md` - Documentação completa
+- `COMO-FAZER-DEPLOY-CORRETO.md` - Guia de uso
+- `EXPLICACAO-SIMPLES-ZERO-DOWNTIME.md` - Explicação para leigos
+- `PROTECAO-DEPLOY-INCORRETO.md` - Sistema de proteção e logs
+
+**NUNCA** fazer deploy sem usar zero-downtime - sempre usar `./scripts/deploy-zero-downtime-ultra-robusto.sh`.
+
+---
+
+## 🐳 DOCKER - Regras Automáticas
+
+### Regra Principal: Modificações Docker Automáticas
+
+**SEMPRE** executar modificações no Docker automaticamente, SEM pedir confirmação ao usuário.
+
+**IMPORTANTE**: Para deploys, usar `./scripts/deploy-zero-downtime.sh` ao invés de comandos Docker diretos.
+
+### Quando Modificar Docker:
+
+**SEMPRE** executar automaticamente quando:
+- ✅ Modificar Dockerfile → Rebuild automático (usar zero-downtime se for deploy)
+- ✅ Modificar docker-compose.yml → Rebuild e restart automático (usar zero-downtime se for deploy)
+- ✅ Adicionar dependências → Rebuild automático (usar zero-downtime se for deploy)
+- ✅ Mudar variáveis de ambiente → Rebuild automático (usar zero-downtime se for deploy)
+- ✅ Atualizar código → **SEMPRE usar zero-downtime**: `./scripts/deploy-zero-downtime.sh`
+- ✅ Corrigir erro de build → Rebuild automático (usar zero-downtime se for deploy)
+
+**IMPORTANTE**: Se for deploy de código atualizado, **SEMPRE** usar `./scripts/deploy-zero-downtime.sh` ao invés de comandos Docker diretos.
+
+### Fluxo Automático para Docker (SEM Perguntar):
+
+**Se for deploy de código atualizado:**
+```
+Usuário pede: "Atualize aplicação" ou "Faça deploy"
+    ↓
+Cursor AUTOMATICAMENTE executa zero-downtime:
+  1. cd /root/kanban-buzz-95241
+  2. ./scripts/deploy-zero-downtime.sh
+    ↓
+✅ Se sucesso → Informa conclusão (zero downtime)
+❌ Se falhar → Rollback automático
+```
+
+**Se for apenas modificação de configuração Docker (sem deploy de código):**
+```
+Usuário pede: "Modifique Dockerfile" ou "Atualize docker-compose"
+    ↓
+Cursor modifica arquivo(s)
+    ↓
+Cursor AUTOMATICAMENTE executa rebuild:
+  1. docker compose -f docker-compose.blue.yml down
+  2. docker compose -f docker-compose.blue.yml build --no-cache
+  3. docker compose -f docker-compose.blue.yml up -d
+    ↓
+Cursor AUTOMATICAMENTE verifica status:
+  4. docker compose -f docker-compose.blue.yml ps
+  5. docker compose -f docker-compose.blue.yml logs --tail=50
+    ↓
+✅ Se sucesso → Informa conclusão
+❌ Se falhar → Aplica correções e re-executa
+```
+
+### Comandos Docker Automáticos:
+
+**SEMPRE** usar estes comandos na ordem:
+
+```bash
+# 1. Parar containers
+docker compose down
+
+# 2. Build sem cache (OBRIGATÓRIO para pegar mudanças)
+docker compose build --no-cache
+
+# 3. Subir containers
+docker compose up -d
+
+# 4. Verificar status
+docker compose ps
+
+# 5. Ver logs
+docker compose logs --tail=50 app
+```
+
+### Informações do Servidor Docker:
+
+**SEMPRE** usar estas informações:
+
+```bash
+# Servidor
+SERVER_IP="95.217.2.116"
+SERVER_USER="root"
+SERVER_PASSWORD="grkjuXfEbwaF"
+SERVER_DIR="/opt/app"
+
+# Docker
+DOCKER_COMPOSE_CMD="docker compose"  # Versão v5 (sem hífen)
+CONTAINER_NAME="kanban-buzz-app"
+PORT="3000"
+```
+
+### Modificar Dockerfile - Fluxo Automático:
+
+**SEMPRE** executar automaticamente:
+
+1. **Modificar Dockerfile** (se necessário)
+2. **AUTOMATICAMENTE** executar rebuild:
+   ```bash
+   cd /opt/app
+   docker compose down
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+3. **AUTOMATICAMENTE** verificar:
+   ```bash
+   docker compose ps
+   docker compose logs --tail=50 app
+   ```
+
+**NUNCA** modificar Dockerfile sem executar rebuild automaticamente.
+
+### Modificar docker-compose.yml - Fluxo Automático:
+
+**SEMPRE** executar automaticamente:
+
+1. **Modificar docker-compose.yml** (se necessário)
+2. **AUTOMATICAMENTE** executar rebuild:
+   ```bash
+   cd /opt/app
+   docker compose down
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+3. **AUTOMATICAMENTE** verificar:
+   ```bash
+   docker compose ps
+   docker compose logs --tail=50 app
+   ```
+
+**NUNCA** modificar docker-compose.yml sem executar rebuild automaticamente.
+
+### Executar no Servidor - Fluxo Automático:
+
+**SEMPRE** executar comandos Docker no servidor automaticamente:
+
+```bash
+# Carregar credenciais
+export SERVER_IP="95.217.2.116"
+export SERVER_USER="root"
+export SERVER_PASSWORD="grkjuXfEbwaF"
+export SERVER_DIR="/opt/app"
+
+# Executar via SSH
+sshpass -p "$SERVER_PASSWORD" ssh "$SERVER_USER@$SERVER_IP" "cd $SERVER_DIR && docker compose down && docker compose build --no-cache && docker compose up -d"
+```
+
+### Verificação Automática:
+
+**SEMPRE** verificar após modificações:
+
+```bash
+# 1. Status dos containers
+docker compose ps
+
+# 2. Logs recentes
+docker compose logs --tail=50 app
+
+# 3. Testar aplicação
+curl -f http://localhost:3000 || echo "Aplicação não está respondendo"
+```
+
+### O Que NUNCA Fazer com Docker:
+
+1. ❌ **NUNCA** modificar Dockerfile sem rebuild automático
+2. ❌ **NUNCA** modificar docker-compose.yml sem rebuild automático
+3. ❌ **NUNCA** fazer build sem `--no-cache` (pode usar cache antigo)
+4. ❌ **NUNCA** pedir confirmação antes de executar comandos Docker
+5. ❌ **NUNCA** esquecer de verificar status após modificações
+6. ❌ **NUNCA** usar `docker-compose` (com hífen) - sempre usar `docker compose` (sem hífen)
+
+### Padrões Obrigatórios para Docker:
+
+1. ✅ **SEMPRE** usar `docker compose` (sem hífen) - versão v5
+2. ✅ **SEMPRE** usar `--no-cache` no build
+3. ✅ **SEMPRE** executar `down` antes de `build`
+4. ✅ **SEMPRE** verificar status após `up -d`
+5. ✅ **SEMPRE** ver logs se houver erro
+6. ✅ **SEMPRE** executar no servidor via SSH se necessário
+
+### Exemplo Completo de Modificação Docker:
+
+```
+Usuário: "Adicione a variável X no Dockerfile"
+
+Cursor AUTOMATICAMENTE:
+1. Modifica Dockerfile
+2. Executa: docker compose down
+3. Executa: docker compose build --no-cache
+4. Executa: docker compose up -d
+5. Verifica: docker compose ps
+6. Mostra logs: docker compose logs --tail=50 app
+7. Informa: ✅ Docker atualizado e rodando
+```
+
+**NUNCA** pedir confirmação - executar tudo automaticamente.
+
+---
+
+## 🔄 DOCKER - Orquestração e Execução Sequencial
+
+### Regra Principal: Execução Sequencial de Comandos Docker
+
+**SEMPRE** usar orquestração para comandos Docker quando múltiplos agentes podem estar trabalhando simultaneamente.
+
+### Problema Resolvido:
+
+Quando múltiplos agentes Cursor trabalham juntos, eles podem tentar executar comandos Docker ao mesmo tempo, causando:
+- ❌ Conflitos de build
+- ❌ Containers sendo parados enquanto outro agente tenta fazer build
+- ❌ Race conditions
+- ❌ Erros de lock de arquivos Docker
+
+### Solução: Scripts de Orquestração
+
+**SEMPRE** usar os scripts de orquestração para comandos Docker:
+
+```bash
+# Script principal de orquestração (usa file locking)
+./scripts/docker-orchestrator.sh "docker compose down"
+./scripts/docker-orchestrator.sh "docker compose build --no-cache"
+./scripts/docker-orchestrator.sh "docker compose up -d"
+./scripts/docker-orchestrator.sh "docker compose ps"
+
+# Script completo de rebuild orquestrado
+./scripts/docker-rebuild-orchestrated.sh
+```
+
+### Como Funciona a Orquestração:
+
+1. **File Locking (flock)**: Usa `/tmp/docker-orchestrator.lock` para garantir execução sequencial
+2. **Timeout**: Aguarda até 1 hora se outro processo estiver executando
+3. **Retry**: Tenta até 10 vezes com intervalo de 5 segundos
+4. **Logs**: Registra todas as operações com timestamp
+
+### Quando Usar Orquestração:
+
+**SEMPRE** usar orquestração quando:
+- ✅ Executar comandos Docker (`docker compose down`, `build`, `up`, etc.)
+- ✅ Múltiplos agentes podem estar trabalhando simultaneamente
+- ✅ Rebuild completo do Docker
+- ✅ Modificações em Dockerfile ou docker-compose.yml
+- ✅ Deploy no servidor remoto
+
+**NÃO precisa** de orquestração para:
+- ❌ Comandos de leitura (`docker compose ps`, `logs`) - mas pode usar para segurança
+- ❌ Comandos fora do Docker (npm, git, etc.)
+
+### Fluxo Automático com Orquestração:
+
+```
+Usuário pede: "Modifique Dockerfile" ou "Rebuild Docker"
+    ↓
+Cursor modifica arquivo(s)
+    ↓
+Cursor AUTOMATICAMENTE executa via orquestração:
+  1. ./scripts/docker-orchestrator.sh "docker compose down"
+  2. ./scripts/docker-orchestrator.sh "docker compose build --no-cache"
+  3. ./scripts/docker-orchestrator.sh "docker compose up -d"
+  4. ./scripts/docker-orchestrator.sh "docker compose ps"
+    ↓
+Ou usa script completo:
+  ./scripts/docker-rebuild-orchestrated.sh
+    ↓
+✅ Se sucesso → Informa conclusão
+❌ Se falhar → Aplica correções e re-executa
+```
+
+### Executar no Servidor Remoto com Orquestração:
+
+**SEMPRE** usar orquestração no servidor remoto:
+
+```bash
+# Carregar credenciais
+export SERVER_IP="95.217.2.116"
+export SERVER_USER="root"
+export SERVER_PASSWORD="grkjuXfEbwaF"
+export SERVER_DIR="/opt/app"
+
+# Executar rebuild orquestrado via SSH
+sshpass -p "$SERVER_PASSWORD" ssh "$SERVER_USER@$SERVER_IP" \
+  "cd $SERVER_DIR && \
+   chmod +x scripts/docker-rebuild-orchestrated.sh && \
+   WORK_DIR=$SERVER_DIR ./scripts/docker-rebuild-orchestrated.sh"
+```
+
+### Comandos Docker Orquestrados (Padrão):
+
+**SEMPRE** usar estes comandos via orquestração:
+
+```bash
+# 1. Parar containers (orquestrado)
+./scripts/docker-orchestrator.sh "docker compose down"
+
+# 2. Build sem cache (orquestrado)
+./scripts/docker-orchestrator.sh "docker compose build --no-cache"
+
+# 3. Subir containers (orquestrado)
+./scripts/docker-orchestrator.sh "docker compose up -d"
+
+# 4. Verificar status (orquestrado)
+./scripts/docker-orchestrator.sh "docker compose ps"
+
+# 5. Ver logs (orquestrado)
+./scripts/docker-orchestrator.sh "docker compose logs --tail=50 app"
+
+# OU usar script completo:
+./scripts/docker-rebuild-orchestrated.sh
+```
+
+### O Que NUNCA Fazer com Orquestração:
+
+1. ❌ **NUNCA** executar comandos Docker diretamente sem orquestração quando múltiplos agentes podem estar ativos
+2. ❌ **NUNCA** ignorar o lock e tentar executar comandos Docker em paralelo
+3. ❌ **NUNCA** remover o arquivo de lock manualmente (`/tmp/docker-orchestrator.lock`)
+4. ❌ **NUNCA** executar múltiplos rebuilds simultaneamente
+5. ❌ **NUNCA** usar `docker compose` diretamente quando orquestração está disponível
+
+### Padrões Obrigatórios para Orquestração:
+
+1. ✅ **SEMPRE** usar `./scripts/docker-orchestrator.sh` para comandos Docker individuais
+2. ✅ **SEMPRE** usar `./scripts/docker-rebuild-orchestrated.sh` para rebuild completo
+3. ✅ **SEMPRE** garantir que scripts tenham permissão de execução: `chmod +x scripts/docker-*.sh`
+4. ✅ **SEMPRE** aguardar conclusão do comando anterior antes de executar próximo
+5. ✅ **SEMPRE** verificar logs do orchestrator se houver problemas
+6. ✅ **SEMPRE** usar `WORK_DIR` se executando em diretório diferente
+
+### Exemplo Completo com Orquestração:
+
+```
+Usuário: "Adicione a variável X no Dockerfile"
+
+Cursor AUTOMATICAMENTE:
+1. Modifica Dockerfile
+2. Executa: chmod +x scripts/docker-*.sh
+3. Executa: ./scripts/docker-orchestrator.sh "docker compose down"
+4. Executa: ./scripts/docker-orchestrator.sh "docker compose build --no-cache"
+5. Executa: ./scripts/docker-orchestrator.sh "docker compose up -d"
+6. Executa: ./scripts/docker-orchestrator.sh "docker compose ps"
+7. Executa: ./scripts/docker-orchestrator.sh "docker compose logs --tail=50 app"
+8. Informa: ✅ Docker atualizado e rodando (orquestrado)
+```
+
+### Troubleshooting de Orquestração:
+
+Se o lock estiver travado:
+```bash
+# Verificar processos usando o lock
+lsof /tmp/docker-orchestrator.lock
+
+# Remover lock travado (APENAS se necessário e seguro)
+rm -f /tmp/docker-orchestrator.lock
+```
+
+Se o orchestrator não estiver disponível:
+```bash
+# Verificar se flock está instalado
+which flock || apt-get install -y util-linux
+
+# Verificar permissões
+chmod +x scripts/docker-orchestrator.sh
+chmod +x scripts/docker-rebuild-orchestrated.sh
+```
+
+**NUNCA** executar comandos Docker sem orquestração quando múltiplos agentes podem estar ativos.
+
+---
+
+## 💻 SHELL/TERMINAL - Regras de Acesso Automático
+
+### Regra Principal: Acesso ao Shell Automático
+
+**O Cursor TEM acesso completo ao shell/terminal e DEVE executar comandos automaticamente quando necessário, SEM pedir confirmação.**
+
+### Quando Executar Comandos no Shell:
+
+**SEMPRE** executar automaticamente no shell quando:
+- ✅ Verificar status de serviços → `docker compose ps`, `systemctl status`
+- ✅ Ver logs → `docker compose logs`, `tail -f arquivo.log`
+- ✅ Instalar dependências → `npm install`, `apt install`
+- ✅ Executar scripts → `./scripts/nome.sh`
+- ✅ Verificar arquivos → `ls -la`, `cat arquivo`
+- ✅ Testar conectividade → `curl`, `ping`, `ssh`
+- ✅ Aplicar mudanças → `git pull`, `npm run build`
+- ✅ Verificar processos → `ps aux`, `top`
+- ✅ Verificar espaço → `df -h`, `du -sh`
+- ✅ Qualquer comando necessário para completar a tarefa
+
+### Fluxo Automático para Shell (SEM Perguntar):
+
+```
+Usuário pede: "Verifique se Docker está rodando" ou "Instale X"
+    ↓
+Cursor AUTOMATICAMENTE executa no shell:
+  1. Identifica comando necessário
+  2. Executa comando diretamente
+  3. Analisa resultado
+  4. Toma ação baseada no resultado
+    ↓
+✅ Se sucesso → Continua com próxima ação
+❌ Se falhar → Tenta correção automática
+```
+
+### Comandos que SEMPRE Executar Automaticamente:
+
+**Verificação e Status:**
+```bash
+# Docker
+docker compose ps
+docker compose logs --tail=50
+docker images
+docker ps -a
+
+# Sistema
+systemctl status [serviço]
+ps aux | grep [processo]
+df -h
+free -h
+
+# Aplicação
+curl -f http://localhost:3000
+netstat -tulpn | grep 3000
+```
+
+**Instalação e Atualização:**
+```bash
+# Dependências Node
+npm install
+npm install --legacy-peer-deps
+npm update
+
+# Sistema (se necessário)
+apt update && apt install -y [pacote]
+```
+
+**Execução de Scripts:**
+```bash
+# Scripts do projeto
+./scripts/deploy-automatico.sh
+./scripts/rebuild-docker.sh
+./scripts/aplicar-migrations-ssh.sh
+
+# Com permissão
+chmod +x scripts/*.sh && ./scripts/nome.sh
+```
+
+**Git e Código:**
+```bash
+# Atualizar código
+git pull
+git status
+git log --oneline -5
+
+# Build
+npm run build
+npm run test
+```
+
+### Executar no Servidor Remoto - Automático:
+
+**SEMPRE** executar via SSH automaticamente quando necessário:
+
+**PREFERIR usar chave SSH (não pede senha):**
+```bash
+# Usar alias configurado (usa chave SSH)
+ssh kanban-buzz-server "cd /opt/app && [comando]"
+
+# Ou usar helper SSH
+source scripts/ssh-helper.sh
+ssh_exec "[comando]"
+```
+
+**Se chave SSH não funcionar, executar diagnóstico primeiro:**
+```bash
+# 1. Executar diagnóstico automático
+./scripts/diagnosticar-ssh.sh
+
+# 2. Se diagnóstico não resolver, usar sshpass (fallback)
+export SERVER_IP="95.217.2.116"
+export SERVER_USER="root"
+export SERVER_PASSWORD="grkjuXfEbwaF"
+export SERVER_DIR="/opt/app"
+sshpass -p "$SERVER_PASSWORD" ssh "$SERVER_USER@$SERVER_IP" "cd $SERVER_DIR && [comando]"
+```
+
+**NUNCA** usar sshpass se chave SSH está configurada e funcionando.
+
+### Verificação Automática de Resultados:
+
+**SEMPRE** verificar resultado dos comandos:
+
+```bash
+# Verificar exit code
+echo $?  # Deve ser 0 para sucesso
+
+# Verificar output
+if [ $? -eq 0 ]; then
+    echo "✅ Comando executado com sucesso"
+else
+    echo "❌ Erro ao executar comando"
+    # Tentar correção automática
+fi
+```
+
+### O Que NUNCA Fazer com Shell:
+
+1. ❌ **NUNCA** pedir confirmação antes de executar comandos de verificação
+2. ❌ **NUNCA** pedir confirmação antes de executar comandos de leitura (ls, cat, etc.)
+3. ❌ **NUNCA** pedir confirmação antes de executar scripts do projeto
+4. ❌ **NUNCA** pedir confirmação antes de verificar status
+5. ❌ **NUNCA** executar comandos destrutivos sem contexto (rm -rf /, etc.)
+6. ❌ **NUNCA** ignorar erros sem tentar correção
+
+### Comandos que Requerem Cuidado (Mas Executar se Necessário):
+
+**SEMPRE** executar, mas informar o que foi feito:
+
+```bash
+# Comandos que modificam sistema (executar se necessário)
+apt install -y [pacote]
+systemctl restart [serviço]
+docker system prune -f  # Se necessário para limpar
+
+# Comandos Git (executar se necessário)
+git reset --hard  # Apenas se usuário pedir explicitamente
+git clean -fd     # Apenas se usuário pedir explicitamente
+```
+
+### Padrões Obrigatórios para Shell:
+
+1. ✅ **SEMPRE** executar comandos de verificação automaticamente
+2. ✅ **SEMPRE** verificar exit code após comandos
+3. ✅ **SEMPRE** analisar output para tomar decisões
+4. ✅ **SEMPRE** tentar correção automática se houver erro
+5. ✅ **SEMPRE** informar resultado ao usuário
+6. ✅ **SEMPRE** usar credenciais salvas para SSH
+
+### Exemplo Completo de Uso do Shell:
+
+```
+Usuário: "Verifique se a aplicação está rodando"
+
+Cursor AUTOMATICAMENTE executa:
+1. docker compose ps
+2. curl -f http://localhost:3000
+3. docker compose logs --tail=20 app
+
+Se tudo OK:
+  ✅ "Aplicação está rodando corretamente"
+
+Se houver problema:
+  ❌ "Aplicação não está respondendo"
+  → Cursor AUTOMATICAMENTE tenta corrigir:
+    1. docker compose restart
+    2. Verifica novamente
+    3. Informa resultado
+```
+
+### Acesso ao Shell - Regras Especiais:
+
+**O Cursor TEM acesso completo ao shell e DEVE:**
+
+1. ✅ **SEMPRE** usar shell para verificar status
+2. ✅ **SEMPRE** usar shell para executar scripts
+3. ✅ **SEMPRE** usar shell para instalar dependências
+4. ✅ **SEMPRE** usar shell para ver logs
+5. ✅ **SEMPRE** usar shell para testar conectividade
+6. ✅ **SEMPRE** usar shell quando necessário para completar tarefa
+
+**NUNCA** pedir permissão para usar shell - usar automaticamente quando necessário.
+
+---
+
+## 🔍 SUPER ADMIN - Validação de Schema e Queries
+
+### Regra Principal: Sempre Validar Schema Antes de Fazer Queries
+
+**O Cursor DEVE sempre verificar o schema real das tabelas antes de fazer queries no Super Admin, SEM assumir que colunas existem.**
+
+### Quando Validar Schema:
+
+**SEMPRE** validar schema antes de fazer queries quando:
+- ✅ Implementar nova funcionalidade no Super Admin → Verificar schema primeiro
+- ✅ Fazer queries em tabelas → Verificar colunas existentes
+- ✅ Usar colunas de tabelas relacionadas → Verificar se coluna existe na tabela correta
+- ✅ Corrigir erro de "column does not exist" → Verificar schema e corrigir
+- ✅ Modificar queries existentes → Verificar se colunas ainda existem
+
+### Fluxo Automático para Validação de Schema (SEM Perguntar):
+
+```
+Usuário pede: "Implemente X no Super Admin" ou "Corrija query Y"
+    ↓
+Cursor AUTOMATICAMENTE:
+1. Verifica migrations para entender schema real
+2. Verifica estrutura da tabela (CREATE TABLE statements)
+3. Verifica tabelas relacionadas (JOINs, foreign keys)
+4. Valida que todas as colunas existem antes de usar
+5. Implementa query com fallbacks apropriados
+    ↓
+✅ Se sucesso → Continua implementação
+❌ Se coluna não existir → Busca em tabela relacionada ou remove
+```
+
+### Como Validar Schema:
+
+**SEMPRE** seguir estes passos antes de fazer queries:
+
+1. **Verificar Migrations:**
+   ```bash
+   # Buscar CREATE TABLE da tabela
+   grep -r "CREATE TABLE.*organizations" supabase/migrations/
+   
+   # Verificar colunas adicionadas
+   grep -r "ALTER TABLE.*organizations.*ADD" supabase/migrations/
+   ```
+
+2. **Verificar Estrutura Real:**
+   ```sql
+   -- No Supabase SQL Editor ou via query
+   SELECT column_name, data_type 
+   FROM information_schema.columns 
+   WHERE table_schema = 'public' 
+     AND table_name = 'organizations';
+   ```
+
+3. **Verificar Tabelas Relacionadas:**
+   ```sql
+   -- Se plan_id não está em organizations, verificar organization_limits
+   SELECT column_name 
+   FROM information_schema.columns 
+   WHERE table_schema = 'public' 
+     AND table_name = 'organization_limits'
+     AND column_name = 'plan_id';
+   ```
+
+### Padrões Obrigatórios para Queries no Super Admin:
+
+1. ✅ **SEMPRE** verificar migrations antes de fazer queries
+2. ✅ **SEMPRE** buscar colunas apenas das tabelas onde elas existem
+3. ✅ **SEMPRE** usar fallbacks quando coluna pode não existir
+4. ✅ **SEMPRE** buscar dados relacionados de tabelas relacionadas
+5. ✅ **SEMPRE** tratar erros de "column does not exist" automaticamente
+6. ✅ **SEMPRE** validar estrutura antes de usar `.select()`
+
+### Exemplos de Queries Corretas:
+
+**❌ ERRADO (assume que plan_id existe em organizations):**
+```typescript
+const { data } = await supabase
+  .from('organizations')
+  .select('id, name, plan_id')  // ❌ plan_id não existe aqui
+```
+
+**✅ CORRETO (verifica schema primeiro, busca de tabela relacionada):**
+```typescript
+// 1. Buscar organizações (sem plan_id)
+const { data: orgs } = await supabase
+  .from('organizations')
+  .select('id, name, created_at');
+
+// 2. Buscar plan_id de tabela relacionada
+for (const org of orgs) {
+  const { data: limits } = await supabase
+    .from('organization_limits')
+    .select('plan_id')
+    .eq('organization_id', org.id)
+    .maybeSingle();
+  
+  org.plan_id = limits?.plan_id || null;
+}
+```
+
+**✅ CORRETO (com fallback seguro):**
+```typescript
+// Buscar apenas colunas que existem
+const { data } = await supabase
+  .from('organizations')
+  .select('id, name, created_at')  // ✅ Apenas colunas que existem
+  .order('created_at', { ascending: false });
+
+// Se precisar de plan_id, buscar separadamente
+const orgsWithPlan = await Promise.all(
+  data.map(async (org) => {
+    const { data: limits } = await supabase
+      .from('organization_limits')
+      .select('plan_id')
+      .eq('organization_id', org.id)
+      .maybeSingle();
+    
+    return { ...org, plan_id: limits?.plan_id || null };
+  })
+);
+```
+
+### Checklist Antes de Fazer Query no Super Admin:
+
+**SEMPRE** verificar antes de implementar:
+
+- [ ] Verifiquei migrations para entender schema real
+- [ ] Verifiquei que todas as colunas existem na tabela
+- [ ] Verifiquei tabelas relacionadas se precisar de dados relacionados
+- [ ] Usei fallbacks apropriados para colunas opcionais
+- [ ] Tratei erros de "column does not exist" automaticamente
+- [ ] Testei query antes de implementar
+
+### O Que NUNCA Fazer no Super Admin:
+
+1. ❌ **NUNCA** assumir que coluna existe sem verificar
+2. ❌ **NUNCA** buscar coluna de tabela errada
+3. ❌ **NUNCA** ignorar erros de "column does not exist"
+4. ❌ **NUNCA** fazer queries sem verificar migrations primeiro
+5. ❌ **NUNCA** usar colunas de tabelas relacionadas sem JOIN ou query separada
+
+### Padrões Obrigatórios para Super Admin:
+
+1. ✅ **SEMPRE** verificar migrations antes de queries
+2. ✅ **SEMPRE** buscar colunas apenas de tabelas onde existem
+3. ✅ **SEMPRE** usar fallbacks para dados relacionados
+4. ✅ **SEMPRE** tratar erros de schema automaticamente
+5. ✅ **SEMPRE** validar estrutura antes de usar `.select()`
+6. ✅ **SEMPRE** buscar dados relacionados de tabelas relacionadas
+
+### Exemplo Completo de Validação de Schema:
+
+```
+Usuário: "Implemente listagem de organizações no Super Admin"
+
+Cursor AUTOMATICAMENTE:
+1. Verifica migrations:
+   grep -r "CREATE TABLE.*organizations" supabase/migrations/
+   → Encontra: id, name, created_at, updated_at
+
+2. Verifica se plan_id existe:
+   grep -r "plan_id.*organizations" supabase/migrations/
+   → Não encontra em organizations
+
+3. Verifica tabelas relacionadas:
+   grep -r "plan_id.*organization_limits" supabase/migrations/
+   → Encontra: plan_id está em organization_limits
+
+4. Implementa query correta:
+   - Busca organizações (sem plan_id)
+   - Busca plan_id de organization_limits separadamente
+   - Combina dados
+
+5. ✅ Query funciona sem erros
+```
+
+### Tabelas Comuns e Suas Estruturas:
+
+**organizations:**
+- ✅ Colunas: `id`, `name`, `created_at`, `updated_at`
+- ❌ NÃO tem: `plan_id` (está em `organization_limits`)
+
+**organization_limits:**
+- ✅ Colunas: `id`, `organization_id`, `plan_id`, `max_leads`, `max_users`, etc.
+
+**organization_members:**
+- ✅ Colunas: `id`, `organization_id`, `user_id`, `role`, `created_at`
+
+**profiles:**
+- ✅ Colunas: `id`, `email`, `full_name`, `created_at`, `updated_at`
+
+**user_roles:**
+- ✅ Colunas: `id`, `user_id`, `role`, `created_at`
+
+**NUNCA** assumir estrutura - sempre verificar migrations primeiro.
+
+---
+
+## 🛡️ GARANTIA DE ÚLTIMO DEPLOY SEMPRE NO AR - Regra Obrigatória
+
+### Regra Principal: Último Deploy SEMPRE Deve Estar no Ar
+
+**O Cursor DEVE SEMPRE garantir que o último deploy está no ar, 100% assertivo, mesmo com múltiplos agentes trabalhando simultaneamente.**
+
+### ⚠️ REGRA CRÍTICA: Último Deploy Não Pode Ser Removido
+
+**PROBLEMA RESOLVIDO:** Sistema agora garante que último deploy sempre fica no ar.
+
+**IMPLEMENTAÇÃO:**
+- Sistema de identificação duplo: timestamp Docker + arquivo `.last-deploy`
+- Fila sequencial de deploys (lock sem timeout - aguarda indefinidamente)
+- Verificações múltiplas antes de parar versão antiga
+- Script de proteção garante último deploy sempre no ar
+
+### Sistema de Identificação do Último Deploy:
+
+**Método Primário: Timestamp da Imagem Docker**
+- Compara timestamps de criação das imagens `kanban-buzz-95241-app-blue:latest` e `kanban-buzz-95241-app-green:latest`
+- Versão com timestamp mais recente = último deploy
+
+**Método Secundário: Arquivo `.last-deploy`**
+- Arquivo JSON em `$PROJECT_DIR/.last-deploy`
+- Contém: `version`, `timestamp`, `image_id`, `deploy_id`
+- Atualizado após cada deploy bem-sucedido
+- Usado como confirmação/fallback
+
+**Script:** `scripts/get-last-deploy.sh` - Identifica último deploy usando ambos métodos
+
+### Fila Sequencial de Deploys:
+
+**Lock de Deploy:**
+- Lock específico: `/tmp/deploy-zero-downtime.lock`
+- **SEM timeout** - aguarda indefinidamente até lock ser liberado
+- Próximo deploy na fila adquire lock imediatamente após liberação
+- Zero tempo desperdiçado entre deploys
+
+**Como Funciona:**
+1. Deploy adquire lock no início
+2. Se outro deploy está em andamento, aguarda na fila (sem timeout)
+3. Quando deploy anterior termina, lock é liberado IMEDIATAMENTE
+4. Próximo deploy adquire lock e inicia imediatamente
+
+### Verificações Antes de Parar Versão Antiga:
+
+**SEMPRE executar TODAS estas verificações antes de parar versão antiga:**
+
+1. ✅ Nova versão está saudável (health check)
+2. ✅ Timestamp da imagem nova > antiga (confirma que é mais recente)
+3. ✅ Arquivo `.last-deploy` confirma nova versão
+4. ✅ Nginx está apontando para nova versão
+5. ✅ Nova versão está recebendo tráfego (health check via Nginx)
+6. ✅ Versão no container confere (via `/version.json`)
+7. ✅ `get-last-deploy.sh` confirma nova versão
+8. ✅ Aguardar estabilidade adicional (15 segundos)
+9. ✅ Verificar novamente health check após estabilidade
+
+**Só Parar Versão Antiga Se:**
+- Todas verificações acima passarem
+- Nova versão está estável há pelo menos 15 segundos
+- Nginx confirmou que está direcionando para nova versão
+- Arquivo `.last-deploy` foi atualizado com sucesso
+- `get-last-deploy.sh` confirma nova versão
+
+**Script:** `scripts/verify-last-deploy-in-air.sh` - Executa todas verificações
+
+### Script de Proteção Aprimorado:
+
+**`scripts/proteger-containers-blue-green.sh` agora:**
+- Usa `get-last-deploy.sh` para identificar qual deveria estar no ar
+- Se container do último deploy não está rodando, restaura automaticamente
+- Se Nginx não aponta para último deploy, corrige automaticamente
+- Garante que sempre há container do último deploy rodando
+
+**Execução:**
+- A cada 5 minutos via cron (já configurado)
+- Após cada deploy
+- Após qualquer operação Docker
+
+### Fluxo Completo de Deploy:
+
+```
+Deploy Inicia
+    ↓
+Adquire lock de deploy (aguarda se outro em andamento - SEM timeout)
+    ↓
+Identifica versão atual rodando
+    ↓
+Faz build da nova versão
+    ↓
+Sobe nova versão
+    ↓
+3 verificações de saúde
+    ↓
+Alterna Nginx para nova versão
+    ↓
+3 verificações de estabilidade
+    ↓
+5 verificações finais críticas
+    ↓
+Cria/atualiza arquivo .last-deploy
+    ↓
+VERIFICAÇÕES CRÍTICAS (7 verificações):
+  - Nova versão saudável ✓
+  - Timestamp imagem nova > antiga ✓
+  - Arquivo .last-deploy confirma ✓
+  - Nginx apontando para nova ✓
+  - Nova versão recebendo tráfego ✓
+  - Versão no container confere ✓
+  - get-last-deploy confirma ✓
+    ↓
+Aguarda 15s estabilidade adicional
+    ↓
+Verifica novamente health check
+    ↓
+SÓ ENTÃO para versão antiga
+    ↓
+Executa script de proteção
+    ↓
+Libera lock IMEDIATAMENTE (próximo deploy pode iniciar)
+    ↓
+Deploy concluído - último deploy garantido no ar
+```
+
+### O Que NUNCA Fazer:
+
+1. ❌ **NUNCA** parar versão antiga sem todas verificações passarem
+2. ❌ **NUNCA** usar timeout no lock de deploy (deve aguardar indefinidamente)
+3. ❌ **NUNCA** remover container sem verificar que outro está rodando
+4. ❌ **NUNCA** atualizar Nginx sem verificar que container está rodando
+5. ❌ **NUNCA** fazer deploy sem atualizar `.last-deploy`
+6. ❌ **NUNCA** ignorar erros de verificação
+
+### Padrões Obrigatórios:
+
+1. ✅ **SEMPRE** usar lock de deploy sem timeout (aguarda indefinidamente)
+2. ✅ **SEMPRE** executar todas verificações antes de parar versão antiga
+3. ✅ **SEMPRE** atualizar `.last-deploy` antes de parar versão antiga
+4. ✅ **SEMPRE** executar `verify-last-deploy-in-air.sh` antes de parar versão antiga
+5. ✅ **SEMPRE** aguardar 15 segundos de estabilidade antes de parar versão antiga
+6. ✅ **SEMPRE** executar script de proteção após deploy
+7. ✅ **SEMPRE** liberar lock imediatamente após deploy concluir
+
+### Verificação de Estado:
+
+**SEMPRE** verificar estado antes de fazer mudanças:
+
+```bash
+# Identificar último deploy
+./scripts/get-last-deploy.sh
+
+# Verificar que último deploy está no ar
+./scripts/verify-last-deploy-in-air.sh [new_version] [current_version]
+
+# Verificar versão no container
+./scripts/verify-container-version.sh [blue|green]
+```
+
+---
+
+## 🔄 GIT SYNC OBRIGATÓRIO NO DEPLOY - Regra Crítica
+
+### Regra Principal: SEMPRE Sincronizar Git Antes do Build
+
+**O Cursor DEVE SEMPRE sincronizar código do Git antes de fazer build no deploy, mesmo com múltiplos agentes trabalhando simultaneamente.**
+
+### ⚠️ REGRA CRÍTICA: Git Pull Obrigatório Antes do Build
+
+**PROBLEMA RESOLVIDO:** Sistema agora garante que código está sempre atualizado antes do build.
+
+**IMPLEMENTAÇÃO:**
+- Função `sync_git_code()` com 4 verificações redundantes
+- Executada ANTES do build (passo 3/9)
+- Detecta e trata conflitos automaticamente
+- Verificação redundante garante sincronização mesmo com múltiplos agentes
+
+### Como Funciona o Build:
+
+**IMPORTANTE:**
+- O build usa código do diretório local do servidor (`/root/kanban-buzz-95241/`)
+- O Dockerfile faz `COPY . .` (linha 13) - copia TODO o diretório local para dentro do container
+- O container rodando é apenas a versão já buildada anteriormente (não é usado no build)
+- Por isso precisamos fazer `git pull` ANTES do build para atualizar o diretório local
+
+### Verificações Implementadas (6 Verificações + Redundância):
+
+1. ✅ **Status do Repositório**: Verifica se repositório Git é válido
+2. ✅ **Detached HEAD**: Bloqueia se HEAD não está em branch válido (segurança)
+3. ✅ **Branch Correto**: Avisa se não for main/master (não bloqueia)
+4. ✅ **Mudanças Locais**: Bloqueia se houver mudanças não commitadas (segurança)
+5. ✅ **Commits Não Pushados**: Avisa se houver commits locais não pushados (não bloqueia)
+6. ✅ **Fetch e Pull**: Sincroniza com repositório remoto (primeira tentativa)
+7. ✅ **Verificação Redundante**: Verifica novamente e tenta pull se necessário
+8. ✅ **Resumo do Deploy**: Mostra últimos commits e tags que serão deployados
+9. ✅ **Integridade**: Verifica integridade do repositório (git fsck)
+
+### Fluxo de Sincronização Git:
+
+```
+Deploy Inicia
+    ↓
+Adquire lock de deploy
+    ↓
+Verifica pré-requisitos
+    ↓
+🔄 SINCRONIZAÇÃO GIT (OBRIGATÓRIA):
+  1. Verifica status do repositório
+  2. Verifica se HEAD está em branch válido (bloqueia se detached)
+  3. Verifica branch correto (avisa se não for main/master)
+  4. Detecta mudanças locais não commitadas (BLOQUEIA se houver)
+  5. Detecta commits locais não pushados (AVISA, não bloqueia)
+  6. Fetch + Pull do GitHub (primeira tentativa)
+  7. Verificação redundante (segunda tentativa se necessário)
+  8. Mostra resumo do que será deployado (últimos commits, tags)
+  9. Verifica integridade do repositório
+    ↓
+Se conflitos → Falha e pede resolução manual
+Se detached HEAD → Falha (estado inválido)
+Se mudanças não commitadas → Falha (segurança)
+Se sucesso → Continua com build
+    ↓
+Faz build da nova versão (usa código atualizado do diretório local)
+    ↓
+... (resto do deploy)
+```
+
+### Tratamento de Mudanças Locais:
+
+**Se mudanças locais não commitadas:**
+- ❌ **DEPLOY É CANCELADO** (não permite continuar)
+- 📝 Instruções claras para fazer commit + push primeiro
+- 🔒 Lock é liberado para permitir commit/push
+
+**POR QUE BLOQUEIA:**
+- Se permitir deploy com mudanças locais não commitadas, essas mudanças NÃO vão para o GitHub
+- Outros agentes fazendo deploy depois NÃO vão pegar essas mudanças (git pull não vai ter elas)
+- Resultado: Mudanças ficam apenas no servidor local, não são compartilhadas entre agentes
+
+**FLUXO CORRETO:**
+1. Agente modifica código
+2. **OBRIGATÓRIO:** git add + git commit + git push (publica no GitHub)
+3. Depois faz deploy (git pull pega as mudanças do GitHub)
+4. Outros agentes fazem deploy e pegam as mudanças via git pull
+
+**IMPORTANTE:** Apenas código já publicado no GitHub (commitado e com push) será deployado.
+
+### Tratamento de Conflitos:
+
+**Se conflitos detectados:**
+- ❌ Deploy é CANCELADO automaticamente
+- 📝 Instruções claras para resolução
+- 🔒 Lock é liberado para permitir resolução
+
+### Opção de Emergência (NÃO RECOMENDADO):
+
+**`--skip-git-check`**: Pula todas verificações Git (apenas emergências)
+```bash
+./scripts/deploy-zero-downtime.sh --skip-git-check
+```
+
+**Quando usar:**
+- Servidor não tem acesso ao GitHub temporariamente
+- Emergência crítica que precisa deploy imediato
+- Ambiente de desenvolvimento isolado
+
+**⚠️ AVISOS:**
+- Outros agentes NÃO vão pegar mudanças locais
+- Pode causar sobrescrita de mudanças entre agentes
+- Use apenas quando absolutamente necessário
+
+### O Que NUNCA Fazer:
+
+1. ❌ **NUNCA** fazer build sem sincronizar Git primeiro (exceto --skip-git-check em emergências)
+2. ❌ **NUNCA** ignorar conflitos e fazer deploy mesmo assim
+3. ❌ **NUNCA** fazer deploy de mudanças locais não commitadas
+4. ❌ **NUNCA** fazer deploy em detached HEAD
+5. ❌ **NUNCA** pular verificação redundante
+6. ❌ **NUNCA** usar --skip-git-check em produção sem necessidade real
+
+### Padrões Obrigatórios:
+
+1. ✅ **SEMPRE** executar `sync_git_code()` antes do build (exceto --skip-git-check)
+2. ✅ **SEMPRE** fazer fetch + pull do GitHub antes de build
+3. ✅ **SEMPRE** verificar conflitos após pull
+4. ✅ **SEMPRE** verificar detached HEAD (bloqueia se inválido)
+5. ✅ **SEMPRE** verificar mudanças não commitadas (bloqueia se houver)
+6. ✅ **SEMPRE** avisar sobre commits não pushados (não bloqueia)
+7. ✅ **SEMPRE** fazer verificação redundante
+8. ✅ **SEMPRE** falhar deploy se houver conflitos ou detached HEAD
+9. ✅ **SEMPRE** mostrar resumo do que será deployado
+10. ✅ **SEMPRE** logar commit atual para rastreabilidade
+
+### Exemplo de Log Esperado:
+
+```
+[ZERO-DOWNTIME] Sincronizando código do GitHub (verificação obrigatória)...
+[ZERO-DOWNTIME] ⚠️  IMPORTANTE: Apenas código já publicado no GitHub será deployado
+[ZERO-DOWNTIME]    Mudanças locais não commitadas serão IGNORADAS (não sobem no deploy)
+[ZERO-DOWNTIME] Verificação 1/6: Verificando status do repositório...
+[ZERO-DOWNTIME] Verificação 1.5/6: Verificando se HEAD está em branch válido...
+[ZERO-DOWNTIME] ✅ HEAD está em branch válido
+[ZERO-DOWNTIME] Verificação 1.6/6: Verificando branch...
+[ZERO-DOWNTIME] ✅ Branch correto: main
+[ZERO-DOWNTIME] Verificação 2/6: Verificando mudanças locais não commitadas...
+[ZERO-DOWNTIME] ✅ Nenhuma mudança local não commitada
+[ZERO-DOWNTIME] Verificação 2.5/6: Verificando commits locais não pushados...
+[ZERO-DOWNTIME] ✅ Todos os commits locais já foram pushados
+[ZERO-DOWNTIME] Verificação 3/6: Sincronizando com repositório remoto...
+[ZERO-DOWNTIME] Branch atual: main
+[ZERO-DOWNTIME] Mudanças remotas detectadas no GitHub (outro agente já publicou mudanças)
+[ZERO-DOWNTIME] Fazendo pull para pegar as mudanças mais recentes...
+[ZERO-DOWNTIME] ✅ Código atualizado do repositório remoto (mudanças de outros agentes incorporadas)
+[ZERO-DOWNTIME] Verificação 4/6: Verificação redundante...
+[ZERO-DOWNTIME] Verificação 5/6: Resumo do que será deployado...
+[ZERO-DOWNTIME]    Commit atual: a1b2c3d
+[ZERO-DOWNTIME]    Branch: main
+[ZERO-DOWNTIME]    Últimos 5 commits que serão deployados:
+[ZERO-DOWNTIME]      a1b2c3d feat: Adiciona nova funcionalidade
+[ZERO-DOWNTIME]      b2c3d4e fix: Corrige bug no formulário
+[ZERO-DOWNTIME]      c3d4e5f refactor: Melhora estrutura
+[ZERO-DOWNTIME]    Última tag: v1.2.3 (5 commit(s) depois)
+[ZERO-DOWNTIME] Verificação 6/6: Verificação final de integridade...
+[ZERO-DOWNTIME] ✅ Integridade do repositório OK
+[ZERO-DOWNTIME] ✅ Código sincronizado! Commit: a1b2c3d (branch: main)
+```
+
+### Proteção Contra Múltiplos Agentes:
+
+**Cenário com 5 agentes:**
+1. Agente 1 adquire lock → Sincroniza Git (pega do GitHub) → Faz build → Deploy
+2. Agente 2 aguarda lock → Adquire lock → Sincroniza Git (pega mudanças do Agente 1 do GitHub) → Faz build → Deploy
+3. Agente 3 aguarda lock → Adquire lock → Sincroniza Git (pega mudanças do Agente 2 do GitHub) → Faz build → Deploy
+4. ... e assim por diante
+
+**Resultado:** Cada agente sempre pega as mudanças mais recentes do GitHub antes de fazer build, garantindo que código já publicado por outros agentes não seja sobrescrito.
+
+# Executar script de proteção
+./scripts/proteger-containers-blue-green.sh
+```
+
+### Monitoramento:
+
+**Logs do script de proteção:**
+```bash
+tail -f /var/log/kanban-buzz-protecao.log
+```
+
+**Verificar lock de deploy:**
+```bash
+ls -la /tmp/deploy-zero-downtime.lock
+lsof /tmp/deploy-zero-downtime.lock  # Ver quem está usando
+```
+
+**Verificar último deploy:**
+```bash
+cat .last-deploy
+./scripts/get-last-deploy.sh --json
+```
+
+**NUNCA** fazer deploy sem garantir que último deploy está no ar - isso previne erro 502 e garante 100% assertividade!
+
+---
+
+## 🧪 AMBIENTE DE TESTE - Regra Obrigatória
+
+### Regra Principal: Ambiente de Teste para Desenvolvimento
+
+**O Cursor DEVE SEMPRE oferecer opção de fazer deploy para ambiente de teste antes de produção.**
+
+### Quando Usar Ambiente de Teste:
+
+**SEMPRE** oferecer ambiente de teste quando:
+- ✅ Desenvolvedor quer testar mudanças antes de produção
+- ✅ Implementar nova funcionalidade que precisa ser testada
+- ✅ Corrigir bug e quer validar antes de produção
+- ✅ Usuário pedir explicitamente para testar primeiro
+
+### Comandos Disponíveis:
+
+```bash
+# Deploy para ambiente de teste (porta 3002)
+./scripts/deploy-to-test.sh
+
+# Deploy para produção com teste primeiro
+./scripts/deploy-zero-downtime.sh --test-first
+
+# Deploy direto para produção (sem teste)
+./scripts/deploy-zero-downtime.sh
+```
+
+### Fluxo com Ambiente de Teste:
+
+```
+Usuário pede: "Faça deploy" ou "Teste X antes de deploy"
+    ↓
+Cursor PERGUNTA ou usa flag --test-first:
+  "Deseja testar no ambiente de teste primeiro? (--test-first)"
+    ↓
+Se SIM ou --test-first:
+  1. Executa: ./scripts/deploy-to-test.sh
+  2. Deploy vai para porta 3002 (ambiente de teste)
+  3. Desenvolvedor testa em http://localhost:3002
+  4. Se OK, desenvolvedor pede deploy em produção
+  5. Executa: ./scripts/deploy-zero-downtime.sh (sem --test-first)
+    ↓
+Se NÃO:
+  1. Executa: ./scripts/deploy-zero-downtime.sh (direto para produção)
+    ↓
+✅ Deploy concluído
+```
+
+### Configuração do Ambiente de Teste:
+
+- **Arquivo:** `docker-compose.test.yml`
+- **Container:** `kanban-buzz-app-test`
+- **Porta:** `3002`
+- **Ambiente:** `NODE_ENV=development`
+- **Isolado:** Não interfere com blue/green de produção
+
+### Padrões Obrigatórios para Ambiente de Teste:
+
+1. ✅ **SEMPRE** oferecer opção de teste quando implementar nova funcionalidade
+2. ✅ **SEMPRE** usar `--test-first` se usuário pedir para testar primeiro
+3. ✅ **SEMPRE** informar URL do ambiente de teste após deploy
+4. ✅ **SEMPRE** aguardar confirmação do desenvolvedor antes de fazer deploy em produção
+5. ✅ **NUNCA** fazer deploy em produção sem confirmação se teste foi feito primeiro
+
+---
+
+## 🔒 LOCKS SEM TIMEOUT - Regra Obrigatória
+
+### Regra Principal: Locks Aguardam Indefinidamente
+
+**O Cursor DEVE SEMPRE usar locks sem timeout - aguardar indefinidamente até lock ser liberado.**
+
+### ⚠️ REGRA CRÍTICA: Zero Timeout em Todos os Locks
+
+**PROBLEMA RESOLVIDO:** Todos os locks agora aguardam indefinidamente, garantindo fila sequencial perfeita.
+
+**IMPLEMENTAÇÃO:**
+- `docker-orchestrator.sh`: Removido timeout de 1 hora, aguarda indefinidamente
+- `deploy-zero-downtime.sh`: Lock sem timeout (já estava correto)
+- `nginx-helper.sh`: Lock sem timeout para atualização do Nginx
+- `proteger-containers-blue-green.sh`: Aguarda lock de deploy indefinidamente
+
+### Como Funciona:
+
+**Fila Sequencial Perfeita:**
+1. Operação adquire lock no início
+2. Se outro processo está usando lock, aguarda na fila (SEM timeout)
+3. Quando operação anterior termina, lock é liberado IMEDIATAMENTE
+4. Próxima operação na fila adquire lock e inicia IMEDIATAMENTE
+5. **Zero tempo desperdiçado entre operações**
+
+### Locks do Sistema:
+
+1. **Deploy Lock:** `/tmp/deploy-zero-downtime.lock`
+   - Usado por: `deploy-zero-downtime.sh`
+   - Timeout: **NENHUM** (aguarda indefinidamente)
+
+2. **Docker Orchestrator Lock:** `/tmp/docker-orchestrator.lock`
+   - Usado por: `docker-orchestrator.sh`
+   - Timeout: **NENHUM** (aguarda indefinidamente)
+
+3. **Nginx Update Lock:** `/tmp/nginx-update.lock`
+   - Usado por: `nginx-helper.sh`
+   - Timeout: **NENHUM** (aguarda indefinidamente)
+
+### O Que NUNCA Fazer com Locks:
+
+1. ❌ **NUNCA** usar timeout em locks (deve aguardar indefinidamente)
+2. ❌ **NUNCA** pular operação se lock estiver ocupado
+3. ❌ **NUNCA** remover lock manualmente
+4. ❌ **NUNCA** usar múltiplos locks para mesma operação
+
+### Padrões Obrigatórios para Locks:
+
+1. ✅ **SEMPRE** usar locks sem timeout (aguarda indefinidamente)
+2. ✅ **SEMPRE** aguardar na fila se lock estiver ocupado
+3. ✅ **SEMPRE** liberar lock imediatamente após operação concluir
+4. ✅ **SEMPRE** usar trap EXIT para garantir liberação do lock
+5. ✅ **SEMPRE** verificar se flock está disponível antes de usar
+
+---
+
+## 🔧 NGINX HELPER - Regra Obrigatória
+
+### Regra Principal: Sempre Usar nginx-helper para Atualizar Nginx
+
+**O Cursor DEVE SEMPRE usar `nginx-helper.sh` para atualizar Nginx, nunca atualizar diretamente.**
+
+### Por Que Usar nginx-helper:
+
+- ✅ **Sincronização:** Atualiza ambos arquivos Nginx juntos (kanban-buzz e agilizeflow.com.br)
+- ✅ **Proteção:** Lock previne atualizações simultâneas
+- ✅ **Validação:** Testa configuração antes de recarregar
+- ✅ **Consistência:** Garante que ambos arquivos sempre estão sincronizados
+
+### Como Usar:
+
+```bash
+# Source do helper
+source scripts/nginx-helper.sh
+
+# Atualizar Nginx para blue (porta 3000)
+update_nginx blue 3000
+
+# Atualizar Nginx para green (porta 3001)
+update_nginx green 3001
+```
+
+### O Que NUNCA Fazer com Nginx:
+
+1. ❌ **NUNCA** atualizar arquivos Nginx diretamente com sed
+2. ❌ **NUNCA** atualizar apenas um arquivo (sempre ambos juntos)
+3. ❌ **NUNCA** recarregar Nginx sem testar configuração primeiro
+4. ❌ **NUNCA** atualizar Nginx sem lock (pode causar conflitos)
+
+### Padrões Obrigatórios para Nginx:
+
+1. ✅ **SEMPRE** usar `update_nginx` do nginx-helper.sh
+2. ✅ **SEMPRE** atualizar ambos arquivos Nginx juntos
+3. ✅ **SEMPRE** testar configuração antes de recarregar
+4. ✅ **SEMPRE** verificar sincronização após atualização
+5. ✅ **SEMPRE** usar lock para atualização do Nginx
+

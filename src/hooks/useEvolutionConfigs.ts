@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 
 export interface EvolutionConfig {
@@ -24,19 +24,28 @@ export function useEvolutionConfigs() {
   const [configs, setConfigs] = useState<EvolutionConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
-    fetchConfigs();
+    if (activeOrgId) {
+      fetchConfigs();
+    } else {
+      setConfigs([]);
+      setLoading(false);
+    }
+
+    if (!activeOrgId) return;
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel('evolution-configs-channel')
+      .channel(`evolution-configs-channel-${activeOrgId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'evolution_config'
+          table: 'evolution_config',
+          filter: `organization_id=eq.${activeOrgId}`
         },
         () => {
           fetchConfigs();
@@ -47,7 +56,7 @@ export function useEvolutionConfigs() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeOrgId]);
 
   const normalizeApiUrl = (url: string) => {
     try {
@@ -62,16 +71,7 @@ export function useEvolutionConfigs() {
 
   const fetchConfigs = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      // Filtrar pela organização ativa (ambiente atual)
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
+      if (!activeOrgId) {
         setConfigs([]);
         setLoading(false);
         return;
@@ -80,18 +80,20 @@ export function useEvolutionConfigs() {
       const { data, error } = await (supabase as any)
         .from('evolution_config')
         .select('*')
-        .eq('organization_id', organizationId)
+        .eq('organization_id', activeOrgId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
 
       setConfigs(data || []);
     } catch (error: any) {
+      console.error('Erro ao carregar configurações Evolution:', error);
       toast({
         title: "Erro ao carregar configurações",
         description: error.message,
         variant: "destructive",
       });
+      setConfigs([]);
     } finally {
       setLoading(false);
     }
@@ -107,14 +109,12 @@ export function useEvolutionConfigs() {
       
       if (!user) throw new Error("Usuário não autenticado");
 
-      const orgId = await getUserOrganizationId();
-      
-      console.log('🔍 DEBUG - Organization ID:', orgId);
-      console.log('🔍 DEBUG - User ID:', user.id);
-      
-      if (!orgId) {
+      if (!activeOrgId) {
         throw new Error("Você não pertence a nenhuma organização. Por favor, contate o administrador.");
       }
+      
+      console.log('🔍 DEBUG - Organization ID:', activeOrgId);
+      console.log('🔍 DEBUG - User ID:', user.id);
       
       // Normalizar e limpar dados
       const normalizedUrl = normalizeApiUrl(configData.api_url);
@@ -134,7 +134,7 @@ export function useEvolutionConfigs() {
         .from('organization_members')
         .select('*')
         .eq('user_id', user.id)
-        .eq('organization_id', orgId)
+        .eq('organization_id', activeOrgId)
         .single();
       
       console.log('🔍 DEBUG - Member check:', { memberCheck, memberError });
@@ -147,7 +147,7 @@ export function useEvolutionConfigs() {
         .from('evolution_config')
         .insert({
           user_id: user.id,
-          organization_id: orgId,
+          organization_id: activeOrgId,
           api_url: normalizedUrl,
           api_key: cleanedApiKey,
           instance_name: cleanedInstanceName,

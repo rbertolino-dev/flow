@@ -1,4 +1,4 @@
-project_id = "orcbxgajfhgmjobsjlix"
+project_id = "ogeljmbhqxpfjbpnbwog"
 
 # ========== WhatsApp e Evolution ==========
 [functions.evolution-webhook]
@@ -165,6 +165,13 @@ verify_jwt = false
 [functions.submit-form]
 verify_jwt = false
 
+# ========== Pesquisas ==========
+[functions.get-survey]
+verify_jwt = false
+
+[functions.submit-survey]
+verify_jwt = false
+
 # ========== Pagamentos ==========
 [functions.mercado-pago-create-boleto]
 verify_jwt = true
@@ -242,3 +249,17 @@ verify_jwt = false
 
 [functions.apply-fix-recipient-type]
 verify_jwt = true
+
+[functions.get-deployment-status]
+verify_jwt = true
+
+# ========== Orçamentos ==========
+[functions.get-services]
+verify_jwt = true
+
+[functions.send-budget-whatsapp]
+verify_jwt = true
+
+# ========== Contratos ==========
+[functions.send-contract-reminder]
+verify_jwt = false

@@ -4,11 +4,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders, status: 204 });
   }
 
   try {
@@ -65,8 +66,8 @@ serve(async (req) => {
 
     if (typeof password === 'string' && password.length < 6) {
       return new Response(
-        JSON.stringify({ error: 'A senha deve ter pelo menos 6 caracteres.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        JSON.stringify({ success: false, error: 'A senha deve ter pelo menos 6 caracteres.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
@@ -92,8 +93,8 @@ serve(async (req) => {
       
       if (existingMember) {
         return new Response(
-          JSON.stringify({ error: 'Este usuário já está nesta organização.' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          JSON.stringify({ success: false, error: 'Este usuário já está nesta organização.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       }
     } else {
@@ -120,8 +121,8 @@ serve(async (req) => {
           friendly = 'Falha ao criar usuário. Verifique email e senha e tente novamente.';
         }
         return new Response(
-          JSON.stringify({ error: friendly }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          JSON.stringify({ success: false, error: friendly }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       }
 
@@ -208,11 +209,12 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Erro ao criar usuário';
     return new Response(
       JSON.stringify({ 
+        success: false,
         error: errorMessage
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 200,
       }
     );
   }

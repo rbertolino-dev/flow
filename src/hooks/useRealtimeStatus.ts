@@ -24,9 +24,31 @@ export function useRealtimeStatus(): RealtimeStatus {
       }
     };
 
+    // Verificar status inicial da conexão
+    const checkInitialStatus = () => {
+      try {
+        const channels = supabase.realtime.getChannels();
+        const hasActiveChannels = channels.some((ch: any) => {
+          const state = ch.state || ch._state;
+          return state === 'joined' || state === 'joining';
+        });
+        
+        if (hasActiveChannels) {
+          setConnected(true);
+          setLastError(null);
+        }
+        updateChannels();
+      } catch (e) {
+        console.error('Erro ao verificar status inicial:', e);
+      }
+    };
+
+    // Verificar status inicial
+    checkInitialStatus();
+
     // Mantém um canal "sonda" para refletir o estado do socket realtime
     const channel = supabase
-      .channel(`realtime_status_probe`)
+      .channel(`realtime_status_probe_${Date.now()}`)
       .subscribe((status) => {
         console.log("📡 Socket status:", status);
         if (status === "SUBSCRIBED") {
@@ -43,10 +65,14 @@ export function useRealtimeStatus(): RealtimeStatus {
         updateChannels();
       });
 
-    // Inicial
-    updateChannels();
+    // Atualizar periodicamente o status (a cada 5 segundos)
+    const intervalId = setInterval(() => {
+      updateChannels();
+      checkInitialStatus();
+    }, 5000);
 
     return () => {
+      clearInterval(intervalId);
       try {
         supabase.removeChannel(channel);
       } catch (e) {

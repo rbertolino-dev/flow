@@ -223,6 +223,122 @@ const AVAILABLE_TOOLS = [
   },
 ];
 
+// ============================================
+// FUNÇÕES AUXILIARES DE VALIDAÇÃO
+// ============================================
+
+// Valida formato UUID
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+// Valida formato de telefone (mínimo 10 dígitos, máximo 15)
+function isValidPhone(phone: string): boolean {
+  const normalized = phone.replace(/\D/g, "");
+  return normalized.length >= 10 && normalized.length <= 15;
+}
+
+// Valida formato de email
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// Valida tamanho de string
+function isValidStringLength(str: string, min: number, max: number): boolean {
+  return str.length >= min && str.length <= max;
+}
+
+// Valida se um lead pertence à organização
+async function validateLeadBelongsToOrg(
+  supabase: any,
+  leadId: string,
+  organizationId: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, organization_id")
+      .eq("id", leadId)
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return data.organization_id === organizationId;
+  } catch {
+    return false;
+  }
+}
+
+// Valida se uma tag pertence à organização
+async function validateTagBelongsToOrg(
+  supabase: any,
+  tagId: string,
+  organizationId: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("tags")
+      .select("id, organization_id")
+      .eq("id", tagId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return data.organization_id === organizationId;
+  } catch {
+    return false;
+  }
+}
+
+// Valida se uma etapa pertence à organização
+async function validateStageBelongsToOrg(
+  supabase: any,
+  stageId: string,
+  organizationId: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("pipeline_stages")
+      .select("id, organization_id")
+      .eq("id", stageId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return data.organization_id === organizationId;
+  } catch {
+    return false;
+  }
+}
+
+// Sanitiza mensagem de erro para não expor informações sensíveis
+function sanitizeError(error: any): string {
+  if (typeof error === "string") {
+    // Remove possíveis informações sensíveis
+    return error
+      .replace(/sk-[a-zA-Z0-9]+/g, "[API_KEY]")
+      .replace(/Bearer\s+[^\s]+/g, "[TOKEN]")
+      .substring(0, 200); // Limita tamanho
+  }
+  if (error?.message) {
+    return sanitizeError(error.message);
+  }
+  return "Erro ao processar solicitação";
+}
+
+// Valida tamanho máximo de mensagem
+const MAX_MESSAGE_LENGTH = 5000;
+function validateMessageLength(message: string): boolean {
+  return message.length > 0 && message.length <= MAX_MESSAGE_LENGTH;
+}
+
+// ============================================
+// EXECUTA FUNÇÕES DO ASSISTENTE
+// ============================================
+
 // Executa uma função retornada pelo DeepSeek
 async function executeFunction(
   supabase: any,
@@ -231,16 +347,60 @@ async function executeFunction(
   organizationId: string,
   userId: string
 ): Promise<any> {
-  console.log(`🔧 Executando função: ${functionName}`, parameters);
+  // Log sanitizado (sem dados sensíveis)
+  console.log(`🔧 Executando função: ${functionName}`);
 
   try {
     switch (functionName) {
       case "create_lead": {
+        // Validações
+        if (!parameters.name || typeof parameters.name !== "string") {
+          throw new Error("Nome é obrigatório e deve ser uma string");
+        }
+        if (!isValidStringLength(parameters.name, 2, 200)) {
+          throw new Error("Nome deve ter entre 2 e 200 caracteres");
+        }
+        if (!parameters.phone || typeof parameters.phone !== "string") {
+          throw new Error("Telefone é obrigatório e deve ser uma string");
+        }
+        
         // Normalizar telefone (remover caracteres não numéricos)
         const normalizedPhone = parameters.phone.replace(/\D/g, "");
+        
+        if (!isValidPhone(normalizedPhone)) {
+          throw new Error("Telefone inválido. Deve ter entre 10 e 15 dígitos");
+        }
+        
+        // Validar email se fornecido
+        if (parameters.email && !isValidEmail(parameters.email)) {
+          throw new Error("Email inválido");
+        }
+        
+        // Validar stage_id se fornecido
+        let stageId = parameters.stage_id;
+        if (stageId) {
+          if (!isValidUUID(stageId)) {
+            throw new Error("ID da etapa inválido");
+          }
+          // Validar se etapa pertence à organização
+          const isValidStage = await validateStageBelongsToOrg(
+            supabase,
+            stageId,
+            organizationId
+          );
+          if (!isValidStage) {
+            throw new Error("Etapa não encontrada ou não pertence à organização");
+          }
+        }
+        
+        // Validar valor se fornecido
+        if (parameters.value !== undefined && parameters.value !== null) {
+          if (typeof parameters.value !== "number" || parameters.value < 0) {
+            throw new Error("Valor deve ser um número positivo");
+          }
+        }
 
         // Buscar primeira etapa se não informada
-        let stageId = parameters.stage_id;
         if (!stageId) {
           const { data: firstStage } = await supabase
             .from("pipeline_stages")
@@ -274,8 +434,8 @@ async function executeFunction(
           .single();
 
         if (insertError) {
-          console.error("Erro ao criar lead:", insertError);
-          throw insertError;
+          console.error("Erro ao criar lead:", sanitizeError(insertError));
+          throw new Error("Erro ao criar lead. Verifique se os dados estão corretos.");
         }
 
         // Publicar evento realtime para atualização imediata
@@ -305,8 +465,34 @@ async function executeFunction(
       }
 
       case "search_leads": {
+        // Validações
+        if (!parameters.query || typeof parameters.query !== "string") {
+          throw new Error("Query de busca é obrigatória");
+        }
         const query = parameters.query.trim();
-        const limit = parameters.limit || 10;
+        if (query.length < 2) {
+          throw new Error("Query deve ter pelo menos 2 caracteres");
+        }
+        if (query.length > 100) {
+          throw new Error("Query muito longa. Máximo 100 caracteres");
+        }
+        
+        const limit = Math.min(Math.max(1, parameters.limit || 10), 50); // Entre 1 e 50
+        
+        // Validar stage_id se fornecido
+        if (parameters.stage_id) {
+          if (!isValidUUID(parameters.stage_id)) {
+            throw new Error("ID da etapa inválido");
+          }
+          const isValidStage = await validateStageBelongsToOrg(
+            supabase,
+            parameters.stage_id,
+            organizationId
+          );
+          if (!isValidStage) {
+            throw new Error("Etapa não encontrada ou não pertence à organização");
+          }
+        }
 
         // Buscar por nome, telefone ou email
         const { data: leads, error } = await supabase
@@ -338,18 +524,97 @@ async function executeFunction(
       }
 
       case "update_lead": {
-        const updateData: any = {};
-        if (parameters.name) updateData.name = parameters.name;
-        if (parameters.phone) {
-          updateData.phone = parameters.phone.replace(/\D/g, "");
+        // Validações
+        if (!parameters.lead_id || !isValidUUID(parameters.lead_id)) {
+          throw new Error("ID do lead inválido");
         }
-        if (parameters.email !== undefined) updateData.email = parameters.email;
-        if (parameters.company !== undefined)
+        
+        // Validar se lead pertence à organização
+        const leadBelongsToOrg = await validateLeadBelongsToOrg(
+          supabase,
+          parameters.lead_id,
+          organizationId
+        );
+        if (!leadBelongsToOrg) {
+          throw new Error("Lead não encontrado ou não pertence à organização");
+        }
+        
+        const updateData: any = {};
+        
+        if (parameters.name !== undefined) {
+          if (typeof parameters.name !== "string") {
+            throw new Error("Nome deve ser uma string");
+          }
+          if (!isValidStringLength(parameters.name, 2, 200)) {
+            throw new Error("Nome deve ter entre 2 e 200 caracteres");
+          }
+          updateData.name = parameters.name;
+        }
+        
+        if (parameters.phone !== undefined) {
+          if (typeof parameters.phone !== "string") {
+            throw new Error("Telefone deve ser uma string");
+          }
+          const normalizedPhone = parameters.phone.replace(/\D/g, "");
+          if (!isValidPhone(normalizedPhone)) {
+            throw new Error("Telefone inválido. Deve ter entre 10 e 15 dígitos");
+          }
+          updateData.phone = normalizedPhone;
+        }
+        
+        if (parameters.email !== undefined) {
+          if (parameters.email !== null && !isValidEmail(parameters.email)) {
+            throw new Error("Email inválido");
+          }
+          updateData.email = parameters.email;
+        }
+        
+        if (parameters.company !== undefined) {
+          if (parameters.company !== null && typeof parameters.company !== "string") {
+            throw new Error("Empresa deve ser uma string");
+          }
+          if (parameters.company && !isValidStringLength(parameters.company, 1, 200)) {
+            throw new Error("Empresa deve ter no máximo 200 caracteres");
+          }
           updateData.company = parameters.company;
-        if (parameters.value !== undefined) updateData.value = parameters.value;
-        if (parameters.stage_id !== undefined)
+        }
+        
+        if (parameters.value !== undefined) {
+          if (parameters.value !== null) {
+            if (typeof parameters.value !== "number" || parameters.value < 0) {
+              throw new Error("Valor deve ser um número positivo");
+            }
+          }
+          updateData.value = parameters.value;
+        }
+        
+        if (parameters.stage_id !== undefined) {
+          if (parameters.stage_id !== null) {
+            if (!isValidUUID(parameters.stage_id)) {
+              throw new Error("ID da etapa inválido");
+            }
+            const isValidStage = await validateStageBelongsToOrg(
+              supabase,
+              parameters.stage_id,
+              organizationId
+            );
+            if (!isValidStage) {
+              throw new Error("Etapa não encontrada ou não pertence à organização");
+            }
+          }
           updateData.stage_id = parameters.stage_id;
-        if (parameters.notes !== undefined) updateData.notes = parameters.notes;
+        }
+        
+        if (parameters.notes !== undefined) {
+          if (parameters.notes !== null && typeof parameters.notes !== "string") {
+            throw new Error("Notas devem ser uma string");
+          }
+          if (parameters.notes && parameters.notes.length > 5000) {
+            throw new Error("Notas muito longas. Máximo 5000 caracteres");
+          }
+          updateData.notes = parameters.notes;
+        }
+        
         updateData.updated_by = userId;
         updateData.updated_at = new Date().toISOString();
 
@@ -361,7 +626,10 @@ async function executeFunction(
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Erro ao atualizar lead:", sanitizeError(error));
+          throw new Error("Erro ao atualizar lead");
+        }
         if (!updatedLead) throw new Error("Lead não encontrado");
 
         // Publicar evento realtime para atualização imediata
@@ -425,6 +693,34 @@ async function executeFunction(
       }
 
       case "add_tag_to_lead": {
+        // Validações
+        if (!parameters.lead_id || !isValidUUID(parameters.lead_id)) {
+          throw new Error("ID do lead inválido");
+        }
+        if (!parameters.tag_id || !isValidUUID(parameters.tag_id)) {
+          throw new Error("ID da tag inválido");
+        }
+        
+        // Validar se lead pertence à organização
+        const leadBelongsToOrg = await validateLeadBelongsToOrg(
+          supabase,
+          parameters.lead_id,
+          organizationId
+        );
+        if (!leadBelongsToOrg) {
+          throw new Error("Lead não encontrado ou não pertence à organização");
+        }
+        
+        // Validar se tag pertence à organização
+        const tagBelongsToOrg = await validateTagBelongsToOrg(
+          supabase,
+          parameters.tag_id,
+          organizationId
+        );
+        if (!tagBelongsToOrg) {
+          throw new Error("Tag não encontrada ou não pertence à organização");
+        }
+        
         // Verificar se a tag já está associada
         const { data: existing } = await supabase
           .from("lead_tags")
@@ -445,7 +741,10 @@ async function executeFunction(
           tag_id: parameters.tag_id,
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Erro ao adicionar tag:", sanitizeError(error));
+          throw new Error("Erro ao adicionar tag ao lead");
+        }
 
         return {
           success: true,
@@ -454,15 +753,39 @@ async function executeFunction(
       }
 
       case "schedule_call": {
-        // Buscar lead para validar
-        const { data: lead } = await supabase
-          .from("leads")
-          .select("id")
-          .eq("id", parameters.lead_id)
-          .eq("organization_id", organizationId)
-          .single();
-
-        if (!lead) throw new Error("Lead não encontrado");
+        // Validações
+        if (!parameters.lead_id || !isValidUUID(parameters.lead_id)) {
+          throw new Error("ID do lead inválido");
+        }
+        if (!parameters.scheduled_for || typeof parameters.scheduled_for !== "string") {
+          throw new Error("Data e hora são obrigatórias (formato ISO 8601)");
+        }
+        
+        // Validar formato de data
+        const scheduledDate = new Date(parameters.scheduled_for);
+        if (isNaN(scheduledDate.getTime())) {
+          throw new Error("Data e hora inválidas. Use formato ISO 8601");
+        }
+        
+        // Validar se data não é no passado
+        if (scheduledDate < new Date()) {
+          throw new Error("Não é possível agendar ligação no passado");
+        }
+        
+        // Validar prioridade
+        if (parameters.priority && !["low", "normal", "high"].includes(parameters.priority)) {
+          throw new Error("Prioridade deve ser: low, normal ou high");
+        }
+        
+        // Validar se lead pertence à organização
+        const leadBelongsToOrg = await validateLeadBelongsToOrg(
+          supabase,
+          parameters.lead_id,
+          organizationId
+        );
+        if (!leadBelongsToOrg) {
+          throw new Error("Lead não encontrado ou não pertence à organização");
+        }
 
         const { data: call, error } = await supabase
           .from("call_queue")
@@ -488,6 +811,32 @@ async function executeFunction(
       }
 
       case "send_whatsapp_message": {
+        // Validações
+        if (!parameters.lead_id || !isValidUUID(parameters.lead_id)) {
+          throw new Error("ID do lead inválido");
+        }
+        if (!parameters.message || typeof parameters.message !== "string") {
+          throw new Error("Mensagem é obrigatória");
+        }
+        if (!isValidStringLength(parameters.message, 1, 1000)) {
+          throw new Error("Mensagem deve ter entre 1 e 1000 caracteres");
+        }
+        
+        // Validar instance_id se fornecido
+        if (parameters.instance_id && !isValidUUID(parameters.instance_id)) {
+          throw new Error("ID da instância inválido");
+        }
+        
+        // Validar se lead pertence à organização
+        const leadBelongsToOrg = await validateLeadBelongsToOrg(
+          supabase,
+          parameters.lead_id,
+          organizationId
+        );
+        if (!leadBelongsToOrg) {
+          throw new Error("Lead não encontrado ou não pertence à organização");
+        }
+        
         // Buscar lead
         const { data: lead, error: leadError } = await supabase
           .from("leads")
@@ -496,7 +845,15 @@ async function executeFunction(
           .eq("organization_id", organizationId)
           .single();
 
-        if (leadError || !lead) throw new Error("Lead não encontrado");
+        if (leadError || !lead) {
+          console.error("Erro ao buscar lead:", sanitizeError(leadError));
+          throw new Error("Lead não encontrado");
+        }
+        
+        // Validar telefone do lead
+        if (!lead.phone || !isValidPhone(lead.phone)) {
+          throw new Error("Lead não possui telefone válido");
+        }
 
         // Buscar instância Evolution
         let instanceId = parameters.instance_id;
@@ -535,14 +892,16 @@ async function executeFunction(
         );
 
         if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`Erro ao enviar mensagem: ${error}`);
+          const errorText = await response.text();
+          console.error("Erro ao enviar mensagem WhatsApp:", sanitizeError(errorText));
+          throw new Error("Erro ao enviar mensagem WhatsApp");
         }
 
         const result = await response.json();
 
         if (result.error) {
-          throw new Error(result.error);
+          console.error("Erro na resposta:", sanitizeError(result.error));
+          throw new Error("Erro ao enviar mensagem WhatsApp");
         }
 
         return {
@@ -721,8 +1080,9 @@ async function executeFunction(
       }
 
       case "get_recent_leads": {
-        const limit = parameters.limit || 10;
-        const days = parameters.days || 7;
+        // Validações
+        const limit = Math.min(Math.max(1, parameters.limit || 10), 50); // Entre 1 e 50
+        const days = Math.min(Math.max(1, parameters.days || 7), 365); // Entre 1 e 365
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
@@ -746,6 +1106,21 @@ async function executeFunction(
       }
 
       case "get_lead_details": {
+        // Validações
+        if (!parameters.lead_id || !isValidUUID(parameters.lead_id)) {
+          throw new Error("ID do lead inválido");
+        }
+        
+        // Validar se lead pertence à organização
+        const leadBelongsToOrg = await validateLeadBelongsToOrg(
+          supabase,
+          parameters.lead_id,
+          organizationId
+        );
+        if (!leadBelongsToOrg) {
+          throw new Error("Lead não encontrado ou não pertence à organização");
+        }
+        
         const { data: lead, error } = await supabase
           .from("leads")
           .select(
@@ -756,7 +1131,10 @@ async function executeFunction(
           .is("deleted_at", null)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Erro ao buscar lead:", sanitizeError(error));
+          throw new Error("Erro ao buscar detalhes do lead");
+        }
         if (!lead) throw new Error("Lead não encontrado");
 
         // Buscar tags do lead
@@ -799,10 +1177,10 @@ async function executeFunction(
         throw new Error(`Função desconhecida: ${functionName}`);
     }
   } catch (error: any) {
-    console.error(`❌ Erro ao executar função ${functionName}:`, error);
+    console.error(`❌ Erro ao executar função ${functionName}:`, sanitizeError(error));
     return {
       success: false,
-      error: error.message || "Erro desconhecido",
+      error: sanitizeError(error),
     };
   }
 }
@@ -1046,16 +1424,43 @@ INSTRUÇÕES ADICIONAIS:
       { role: "user", content: message },
     ];
 
-    // Buscar API Key do DeepSeek (pode ser global ou por organização)
-    const deepseekApiKey = Deno.env.get("DEEPSEEK_API_KEY");
+    // Buscar API Key do DeepSeek (prioridade: configuração da organização > global)
+    let deepseekApiKey: string | null = null;
+    
+    // Primeiro tenta usar a API key da configuração da organização
+    if (config.api_key) {
+      deepseekApiKey = config.api_key;
+      console.log("🔑 Usando API key da configuração da organização");
+    } else {
+      // Se não tiver na configuração, usa a variável de ambiente global
+      deepseekApiKey = Deno.env.get("DEEPSEEK_API_KEY") || null;
+      if (deepseekApiKey) {
+        console.log("🔑 Usando API key global (variável de ambiente)");
+      }
+    }
+    // NUNCA logar a API key completa - apenas indicar que foi encontrada
+    
     if (!deepseekApiKey) {
       return new Response(
         JSON.stringify({
           error:
-            "API Key do DeepSeek não configurada. Configure a variável DEEPSEEK_API_KEY no Supabase.",
+            "API Key do DeepSeek não configurada. Configure a API key na configuração do assistente ou a variável DEEPSEEK_API_KEY no Supabase.",
         }),
         {
           status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+    
+    // Validar tamanho da mensagem
+    if (!validateMessageLength(message)) {
+      return new Response(
+        JSON.stringify({
+          error: `Mensagem muito longa. Máximo ${MAX_MESSAGE_LENGTH} caracteres.`,
+        }),
+        {
+          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -1080,7 +1485,8 @@ INSTRUÇÕES ADICIONAIS:
 
     if (!deepseekResponse.ok) {
       const errorText = await deepseekResponse.text();
-      throw new Error(`Erro na API DeepSeek: ${errorText}`);
+      console.error("Erro na API DeepSeek:", sanitizeError(errorText));
+      throw new Error("Erro ao processar solicitação com o assistente de IA");
     }
 
     const deepseekData = await deepseekResponse.json();
@@ -1199,10 +1605,10 @@ INSTRUÇÕES ADICIONAIS:
       }
     );
   } catch (error: any) {
-    console.error("❌ Erro no assistente:", error);
+    console.error("❌ Erro no assistente:", sanitizeError(error));
     return new Response(
       JSON.stringify({
-        error: error.message || "Erro desconhecido",
+        error: sanitizeError(error),
       }),
       {
         status: 500,

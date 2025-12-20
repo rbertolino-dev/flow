@@ -1,0 +1,162 @@
+# ✅ Como o Cursor AI Lê as Regras
+
+## 🎯 Resposta Rápida: NÃO PRECISA FAZER NADA!
+
+O arquivo `.cursorrules` na raiz do projeto **JÁ É** a configuração do Cursor AI.
+
+**O Cursor lê automaticamente esse arquivo** quando você abre o projeto.
+
+---
+
+## 📋 Como Funciona
+
+### 1. Arquivo `.cursorrules`
+
+- **Localização**: Raiz do projeto (`/root/kanban-buzz-95241/.cursorrules`)
+- **Nome**: `.cursorrules` (exatamente esse nome)
+- **Formato**: Markdown ou texto
+- **Leitura**: Automática pelo Cursor AI
+
+### 2. Quando o Cursor Lê
+
+O Cursor AI lê o arquivo `.cursorrules` automaticamente:
+- ✅ Quando você abre o projeto no Cursor
+- ✅ Quando você inicia uma conversa com o Cursor AI
+- ✅ Quando você pede algo ao Cursor AI
+
+**Não precisa fazer nada!** É automático.
+
+---
+
+## ✅ Verificação
+
+### Verificar se Está Funcionando:
+
+1. **Arquivo existe?**
+   ```bash
+   ls -la .cursorrules
+   ```
+   ✅ Deve mostrar o arquivo
+
+2. **Está na raiz do projeto?**
+   ```bash
+   pwd
+   # Deve estar em: /root/kanban-buzz-95241
+   ```
+   ✅ Deve estar na raiz
+
+3. **Nome está correto?**
+   ```bash
+   ls -la | grep cursorrules
+   ```
+   ✅ Deve mostrar `.cursorrules`
+
+---
+
+## 🧪 Como Testar se Está Funcionando
+
+### Teste 1: Pedir algo ao Cursor
+
+**Pergunte ao Cursor:**
+```
+Verifique se Docker está rodando
+```
+
+**Se as regras estiverem funcionando:**
+- ✅ Cursor executa `docker compose ps` automaticamente
+- ✅ Não pede confirmação
+- ✅ Mostra resultado diretamente
+
+### Teste 2: Pedir modificação Docker
+
+**Pergunte ao Cursor:**
+```
+Adicione uma variável no Dockerfile
+```
+
+**Se as regras estiverem funcionando:**
+- ✅ Cursor modifica Dockerfile
+- ✅ Executa rebuild automaticamente
+- ✅ Não pede confirmação
+
+---
+
+## 📝 O Que NÃO Precisa Fazer
+
+### ❌ NÃO Precisa:
+
+1. ❌ Adicionar nas Settings do Cursor (configurações globais)
+2. ❌ Configurar manualmente em algum lugar
+3. ❌ Ativar algo nas preferências
+4. ❌ Fazer qualquer configuração adicional
+
+### ✅ JÁ Está Configurado:
+
+1. ✅ Arquivo `.cursorrules` criado
+2. ✅ Todas as regras adicionadas
+3. ✅ Credenciais salvas
+4. ✅ Cursor lê automaticamente
+
+---
+
+## 🔍 Se Não Estiver Funcionando
+
+### Verificar:
+
+1. **Arquivo existe?**
+   ```bash
+   ls -la .cursorrules
+   ```
+
+2. **Está na raiz?**
+   ```bash
+   pwd
+   ls -la .cursorrules
+   ```
+
+3. **Nome está correto?**
+   - Deve ser exatamente: `.cursorrules`
+   - Não: `cursorrules` (sem ponto)
+   - Não: `.cursorrules.txt`
+   - Não: `cursor-rules.md`
+
+4. **Reiniciar Cursor:**
+   - Feche e abra o Cursor novamente
+   - Às vezes precisa reiniciar para ler novas regras
+
+---
+
+## 💡 Informações Importantes
+
+### O Arquivo `.cursorrules`:
+
+- ✅ É lido automaticamente pelo Cursor AI
+- ✅ Não precisa estar nas Settings
+- ✅ Não precisa ser ativado
+- ✅ Funciona apenas estando na raiz do projeto
+- ✅ Pode conter qualquer texto/markdown
+
+### Outras Formas de Configurar (Opcional):
+
+Se quiser, também pode adicionar regras em:
+- **Settings → Rules for AI** (configurações globais do Cursor)
+- Mas **NÃO é necessário** - o `.cursorrules` já funciona
+
+---
+
+## ✅ Resumo
+
+**Pergunta**: Preciso adicionar nas configurações do Cursor AI?
+
+**Resposta**: **NÃO!** 
+
+O arquivo `.cursorrules` na raiz do projeto **JÁ É** a configuração. O Cursor lê automaticamente.
+
+**Status**: ✅ **Tudo configurado e funcionando!**
+
+---
+
+**Última atualização**: 2025-12-17
+
+alwaysApply: true
+---

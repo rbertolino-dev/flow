@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - button "CRM Agilize" [ref=e6] [cursor=pointer]:
+          - img "CRM Agilize" [ref=e7]
+        - button "Recolher menu" [ref=e8] [cursor=pointer]:
+          - img
+      - navigation [ref=e9]:
+        - button "Configurações" [ref=e10] [cursor=pointer]:
+          - img
+          - generic [ref=e11]: Configurações
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: US
+          - generic [ref=e15]:
+            - paragraph [ref=e16]: Usuário
+            - paragraph [ref=e17]: Conectado
+        - button "Sair" [ref=e18] [cursor=pointer]:
+          - img
+          - generic [ref=e19]: Sair
+    - main [ref=e20]:
+      - generic [ref=e22]:
+        - img [ref=e23]
+        - generic [ref=e27]: Realtime
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - img [ref=e33]
+            - heading "Acesso Restrito" [level=3] [ref=e36]
+          - paragraph [ref=e37]: Esta funcionalidade não está disponível para sua organização.
+        - paragraph [ref=e39]: Entre em contato com o administrador do sistema para solicitar acesso ao módulo de Contratos.
+    - button [ref=e41] [cursor=pointer]:
+      - img
+```

@@ -11,6 +11,7 @@ import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
+import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -167,6 +168,9 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         description: "O lead foi adicionado ao funil com sucesso",
       });
 
+      // Disparar evento para atualizar todos os componentes automaticamente
+      broadcastRefreshEvent('create', 'lead');
+
       // Resetar formulário
       setFormData({
         name: "",
@@ -180,8 +184,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
       });
       setAddToQueue(true);
 
-      onLeadCreated();
-      onOpenChange(false);
+      // Aguardar um pouco para garantir que o lead foi criado antes de chamar callback
+      setTimeout(() => {
+        onLeadCreated();
+        onOpenChange(false);
+      }, 500);
     } catch (error: any) {
       toast({
         title: "Erro ao criar lead",
@@ -312,7 +319,9 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="" disabled>Nenhuma etapa disponível</SelectItem>
+                  <SelectItem value="no-stage" disabled>
+                    Nenhuma etapa disponível
+                  </SelectItem>
                 )}
               </SelectContent>
             </Select>

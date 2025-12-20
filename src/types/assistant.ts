@@ -2,6 +2,16 @@ export interface AssistantMessage {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp?: string;
+  actions?: AssistantActionInfo[];
+  isExecutingAction?: boolean;
+  actionType?: string;
+}
+
+export interface AssistantActionInfo {
+  type: string;
+  status: "executing" | "success" | "error";
+  message?: string;
+  data?: any;
 }
 
 export interface AssistantConversation {
@@ -34,6 +44,7 @@ export interface AssistantResponse {
   message: string;
   conversation_id: string;
   error?: string;
+  actions?: AssistantActionInfo[];
 }
 
 

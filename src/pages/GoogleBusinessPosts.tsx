@@ -162,7 +162,7 @@ export default function GoogleBusinessPosts() {
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="all-status">Todos</SelectItem>
                         <SelectItem value="pending">Agendadas</SelectItem>
                         <SelectItem value="published">Publicadas</SelectItem>
                         <SelectItem value="failed">Falhas</SelectItem>
@@ -177,7 +177,7 @@ export default function GoogleBusinessPosts() {
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="all-visibility">Todos</SelectItem>
                         <SelectItem value="UPDATE">Atualização</SelectItem>
                         <SelectItem value="EVENT">Evento</SelectItem>
                         <SelectItem value="OFFER">Oferta</SelectItem>
@@ -192,7 +192,7 @@ export default function GoogleBusinessPosts() {
                         <SelectValue placeholder="Todas" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todas</SelectItem>
+                        <SelectItem value="all-categories">Todas</SelectItem>
                         {configs.map((config) => (
                           <SelectItem key={config.id} value={config.id}>
                             {config.account_name}

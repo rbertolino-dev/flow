@@ -1,0 +1,62 @@
+# 🔧 Comando Rápido para Corrigir Nginx no Hetzner
+
+Execute ESTE comando DIRETAMENTE no servidor Hetzner:
+
+============================================
+OPÇÃO 1: Script Completo
+============================================
+
+# Copiar script para servidor:
+scp EXECUTAR-NO-HETZNER.sh root@95.217.2.116:/root/
+
+# Acessar servidor:
+ssh root@95.217.2.116
+
+# Executar:
+bash /root/EXECUTAR-NO-HETZNER.sh
+
+============================================
+OPÇÃO 2: Comando Direto (Uma Linha)
+============================================
+
+Execute no servidor Hetzner:
+
+CONFIG_FILE=$(ls /etc/nginx/sites-available/agilizeflow* /etc/nginx/sites-available/default 2>/dev/null | head -1) && \
+cp "$CONFIG_FILE" "${CONFIG_FILE}.backup-$(date +%Y%m%d-%H%M%S)" && \
+if ! grep -q "try_files.*index.html" "$CONFIG_FILE"; then \
+  if grep -q "location / {" "$CONFIG_FILE"; then \
+    sed -i '/location \/ {/a\        try_files $uri $uri/ /index.html;' "$CONFIG_FILE"; \
+  fi; \
+fi && \
+nginx -t && systemctl reload nginx && echo "✅ Corrigido!"
+
+============================================
+OPÇÃO 3: Manual (Se Preferir)
+============================================
+
+1. Acessar servidor:
+   ssh root@95.217.2.116
+
+2. Editar configuração:
+   nano /etc/nginx/sites-available/agilizeflow.com.br
+   # OU
+   nano /etc/nginx/sites-available/default
+
+3. Adicionar dentro de "location / {":
+   try_files $uri $uri/ /index.html;
+
+4. Testar e recarregar:
+   nginx -t
+   systemctl reload nginx
+
+============================================
+VERIFICAR SE FUNCIONOU
+============================================
+
+Teste no navegador:
+http://agilizeflow.com.br/cadastro
+
+Deve carregar a página de cadastro (não mais 404)
+
+
+

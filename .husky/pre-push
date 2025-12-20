@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Pre-push hook para validar código antes de push
+# 
+# Executa:
+# - Testes E2E (apenas se houver mudanças relevantes)
+# - Verificação de segurança (npm audit)
+
+echo "🚀 Executando validações pré-push..."
+
+# 1. Verificar vulnerabilidades de segurança
+echo "🔒 Verificando vulnerabilidades de segurança..."
+npm audit --audit-level=moderate || {
+  echo "⚠️  Vulnerabilidades encontradas. Execute 'npm audit fix' para corrigir."
+  echo "💡 Continuando push, mas revise as vulnerabilidades."
+}
+
+# 2. Verificar se há testes E2E configurados
+if [ -f "playwright.config.ts" ]; then
+  echo "🧪 Verificando se testes E2E estão configurados..."
+  # Não executa testes aqui (pode ser lento)
+  # Apenas verifica se está tudo OK
+  echo "✅ Testes E2E configurados"
+fi
+
+echo "✅ Validações pré-push concluídas!"
+
+
+
+
+

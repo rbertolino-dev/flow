@@ -8,6 +8,7 @@ import { CallQueue } from "@/components/crm/CallQueue";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
+import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -18,7 +19,7 @@ import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useFlowTriggers } from "@/hooks/useFlowTriggers";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
-import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays } from "lucide-react";
+import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload } from "lucide-react";
 import Settings from "./Settings";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ const Index = () => {
   }, [location.state]);
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
+  const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
   const [filterCreatedDateStart, setFilterCreatedDateStart] = useState<string>("");
   const [filterCreatedDateEnd, setFilterCreatedDateEnd] = useState<string>("");
@@ -212,6 +214,10 @@ const Index = () => {
                 <Button onClick={() => setCreateLeadOpen(true)} size="sm" className="flex-1 sm:flex-none">
                   <Plus className="h-4 w-4 mr-2" />
                   <span className="sm:inline">Novo Contato</span>
+                </Button>
+                <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="flex-1 sm:flex-none">
+                  <Upload className="h-4 w-4 mr-2" />
+                  <span className="sm:inline">Importar</span>
                 </Button>
                 <PipelineStageManager />
               </div>
@@ -498,6 +504,13 @@ const Index = () => {
         onOpenChange={setCreateLeadOpen}
         onLeadCreated={refetchLeads}
         stages={stages}
+      />
+      <ImportLeadsDialog
+        open={importLeadsOpen}
+        onOpenChange={setImportLeadsOpen}
+        onLeadsImported={refetchLeads}
+        stages={stages}
+        tags={tags}
       />
       </CRMLayout>
     </AuthGuard>

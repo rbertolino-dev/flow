@@ -1,0 +1,16 @@
+# 🔧 Configuração do Supabase CLI
+# Este arquivo contém as configurações para acesso automático ao Supabase
+
+# Token de acesso do Supabase CLI
+# Nome: cursor
+export SUPABASE_ACCESS_TOKEN="sbp_3c4c0840440fb94a32052c9523dd46949af8af19"
+
+# ID do projeto
+export SUPABASE_PROJECT_ID="ogeljmbhqxpfjbpnbwog"
+
+# URL do projeto
+export SUPABASE_URL="https://ogeljmbhqxpfjbpnbwog.supabase.co"
+
+# Para usar esta configuração, execute:
+# source .supabase-cli-config
+

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
@@ -96,48 +96,87 @@ export function SuperAdminDashboard() {
     try {
       setLoading(true);
       
-      // Usar função RPC que evita recursão RLS
-      const { data, error } = await supabase.rpc('get_all_organizations_with_members');
+      // Buscar todas as organizações diretamente da tabela
+      // As políticas RLS permitem que admins e pubdigital vejam todas
+      const { data: orgsData, error: orgsError } = await supabase
+        .from('organizations')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (orgsError) {
+        console.error('Erro ao buscar organizações:', orgsError);
+        throw orgsError;
+      }
 
-      // Agrupar dados por organização
-      const orgMap = new Map<string, OrganizationWithMembers>();
+      if (!orgsData || orgsData.length === 0) {
+        setOrganizations([]);
+        return;
+      }
+
+      // Para cada organização, buscar membros
+      const orgsWithMembers: OrganizationWithMembers[] = [];
       
-      (data || []).forEach((row: any) => {
-        if (!orgMap.has(row.org_id)) {
-          orgMap.set(row.org_id, {
-            id: row.org_id,
-            name: row.org_name,
-            created_at: row.org_created_at,
-            plan_id: row.org_plan_id || null,
-            organization_members: [],
-          });
+      for (const org of orgsData) {
+        // Buscar membros da organização
+        const { data: membersData, error: membersError } = await supabase
+          .from('organization_members')
+          .select('user_id, role, created_at')
+          .eq('organization_id', org.id);
+
+        if (membersError) {
+          console.warn(`Erro ao buscar membros da org ${org.id}:`, membersError);
         }
 
-        const org = orgMap.get(row.org_id)!;
+        const members = [];
         
-        // Adicionar membro se existir
-        if (row.member_user_id) {
-          org.organization_members.push({
-            user_id: row.member_user_id,
-            role: row.member_role,
-            created_at: row.member_created_at,
+        // Para cada membro, buscar perfil e roles
+        for (const member of membersData || []) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', member.user_id)
+            .maybeSingle();
+
+          const { data: rolesData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', member.user_id);
+
+          members.push({
+            user_id: member.user_id,
+            role: member.role,
+            created_at: member.created_at,
             profiles: {
-              email: row.member_email || '',
-              full_name: row.member_full_name || null,
+              email: profileData?.email || '',
+              full_name: profileData?.full_name || null,
             },
-            user_roles: row.member_roles || [],
+            user_roles: (rolesData || []).map((r: any) => ({ role: r.role })),
           });
         }
-      });
 
-      setOrganizations(Array.from(orgMap.values()));
+        // Buscar plan_id da tabela organization_limits se existir
+        const { data: limitsData } = await supabase
+          .from('organization_limits')
+          .select('plan_id')
+          .eq('organization_id', org.id)
+          .maybeSingle();
+
+        orgsWithMembers.push({
+          id: org.id,
+          name: org.name || 'Sem nome',
+          created_at: org.created_at,
+          plan_id: limitsData?.plan_id || null,
+          organization_members: members,
+        });
+      }
+
+      console.log(`Carregadas ${orgsWithMembers.length} organizações`);
+      setOrganizations(orgsWithMembers);
     } catch (error: any) {
       console.error('Erro ao carregar organizações:', error);
       toast({
         title: "Erro ao carregar organizações",
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao carregar organizações',
         variant: "destructive",
       });
     } finally {
@@ -252,6 +291,14 @@ export function SuperAdminDashboard() {
               >
                 <TrendingUp className="h-4 w-4 mr-2" />
                 Painel de Custos
+              </Button>
+              <Button 
+                onClick={() => navigate('/superadmin/versions')} 
+                variant="secondary" 
+                className="w-full sm:w-auto"
+              >
+                <GitBranch className="h-4 w-4 mr-2" />
+                Versões e Deploy
               </Button>
               <Button 
                 onClick={() => setShowPlansManagement(!showPlansManagement)} 

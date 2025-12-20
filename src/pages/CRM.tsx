@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Upload, Calendar, Building2, Mail, ChevronLeft, ChevronRight, AlertCircle, Download, Users, BarChart3, Settings, Target } from "lucide-react";
+import { MessageSquare, Phone, DollarSign, Tag, Search, Filter, Plus, Calendar, Building2, Mail, ChevronLeft, ChevronRight, AlertCircle, Download, Users, BarChart3, Settings, Target } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,7 +18,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDetailModal } from "@/components/crm/LeadDetailModal";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
-import { ImportContactsPanel } from "@/components/crm/ImportContactsPanel";
 import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Lead } from "@/types/lead";
@@ -46,7 +45,6 @@ export default function CRM() {
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [salesReportOpen, setSalesReportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -134,10 +132,6 @@ export default function CRM() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button onClick={() => setImportDialogOpen(true)} variant="outline" size="lg">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar Contatos
-                </Button>
                 <Button onClick={() => setCreateDialogOpen(true)} size="lg">
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Lead
@@ -650,15 +644,6 @@ export default function CRM() {
           }}
           stages={stages}
         />
-
-        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Importar Contatos</DialogTitle>
-            </DialogHeader>
-            <ImportContactsPanel />
-          </DialogContent>
-        </Dialog>
 
         <ExportLeadsDialog
           open={exportDialogOpen}

@@ -13,5 +13,35 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+    heartbeatIntervalMs: 30000,
+    reconnectAfterMs: (tries: number) => {
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+      return Math.min(1000 * Math.pow(2, tries), 30000);
+    },
+    // Forçar reconexão automática
+    log_level: 'info' as const,
+  },
 });
+
+// Inicializar Realtime automaticamente quando o cliente é criado
+// Isso garante que a conexão WebSocket seja estabelecida imediatamente
+if (typeof window !== 'undefined') {
+  // Importar e inicializar o utilitário de Realtime
+  import('@/utils/realtimeInit').then(({ initializeRealtime }) => {
+    // Aguardar um pouco para garantir que o DOM está pronto
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(initializeRealtime, 500);
+      });
+    } else {
+      setTimeout(initializeRealtime, 500);
+    }
+  }).catch((error) => {
+    console.error('❌ Erro ao carregar utilitário de Realtime:', error);
+  });
+}

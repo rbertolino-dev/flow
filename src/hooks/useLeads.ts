@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { forceRefreshAfterMutation, broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -17,7 +18,7 @@ export function useLeads() {
       setLoading(false);
     }
 
-    // ✅ OTIMIZAÇÃO: Realtime com updates otimistas
+    // ✅ OTIMIZAÇÃO: Realtime com updates otimistas + Polling como fallback
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -31,7 +32,8 @@ export function useLeads() {
             description: `${newLead.name || newLead.phone} foi adicionado ao funil`,
           });
           // Refetch apenas quando há novo lead
-          fetchLeads();
+          forceRefreshAfterMutation(fetchLeads);
+          broadcastRefreshEvent('create', 'lead');
         }
       )
       .on(
@@ -87,10 +89,49 @@ export function useLeads() {
       )
       .subscribe((status) => {
         console.log('📡 Status do canal realtime:', status);
+        // Se Realtime não está funcionando, usar polling como fallback
+        if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          console.warn('⚠️ Realtime não está funcionando. Ativando polling como fallback...');
+          // Polling a cada 10 segundos quando Realtime não funciona
+          const pollingInterval = setInterval(() => {
+            fetchLeads();
+          }, 10000);
+          
+          // Limpar polling quando componente desmontar ou Realtime voltar
+          return () => clearInterval(pollingInterval);
+        }
       });
+
+    // Polling de fallback: verificar a cada 15 segundos se Realtime está funcionando
+    // Se não estiver, fazer polling a cada 10 segundos
+    const fallbackPolling = setInterval(() => {
+      const channels = supabase.realtime.getChannels();
+      const hasActiveConnection = channels.some((ch: any) => {
+        const state = ch.state || ch._state || ch.status;
+        return state === 'joined' || state === 'joining' || state === 'SUBSCRIBED';
+      });
+
+      if (!hasActiveConnection) {
+        console.log('🔄 Realtime não conectado. Fazendo polling de fallback...');
+        fetchLeads();
+      }
+    }, 15000);
+
+    // Escutar eventos de refresh disparados por outros componentes
+    const handleRefreshEvent = (event: CustomEvent) => {
+      const { type, entity } = event.detail;
+      if (entity === 'lead') {
+        console.log(`🔄 Evento de refresh recebido: ${type} ${entity}. Atualizando leads...`);
+        fetchLeads();
+      }
+    };
+
+    window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
 
     return () => {
       console.log('🔌 Desconectando realtime...');
+      clearInterval(fallbackPolling);
+      window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
       supabase.removeChannel(channel);
     };
   }, [toast, activeOrgId]);
@@ -281,6 +322,10 @@ export function useLeads() {
         title: 'Status atualizado',
         description: 'O lead foi movido para a nova etapa com sucesso.',
       });
+
+      // Forçar refresh automático após atualização
+      await forceRefreshAfterMutation(fetchLeads);
+      broadcastRefreshEvent('update', 'lead');
     } catch (error: any) {
       console.error('💥 Erro geral ao atualizar lead:', error);
       toast({
@@ -307,7 +352,9 @@ export function useLeads() {
         description: "O contato foi removido do funil.",
       });
 
-      await fetchLeads();
+      // Forçar refresh automático após exclusão
+      await forceRefreshAfterMutation(fetchLeads, { forceImmediate: true });
+      broadcastRefreshEvent('delete', 'lead');
       return true;
     } catch (error: any) {
       toast({

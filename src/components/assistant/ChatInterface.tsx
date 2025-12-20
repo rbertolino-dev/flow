@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Sparkles, Mic, MicOff } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, Mic, MicOff, Copy, RefreshCw, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { useAssistant } from "@/hooks/useAssistant";
 import { AssistantMessage } from "@/types/assistant";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatInterfaceProps {
   organizationId?: string;
@@ -19,6 +20,7 @@ export function ChatInterface({ organizationId }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { messages, isLoading, sendMessage, clearConversation } =
     useAssistant(organizationId);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -152,10 +154,13 @@ export function ChatInterface({ organizationId }: ChatInterfaceProps) {
               {quickActions.map((action) => (
                 <Card
                   key={action.label}
-                  className="p-3 cursor-pointer hover:bg-muted transition-colors"
+                  className="p-3 cursor-pointer hover:bg-muted transition-colors group"
                   onClick={() => sendMessage(action.prompt)}
                 >
-                  <p className="text-sm font-medium">{action.label}</p>
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <p className="text-sm font-medium">{action.label}</p>
+                  </div>
                 </Card>
               ))}
             </div>
@@ -179,12 +184,69 @@ export function ChatInterface({ organizationId }: ChatInterfaceProps) {
 
               <div
                 className={cn(
-                  "max-w-[80%] rounded-lg px-4 py-2",
+                  "max-w-[80%] rounded-lg px-4 py-2 relative group",
                   message.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted"
                 )}
               >
+                {/* Botões de ação para mensagens do assistente */}
+                {message.role === "assistant" && (
+                  <div className="absolute -top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => {
+                        navigator.clipboard.writeText(message.content);
+                        toast({
+                          title: "Copiado!",
+                          description: "Mensagem copiada para a área de transferência",
+                        });
+                      }}
+                      title="Copiar mensagem"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Indicador de ação em execução */}
+                {message.isExecutingAction && (
+                  <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Executando {message.actionType}...</span>
+                  </div>
+                )}
+                
+                {/* Ações executadas */}
+                {message.actions && message.actions.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                    {message.actions.map((action, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "flex items-center gap-2 text-xs px-2 py-1 rounded",
+                          action.status === "success"
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : action.status === "error"
+                            ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                            : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                        )}
+                      >
+                        {action.status === "success" ? (
+                          <CheckCircle2 className="h-3 w-3" />
+                        ) : action.status === "error" ? (
+                          <XCircle className="h-3 w-3" />
+                        ) : (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        <span>{action.message || action.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 {message.timestamp && (
                   <p
@@ -222,8 +284,13 @@ export function ChatInterface({ organizationId }: ChatInterfaceProps) {
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">
-                  Pensando...
+                  Processando sua solicitação...
                 </span>
+              </div>
+              <div className="mt-2 flex gap-1">
+                <div className="h-1 w-1 rounded-full bg-muted-foreground/50 animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                <div className="h-1 w-1 rounded-full bg-muted-foreground/50 animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                <div className="h-1 w-1 rounded-full bg-muted-foreground/50 animate-pulse" style={{ animationDelay: '300ms' }}></div>
               </div>
             </div>
           </div>
@@ -276,9 +343,22 @@ export function ChatInterface({ organizationId }: ChatInterfaceProps) {
             🎤 Gravando... Fale agora
           </p>
         )}
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          💡 Exemplos: "Criar um lead", "Mostrar estatísticas", "Relatório de vendas"
-        </p>
+        <div className="flex items-center justify-center gap-4 mt-2">
+          <p className="text-xs text-muted-foreground">
+            💡 Exemplos: "Criar um lead", "Mostrar estatísticas", "Relatório de vendas"
+          </p>
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearConversation}
+              className="h-6 text-xs"
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Nova conversa
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

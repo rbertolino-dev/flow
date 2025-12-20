@@ -99,11 +99,28 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess, preselectedOrg
       });
 
       if (error) {
-        throw new Error(error.message || 'Erro ao criar usuário');
+        let detailedMessage = error.message || 'Erro ao criar usuário';
+        const contextResponse = (error as any)?.context?.response;
+        if (contextResponse && typeof contextResponse.text === 'function') {
+          try {
+            const rawText = await contextResponse.text();
+            if (rawText) {
+              try {
+                const parsed = JSON.parse(rawText);
+                detailedMessage = parsed.error || parsed.message || detailedMessage;
+              } catch {
+                detailedMessage = rawText;
+              }
+            }
+          } catch {
+            // ignora parsing do contexto
+          }
+        }
+        throw new Error(detailedMessage);
       }
 
-      if (data?.error) {
-        throw new Error(data.error);
+      if (data?.error || data?.success === false) {
+        throw new Error(data.error || 'Erro ao criar usuário');
       }
 
       // Não precisa mais adicionar manualmente, a edge function já faz isso

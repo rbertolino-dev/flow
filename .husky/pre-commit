@@ -1,0 +1,40 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Pre-commit hook para validar código antes de commit
+# 
+# Executa:
+# - Lint (ESLint)
+# - Type check (TypeScript)
+# - Testes unitários (se houver)
+# - Formatação (se configurado)
+
+echo "🔍 Executando validações pré-commit..."
+
+# 1. Lint
+echo "📝 Executando ESLint..."
+npm run lint || {
+  echo "❌ ESLint encontrou erros. Corrija antes de fazer commit."
+  exit 1
+}
+
+# 2. Type check
+echo "🔷 Verificando tipos TypeScript..."
+npx tsc --noEmit || {
+  echo "❌ Erros de tipo encontrados. Corrija antes de fazer commit."
+  exit 1
+}
+
+# 3. Build check (verifica se compila)
+echo "🏗️  Verificando build..."
+npm run build:dev || {
+  echo "❌ Build falhou. Corrija antes de fazer commit."
+  exit 1
+}
+
+echo "✅ Todas as validações passaram!"
+
+
+
+
+

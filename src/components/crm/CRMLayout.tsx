@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
 import { useOrganizationFeatures, FeatureKey } from "@/hooks/useOrganizationFeatures";
 import { EditOrganizationDialog } from "./EditOrganizationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { VersionBanner } from "@/components/VersionBanner";
 export type CRMView = 
   | "kanban" 
   | "calls" 
@@ -32,7 +33,10 @@ export type CRMView =
   | "automation-flows"
   | "post-sale"
   | "assistant"
-  | "contracts";
+  | "contracts"
+  // | "digital-contracts" // REMOVIDO TEMPORARIAMENTE
+  | "budgets"
+  | "employees";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -90,7 +94,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'workflows': 'automations',
     'automation-flows': 'automations',
     'form-builder': 'form_builder',
-    'contracts': null, // sempre visível
+    'contracts': 'contracts', // controlado por feature
+    // 'digital-contracts': 'digital_contracts', // controlado por feature - REMOVIDO TEMPORARIAMENTE
+    'budgets': 'budgets', // controlado por feature
+    'employees': 'employees', // controlado por feature
     'settings': null, // sempre visível
     'superadmin': null, // controlado por role
     'users': null, // sempre visível para admins
@@ -111,29 +118,34 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
     { id: "contracts" as const, label: "Contratos", icon: FileSignature },
+    // { id: "digital-contracts" as const, label: "Contrato Digital", icon: FileSignature }, // REMOVIDO TEMPORARIAMENTE
+    { id: "budgets" as const, label: "Orçamentos", icon: Receipt },
+    { id: "employees" as const, label: "Colaboradores", icon: Users },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
   // Filtrar menus baseado nas features disponíveis
   // Super admins e usuários PubDigital têm acesso total
   const baseMenuItems = useMemo(() => {
+    let filtered: typeof allBaseMenuItems;
+    
     // Se é super admin ou pubdigital, mostra todos os menus
     if (isPubdigitalUser || isAdmin) {
-      return allBaseMenuItems;
+      filtered = allBaseMenuItems;
+    } else if (featuresLoading || !featuresData) {
+      // Se ainda está carregando features, mostrar apenas items sem restrição
+      filtered = allBaseMenuItems.filter(item => menuToFeatureMap[item.id] === null);
+    } else {
+      filtered = allBaseMenuItems.filter(item => {
+        const featureKey = menuToFeatureMap[item.id];
+        // Se não há feature associada, sempre mostra
+        if (featureKey === null) return true;
+        // Verifica se tem permissão
+        return hasFeature(featureKey);
+      });
     }
-
-    // Se ainda está carregando features, mostrar apenas items sem restrição
-    if (featuresLoading || !featuresData) {
-      return allBaseMenuItems.filter(item => menuToFeatureMap[item.id] === null);
-    }
-
-    return allBaseMenuItems.filter(item => {
-      const featureKey = menuToFeatureMap[item.id];
-      // Se não há feature associada, sempre mostra
-      if (featureKey === null) return true;
-      // Verifica se tem permissão
-      return hasFeature(featureKey);
-    });
+    
+    return filtered;
   }, [hasFeature, featuresLoading, featuresData, isPubdigitalUser, isAdmin]);
 
   const adminMenuItems: typeof allBaseMenuItems = [];
@@ -261,6 +273,12 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/post-sale');
               } else if (item.id === 'contracts') {
                 navigate('/contracts');
+              // } else if (item.id === 'digital-contracts') {
+              //   navigate('/contratos-digitais');
+              } else if (item.id === 'budgets') {
+                navigate('/budgets');
+              } else if (item.id === 'employees') {
+                navigate('/employees');
               } else if (item.id === 'kanban' || item.id === 'calls') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });
@@ -408,6 +426,16 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/settings');
                         } else if (item.id === 'form-builder') {
                           navigate('/form-builder');
+                        } else if (item.id === 'post-sale') {
+                          navigate('/post-sale');
+                        } else if (item.id === 'contracts') {
+                          navigate('/contracts');
+                        // } else if (item.id === 'digital-contracts') {
+                        //   navigate('/contratos-digitais');
+                        } else if (item.id === 'budgets') {
+                          navigate('/budgets');
+                        } else if (item.id === 'employees') {
+                          navigate('/employees');
                         } else if (item.id === 'kanban' || item.id === 'calls') {
                           // Navega para a página inicial passando a view como state
                           navigate('/', { state: { view: item.id } });
@@ -477,6 +505,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         </div>
         
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {activeView !== "settings" && <VersionBanner />}
           {children}
         </div>
       </main>

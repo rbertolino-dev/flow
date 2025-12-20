@@ -23,6 +23,10 @@ export const AVAILABLE_FEATURES = [
   { value: 'chatwoot_integration', label: 'Integração Chatwoot', description: 'Plataforma de atendimento' },
   { value: 'post_sale', label: 'Pós-Venda', description: 'CRM de pós-venda' },
   { value: 'automations', label: 'Automações', description: 'Fluxos de automação' },
+  { value: 'contracts', label: 'Contratos', description: 'Geração e gestão de contratos' },
+  { value: 'digital_contracts', label: 'Contrato Digital', description: 'Módulo completo de contratos digitais' },
+  { value: 'budgets', label: 'Orçamentos', description: 'Criação e gestão de orçamentos' },
+  { value: 'employees', label: 'Colaboradores', description: 'Gerenciamento de colaboradores' },
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];

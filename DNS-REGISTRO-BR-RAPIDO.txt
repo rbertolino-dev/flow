@@ -1,0 +1,66 @@
+# DNS Registro.br - Configuração Rápida
+
+Projeto: flow
+Project ID: ogeljmbhqxpfjbpnbwog
+URL Supabase: ogeljmbhqxpfjbpnbwog.supabase.co
+
+============================================
+CONFIGURAÇÃO PARA SUBDOMÍNIO (RECOMENDADO)
+============================================
+
+Exemplo: app.seudominio.com.br
+
+No registro.br:
+----------------
+Tipo: CNAME
+Nome: app (ou o subdomínio desejado)
+Valor: ogeljmbhqxpfjbpnbwog.supabase.co
+TTL: 3600 (ou padrão)
+
+============================================
+CONFIGURAÇÃO PARA DOMÍNIO RAIZ
+============================================
+
+Exemplo: seudominio.com.br
+
+No registro.br:
+----------------
+Tipo: CNAME
+Nome: @ (ou deixar em branco)
+Valor: ogeljmbhqxpfjbpnbwog.supabase.co
+TTL: 3600
+
+⚠️ NOTA: Se CNAME não funcionar no apex,
+use registro A (obter IP do Supabase Dashboard)
+
+============================================
+DEPOIS DE CONFIGURAR DNS
+============================================
+
+1. Acesse: https://supabase.com/dashboard/project/ogeljmbhqxpfjbpnbwog
+2. Vá em: Settings → Custom Domains
+3. Clique em: Add Domain
+4. Digite seu domínio
+5. Aguarde verificação (pode levar 1-2 horas)
+
+============================================
+VERIFICAR PROPAGAÇÃO
+============================================
+
+# Terminal
+dig app.seudominio.com.br CNAME
+
+# Online
+https://dnschecker.org
+https://www.whatsmydns.net
+
+============================================
+TEMPO DE PROPAGAÇÃO
+============================================
+
+- Mínimo: 1 hora
+- Máximo: 48 horas
+- Normal no Brasil: 1-2 horas
+
+
+

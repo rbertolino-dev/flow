@@ -1,0 +1,61 @@
+# Configuração do Dependabot para atualizações automáticas de dependências
+# 
+# Benefícios:
+# - Atualiza dependências automaticamente
+# - Detecta vulnerabilidades de segurança
+# - Cria PRs para revisão
+# - Mantém projeto seguro e atualizado
+
+version: 2
+updates:
+  # Atualizações do npm (dependências do projeto)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly" # Verifica semanalmente
+      day: "monday" # Toda segunda-feira
+      time: "09:00" # 9h da manhã
+    open-pull-requests-limit: 10 # Máximo de 10 PRs abertos
+    reviewers:
+      - "root" # Revisar PRs
+    labels:
+      - "dependencies"
+      - "security" # Se houver vulnerabilidades
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Agrupar atualizações de patch e minor
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "patch"
+          - "minor"
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "patch"
+          - "minor"
+    # Ignorar atualizações major (requerem revisão manual)
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+  
+  # Atualizações do GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+
+
+
+

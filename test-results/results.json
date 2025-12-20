@@ -1,0 +1,445 @@
+{
+  "config": {
+    "configFile": "/root/kanban-buzz-95241/playwright.config.ts",
+    "rootDir": "/root/kanban-buzz-95241/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "test-results/html-report"
+        }
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "test-results/junit.xml"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/root/kanban-buzz-95241/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/root/kanban-buzz-95241/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/root/kanban-buzz-95241/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/root/kanban-buzz-95241/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/root/kanban-buzz-95241/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/root/kanban-buzz-95241/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/root/kanban-buzz-95241/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "/root/kanban-buzz-95241/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/root/kanban-buzz-95241/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "Mobile Safari",
+        "name": "Mobile Safari",
+        "testDir": "/root/kanban-buzz-95241/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 4,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:8080",
+      "reuseExistingServer": true,
+      "timeout": 120000,
+      "stdout": "ignore",
+      "stderr": "pipe"
+    }
+  },
+  "suites": [
+    {
+      "title": "contracts-novo-contrato.spec.ts",
+      "file": "contracts-novo-contrato.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Contratos - Botão Novo Contrato",
+          "file": "contracts-novo-contrato.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "deve abrir dialog de novo contrato sem erros",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 18697,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38",
+                        "location": {
+                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                          "column": 38,
+                          "line": 38
+                        },
+                        "snippet": "  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                            "column": 38,
+                            "line": 38
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n\n  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-18T14:33:56.685Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                        "column": 38,
+                        "line": 38
+                      }
+                    },
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16271,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\u001b[2m    - waiting for\" http://localhost:8080/contracts\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:8080/contracts\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\u001b[2m    - waiting for\" http://localhost:8080/contracts\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:8080/contracts\"\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38",
+                        "location": {
+                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                          "column": 38,
+                          "line": 38
+                        },
+                        "snippet": "  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                            "column": 38,
+                            "line": 38
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\u001b[2m    - waiting for\" http://localhost:8080/contracts\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:8080/contracts\"\u001b[22m\n\n\n  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-12-18T14:34:16.820Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                        "column": 38,
+                        "line": 38
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "22be4b3bd4468bdbd167-cb4553c72642d6b70dcd",
+              "file": "contracts-novo-contrato.spec.ts",
+              "line": 20,
+              "column": 3
+            },
+            {
+              "title": "deve verificar todos os SelectItems no dialog",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 20486,
+                      "error": {
+                        "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n",
+                        "stack": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64",
+                        "location": {
+                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                          "column": 64,
+                          "line": 121
+                        },
+                        "snippet": "  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                            "column": 64,
+                            "line": 121
+                          },
+                          "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n\n  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-18T14:34:34.584Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                        "column": 64,
+                        "line": 121
+                      }
+                    },
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 20486,
+                      "error": {
+                        "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n",
+                        "stack": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64",
+                        "location": {
+                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                          "column": 64,
+                          "line": 121
+                        },
+                        "snippet": "  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                            "column": 64,
+                            "line": 121
+                          },
+                          "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n\n  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-12-18T14:34:56.499Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
+                        "column": 64,
+                        "line": 121
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "22be4b3bd4468bdbd167-5222e67bea22052494b7",
+              "file": "contracts-novo-contrato.spec.ts",
+              "line": 106,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-12-18T14:33:53.970Z",
+    "duration": 83485.287,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

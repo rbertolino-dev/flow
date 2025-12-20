@@ -1,0 +1,26 @@
+🚀 INSTRUÇÕES RÁPIDAS - LEIA ISTO!
+
+❌ NÃO execute arquivos .md no SQL Editor!
+✅ Execute APENAS arquivos .sql
+
+📋 PASSO A PASSO:
+
+1. Abra o arquivo: SCRIPT-LIMPAR-TUDO.sql
+   (NÃO o SOLUCAO-DEFINITIVA.md!)
+
+2. Copie TODO o conteúdo do SCRIPT-LIMPAR-TUDO.sql
+
+3. Cole no SQL Editor do Supabase
+
+4. Execute (Run)
+
+5. Depois aplique lote-01.sql
+
+═══════════════════════════════════════
+
+Arquivo correto: SCRIPT-LIMPAR-TUDO.sql
+Arquivo errado: SOLUCAO-DEFINITIVA.md (é só documentação!)
+
+
+
+

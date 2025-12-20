@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Sparkles, X, Minimize2, Mic, MicOff } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, X, Minimize2, Maximize2, Mic, MicOff, Maximize, Minimize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -11,9 +11,13 @@ interface FloatingChatWidgetProps {
   organizationId?: string;
 }
 
+type WidgetSize = "small" | "medium" | "large" | "fullscreen";
+
 export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [widgetSize, setWidgetSize] = useState<WidgetSize>("medium");
+  const [isMobile, setIsMobile] = useState(false);
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
@@ -21,6 +25,21 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { messages, isLoading, sendMessage, clearConversation } =
     useAssistant(organizationId);
+
+  // Detectar se é mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      // No mobile, usar fullscreen por padrão
+      if (window.innerWidth < 768 && isOpen && !isMinimized) {
+        setWidgetSize("fullscreen");
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, [isOpen, isMinimized]);
 
   useEffect(() => {
     if (scrollRef.current && isOpen) {
@@ -101,11 +120,49 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
     { label: "Relatórios", prompt: "Mostrar relatório por etapas do funil" },
   ];
 
+  // Tamanhos do widget
+  const sizeConfig = {
+    small: { width: "320px", height: "400px" },
+    medium: { width: "420px", height: "600px" },
+    large: { width: "560px", height: "700px" },
+    fullscreen: { width: "100vw", height: "100vh" },
+  };
+
+  const currentSize = sizeConfig[widgetSize];
+
+  const cycleSize = () => {
+    if (isMobile) return; // No mobile, não ciclar tamanho
+    const sizes: WidgetSize[] = ["small", "medium", "large"];
+    const currentIndex = sizes.indexOf(widgetSize);
+    const nextIndex = (currentIndex + 1) % sizes.length;
+    setWidgetSize(sizes[nextIndex]);
+  };
+
+  const handleMinimize = () => {
+    setIsMinimized(!isMinimized);
+    if (!isMinimized) {
+      // Ao minimizar, salvar tamanho atual
+    }
+  };
+
+  const handleExpand = () => {
+    setIsMinimized(false);
+    if (isMobile) {
+      setWidgetSize("fullscreen");
+    }
+  };
+
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-50">
         <Button
-          onClick={() => setIsOpen(true)}
+          onClick={() => {
+            setIsOpen(true);
+            setIsMinimized(false);
+            if (isMobile) {
+              setWidgetSize("fullscreen");
+            }
+          }}
           size="lg"
           className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-primary hover:bg-primary/90"
         >
@@ -118,33 +175,67 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
   return (
     <div
       className={cn(
-        "fixed bottom-6 right-6 z-50 transition-all duration-300",
-        isMinimized ? "h-16" : "h-[600px]"
+        "fixed z-50 transition-all duration-300 ease-in-out",
+        isMinimized 
+          ? "bottom-4 right-4 md:bottom-6 md:right-6 h-16 w-auto" 
+          : widgetSize === "fullscreen"
+          ? "inset-0"
+          : "bottom-4 right-4 md:bottom-6 md:right-6",
+        isMobile && !isMinimized && "inset-0"
       )}
-      style={{ width: "380px" }}
+      style={!isMinimized ? {
+        width: isMobile ? "100vw" : currentSize.width,
+        height: isMobile ? "100vh" : currentSize.height,
+      } : undefined}
     >
       <Card className="h-full flex flex-col shadow-2xl border-2">
         {/* Header */}
-        <div className="border-b border-border/50 p-3 bg-muted/30 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10">
+        <div 
+          className={cn(
+            "border-b border-border/50 p-3 bg-muted/30 flex items-center justify-between cursor-pointer",
+            isMinimized && "hover:bg-muted/50"
+          )}
+          onClick={isMinimized ? handleExpand : undefined}
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="p-1.5 rounded-lg bg-primary/10 shrink-0">
               <Sparkles className="h-4 w-4 text-primary" />
             </div>
-            <div>
-              <h3 className="font-semibold text-sm">Assistente IA</h3>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-sm truncate">Assistente IA</h3>
+              <p className="text-xs text-muted-foreground truncate">
                 {isMinimized ? "Clique para expandir" : "Como posso ajudar?"}
               </p>
             </div>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {!isMinimized && !isMobile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={cycleSize}
+                title={`Tamanho: ${widgetSize === "small" ? "Pequeno" : widgetSize === "medium" ? "Médio" : "Grande"}`}
+              >
+                {widgetSize === "large" ? (
+                  <Minimize className="h-4 w-4" />
+                ) : (
+                  <Maximize className="h-4 w-4" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => setIsMinimized(!isMinimized)}
+              onClick={handleMinimize}
+              title={isMinimized ? "Expandir" : "Minimizar"}
             >
-              <Minimize2 className="h-4 w-4" />
+              {isMinimized ? (
+                <Maximize2 className="h-4 w-4" />
+              ) : (
+                <Minimize2 className="h-4 w-4" />
+              )}
             </Button>
             <Button
               variant="ghost"
@@ -154,6 +245,7 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
                 setIsOpen(false);
                 setIsMinimized(false);
               }}
+              title="Fechar"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -165,7 +257,7 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
             {/* Messages */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-4 space-y-3 bg-background"
+              className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 bg-background"
             >
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
@@ -183,14 +275,14 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
                   </div>
 
                   {/* Quick Actions */}
-                  <div className="grid grid-cols-2 gap-2 w-full">
+                  <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                     {quickActions.map((action) => (
                       <Card
                         key={action.label}
-                        className="p-2 cursor-pointer hover:bg-muted transition-colors"
+                        className="p-2 md:p-3 cursor-pointer hover:bg-muted transition-colors active:scale-95"
                         onClick={() => sendMessage(action.prompt)}
                       >
-                        <p className="text-xs font-medium">{action.label}</p>
+                        <p className="text-xs md:text-sm font-medium">{action.label}</p>
                       </Card>
                     ))}
                   </div>
@@ -215,13 +307,13 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
 
                       <div
                         className={cn(
-                          "max-w-[75%] rounded-lg px-3 py-2 text-xs",
+                          "max-w-[75%] md:max-w-[80%] rounded-lg px-3 py-2 text-xs md:text-sm",
                           message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted"
                         )}
                       >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
                       </div>
 
                       {message.role === "user" && (
@@ -256,7 +348,7 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
             </div>
 
             {/* Input */}
-            <div className="border-t border-border/50 p-3 bg-muted/30">
+            <div className="border-t border-border/50 p-2 md:p-3 bg-muted/30">
               <div className="flex gap-2 items-end">
                 {isSupported && (
                   <Button
@@ -264,7 +356,7 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
                     disabled={isLoading}
                     size="icon"
                     variant={isListening ? "destructive" : "outline"}
-                    className="h-[50px] w-[50px] shrink-0"
+                    className="h-[44px] w-[44px] md:h-[50px] md:w-[50px] shrink-0"
                     title={isListening ? "Parar gravação" : "Falar"}
                   >
                     {isListening ? (
@@ -279,7 +371,7 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={isSupported ? "Digite ou fale sua mensagem..." : "Digite sua mensagem..."}
-                  className="min-h-[50px] max-h-[100px] resize-none flex-1 text-sm"
+                  className="min-h-[44px] md:min-h-[50px] max-h-[120px] resize-none flex-1 text-sm"
                   disabled={isLoading || isListening}
                   rows={1}
                 />
@@ -287,7 +379,7 @@ export function FloatingChatWidget({ organizationId }: FloatingChatWidgetProps) 
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading || isListening}
                   size="icon"
-                  className="h-[50px] w-[50px] shrink-0"
+                  className="h-[44px] w-[44px] md:h-[50px] md:w-[50px] shrink-0"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

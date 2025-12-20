@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# 🚀 Alias Rápido: v - Ver Versões
+# Uso: ./scripts/v
+
+exec "$(dirname "$0")/show-versions.sh" "$@"
+
+
+
+
+

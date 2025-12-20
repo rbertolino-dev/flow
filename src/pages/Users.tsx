@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { broadcastRefreshEvent, forceRefreshAfterMutation } from "@/utils/forceRefreshAfterMutation";
 
 interface UserProfile {
   id: string;
@@ -74,6 +75,21 @@ export default function Users() {
     if (activeOrgId) {
       fetchUsers();
     }
+
+    // Escutar eventos de refresh disparados por outros componentes
+    const handleRefreshEvent = (event: CustomEvent) => {
+      const { type, entity } = event.detail;
+      if (entity === 'user') {
+        console.log(`🔄 Evento de refresh recebido: ${type} ${entity}. Atualizando usuários...`);
+        fetchUsers();
+      }
+    };
+
+    window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
+
+    return () => {
+      window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
+    };
   }, [activeOrgId]);
 
   useEffect(() => {
@@ -201,7 +217,11 @@ export default function Users() {
 
       setCreateDialogOpen(false);
       setNewUserData({ email: "", password: "", fullName: "", isAdmin: false });
-      fetchUsers();
+      
+      // Forçar recarregamento completo do navegador após criar usuário
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error: any) {
       console.error("Erro ao criar usuário:", error);
       toast({
@@ -254,7 +274,11 @@ export default function Users() {
 
       setEditDialogOpen(false);
       setUserToEdit(null);
-      fetchUsers();
+      
+      // Forçar recarregamento completo do navegador após editar usuário
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error: any) {
       console.error("Erro ao editar usuário:", error);
       toast({
@@ -306,7 +330,10 @@ export default function Users() {
         });
       }
 
-      fetchUsers();
+      // Forçar recarregamento completo do navegador após alterar permissões
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (error: any) {
       toast({
         title: "Erro ao alterar permissões",
@@ -529,7 +556,10 @@ export default function Users() {
           }}
           onSuccess={() => {
             setUserToDelete(null);
-            fetchUsers();
+            // Forçar recarregamento completo do navegador após excluir usuário
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
           }}
           userId={userToDelete.id}
           userName={userToDelete.full_name || userToDelete.email}
