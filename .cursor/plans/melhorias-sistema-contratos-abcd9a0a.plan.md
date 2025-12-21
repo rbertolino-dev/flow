@@ -1,492 +1,365 @@
-<!-- abcd9a0a-bf77-4b62-9019-987a6a3a4c57 e79de736-1d80-431d-8e75-a1f7ccb0d4dc -->
-# Melhorias para o Módulo de Contratos - Primeira Fase
+<!-- abcd9a0a-bf77-4b62-9019-987a6a3a4c57 462880f2-e3fc-4354-8208-12bfe0cedd32 -->
+# Melhorias no Módulo de Contratos
 
-## Categoria 1: Organização e Gestão
+## Objetivo
 
-### 1.1 Sistema de Categorias/Tags
+Implementar 5 melhorias principais no módulo de contratos:
 
-**Objetivo:** Organizar contratos por tipo, cliente, projeto ou qualquer critério customizado.
-
-**Implementação:**
-
-- Nova tabela `contract_categories` (id, organization_id, name, color, icon)
-- Campo `category_id` em `contracts` (opcional)
-- Filtros visuais por categoria na lista
-- Badges coloridos na tabela
-- Agrupamento por categoria na visualização
-
-**Benefícios:**
-
-- Organização visual clara
-- Filtros rápidos
-- Relatórios por categoria
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Nova migration
-- `src/types/contract.ts` - Adicionar `category_id`
-- `src/components/contracts/ContractsList.tsx` - Filtros e badges
-- `src/pages/Contracts.tsx` - Estado de filtros
+1. Upload de imagem de assinatura (PNG/JPG) além do desenho com mouse
+2. Builder visual de PDF para marcar posições de assinatura
+3. Indicador de contratos criados no mês
+4. Envio de contrato assinado para cliente (link de download)
+5. Integração Google Drive OAuth individual por cliente
 
 ---
 
-### 1.2 Busca Avançada e Filtros Múltiplos
+## 1. Upload de Imagem de Assinatura
 
-**Objetivo:** Encontrar contratos rapidamente com múltiplos critérios.
+### Arquivos a modificar:
 
-**Implementação:**
+- `src/components/contracts/SignatureCanvas.tsx` - Adicionar opção de upload de imagem
+- `src/components/contracts/ContractSignatureDialog.tsx` - Adicionar toggle entre desenho/upload
+- `src/pages/SignContract.tsx` - Adicionar opção de upload para cliente
 
-- Filtros combinados: status + categoria + período + cliente
-- Busca por número, nome do cliente, conteúdo do contrato
-- Filtros salvos (favoritos)
-- Ordenação customizada (data, número, cliente, status)
-- Exportação de resultados filtrados
+### Implementação:
 
-**Benefícios:**
-
-- Economia de tempo
-- Encontrar contratos específicos rapidamente
-- Análises mais precisas
-
-**Arquivos afetados:**
-
-- `src/components/contracts/ContractsList.tsx` - Componente de filtros
-- `src/hooks/useContracts.ts` - Lógica de filtros
-- `src/pages/Contracts.tsx` - UI de filtros avançados
+- Adicionar botão "Upload Imagem" ao lado de "Desenhar Assinatura"
+- Aceitar apenas PNG/JPG (validar tipo MIME)
+- Converter imagem para base64 PNG antes de salvar
+- Redimensionar imagem se muito grande (máx 800x300px)
+- Manter compatibilidade com assinatura desenhada (canvas)
 
 ---
 
-### 1.3 Dashboard de Contratos
+## 2. Builder Visual de PDF
 
-**Objetivo:** Visão geral com métricas e estatísticas.
+### Arquivos a criar:
 
-**Implementação:**
+- `src/components/contracts/ContractPdfBuilder.tsx` - Componente principal do builder
+- `src/lib/pdfAnnotationUtils.ts` - Utilitários para anotar PDF
 
-- Cards com KPIs: Total, Assinados, Pendentes, Expirados, Taxa de Conversão
-- Gráficos: Contratos por mês, Status, Categoria
-- Lista de contratos próximos do vencimento
-- Contratos aguardando assinatura há X dias
-- Filtro por período
+### Arquivos a modificar:
 
-**Benefícios:**
+- `src/pages/Contracts.tsx` - Adicionar botão "Configurar Assinaturas" no contrato
+- `src/lib/contractPdfGenerator.ts` - Modificar para usar posições definidas no builder
 
-- Visão executiva rápida
-- Identificação de gargalos
-- Acompanhamento de performance
+### Implementação:
 
-**Arquivos afetados:**
+- Upload de PDF via input file
+- Renderizar PDF usando `react-pdf` ou `pdfjs-dist`
+- Permitir clicar no PDF para marcar posições de assinatura
+- Salvar posições (x, y, página) em `contract_signature_positions` (nova tabela)
+- Suportar múltiplas assinaturas (usuário, cliente, rubrica)
+- Visualizar preview das posições marcadas
+- Ao gerar PDF final, inserir assinaturas nas posições definidas
 
-- `src/components/contracts/ContractsDashboard.tsx` - Novo componente
-- `src/hooks/useContracts.ts` - Funções de estatísticas
-- `src/pages/Contracts.tsx` - Integração do dashboard
-
----
-
-## Categoria 2: Funcionalidades e Valor
-
-### 2.1 Assinatura Múltipla (Múltiplas Partes)
-
-**Objetivo:** Permitir que várias pessoas assinem o mesmo contrato.
-
-**Implementação:**
-
-- Campo `required_signatures_count` em `contracts`
-- Campo `signature_order` em `contract_signatures`
-- Status intermediário: `partially_signed`
-- Notificação quando todas as partes assinarem
-- Visualização de quem já assinou e quem falta
-
-**Benefícios:**
-
-- Contratos com múltiplas partes
-- Rastreamento de progresso
-- Flexibilidade comercial
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Migration para novos campos
-- `src/types/contract.ts` - Atualizar tipos
-- `src/pages/SignContract.tsx` - Lógica de múltiplas assinaturas
-- `src/components/contracts/ContractViewer.tsx` - Exibir progresso
-
----
-
-### 2.2 Lembretes Automáticos
-
-**Objetivo:** Notificar sobre contratos pendentes de assinatura ou próximos do vencimento.
-
-**Implementação:**
-
-- Tabela `contract_reminders` (contract_id, reminder_type, scheduled_at, sent_at)
-- Edge Function `send-contract-reminder` (cron job)
-- Notificações: 3 dias antes do vencimento, 1 dia antes, no vencimento
-- Lembrete para contratos não assinados há X dias
-- Envio via WhatsApp e/ou email
-
-**Benefícios:**
-
-- Reduz contratos esquecidos
-- Aumenta taxa de assinatura
-- Melhora relacionamento com cliente
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Nova tabela
-- `supabase/functions/send-contract-reminder/` - Nova edge function
-- `supabase/config.toml` - Configurar cron job
-- `src/components/contracts/ContractViewer.tsx` - UI de lembretes
-
----
-
-### 2.3 Histórico de Versões e Alterações
-
-**Objetivo:** Rastrear todas as mudanças em contratos e templates.
-
-**Implementação:**
-
-- Tabela `contract_versions` (contract_id, version_number, content, changed_by, changed_at)
-- Tabela `contract_audit_log` (contract_id, action, old_value, new_value, user_id, timestamp)
-- Visualização de histórico no viewer
-- Comparação entre versões
-- Restauração de versão anterior
-
-**Benefícios:**
-
-- Auditoria completa
-- Compliance (LGPD)
-- Recuperação de erros
-- Transparência
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Novas tabelas
-- `src/components/contracts/ContractHistory.tsx` - Novo componente
-- `src/hooks/useContracts.ts` - Funções de versionamento
-
----
-
-### 2.4 Comentários e Notas Internas
-
-**Objetivo:** Adicionar observações e contexto aos contratos.
-
-**Implementação:**
-
-- Tabela `contract_notes` (contract_id, user_id, note, is_internal, created_at)
-- Campo `is_internal` para notas não visíveis ao cliente
-- Thread de comentários
-- Menções de usuários (@nome)
-- Notificações de novos comentários
-
-**Benefícios:**
-
-- Comunicação interna
-- Contexto histórico
-- Colaboração em equipe
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Nova tabela
-- `src/components/contracts/ContractNotes.tsx` - Novo componente
-- `src/components/contracts/ContractViewer.tsx` - Integração
-
----
-
-### 2.5 Anexos e Documentos Adicionais
-
-**Objetivo:** Anexar documentos complementares aos contratos.
-
-**Implementação:**
-
-- Tabela `contract_attachments` (contract_id, file_name, file_url, file_type, uploaded_by, uploaded_at)
-- Upload de múltiplos arquivos
-- Preview de PDFs e imagens
-- Download em lote
-- Armazenamento no Supabase Storage
-
-**Benefícios:**
-
-- Documentação completa
-- Referências anexadas
-- Organização de arquivos
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Nova tabela
-- `src/components/contracts/ContractAttachments.tsx` - Novo componente
-- `src/services/contractStorage.ts` - Funções de upload
-
----
-
-### 2.6 Exportação em Lote e Relatórios
-
-**Objetivo:** Exportar múltiplos contratos e gerar relatórios.
-
-**Implementação:**
-
-- Seleção múltipla na lista
-- Exportação: PDF, Excel, CSV
-- Relatório: Contratos por período, status, categoria
-- Gráficos e estatísticas
-- Agendamento de relatórios
-
-**Benefícios:**
-
-- Análises gerenciais
-- Backup de documentos
-- Compartilhamento com stakeholders
-
-**Arquivos afetados:**
-
-- `src/components/contracts/ContractsList.tsx` - Seleção múltipla
-- `src/lib/contractExporter.ts` - Nova lib
-- `src/components/contracts/ReportsDialog.tsx` - Novo componente
-
----
-
-### 2.7 Validação de CPF/CNPJ
-
-**Objetivo:** Validar documentos do cliente antes de assinar.
-
-**Implementação:**
-
-- Campo `client_document` em `contracts` (CPF ou CNPJ)
-- Validação de formato e dígitos verificadores
-- Exibição no PDF e na página de assinatura
-- Confirmação obrigatória na assinatura
-
-**Benefícios:**
-
-- Segurança jurídica
-- Validação de identidade
-- Compliance
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Novo campo
-- `src/lib/documentValidator.ts` - Nova lib
-- `src/pages/SignContract.tsx` - Validação na assinatura
-
----
-
-### 2.8 QR Code de Validação no PDF
-
-**Objetivo:** Validar autenticidade do contrato via QR Code.
-
-**Implementação:**
-
-- Gerar QR Code único por contrato (hash + URL de validação)
-- Inserir QR Code no PDF assinado
-- Página pública de validação: `/validate-contract/:hash`
-- Exibir dados do contrato e status de validação
-
-**Benefícios:**
-
-- Autenticidade verificável
-- Confiança do cliente
-- Prevenção de fraudes
-
-**Arquivos afetados:**
-
-- `src/lib/contractPdfGenerator.ts` - Adicionar QR Code
-- `src/pages/ValidateContract.tsx` - Nova página
-- `supabase/migrations/` - Campo `validation_hash`
-
----
-
-## Categoria 3: Segurança e Compliance
-
-### 3.1 Auditoria Completa (Log de Ações)
-
-**Objetivo:** Registrar todas as ações realizadas nos contratos.
-
-**Implementação:**
-
-- Tabela `contract_audit_log` (contract_id, user_id, action, details, ip_address, user_agent, timestamp)
-- Registrar: criação, edição, envio, assinatura, cancelamento, download, visualização
-- Filtros por usuário, ação, período
-- Exportação de logs
-
-**Benefícios:**
-
-- Rastreabilidade completa
-- Compliance (LGPD)
-- Investigação de problemas
-- Segurança
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Nova tabela
-- `src/lib/contractAudit.ts` - Nova lib
-- `src/components/contracts/AuditLogViewer.tsx` - Novo componente
-
----
-
-### 3.2 Permissões Granulares por Usuário
-
-**Objetivo:** Controlar quem pode fazer o quê com contratos.
-
-**Implementação:**
-
-- Tabela `contract_permissions` (user_id, contract_id, can_view, can_edit, can_delete, can_send, can_sign)
-- Permissões por organização (role-based)
-- Permissões por contrato específico
-- UI de gerenciamento de permissões
-
-**Benefícios:**
-
-- Segurança de dados
-- Controle de acesso
-- Compliance
-
-**Arquivos afetados:**
-
-- `supabase/migrations/` - Nova tabela e RLS policies
-- `src/components/contracts/PermissionsDialog.tsx` - Novo componente
-- `src/hooks/useContractPermissions.ts` - Novo hook
-
----
-
-### 3.3 Watermark nos PDFs
-
-**Objetivo:** Marcar PDFs com informações de segurança.
-
-**Implementação:**
-
-- Watermark: "CONFIDENCIAL", "RASCUNHO", "ASSINADO"
-- Incluir: data, número do contrato, organização
-- Opacidade configurável
-- Aplicar apenas em PDFs não assinados (opcional)
-
-**Benefícios:**
-
-- Prevenção de uso indevido
-- Identificação visual
-- Segurança
-
-**Arquivos afetados:**
-
-- `src/lib/contractPdfGenerator.ts` - Adicionar watermark
-- `src/types/contract.ts` - Configurações de watermark
-
----
-
-### 3.4 Controle de Expiração Avançado
-
-**Objetivo:** Gerenciar vencimentos de forma inteligente.
-
-**Implementação:**
-
-- Renovação automática (opcional)
-- Extensão de prazo (com aprovação)
-- Notificações escalonadas (7 dias, 3 dias, 1 dia, vencido)
-- Auto-cancelamento após vencimento
-- Histórico de renovações
-
-**Benefícios:**
-
-- Gestão proativa
-- Reduz contratos esquecidos
-- Automação
-
-**Arquivos afetados:**
-
-- `src/components/contracts/ExpirationManager.tsx` - Novo componente
-- `supabase/functions/process-contract-expiration/` - Nova edge function
-- `src/hooks/useContracts.ts` - Lógica de expiração
-
----
-
-### 3.5 Backup Automático de PDFs
-
-**Objetivo:** Garantir que PDFs nunca sejam perdidos.
-
-**Implementação:**
-
-- Backup automático ao gerar/assinar
-- Armazenamento em bucket separado
-- Versionamento de backups
-- Restauração de backup
-- Limpeza automática de backups antigos (configurável)
-
-**Benefícios:**
-
-- Segurança de dados
-- Recuperação de desastres
-- Compliance
-
-**Arquivos afetados:**
-
-- `src/services/contractStorage.ts` - Funções de backup
-- `supabase/functions/backup-contracts/` - Nova edge function (cron)
-
----
-
-## Priorização Sugerida para Primeira Fase
-
-### Alta Prioridade (Impacto Alto, Complexidade Média)
-
-1. **Sistema de Categorias/Tags** (1.1)
-2. **Busca Avançada e Filtros** (1.2)
-3. **Lembretes Automáticos** (2.2)
-4. **Auditoria Completa** (3.1)
-
-### Média Prioridade (Impacto Alto, Complexidade Alta)
-
-5. **Assinatura Múltipla** (2.1)
-6. **Histórico de Versões** (2.3)
-7. **Dashboard de Contratos** (1.3)
-
-### Baixa Prioridade (Impacto Médio, Complexidade Variável)
-
-8. **Comentários e Notas** (2.4)
-9. **Anexos e Documentos** (2.5)
-10. **QR Code de Validação** (2.8)
-11. **Watermark nos PDFs** (3.3)
-
----
-
-## Arquitetura Técnica
-
-### Novas Tabelas Necessárias
+### Nova tabela SQL:
 
 ```sql
-- contract_categories
-- contract_reminders
-- contract_versions
-- contract_audit_log
-- contract_notes
-- contract_attachments
-- contract_permissions
-```
-
-### Novas Edge Functions
-
-```typescript
-- send-contract-reminder (cron)
-- process-contract-expiration (cron)
-- backup-contracts (cron)
-```
-
-### Novos Componentes React
-
-```typescript
-- ContractsDashboard.tsx
-- ContractCategories.tsx
-- ContractReminders.tsx
-- ContractHistory.tsx
-- ContractNotes.tsx
-- ContractAttachments.tsx
-- AuditLogViewer.tsx
-- PermissionsDialog.tsx
+CREATE TABLE contract_signature_positions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  signer_type text NOT NULL CHECK (signer_type IN ('user', 'client', 'rubric')),
+  page_number integer NOT NULL,
+  x_position real NOT NULL,
+  y_position real NOT NULL,
+  width real DEFAULT 60,
+  height real DEFAULT 30,
+  created_at timestamptz DEFAULT now()
+);
 ```
 
 ---
 
-## Próximos Passos
+## 3. Indicador de Contratos do Mês
 
-1. **Escolher funcionalidades** da primeira fase (4-6 itens recomendados)
-2. **Definir ordem de implementação** (dependências)
-3. **Criar migrations SQL** para novas tabelas
-4. **Implementar componentes** frontend
-5. **Configurar edge functions** e cron jobs
-6. **Testes e validação**
+### Arquivos a modificar:
+
+- `src/pages/Contracts.tsx` - Adicionar card de estatísticas no topo
+- `src/hooks/useContracts.ts` - Adicionar query para contar contratos do mês
+
+### Implementação:
+
+- Query SQL: `COUNT(*) WHERE created_at >= inicio_do_mes AND created_at <= fim_do_mes`
+- Exibir card destacado com:
+  - Número de contratos criados no mês atual
+  - Comparação com mês anterior (↑ ou ↓)
+  - Gráfico simples (opcional)
+- Posicionar no topo da página, antes da lista de contratos
+
+---
+
+## 4. Envio de Contrato Assinado
+
+### Arquivos a criar:
+
+- `src/components/contracts/SendContractDialog.tsx` - Dialog para enviar contrato
+- `supabase/functions/send-contract-signed/index.ts` - Edge function para envio
+
+### Arquivos a modificar:
+
+- `src/pages/Contracts.tsx` - Adicionar botão "Enviar ao Cliente" (só aparece se assinado)
+- `src/components/contracts/ContractViewer.tsx` - Adicionar botão de envio
+- `src/hooks/useContracts.ts` - Adicionar função `sendContractToClient`
+
+### Implementação:
+
+- Verificar se contrato tem ambas assinaturas (user + client)
+- Se não tiver, mostrar erro e não permitir envio
+- Gerar link de download permanente (não expira)
+- Opções de envio:
+  - WhatsApp: usar Evolution API (se configurado)
+  - Email: usar serviço de email (Resend/SendGrid)
+- Mensagem padrão: "Seu contrato assinado está disponível para download: [link]"
+- Salvar log de envio em `contract_send_logs` (nova tabela)
+
+### Nova tabela SQL:
+
+```sql
+CREATE TABLE contract_send_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  sent_via text NOT NULL CHECK (sent_via IN ('whatsapp', 'email')),
+  recipient_phone text,
+  recipient_email text,
+  download_link text NOT NULL,
+  sent_at timestamptz DEFAULT now(),
+  sent_by uuid REFERENCES auth.users(id)
+);
+```
+
+---
+
+## 5. Integração Google Drive OAuth Individual
+
+### Arquivos a criar:
+
+- `src/services/contractStorage/GoogleDriveStorageService.ts` - Implementação Google Drive
+- `src/components/contracts/GoogleDriveConnectDialog.tsx` - Dialog para conectar Google Drive
+- `supabase/functions/google-drive-oauth-init/index.ts` - Iniciar OAuth
+- `supabase/functions/google-drive-oauth-callback/index.ts` - Callback OAuth
+- `src/hooks/useGoogleDriveOAuth.ts` - Hook para gerenciar OAuth
+
+### Arquivos a modificar:
+
+- `src/services/contractStorage/StorageFactory.ts` - Adicionar suporte a Google Drive
+- `src/services/contractStorage/BackupService.ts` - Usar Google Drive se cliente conectado
+- `src/components/contracts/ContractViewer.tsx` - Adicionar botão "Salvar no Google Drive"
+
+### Nova tabela SQL:
+
+```sql
+CREATE TABLE client_google_drive_configs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  access_token text NOT NULL,
+  refresh_token text NOT NULL,
+  token_expires_at timestamptz NOT NULL,
+  google_email text,
+  google_drive_folder_id text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(lead_id, organization_id)
+);
+```
+
+### Implementação:
+
+- OAuth flow similar ao Gmail (usar `gmail-oauth-init` como base)
+- Escopos necessários: `https://www.googleapis.com/auth/drive.file`
+- Após OAuth, criar pasta no Google Drive do cliente: "Contratos [Nome da Empresa]"
+- Salvar `folder_id` para usar em uploads futuros
+- Ao fazer backup, verificar se cliente tem Google Drive conectado
+- Se sim, fazer upload para pasta do cliente no Google Drive
+- Se não, usar backup configurado pelo Super Admin (Supabase/Firebase/S3)
+
+### Fluxo de Backup:
+
+1. Contrato assinado → **SEMPRE salvar no Supabase primeiro** (storage principal obrigatório)
+2. Verificar se cliente tem Google Drive conectado
+3. Se SIM → Upload **ADICIONAL** para Google Drive do cliente (backup extra/redundante)
+4. Se backup storage configurado (Firebase/S3) → Upload **ADICIONAL** também (backup redundante)
+
+**IMPORTANTE:**
+
+- Supabase é **sempre** o storage principal (obrigatório)
+- Google Drive e outros storages são backups **adicionais/redundantes**
+- Mesmo que cliente tenha Google Drive, o contrato **sempre** fica salvo no Supabase
+
+---
+
+## Migrações SQL Necessárias
+
+### Arquivo: `supabase/migrations/20250122000001_add_contract_improvements.sql`
+
+```sql
+-- Tabela de posições de assinatura no PDF
+CREATE TABLE IF NOT EXISTS contract_signature_positions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  signer_type text NOT NULL CHECK (signer_type IN ('user', 'client', 'rubric')),
+  page_number integer NOT NULL,
+  x_position real NOT NULL,
+  y_position real NOT NULL,
+  width real DEFAULT 60,
+  height real DEFAULT 30,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Tabela de logs de envio de contratos
+CREATE TABLE IF NOT EXISTS contract_send_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  sent_via text NOT NULL CHECK (sent_via IN ('whatsapp', 'email')),
+  recipient_phone text,
+  recipient_email text,
+  download_link text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  sent_at timestamptz DEFAULT now(),
+  sent_by uuid REFERENCES auth.users(id)
+);
+
+-- Tabela de configurações Google Drive por cliente
+CREATE TABLE IF NOT EXISTS client_google_drive_configs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  access_token text NOT NULL,
+  refresh_token text NOT NULL,
+  token_expires_at timestamptz NOT NULL,
+  google_email text,
+  google_drive_folder_id text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(lead_id, organization_id)
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_contract_signature_positions_contract ON contract_signature_positions(contract_id);
+CREATE INDEX IF NOT EXISTS idx_contract_send_logs_contract ON contract_send_logs(contract_id);
+CREATE INDEX IF NOT EXISTS idx_client_gdrive_configs_lead ON client_google_drive_configs(lead_id, organization_id);
+
+-- RLS Policies
+ALTER TABLE contract_signature_positions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contract_send_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE client_google_drive_configs ENABLE ROW LEVEL SECURITY;
+
+-- Policies para contract_signature_positions
+CREATE POLICY "Users can view signature positions for their org contracts"
+  ON contract_signature_positions FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM contracts c
+      JOIN organization_members om ON om.organization_id = c.organization_id
+      WHERE c.id = contract_signature_positions.contract_id
+        AND om.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can manage signature positions for their org contracts"
+  ON contract_signature_positions FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM contracts c
+      JOIN organization_members om ON om.organization_id = c.organization_id
+      WHERE c.id = contract_signature_positions.contract_id
+        AND om.user_id = auth.uid()
+    )
+  );
+
+-- Policies para contract_send_logs
+CREATE POLICY "Users can view send logs for their org contracts"
+  ON contract_send_logs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM contracts c
+      JOIN organization_members om ON om.organization_id = c.organization_id
+      WHERE c.id = contract_send_logs.contract_id
+        AND om.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create send logs for their org contracts"
+  ON contract_send_logs FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM contracts c
+      JOIN organization_members om ON om.organization_id = c.organization_id
+      WHERE c.id = contract_send_logs.contract_id
+        AND om.user_id = auth.uid()
+    )
+  );
+
+-- Policies para client_google_drive_configs
+CREATE POLICY "Users can view GDrive configs for their org leads"
+  ON client_google_drive_configs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM organization_members om
+      WHERE om.organization_id = client_google_drive_configs.organization_id
+        AND om.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can manage GDrive configs for their org leads"
+  ON client_google_drive_configs FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM organization_members om
+      WHERE om.organization_id = client_google_drive_configs.organization_id
+        AND om.user_id = auth.uid()
+    )
+  );
+```
+
+---
+
+## Dependências NPM Necessárias
+
+```json
+{
+  "react-pdf": "^7.5.1",
+  "pdfjs-dist": "^3.11.174",
+  "
+  
+googleapis": "^128.0.0"
+}
+```
+
+---
+
+## Ordem de Implementação Recomendada
+
+1. **Upload de Imagem de Assinatura** (mais simples, base para outras)
+2. **Indicador de Contratos do Mês** (estatística simples)
+3. **Envio de Contrato Assinado** (funcionalidade independente)
+4. **Builder Visual de PDF** (mais complexo, requer bibliotecas PDF)
+5. **Integração Google Drive** (mais complexo, requer OAuth e APIs)
+
+---
+
+## Notas Importantes
+
+- Manter compatibilidade com funcionalidades existentes
+- Todas as novas tabelas devem ter RLS habilitado
+- Google Drive OAuth deve seguir padrão do Gmail OAuth existente
+- Builder de PDF deve funcionar offline (sem servidor)
+- Links de download devem expirar após 7 dias por segurança
+- Validar sempre se contrato está assinado antes de enviar
+
+### To-dos
+
+- [ ] Adicionar opção de upload de imagem (PNG/JPG) no SignatureCanvas além do desenho com mouse
+- [ ] Modificar ContractSignatureDialog para ter toggle entre desenho e upload de imagem
+- [ ] Adicionar indicador destacado de contratos criados no mês atual na página Contracts
+- [ ] Criar SendContractDialog para enviar contrato assinado via WhatsApp/Email com link de download
+- [ ] Criar edge function send-contract-signed para gerar link temporário e enviar via WhatsApp/Email
+- [ ] Criar ContractPdfBuilder para upload de PDF e marcar posições de assinatura clicando no PDF
+- [ ] Integrar builder de PDF com contractPdfGenerator para usar posições definidas ao gerar PDF final
+- [ ] Criar GoogleDriveStorageService implementando StorageService para upload no Google Drive
+- [ ] Criar edge functions e hooks para OAuth do Google Drive individual por cliente
+- [ ] Integrar Google Drive no BackupService para salvar contratos na pasta do cliente quando conectado
+- [ ] Criar migration SQL com tabelas: contract_signature_positions, contract_send_logs, client_google_drive_configs
