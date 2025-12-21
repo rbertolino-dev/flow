@@ -1,6 +1,1 @@
-{
-  "version": "blue",
-  "timestamp": "2025-12-21T02:23:12Z",
-  "image_id": "sha256:117053047e88115154ea97cebb641e4249f2b02d5a854552c4034e3406b817da",
-  "deploy_id": "48a6c1e1-736d-4594-9702-e18b85d3a20f"
-}
+{"version":"blue","timestamp":"2025-12-21T02:34:58Z","image_id":"sha256:c0837a6a433c5fb05906cb7488662a579c410fe271f3399729f1c47a4d8525a9","deploy_id":"3e192da0-e860-459b-bfb5-7ad08edb69bd"}
