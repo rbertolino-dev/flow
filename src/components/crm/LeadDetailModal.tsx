@@ -803,6 +803,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   ), [tags, currentLead.tags]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col">
         <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
@@ -1400,6 +1401,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           </div>
         </div>
       </DialogContent>
+    </Dialog>
 
       <AddLeadToListDialog
         open={addToListDialogOpen}
@@ -1544,6 +1546,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           </form>
         </DialogContent>
       </Dialog>
-    </Dialog>
+    </>
   );
 }
