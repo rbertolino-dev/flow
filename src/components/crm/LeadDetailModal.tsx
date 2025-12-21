@@ -1423,9 +1423,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Dados do Lead</DialogTitle>
-            <DialogDescription>
+            <p className="text-sm text-muted-foreground">
               Edite todas as informações do contato
-            </DialogDescription>
+            </p>
           </DialogHeader>
           <form onSubmit={async (e) => {
             e.preventDefault();
