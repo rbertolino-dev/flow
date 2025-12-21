@@ -83,6 +83,9 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
+// Export explícito para garantir que não seja removido por tree-shaking
+export { DialogDescription };
+
 export {
   Dialog,
   DialogPortal,
@@ -93,5 +96,4 @@ export {
   DialogHeader,
   DialogFooter,
   DialogTitle,
-  DialogDescription,
 };
