@@ -19,6 +19,7 @@ import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useFlowTriggers } from "@/hooks/useFlowTriggers";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload } from "lucide-react";
 import Settings from "./Settings";
@@ -35,6 +36,7 @@ const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeView, setActiveView] = useState<CRMView>("kanban");
+  const { activeOrgId, loading: orgLoading } = useActiveOrganization();
   
   // Lê o state da navegação para definir a view inicial
   useEffect(() => {
@@ -193,6 +195,55 @@ const Index = () => {
       setActiveView(view);
     }
   };
+
+  // Mostrar loading enquanto organização está carregando
+  if (orgLoading) {
+    return (
+      <AuthGuard>
+        <CRMLayout 
+          activeView={activeView} 
+          onViewChange={handleViewChange}
+          syncInfo={{ lastSync, nextSync, isSyncing }}
+        >
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+              <p className="text-muted-foreground">Carregando organização...</p>
+            </div>
+          </div>
+        </CRMLayout>
+      </AuthGuard>
+    );
+  }
+
+  // Mostrar mensagem se não houver organização
+  if (!activeOrgId) {
+    return (
+      <AuthGuard>
+        <CRMLayout 
+          activeView={activeView} 
+          onViewChange={handleViewChange}
+          syncInfo={{ lastSync, nextSync, isSyncing }}
+        >
+          <div className="h-full flex items-center justify-center p-6">
+            <div className="max-w-md w-full space-y-4 text-center">
+              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <h2 className="text-lg font-semibold text-destructive mb-2">
+                  Organização Não Encontrada
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Você não está associado a nenhuma organização. Entre em contato com o administrador.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/organization')} variant="outline">
+                Ver Organizações
+              </Button>
+            </div>
+          </div>
+        </CRMLayout>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard>
