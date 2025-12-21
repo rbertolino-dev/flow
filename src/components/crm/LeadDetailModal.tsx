@@ -98,85 +98,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
-  const [isEditingContact, setIsEditingContact] = useState(false);
-  const [editedContact, setEditedContact] = useState({
-    phone: lead.phone,
-    email: lead.email || '',
-    company: lead.company || '',
-    value: lead.value?.toString() || '',
-  });
 
   // Atualizar currentLead quando o lead prop mudar
   useEffect(() => {
     setCurrentLead(lead);
-    setEditedContact({
-      phone: lead.phone,
-      email: lead.email || '',
-      company: lead.company || '',
-      value: lead.value?.toString() || '',
-    });
   }, [lead]);
-
-  const handleSaveContactInfo = async (contactData: { phone: string; email: string; company: string; value: string }) => {
-    try {
-      const updateData: any = {
-        phone: contactData.phone,
-        email: contactData.email || null,
-        company: contactData.company || null,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Validar e adicionar valor se fornecido
-      if (contactData.value) {
-        const numValue = parseFloat(contactData.value);
-        if (numValue < 0) {
-          toast({
-            title: "Valor inválido",
-            description: "O valor não pode ser negativo",
-            variant: "destructive",
-          });
-          return;
-        }
-        updateData.value = numValue;
-      } else {
-        updateData.value = null;
-      }
-
-      const { error } = await supabase
-        .from('leads')
-        .update(updateData)
-        .eq('id', lead.id);
-
-      if (error) throw error;
-
-      setCurrentLead(prev => ({
-        ...prev,
-        phone: contactData.phone,
-        email: contactData.email || undefined,
-        company: contactData.company || undefined,
-        value: contactData.value ? parseFloat(contactData.value) : undefined,
-      }));
-
-      // ✅ Disparar evento de refresh para atualizar em tempo real
-      window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead' }
-      }));
-
-      toast({
-        title: "Informações atualizadas",
-        description: "Os dados do contato foram atualizados com sucesso.",
-      });
-
-      setIsEditingContact(false);
-      onUpdated?.();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao atualizar",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
 
   // Identificar listas que contêm este lead
   const leadLists = useMemo(() => {
@@ -527,15 +453,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       });
 
       setNewComment("");
-      
-      // ✅ Disparar evento de refresh para atualizar em tempo real na Lista de Leads
-      window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead' }
-      }));
-      
-      // Atualizar lead localmente
-      setCurrentLead(prev => ({ ...prev, notes: newComment }));
-      
       onUpdated?.();
     } catch (error: any) {
       toast({
@@ -661,11 +578,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       const dateInSaoPaulo = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
       const zonedDate = fromZonedTime(dateInSaoPaulo, TIMEZONE);
       
-      // ✅ RESILIENTE: Tentar atualizar return_date, se falhar usar fallback
-      let updateError: any = null;
-      
-      // Primeira tentativa: atualizar return_date
-      const result = await (supabase as any)
+      const { error } = await (supabase as any)
         .from('leads')
         .update({ 
           return_date: zonedDate.toISOString(),
@@ -673,38 +586,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         })
         .eq('id', lead.id);
 
-      if (result.error) {
-        // Se erro de coluna não existir, tentar sem return_date (fallback)
-        if (result.error.message?.includes('return_date') || 
-            result.error.code === 'PGRST204' ||
-            result.error.message?.includes('schema cache')) {
-          console.warn('⚠️ Coluna return_date não encontrada no cache, usando fallback...');
-          
-          // Tentar atualizar apenas updated_at (coluna sempre existe)
-          const fallbackResult = await (supabase as any)
-            .from('leads')
-            .update({ 
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', lead.id);
-          
-          if (fallbackResult.error) {
-            updateError = fallbackResult.error;
-          } else {
-            // Se fallback funcionou, avisar usuário mas não falhar
-            toast({
-              title: "Aviso",
-              description: "Data de retorno não pôde ser salva (coluna não disponível no momento). Tente novamente mais tarde.",
-              variant: "default",
-            });
-            return;
-          }
-        } else {
-          updateError = result.error;
-        }
-      }
-
-      if (updateError) throw updateError;
+      if (error) throw error;
 
       toast({
         title: "Data de retorno salva",
@@ -919,62 +801,34 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">Informações de Contato</h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsEditingContact(true)}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Editar
-                </Button>
-              </div>
-              {!isEditingContact ? (
-                <div className="grid gap-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatBrazilianPhone(lead.phone)}</span>
-                    <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
-                      const formatted = buildCopyNumber(lead.phone);
-                      navigator.clipboard.writeText(formatted);
-                      toast({
-                        title: "Telefone copiado",
-                        description: `${formatted} copiado para a área de transferência`,
-                      });
-                    }}>
-                      Ligar
-                    </Button>
-                  </div>
-                  {lead.email && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.email}</span>
-                    </div>
-                  )}
-                  {lead.company && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.company}</span>
-                    </div>
-                  )}
-                  {lead.value && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <span>{new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(lead.value)}</span>
-                    </div>
-                  )}
+              <h3 className="font-semibold text-lg">Informações de Contato</h3>
+              <div className="grid gap-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <span>{formatBrazilianPhone(lead.phone)}</span>
+                  <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+                    const formatted = buildCopyNumber(lead.phone);
+                    navigator.clipboard.writeText(formatted);
+                    toast({
+                      title: "Telefone copiado",
+                      description: `${formatted} copiado para a área de transferência`,
+                    });
+                  }}>
+                    Ligar
+                  </Button>
                 </div>
-              ) : (
-                <EditContactForm
-                  lead={currentLead}
-                  onSave={handleSaveContactInfo}
-                  onCancel={() => setIsEditingContact(false)}
-                />
-              )}
+                {lead.email && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span>{lead.email}</span>
+                  </div>
+                )}
+                {lead.company && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <span>{lead.company}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 text-sm">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>
@@ -1413,7 +1267,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <EnhancedActivityHistory
               activities={otherActivities}
             />
-            </div>
+          </div>
           </ScrollArea>
         </div>
 
@@ -1490,79 +1344,5 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         }}
       />
     </Dialog>
-  );
-}
-
-// Componente para editar informações de contato
-function EditContactForm({
-  lead,
-  onSave,
-  onCancel,
-}: {
-  lead: Lead;
-  onSave: (data: { phone: string; email: string; company: string; value: string }) => void;
-  onCancel: () => void;
-}) {
-  const [formData, setFormData] = useState({
-    phone: lead.phone,
-    email: lead.email || '',
-    company: lead.company || '',
-    value: lead.value?.toString() || '',
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="space-y-2">
-        <Label htmlFor="edit-phone">Telefone *</Label>
-        <Input
-          id="edit-phone"
-          value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="edit-email">Email</Label>
-        <Input
-          id="edit-email"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="edit-company">Empresa</Label>
-        <Input
-          id="edit-company"
-          value={formData.company}
-          onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="edit-value">Valor (R$)</Label>
-        <Input
-          id="edit-value"
-          type="number"
-          step="0.01"
-          min="0"
-          value={formData.value}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === '' || parseFloat(val) >= 0) {
-              setFormData({ ...formData, value: val });
-            }
-          }}
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button type="submit" size="sm">Salvar</Button>
-        <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
-      </div>
-    </form>
   );
 }
