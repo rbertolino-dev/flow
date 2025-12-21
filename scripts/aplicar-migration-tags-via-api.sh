@@ -104,4 +104,3 @@ fi
 echo ""
 echo -e "${GREEN}✅ Operação concluída!${NC}"
 
-

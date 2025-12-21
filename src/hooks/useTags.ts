@@ -26,58 +26,91 @@ export function useTags() {
         return;
       }
 
-      fetchTags();
+    fetchTags();
 
       // Configurar realtime com filtro por organization_id
+      // Usar listeners separados para cada tipo de evento (mais confiável)
       channel = supabase
-        .channel(`tags-channel-${orgId}`)
+        .channel(`tags-channel-${orgId}-${Date.now()}`)
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'INSERT',
             schema: 'public',
             table: 'tags',
             filter: `organization_id=eq.${orgId}`
           },
           (payload: any) => {
-            console.log('🏷️ Etiqueta atualizada (realtime):', payload);
-            // Atualizar imediatamente sem refetch completo
-            if (payload.eventType === 'INSERT') {
-              // Nova etiqueta criada - adicionar otimisticamente
-              const newTag = payload.new;
-              setTags((prev) => {
-                // Verificar se já existe para evitar duplicatas
-                if (prev.find(t => t.id === newTag.id)) return prev;
-                return [...prev, {
-                  id: newTag.id,
-                  name: newTag.name,
-                  color: newTag.color
-                }].sort((a, b) => a.name.localeCompare(b.name));
-              });
-            } else if (payload.eventType === 'UPDATE') {
-              // Etiqueta atualizada - atualizar otimisticamente
-              const updatedTag = payload.new;
-              setTags((prev) => 
-                prev.map(t => t.id === updatedTag.id ? {
-                  id: updatedTag.id,
-                  name: updatedTag.name,
-                  color: updatedTag.color
-                } : t).sort((a, b) => a.name.localeCompare(b.name))
-              );
-            } else if (payload.eventType === 'DELETE') {
-              // Etiqueta deletada - remover otimisticamente
-              const deletedId = payload.old?.id;
-              if (deletedId) {
-                setTags((prev) => prev.filter(t => t.id !== deletedId));
+            console.log('🆕 Nova etiqueta criada (realtime):', payload.new);
+            // Nova etiqueta criada - adicionar otimisticamente
+            const newTag = payload.new;
+            setTags((prev) => {
+              // Verificar se já existe para evitar duplicatas
+              if (prev.find(t => t.id === newTag.id)) {
+                console.log('⚠️ Etiqueta já existe, ignorando duplicata:', newTag.id);
+                return prev;
               }
-            } else {
-              // Fallback: refetch completo
-              fetchTags();
+              const updated = [...prev, {
+                id: newTag.id,
+                name: newTag.name,
+                color: newTag.color || '#3B82F6'
+              }].sort((a, b) => a.name.localeCompare(b.name));
+              console.log('✅ Nova etiqueta adicionada via realtime:', newTag.name, 'Total:', updated.length);
+              return updated;
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'tags',
+            filter: `organization_id=eq.${orgId}`
+          },
+          (payload: any) => {
+            console.log('🔄 Etiqueta atualizada (realtime):', payload.new);
+            // Etiqueta atualizada - atualizar otimisticamente
+            const updatedTag = payload.new;
+            setTags((prev) => {
+              const updated = prev.map(t => t.id === updatedTag.id ? {
+                id: updatedTag.id,
+                name: updatedTag.name,
+                color: updatedTag.color || t.color
+              } : t).sort((a, b) => a.name.localeCompare(b.name));
+              console.log('✅ Etiqueta atualizada via realtime:', updatedTag.name);
+              return updated;
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'tags',
+            filter: `organization_id=eq.${orgId}`
+          },
+          (payload: any) => {
+            console.log('🗑️ Etiqueta deletada (realtime):', payload.old);
+            // Etiqueta deletada - remover otimisticamente
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setTags((prev) => {
+                const updated = prev.filter(t => t.id !== deletedId);
+                console.log('✅ Etiqueta removida via realtime:', deletedId, 'Total:', updated.length);
+                return updated;
+              });
             }
           }
         )
         .subscribe((status: string) => {
           console.log('📡 Status do canal realtime de etiquetas:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Canal realtime de etiquetas conectado e escutando mudanças');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            console.error('❌ Erro no canal realtime de etiquetas:', status);
+          }
         });
     };
 
@@ -85,7 +118,7 @@ export function useTags() {
 
     return () => {
       if (channel) {
-        supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
       }
     };
   }, []);

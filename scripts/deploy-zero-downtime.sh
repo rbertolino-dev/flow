@@ -49,12 +49,12 @@ TEST_FIRST=false
 for arg in "$@"; do
     case "$arg" in
         --rollback)
-            ROLLBACK_MODE=true
-            CURRENT_VERSION="green"
-            NEW_VERSION="blue"
+    ROLLBACK_MODE=true
+    CURRENT_VERSION="green"
+    NEW_VERSION="blue"
             ;;
         --test-first)
-            TEST_FIRST=true
+    TEST_FIRST=true
             ;;
         --skip-git-check)
             SKIP_GIT_CHECK=true

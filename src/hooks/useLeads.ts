@@ -12,15 +12,18 @@ export function useLeads() {
   const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
+    console.log('🔧 Configurando realtime de leads...', { activeOrgId });
+    
     if (activeOrgId) {
       fetchLeads();
     } else {
+      console.warn('⚠️ ActiveOrgId não encontrado, pulando realtime de leads');
       setLoading(false);
     }
 
     // ✅ OTIMIZAÇÃO: Realtime com updates otimistas + Polling como fallback
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel(`leads-channel-${activeOrgId || 'no-org'}-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'leads' },
@@ -46,83 +49,49 @@ export function useLeads() {
         },
         (payload) => {
           console.log('🔄 Lead atualizado (realtime):', payload);
-          console.log('📊 Payload completo:', JSON.stringify(payload, null, 2));
           const updated = payload.new as any;
-          
-          if (!updated || !updated.id) {
-            console.warn('⚠️ Payload UPDATE inválido:', payload);
-            return;
-          }
           
           // Verificar se pertence à organização ativa
           if (activeOrgId && updated.organization_id !== activeOrgId) {
-            console.log('⚠️ Lead atualizado pertence a outra organização, ignorando...', {
-              leadOrgId: updated.organization_id,
-              activeOrgId
-            });
+            console.log('⚠️ Lead atualizado pertence a outra organização, ignorando...');
             return;
           }
           
-          console.log('✅ Processando atualização de lead:', {
-            id: updated.id,
-            name: updated.name,
-            oldName: (payload.old as any)?.name,
-            organization_id: updated.organization_id
-          });
-          
           // ✅ Update otimista: atualizar apenas o lead modificado sem refetch completo
           setLeads((prev) => {
-            const leadIndex = prev.findIndex(l => l.id === updated.id);
-            if (leadIndex === -1) {
-              console.warn('⚠️ Lead não encontrado na lista atual:', updated.id);
-              // Se não encontrou, pode ser um novo lead - adicionar
-              const newLead: Lead = {
-                id: updated.id,
-                name: updated.name,
-                phone: updated.phone,
-                email: updated.email,
-                company: updated.company,
-                value: updated.value,
-                status: updated.status as LeadStatus,
-                assignedTo: updated.assigned_to || 'Não atribuído',
-                createdAt: new Date(updated.created_at || updated.updated_at),
-                lastContact: new Date(updated.last_contact || updated.updated_at),
-                returnDate: updated.return_date ? new Date(updated.return_date) : undefined,
-                notes: updated.notes,
-                stageId: updated.stage_id,
-                source: updated.source || 'manual',
-              };
-              console.log('✅ Novo lead adicionado via realtime:', newLead.name);
-              return [...prev, newLead];
+            const existingIndex = prev.findIndex(l => l.id === updated.id);
+            if (existingIndex === -1) {
+              console.log('⚠️ Lead não encontrado na lista atual, pode ser novo:', updated.id);
+              // Se não encontrou, pode ser um lead novo que ainda não foi carregado
+              // Não adicionamos aqui para evitar duplicatas - o INSERT handler cuida disso
+              return prev;
             }
             
             const updatedLeads = prev.map((l) => {
               if (l.id === updated.id) {
                 const newLead = {
                   ...l,
-                  name: updated.name,
-                  phone: updated.phone,
-                  email: updated.email,
-                  company: updated.company,
-                  value: updated.value,
-                  status: updated.status as LeadStatus,
-                  assignedTo: updated.assigned_to || 'Não atribuído',
-                  lastContact: new Date(updated.last_contact || updated.updated_at),
-                  returnDate: updated.return_date ? new Date(updated.return_date) : undefined,
-                  notes: updated.notes,
-                  stageId: updated.stage_id,
+                  name: updated.name || l.name,
+                  phone: updated.phone || l.phone,
+                  email: updated.email || l.email,
+                  company: updated.company || l.company,
+                  value: updated.value !== undefined ? updated.value : l.value,
+                  status: (updated.status as LeadStatus) || l.status,
+                  assignedTo: updated.assigned_to || l.assignedTo || 'Não atribuído',
+                  lastContact: updated.last_contact ? new Date(updated.last_contact) : (updated.updated_at ? new Date(updated.updated_at) : l.lastContact),
+                  returnDate: updated.return_date ? new Date(updated.return_date) : l.returnDate,
+                  notes: updated.notes !== undefined ? updated.notes : l.notes,
+                  stageId: updated.stage_id || l.stageId,
                 };
-                console.log('✅ Lead atualizado via realtime:', {
-                  id: newLead.id,
-                  oldName: l.name,
-                  newName: newLead.name,
-                  changed: l.name !== newLead.name
+                console.log('✅ Lead atualizado via realtime:', updated.name || l.name, 'Mudanças:', {
+                  name: l.name !== newLead.name,
+                  phone: l.phone !== newLead.phone,
+                  stageId: l.stageId !== newLead.stageId
                 });
                 return newLead;
               }
               return l;
             });
-            console.log('📊 Total de leads após atualização:', updatedLeads.length);
             return updatedLeads;
           });
         }
@@ -151,7 +120,7 @@ export function useLeads() {
       .subscribe((status) => {
         console.log('📡 Status do canal realtime de leads:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Canal realtime de leads conectado com sucesso!');
+          console.log('✅ Canal realtime de leads conectado e escutando mudanças');
         } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
           console.error('❌ Erro no canal realtime de leads:', status);
           console.warn('⚠️ Realtime não está funcionando. Ativando polling como fallback...');
