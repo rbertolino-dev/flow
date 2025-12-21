@@ -204,6 +204,9 @@ export function SalesReportDialog({ open, onOpenChange, leads, stages, callQueue
                   <p className="text-xs text-muted-foreground">
                     Leads na última etapa
                   </p>
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    ℹ️ Conversão: Leads que chegaram na última etapa ÷ Total de leads
+                  </p>
                 </CardContent>
               </Card>
 

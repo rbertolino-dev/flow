@@ -47,49 +47,68 @@ export function usePipelineStages() {
           },
           (payload: any) => {
             console.log('🔄 Etapa atualizada (realtime):', payload);
+            console.log('📊 Payload completo:', JSON.stringify(payload, null, 2));
             if (!isMounted) return;
             
+            // Detectar tipo de evento (pode ser eventType ou event)
+            const eventType = payload.eventType || payload.event || (payload.new ? 'INSERT' : payload.old ? 'DELETE' : 'UPDATE');
+            console.log('🎯 Tipo de evento detectado:', eventType);
+            
             // Atualizar imediatamente sem refetch completo
-            if (payload.eventType === 'INSERT') {
+            if (eventType === 'INSERT' || (payload.new && !payload.old)) {
               // Nova etapa criada - adicionar otimisticamente
               const newStage = payload.new;
+              if (!newStage || !newStage.id) {
+                console.warn('⚠️ Payload INSERT inválido:', payload);
+                return;
+              }
               setStages((prev) => {
                 // Verificar se já existe para evitar duplicatas
-                if (prev.find(s => s.id === newStage.id)) return prev;
+                if (prev.find(s => s.id === newStage.id)) {
+                  console.log('⚠️ Etapa já existe, ignorando duplicata:', newStage.id);
+                  return prev;
+                }
                 const updated = [...prev, {
                   id: newStage.id,
                   name: newStage.name,
-                  color: newStage.color,
-                  position: newStage.position
+                  color: newStage.color || '#3B82F6',
+                  position: newStage.position || prev.length
                 }].sort((a, b) => a.position - b.position);
-                console.log('✅ Nova etapa adicionada via realtime:', newStage.name);
+                console.log('✅ Nova etapa adicionada via realtime:', newStage.name, 'Total:', updated.length);
                 return updated;
               });
-            } else if (payload.eventType === 'UPDATE') {
+            } else if (eventType === 'UPDATE' || (payload.new && payload.old)) {
               // Etapa atualizada - atualizar otimisticamente
               const updatedStage = payload.new;
+              if (!updatedStage || !updatedStage.id) {
+                console.warn('⚠️ Payload UPDATE inválido:', payload);
+                return;
+              }
               setStages((prev) => {
                 const updated = prev.map(s => s.id === updatedStage.id ? {
                   id: updatedStage.id,
                   name: updatedStage.name,
-                  color: updatedStage.color,
-                  position: updatedStage.position
+                  color: updatedStage.color || s.color,
+                  position: updatedStage.position !== undefined ? updatedStage.position : s.position
                 } : s).sort((a, b) => a.position - b.position);
                 console.log('✅ Etapa atualizada via realtime:', updatedStage.name);
                 return updated;
               });
-            } else if (payload.eventType === 'DELETE') {
+            } else if (eventType === 'DELETE' || (payload.old && !payload.new)) {
               // Etapa deletada - remover otimisticamente
               const deletedId = payload.old?.id;
               if (deletedId) {
                 setStages((prev) => {
                   const updated = prev.filter(s => s.id !== deletedId);
-                  console.log('✅ Etapa removida via realtime:', deletedId);
+                  console.log('✅ Etapa removida via realtime:', deletedId, 'Restantes:', updated.length);
                   return updated;
                 });
+              } else {
+                console.warn('⚠️ Payload DELETE inválido:', payload);
               }
             } else {
               // Fallback: refetch completo
+              console.warn('⚠️ Tipo de evento desconhecido, fazendo refetch:', eventType);
               if (isMounted) {
                 fetchStages();
               }
@@ -98,6 +117,18 @@ export function usePipelineStages() {
         )
         .subscribe((status: string) => {
           console.log('📡 Status do canal realtime de etapas:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Canal realtime de etapas conectado com sucesso!');
+          } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+            console.error('❌ Erro no canal realtime de etapas:', status);
+            // Tentar reconectar após 2 segundos
+            setTimeout(() => {
+              if (isMounted) {
+                console.log('🔄 Tentando reconectar canal realtime de etapas...');
+                setupRealtime();
+              }
+            }, 2000);
+          }
         });
     };
 

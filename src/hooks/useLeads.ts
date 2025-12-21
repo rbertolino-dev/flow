@@ -45,17 +45,57 @@ export function useLeads() {
           filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined
         },
         (payload) => {
-          console.log('🔄 Lead atualizado (realtime):', payload.new);
+          console.log('🔄 Lead atualizado (realtime):', payload);
+          console.log('📊 Payload completo:', JSON.stringify(payload, null, 2));
           const updated = payload.new as any;
           
-          // Verificar se pertence à organização ativa
-          if (activeOrgId && updated.organization_id !== activeOrgId) {
-            console.log('⚠️ Lead atualizado pertence a outra organização, ignorando...');
+          if (!updated || !updated.id) {
+            console.warn('⚠️ Payload UPDATE inválido:', payload);
             return;
           }
           
+          // Verificar se pertence à organização ativa
+          if (activeOrgId && updated.organization_id !== activeOrgId) {
+            console.log('⚠️ Lead atualizado pertence a outra organização, ignorando...', {
+              leadOrgId: updated.organization_id,
+              activeOrgId
+            });
+            return;
+          }
+          
+          console.log('✅ Processando atualização de lead:', {
+            id: updated.id,
+            name: updated.name,
+            oldName: (payload.old as any)?.name,
+            organization_id: updated.organization_id
+          });
+          
           // ✅ Update otimista: atualizar apenas o lead modificado sem refetch completo
           setLeads((prev) => {
+            const leadIndex = prev.findIndex(l => l.id === updated.id);
+            if (leadIndex === -1) {
+              console.warn('⚠️ Lead não encontrado na lista atual:', updated.id);
+              // Se não encontrou, pode ser um novo lead - adicionar
+              const newLead: Lead = {
+                id: updated.id,
+                name: updated.name,
+                phone: updated.phone,
+                email: updated.email,
+                company: updated.company,
+                value: updated.value,
+                status: updated.status as LeadStatus,
+                assignedTo: updated.assigned_to || 'Não atribuído',
+                createdAt: new Date(updated.created_at || updated.updated_at),
+                lastContact: new Date(updated.last_contact || updated.updated_at),
+                returnDate: updated.return_date ? new Date(updated.return_date) : undefined,
+                notes: updated.notes,
+                stageId: updated.stage_id,
+                source: updated.source || 'manual',
+              };
+              console.log('✅ Novo lead adicionado via realtime:', newLead.name);
+              return [...prev, newLead];
+            }
+            
             const updatedLeads = prev.map((l) => {
               if (l.id === updated.id) {
                 const newLead = {
@@ -72,11 +112,17 @@ export function useLeads() {
                   notes: updated.notes,
                   stageId: updated.stage_id,
                 };
-                console.log('✅ Lead atualizado via realtime:', updated.name);
+                console.log('✅ Lead atualizado via realtime:', {
+                  id: newLead.id,
+                  oldName: l.name,
+                  newName: newLead.name,
+                  changed: l.name !== newLead.name
+                });
                 return newLead;
               }
               return l;
             });
+            console.log('📊 Total de leads após atualização:', updatedLeads.length);
             return updatedLeads;
           });
         }
@@ -103,12 +149,15 @@ export function useLeads() {
         }
       )
       .subscribe((status) => {
-        console.log('📡 Status do canal realtime:', status);
-        // Se Realtime não está funcionando, usar polling como fallback
-        if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+        console.log('📡 Status do canal realtime de leads:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Canal realtime de leads conectado com sucesso!');
+        } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro no canal realtime de leads:', status);
           console.warn('⚠️ Realtime não está funcionando. Ativando polling como fallback...');
           // Polling a cada 10 segundos quando Realtime não funciona
           const pollingInterval = setInterval(() => {
+            console.log('🔄 Polling de fallback executado...');
             fetchLeads();
           }, 10000);
           

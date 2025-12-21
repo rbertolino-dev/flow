@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ export function SellerPerformanceReport({
   leads,
   stages,
 }: SellerPerformanceReportProps) {
+  const { toast } = useToast();
   const [selectedSeller, setSelectedSeller] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
@@ -68,7 +70,7 @@ export function SellerPerformanceReport({
     }).format(value);
   };
 
-  const handleExport = () => {
+  const handleExportCSV = () => {
     const csv = [
       [
         "Vendedor",
@@ -84,7 +86,6 @@ export function SellerPerformanceReport({
         "Mensagens WhatsApp",
         "Ligações",
         "Notas",
-        "Tempo Médio Resposta (h)",
         "Tempo Médio Fechamento (dias)",
       ].join(","),
       ...performance.map((seller) =>
@@ -102,7 +103,6 @@ export function SellerPerformanceReport({
           seller.whatsappMessages,
           seller.calls,
           seller.notes,
-          seller.averageResponseTime,
           seller.averageTimeToClose,
         ].join(",")
       ),
@@ -122,6 +122,131 @@ export function SellerPerformanceReport({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportXLSX = async () => {
+    try {
+      // Importação dinâmica do XLSX
+      const XLSX = await import('xlsx');
+      
+      const data = performance.map((seller) => ({
+        "Vendedor": seller.sellerName,
+        "Email": seller.sellerEmail,
+        "Total Leads": seller.totalLeads,
+        "Leads Este Mês": seller.leadsThisMonth,
+        "Valor Total": seller.totalValue,
+        "Ticket Médio": seller.averageTicket,
+        "Taxa Conversão (%)": seller.conversionRate,
+        "Leads Ganhos": seller.wonLeads,
+        "Leads Perdidos": seller.lostLeads,
+        "Total Atividades": seller.totalActivities,
+        "Mensagens WhatsApp": seller.whatsappMessages,
+        "Ligações": seller.calls,
+        "Notas": seller.notes,
+        "Tempo Médio Fechamento (dias)": seller.averageTimeToClose,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Performance Vendedores");
+      
+      XLSX.writeFile(wb, `relatorio-vendedores-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    } catch (error) {
+      console.error("Erro ao exportar XLSX:", error);
+      toast({
+        title: "Erro ao exportar",
+        description: "Não foi possível exportar para Excel. Tente exportar como CSV.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportPDF = () => {
+    // Função auxiliar para formatar moeda no HTML
+    const formatCurrencyHTML = (value: number) => {
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }).format(value);
+    };
+
+    // Criar HTML para PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Relatório de Performance por Vendedor</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .header { margin-bottom: 20px; }
+            .date { color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Relatório de Performance por Vendedor</h1>
+            <p class="date">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+            ${startDate && endDate ? `<p class="date">Período: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} até ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}</p>` : ''}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Vendedor</th>
+                <th>Email</th>
+                <th>Total Leads</th>
+                <th>Leads Este Mês</th>
+                <th>Valor Total</th>
+                <th>Ticket Médio</th>
+                <th>Taxa Conversão</th>
+                <th>Leads Ganhos</th>
+                <th>Leads Perdidos</th>
+                <th>Total Atividades</th>
+                <th>WhatsApp</th>
+                <th>Ligações</th>
+                <th>Notas</th>
+                <th>Tempo Fechamento (dias)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${performance.map((seller) => `
+                <tr>
+                  <td>${seller.sellerName}</td>
+                  <td>${seller.sellerEmail}</td>
+                  <td>${seller.totalLeads}</td>
+                  <td>${seller.leadsThisMonth}</td>
+                  <td>${formatCurrencyHTML(seller.totalValue)}</td>
+                  <td>${formatCurrencyHTML(seller.averageTicket)}</td>
+                  <td>${seller.conversionRate.toFixed(1)}%</td>
+                  <td>${seller.wonLeads}</td>
+                  <td>${seller.lostLeads}</td>
+                  <td>${seller.totalActivities}</td>
+                  <td>${seller.whatsappMessages}</td>
+                  <td>${seller.calls}</td>
+                  <td>${seller.notes}</td>
+                  <td>${seller.averageTimeToClose > 0 ? seller.averageTimeToClose.toFixed(1) : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    // Criar nova janela e imprimir como PDF
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
   };
 
   // Preparar dados para gráficos
@@ -151,10 +276,20 @@ export function SellerPerformanceReport({
                 Análise detalhada de atividades e resultados por vendedor
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={handleExport}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                CSV
+              </Button>
+              <Button variant="outline" onClick={handleExportXLSX}>
+                <Download className="h-4 w-4 mr-2" />
+                Excel
+              </Button>
+              <Button variant="outline" onClick={handleExportPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                PDF
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

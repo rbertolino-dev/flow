@@ -42,15 +42,15 @@ export function useSellerGoals() {
         id: item.id,
         organization_id: item.organization_id,
         user_id: item.user_id,
-        period_type: (item.goal_type as SellerGoal['period_type']) || 'monthly',
+        period_type: (item.period_type || item.goal_type as SellerGoal['period_type']) || 'monthly',
         period_start: item.period_start,
         period_end: item.period_end,
-        target_leads: 0,
-        target_value: item.target_value,
-        target_commission: 0,
+        target_leads: item.target_leads || 0,
+        target_value: item.target_value || 0,
+        target_commission: item.target_commission || 0,
         created_at: item.created_at,
         updated_at: item.updated_at,
-        created_by: null,
+        created_by: item.created_by || null,
       }));
 
       setGoals(mappedGoals);
@@ -77,10 +77,12 @@ export function useSellerGoals() {
         .from("seller_goals")
         .insert({
           user_id: goalData.user_id,
-          goal_type: goalData.period_type,
+          period_type: goalData.period_type,
           period_start: goalData.period_start,
           period_end: goalData.period_end,
-          target_value: goalData.target_value,
+          target_leads: goalData.target_leads || 0,
+          target_value: goalData.target_value || 0,
+          target_commission: goalData.target_commission || 0,
           organization_id: activeOrgId,
         })
         .select()
@@ -96,9 +98,9 @@ export function useSellerGoals() {
 
       return {
         ...data,
-        period_type: data.goal_type,
-        target_leads: 0,
-        target_commission: 0,
+        period_type: data.period_type || data.goal_type,
+        target_leads: data.target_leads || 0,
+        target_commission: data.target_commission || 0,
       } as SellerGoal;
     } catch (error: any) {
       console.error("Erro ao criar meta:", error);

@@ -12,6 +12,7 @@ import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
+import { ProductsManagement } from "./ProductsManagement";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -22,9 +23,10 @@ interface CreateLeadDialogProps {
 
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
-  const { getActiveProducts } = useProducts();
+  const { getActiveProducts, refetch: refetchProducts } = useProducts();
   const [loading, setLoading] = useState(false);
   const [addToQueue, setAddToQueue] = useState(true);
+  const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -254,7 +256,18 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="product">Produto/Serviço</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="product">Produto/Serviço</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreateProductDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Criar Produto
+              </Button>
+            </div>
             <Select 
               value={formData.productId || "none"} 
               onValueChange={(value) => {
@@ -267,7 +280,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
                 });
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="product">
                 <SelectValue placeholder="Selecione um produto (opcional)" />
               </SelectTrigger>
               <SelectContent>
@@ -290,8 +303,15 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               id="value"
               type="number"
               step="0.01"
+              min="0"
               value={formData.value}
-              onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                // Não permitir valores negativos
+                if (val === '' || parseFloat(val) >= 0) {
+                  setFormData({ ...formData, value: val });
+                }
+              }}
               placeholder="0.00"
               disabled={!!formData.productId}
             />
@@ -357,6 +377,18 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
             </Button>
           </DialogFooter>
         </form>
+
+        {/* Dialog para criar produto */}
+        {createProductDialogOpen && (
+          <ProductsManagement 
+            onProductCreated={() => {
+              refetchProducts();
+              setCreateProductDialogOpen(false);
+            }}
+            showDialog={createProductDialogOpen}
+            onClose={() => setCreateProductDialogOpen(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

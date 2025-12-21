@@ -462,14 +462,15 @@ function GoalForm({
     target_value: goal?.target_value || 0,
     target_commission: goal?.target_commission || 0,
   });
+  const [selectedPeriodType, setSelectedPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>(periodType);
 
   useEffect(() => {
-    // Calcular período baseado no tipo
+    // Calcular período baseado no tipo selecionado
     const now = new Date();
     let start: Date;
     let end: Date;
 
-    switch (periodType) {
+    switch (selectedPeriodType) {
       case 'monthly':
         start = new Date(now.getFullYear(), now.getMonth(), 1);
         end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -477,17 +478,25 @@ function GoalForm({
       case 'weekly':
         const dayOfWeek = now.getDay();
         const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        start = new Date(now.setDate(diff));
-        end = new Date(now.setDate(diff + 6));
+        const weekStart = new Date(now);
+        weekStart.setDate(diff);
+        weekStart.setHours(0, 0, 0, 0);
+        start = weekStart;
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+        end = weekEnd;
         break;
       case 'quarterly':
         const quarter = Math.floor(now.getMonth() / 3);
         start = new Date(now.getFullYear(), quarter * 3, 1);
         end = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
+        end.setHours(23, 59, 59, 999);
         break;
       case 'yearly':
         start = new Date(now.getFullYear(), 0, 1);
         end = new Date(now.getFullYear(), 11, 31);
+        end.setHours(23, 59, 59, 999);
         break;
       default:
         start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -496,10 +505,11 @@ function GoalForm({
 
     setFormData((prev) => ({
       ...prev,
+      period_type: selectedPeriodType,
       period_start: format(start, "yyyy-MM-dd"),
       period_end: format(end, "yyyy-MM-dd"),
     }));
-  }, [periodType]);
+  }, [selectedPeriodType]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -508,6 +518,25 @@ function GoalForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="period_type">Período da Meta</Label>
+        <Select value={selectedPeriodType} onValueChange={(v: any) => setSelectedPeriodType(v)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="weekly">Semanal</SelectItem>
+            <SelectItem value="monthly">Mensal</SelectItem>
+            <SelectItem value="quarterly">Trimestral</SelectItem>
+            <SelectItem value="yearly">Anual</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Período: {formData.period_start && formData.period_end 
+            ? `${format(new Date(formData.period_start), "dd/MM/yyyy", { locale: ptBR })} até ${format(new Date(formData.period_end), "dd/MM/yyyy", { locale: ptBR })}`
+            : "Selecione um período"}
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="target_leads">Meta de Leads</Label>

@@ -60,7 +60,9 @@ export function SellerActivityDashboard({ leads }: SellerActivityDashboardProps)
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Vendedor</label>
-              <Select value={selectedSeller} onValueChange={setSelectedSeller}>
+              <Select value={selectedSeller} onValueChange={(value) => {
+                setSelectedSeller(value);
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos os vendedores" />
                 </SelectTrigger>
@@ -73,6 +75,16 @@ export function SellerActivityDashboard({ leads }: SellerActivityDashboardProps)
                   ))}
                 </SelectContent>
               </Select>
+              {selectedSeller !== "all" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={() => setSelectedSeller("all")}
+                >
+                  Limpar filtro
+                </Button>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">Data Inicial</label>

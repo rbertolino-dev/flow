@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, BookmarkCheck, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, X, Pencil } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -43,6 +43,8 @@ export function SavedFiltersManager({
   const { toast } = useToast();
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingFilter, setEditingFilter] = useState<SavedFilter | null>(null);
   const [filterName, setFilterName] = useState("");
 
   useEffect(() => {
@@ -90,6 +92,38 @@ export function SavedFiltersManager({
     toast({
       title: "Sucesso",
       description: "Filtro removido",
+    });
+  };
+
+  const editFilter = (filter: SavedFilter) => {
+    setEditingFilter(filter);
+    setFilterName(filter.name);
+    setEditDialogOpen(true);
+  };
+
+  const saveEditedFilter = () => {
+    if (!filterName.trim() || !editingFilter) {
+      toast({
+        title: "Erro",
+        description: "Digite um nome para o filtro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updated = savedFilters.map((f) =>
+      f.id === editingFilter.id
+        ? { ...f, name: filterName, filters: currentFilters }
+        : f
+    );
+    setSavedFilters(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setFilterName("");
+    setEditingFilter(null);
+    setEditDialogOpen(false);
+    toast({
+      title: "Sucesso",
+      description: "Filtro atualizado com sucesso",
     });
   };
 
@@ -156,9 +190,20 @@ export function SavedFiltersManager({
           <button
             onClick={(e) => {
               e.stopPropagation();
+              editFilter(filter);
+            }}
+            className="ml-1 hover:text-primary"
+            title="Editar filtro"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
               deleteFilter(filter.id);
             }}
             className="ml-1 hover:text-destructive"
+            title="Remover filtro"
           >
             <X className="h-3 w-3" />
           </button>
@@ -197,6 +242,42 @@ export function SavedFiltersManager({
               Cancelar
             </Button>
             <Button onClick={saveFilter}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Edição */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Filtro</DialogTitle>
+            <DialogDescription>
+              Edite o nome e os filtros salvos
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="edit-filter-name">Nome do Filtro</Label>
+              <Input
+                id="edit-filter-name"
+                placeholder="Ex: Leads de Hoje, Clientes VIP..."
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEditedFilter();
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setEditDialogOpen(false);
+              setEditingFilter(null);
+              setFilterName("");
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={saveEditedFilter}>Salvar Alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

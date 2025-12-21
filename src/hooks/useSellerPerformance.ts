@@ -130,38 +130,103 @@ export function useSellerPerformance({
         return leadDate >= startOfDay(startDate) && leadDate <= endOfDay(endDate);
       });
 
-      // Períodos para comparação
-      const now = new Date();
-      const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      // Períodos para comparação - usar período filtrado se fornecido
+      let comparisonStart: Date;
+      let comparisonEnd: Date;
+      let previousPeriodStart: Date;
+      let previousPeriodEnd: Date;
 
+      if (startDate && endDate) {
+        // Se há filtro de data, calcular período anterior baseado na duração do filtro
+        const periodDuration = endDate.getTime() - startDate.getTime();
+        comparisonStart = startOfDay(startDate);
+        comparisonEnd = endOfDay(endDate);
+        previousPeriodEnd = new Date(startDate);
+        previousPeriodEnd.setTime(previousPeriodEnd.getTime() - 1);
+        previousPeriodStart = new Date(previousPeriodEnd);
+        previousPeriodStart.setTime(previousPeriodStart.getTime() - periodDuration);
+      } else {
+        // Sem filtro, usar mês atual vs mês anterior
+        const now = new Date();
+        comparisonStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        comparisonEnd = endOfDay(now);
+        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      }
+
+      const leadsInPeriod = sellerLeads.filter(
+        (lead) => {
+          const leadDate = new Date(lead.createdAt);
+          return leadDate >= comparisonStart && leadDate <= comparisonEnd;
+        }
+      ).length;
+      const leadsInPreviousPeriod = sellerLeads.filter(
+        (lead) => {
+          const leadDate = new Date(lead.createdAt);
+          return leadDate >= previousPeriodStart && leadDate <= previousPeriodEnd;
+        }
+      ).length;
+
+      const valueInPeriod = sellerLeads
+        .filter((lead) => {
+          const leadDate = new Date(lead.createdAt);
+          return leadDate >= comparisonStart && leadDate <= comparisonEnd;
+        })
+        .reduce((sum, lead) => sum + (lead.value || 0), 0);
+      const valueInPreviousPeriod = sellerLeads
+        .filter((lead) => {
+          const leadDate = new Date(lead.createdAt);
+          return leadDate >= previousPeriodStart && leadDate <= previousPeriodEnd;
+        })
+        .reduce((sum, lead) => sum + (lead.value || 0), 0);
+
+      // Para compatibilidade, manter leadsThisMonth e leadsLastMonth
       const leadsThisMonth = sellerLeads.filter(
-        (lead) => new Date(lead.createdAt) >= firstDayThisMonth
+        (lead) => {
+          const now = new Date();
+          const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          return new Date(lead.createdAt) >= firstDayThisMonth;
+        }
       ).length;
       const leadsLastMonth = sellerLeads.filter(
         (lead) => {
+          const now = new Date();
+          const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
           const leadDate = new Date(lead.createdAt);
           return leadDate >= firstDayLastMonth && leadDate <= lastDayLastMonth;
         }
       ).length;
 
       const valueThisMonth = sellerLeads
-        .filter((lead) => new Date(lead.createdAt) >= firstDayThisMonth)
+        .filter((lead) => {
+          const now = new Date();
+          const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          return new Date(lead.createdAt) >= firstDayThisMonth;
+        })
         .reduce((sum, lead) => sum + (lead.value || 0), 0);
       const valueLastMonth = sellerLeads
         .filter((lead) => {
+          const now = new Date();
+          const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
           const leadDate = new Date(lead.createdAt);
           return leadDate >= firstDayLastMonth && leadDate <= lastDayLastMonth;
         })
         .reduce((sum, lead) => sum + (lead.value || 0), 0);
 
-      const leadsGrowth =
-        leadsLastMonth > 0
-          ? ((leadsThisMonth - leadsLastMonth) / leadsLastMonth) * 100
-          : leadsThisMonth > 0
-          ? 100
-          : 0;
+      // Calcular crescimento baseado no período filtrado (se houver) ou mês atual
+      const leadsGrowth = startDate && endDate
+        ? (leadsInPreviousPeriod > 0
+            ? ((leadsInPeriod - leadsInPreviousPeriod) / leadsInPreviousPeriod) * 100
+            : leadsInPeriod > 0
+            ? 100
+            : 0)
+        : (leadsLastMonth > 0
+            ? ((leadsThisMonth - leadsLastMonth) / leadsLastMonth) * 100
+            : leadsThisMonth > 0
+            ? 100
+            : 0);
 
       // Métricas de valor
       const totalValue = filteredLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
@@ -308,7 +373,7 @@ export function useSellerPerformance({
         totalLeads: filteredLeads.length,
         leadsThisMonth,
         leadsLastMonth,
-        leadsGrowth: Math.round(leadsGrowth * 10) / 10,
+        leadsGrowth: Math.round(leadsGrowth * 10) / 10, // Usa período filtrado se houver
         totalValue,
         valueThisMonth,
         valueLastMonth,
