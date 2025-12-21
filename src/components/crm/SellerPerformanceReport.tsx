@@ -86,7 +86,6 @@ export function SellerPerformanceReport({
         "Mensagens WhatsApp",
         "Ligações",
         "Notas",
-        "Tempo Médio Resposta (h)",
         "Tempo Médio Fechamento (dias)",
       ].join(","),
       ...performance.map((seller) =>
@@ -104,7 +103,6 @@ export function SellerPerformanceReport({
           seller.whatsappMessages,
           seller.calls,
           seller.notes,
-          seller.averageResponseTime,
           seller.averageTimeToClose,
         ].join(",")
       ),
@@ -145,7 +143,6 @@ export function SellerPerformanceReport({
         "Mensagens WhatsApp": seller.whatsappMessages,
         "Ligações": seller.calls,
         "Notas": seller.notes,
-        "Tempo Médio Resposta (h)": seller.averageResponseTime,
         "Tempo Médio Fechamento (dias)": seller.averageTimeToClose,
       }));
 
@@ -213,7 +210,6 @@ export function SellerPerformanceReport({
                 <th>WhatsApp</th>
                 <th>Ligações</th>
                 <th>Notas</th>
-                <th>Tempo Resposta (h)</th>
                 <th>Tempo Fechamento (dias)</th>
               </tr>
             </thead>
@@ -233,7 +229,6 @@ export function SellerPerformanceReport({
                   <td>${seller.whatsappMessages}</td>
                   <td>${seller.calls}</td>
                   <td>${seller.notes}</td>
-                  <td>${seller.averageResponseTime.toFixed(1)}</td>
                   <td>${seller.averageTimeToClose > 0 ? seller.averageTimeToClose.toFixed(1) : '—'}</td>
                 </tr>
               `).join('')}
@@ -473,7 +468,6 @@ export function SellerPerformanceReport({
                       <TableHead>Ganhos</TableHead>
                       <TableHead>Perdidos</TableHead>
                       <TableHead>Atividades</TableHead>
-                      <TableHead>Tempo Resposta</TableHead>
                       <TableHead>Tempo Fechamento</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -532,12 +526,6 @@ export function SellerPerformanceReport({
                                 {seller.calls}
                               </span>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {seller.averageResponseTime.toFixed(1)}h
                           </div>
                         </TableCell>
                         <TableCell>

@@ -5,6 +5,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -98,10 +100,27 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
+  const [editLeadDialogOpen, setEditLeadDialogOpen] = useState(false);
+  const [editingLeadData, setEditingLeadData] = useState({
+    name: lead.name,
+    phone: lead.phone,
+    email: lead.email || "",
+    company: lead.company || "",
+    value: lead.value?.toString() || "",
+    notes: lead.notes || "",
+  });
 
   // Atualizar currentLead quando o lead prop mudar
   useEffect(() => {
     setCurrentLead(lead);
+    setEditingLeadData({
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email || "",
+      company: lead.company || "",
+      value: lead.value?.toString() || "",
+      notes: lead.notes || "",
+    });
   }, [lead]);
 
   // Identificar listas que contêm este lead
@@ -452,6 +471,14 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         description: "A observação foi salva no lead e registrada no histórico",
       });
 
+      // ✅ Atualizar localmente para feedback imediato
+      setCurrentLead({ ...currentLead, notes: newComment });
+      
+      // ✅ Disparar evento de refresh para atualizar em tempo real na Lista de Leads
+      window.dispatchEvent(new CustomEvent('data-refresh', {
+        detail: { type: 'update', entity: 'lead' }
+      }));
+
       setNewComment("");
       onUpdated?.();
     } catch (error: any) {
@@ -578,15 +605,51 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       const dateInSaoPaulo = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
       const zonedDate = fromZonedTime(dateInSaoPaulo, TIMEZONE);
       
-      const { error } = await (supabase as any)
-        .from('leads')
-        .update({ 
-          return_date: zonedDate.toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', lead.id);
+      // ✅ RESILIENTE: Tentar atualizar return_date, se falhar por coluna não existir, usar fallback
+      let updateData: any = { 
+        updated_at: new Date().toISOString()
+      };
+      
+      // Tentar adicionar return_date
+      try {
+        updateData.return_date = zonedDate.toISOString();
+        const { error } = await (supabase as any)
+          .from('leads')
+          .update(updateData)
+          .eq('id', lead.id);
 
-      if (error) throw error;
+        if (error) {
+          // Se erro de coluna não existir, tentar sem return_date
+          if (error.message?.includes('return_date') || error.code === 'PGRST204') {
+            console.warn('⚠️ Coluna return_date não existe, usando fallback...');
+            delete updateData.return_date;
+            const { error: retryError } = await (supabase as any)
+              .from('leads')
+              .update(updateData)
+              .eq('id', lead.id);
+            if (retryError) throw retryError;
+            
+            toast({
+              title: "Aviso",
+              description: "Data de retorno não foi salva (coluna não disponível no banco). Entre em contato com o suporte.",
+              variant: "default",
+            });
+            return;
+          }
+          throw error;
+        }
+      } catch (err: any) {
+        if (err.message?.includes('return_date') || err.code === 'PGRST204') {
+          console.warn('⚠️ Coluna return_date não existe no schema cache');
+          toast({
+            title: "Aviso",
+            description: "A coluna 'return_date' não está disponível no banco de dados. Entre em contato com o suporte para adicionar esta coluna.",
+            variant: "default",
+          });
+          return;
+        }
+        throw err;
+      }
 
       toast({
         title: "Data de retorno salva",
@@ -801,7 +864,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
-              <h3 className="font-semibold text-lg">Informações de Contato</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Informações de Contato</h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditLeadDialogOpen(true)}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar Dados
+                </Button>
+              </div>
               <div className="grid gap-3">
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />
@@ -838,11 +911,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <Label htmlFor="return-date" className="text-sm">Data de Retorno:</Label>
+                    <span className="text-sm">Data de Retorno:</span>
                   </div>
                   <div className="flex items-center gap-2 flex-1">
                     <Input
-                      id="return-date"
                       type="date"
                       value={returnDate}
                       onChange={(e) => setReturnDate(e.target.value)}
@@ -1131,13 +1203,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
               </div>
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="instance-select">Instância WhatsApp</Label>
+                  <Label>Instância WhatsApp</Label>
                   <Select 
                     value={selectedInstanceId} 
                     onValueChange={setSelectedInstanceId}
                     disabled={!hasInstances}
                   >
-                    <SelectTrigger id="instance-select">
+                    <SelectTrigger>
                       <SelectValue placeholder={
                         !hasInstances 
                           ? "Nenhuma instância configurada" 
@@ -1181,9 +1253,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
                 {templates.length > 0 && (
                   <div>
-                    <Label htmlFor="template-select">Template (opcional)</Label>
+                    <Label>Template (opcional)</Label>
                     <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
-                      <SelectTrigger id="template-select">
+                      <SelectTrigger>
                         <SelectValue placeholder="Usar um template" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1343,6 +1415,135 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           onUpdated?.();
         }}
       />
+
+      {/* Dialog de Edição Completa do Lead */}
+      <Dialog open={editLeadDialogOpen} onOpenChange={setEditLeadDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Dados do Lead</DialogTitle>
+            <DialogDescription>
+              Edite todas as informações do contato
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              const { error } = await supabase
+                .from('leads')
+                .update({
+                  name: editingLeadData.name,
+                  phone: editingLeadData.phone,
+                  email: editingLeadData.email || null,
+                  company: editingLeadData.company || null,
+                  value: editingLeadData.value ? parseFloat(editingLeadData.value) : null,
+                  notes: editingLeadData.notes || null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', lead.id);
+
+              if (error) throw error;
+
+              toast({
+                title: "Lead atualizado",
+                description: "Os dados do lead foram atualizados com sucesso",
+              });
+
+              // ✅ Disparar evento de refresh para atualizar em tempo real
+              window.dispatchEvent(new CustomEvent('data-refresh', {
+                detail: { type: 'update', entity: 'lead' }
+              }));
+
+              setEditLeadDialogOpen(false);
+              onUpdated?.();
+            } catch (error: any) {
+              toast({
+                title: "Erro ao atualizar lead",
+                description: error.message,
+                variant: "destructive",
+              });
+            }
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nome *</Label>
+              <Input
+                id="edit-name"
+                value={editingLeadData.name}
+                onChange={(e) => setEditingLeadData({ ...editingLeadData, name: e.target.value })}
+                placeholder="Nome completo"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Telefone *</Label>
+              <Input
+                id="edit-phone"
+                value={editingLeadData.phone}
+                onChange={(e) => setEditingLeadData({ ...editingLeadData, phone: e.target.value })}
+                placeholder="(11) 98765-4321"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editingLeadData.email}
+                onChange={(e) => setEditingLeadData({ ...editingLeadData, email: e.target.value })}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-company">Empresa</Label>
+              <Input
+                id="edit-company"
+                value={editingLeadData.company}
+                onChange={(e) => setEditingLeadData({ ...editingLeadData, company: e.target.value })}
+                placeholder="Nome da empresa"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-value">Valor (R$)</Label>
+              <Input
+                id="edit-value"
+                type="number"
+                step="0.01"
+                min="0"
+                value={editingLeadData.value}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || parseFloat(value) >= 0) {
+                    setEditingLeadData({ ...editingLeadData, value });
+                  }
+                }}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Observações</Label>
+              <Textarea
+                id="edit-notes"
+                value={editingLeadData.notes}
+                onChange={(e) => setEditingLeadData({ ...editingLeadData, notes: e.target.value })}
+                placeholder="Informações adicionais..."
+                rows={3}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditLeadDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">Salvar Alterações</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

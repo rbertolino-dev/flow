@@ -12,6 +12,7 @@ import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
+import { Plus } from "lucide-react";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -22,9 +23,16 @@ interface CreateLeadDialogProps {
 
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
-  const { getActiveProducts } = useProducts();
+  const { getActiveProducts, createProduct, refetch: refetchProducts } = useProducts();
   const [loading, setLoading] = useState(false);
   const [addToQueue, setAddToQueue] = useState(true);
+  const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
+  const [newProductData, setNewProductData] = useState({
+    name: "",
+    description: "",
+    price: "",
+    category: "",
+  });
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -254,7 +262,18 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="product">Produto/Serviço</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="product">Produto/Serviço</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreateProductDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Criar Novo
+              </Button>
+            </div>
             <Select 
               value={formData.productId || "none"} 
               onValueChange={(value) => {
@@ -267,7 +286,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
                 });
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="product">
                 <SelectValue placeholder="Selecione um produto (opcional)" />
               </SelectTrigger>
               <SelectContent>
@@ -290,8 +309,15 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               id="value"
               type="number"
               step="0.01"
+              min="0"
               value={formData.value}
-              onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Não permitir valores negativos
+                if (value === '' || parseFloat(value) >= 0) {
+                  setFormData({ ...formData, value });
+                }
+              }}
               placeholder="0.00"
               disabled={!!formData.productId}
             />
@@ -358,6 +384,137 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Dialog de Criar Produto */}
+      <Dialog open={createProductDialogOpen} onOpenChange={setCreateProductDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Novo Produto/Serviço</DialogTitle>
+            <DialogDescription>
+              Crie um produto ou serviço rapidamente para usar neste lead
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newProductData.name || !newProductData.price) {
+              toast({
+                title: "Campos obrigatórios",
+                description: "Nome e preço são obrigatórios",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            const price = parseFloat(newProductData.price);
+            if (isNaN(price) || price < 0) {
+              toast({
+                title: "Preço inválido",
+                description: "Digite um preço válido (não negativo)",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            try {
+              const product = await createProduct({
+                name: newProductData.name,
+                description: newProductData.description || null,
+                price: price,
+                category: newProductData.category || "Produto",
+                is_active: true,
+              });
+
+              await refetchProducts();
+              
+              // Selecionar o produto recém-criado
+              setFormData(prev => ({
+                ...prev,
+                productId: product.id,
+                value: product.price.toString()
+              }));
+
+              setNewProductData({
+                name: "",
+                description: "",
+                price: "",
+                category: "",
+              });
+              setCreateProductDialogOpen(false);
+
+              toast({
+                title: "Produto criado",
+                description: "O produto foi criado e selecionado automaticamente",
+              });
+            } catch (error: any) {
+              toast({
+                title: "Erro ao criar produto",
+                description: error.message,
+                variant: "destructive",
+              });
+            }
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-product-name">Nome *</Label>
+              <Input
+                id="new-product-name"
+                value={newProductData.name}
+                onChange={(e) => setNewProductData({ ...newProductData, name: e.target.value })}
+                placeholder="Nome do produto/serviço"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-product-description">Descrição</Label>
+              <Textarea
+                id="new-product-description"
+                value={newProductData.description}
+                onChange={(e) => setNewProductData({ ...newProductData, description: e.target.value })}
+                placeholder="Descrição (opcional)"
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-product-price">Preço (R$) *</Label>
+                <Input
+                  id="new-product-price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newProductData.price}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || parseFloat(value) >= 0) {
+                      setNewProductData({ ...newProductData, price: value });
+                    }
+                  }}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-product-category">Categoria</Label>
+                <Input
+                  id="new-product-category"
+                  value={newProductData.category}
+                  onChange={(e) => setNewProductData({ ...newProductData, category: e.target.value })}
+                  placeholder="Ex: Produto, Serviço"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateProductDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">Criar e Selecionar</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

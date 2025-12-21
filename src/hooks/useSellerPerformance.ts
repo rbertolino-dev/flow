@@ -147,7 +147,7 @@ export function useSellerPerformance({
         previousPeriodStart.setTime(previousPeriodStart.getTime() - periodDuration);
       } else {
         // Sem filtro, usar mês atual vs mês anterior
-        const now = new Date();
+      const now = new Date();
         comparisonStart = new Date(now.getFullYear(), now.getMonth(), 1);
         comparisonEnd = endOfDay(now);
         previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
@@ -223,9 +223,9 @@ export function useSellerPerformance({
             ? 100
             : 0)
         : (leadsLastMonth > 0
-            ? ((leadsThisMonth - leadsLastMonth) / leadsLastMonth) * 100
-            : leadsThisMonth > 0
-            ? 100
+          ? ((leadsThisMonth - leadsLastMonth) / leadsLastMonth) * 100
+          : leadsThisMonth > 0
+          ? 100
             : 0);
 
       // Métricas de valor
