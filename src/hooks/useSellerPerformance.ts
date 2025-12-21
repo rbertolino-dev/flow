@@ -131,6 +131,7 @@ export function useSellerPerformance({
       });
 
       // Períodos para comparação - usar período filtrado se fornecido
+      const now = new Date(); // Definir now no escopo correto
       let comparisonStart: Date;
       let comparisonEnd: Date;
       let previousPeriodStart: Date;
@@ -147,7 +148,6 @@ export function useSellerPerformance({
         previousPeriodStart.setTime(previousPeriodStart.getTime() - periodDuration);
       } else {
         // Sem filtro, usar mês atual vs mês anterior
-      const now = new Date();
         comparisonStart = new Date(now.getFullYear(), now.getMonth(), 1);
         comparisonEnd = endOfDay(now);
         previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
