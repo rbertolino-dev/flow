@@ -83,6 +83,12 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
+// Garantir que DialogDescription seja sempre incluído no bundle
+// Forçar referência para evitar tree-shaking
+if (typeof window !== 'undefined') {
+  (window as any).__DIALOG_DESCRIPTION__ = DialogDescription;
+}
+
 export {
   Dialog,
   DialogPortal,
