@@ -2,9 +2,15 @@
 
 # 🚀 Script: Deploy Zero-Downtime (Blue-Green Deployment)
 # Descrição: Faz deploy sem downtime usando estratégia blue-green
-# Uso: ./scripts/deploy-zero-downtime.sh [--rollback]
+# Uso: ./scripts/deploy-zero-downtime.sh [--rollback] [--test-first] [--skip-git-check]
+# 
+# Opções:
+#   --rollback        Faz rollback para versão anterior
+#   --test-first      Faz deploy para ambiente de teste primeiro (porta 3002)
+#   --skip-git-check  Pula verificações Git (use apenas em casos especiais)
 # 
 # NOTA: Script usa orquestração para evitar conflitos quando múltiplos agentes trabalham juntos
+# NOTA: Verificações Git são obrigatórias por padrão (garante sincronização entre agentes)
 
 set -e
 
@@ -31,12 +37,36 @@ DEPLOY_LOCK_FD=200
 # Variáveis
 ROLLBACK_MODE=false
 TEST_FIRST=false
-SKIP_GIT_CHECK=false
 CURRENT_VERSION="blue"
 NEW_VERSION="green"
 STABILITY_WAIT=30
 
-# Funções de log (definir antes de usar)
+# Verificar argumentos
+SKIP_GIT_CHECK=false
+ROLLBACK_MODE=false
+TEST_FIRST=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --rollback)
+            ROLLBACK_MODE=true
+            CURRENT_VERSION="green"
+            NEW_VERSION="blue"
+            ;;
+        --test-first)
+            TEST_FIRST=true
+            ;;
+        --skip-git-check)
+            SKIP_GIT_CHECK=true
+            ;;
+    esac
+done
+
+if [ "$SKIP_GIT_CHECK" = true ]; then
+    log_warn "⚠️  Modo --skip-git-check ativado (pulando verificações Git)"
+    log_warn "   Use apenas em casos especiais (ex: servidor sem acesso ao GitHub)"
+fi
+
 log() {
     echo -e "${BLUE}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
@@ -52,19 +82,6 @@ log_error() {
 log_warn() {
     echo -e "${YELLOW}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
-
-# Verificar argumentos
-if [ "$1" = "--rollback" ]; then
-    ROLLBACK_MODE=true
-    CURRENT_VERSION="green"
-    NEW_VERSION="blue"
-elif [ "$1" = "--test-first" ]; then
-    TEST_FIRST=true
-elif [ "$1" = "--skip-git-check" ]; then
-    SKIP_GIT_CHECK=true
-    log_warn "⚠️  Modo --skip-git-check ativado (NÃO RECOMENDADO)"
-    log_warn "   Verificações Git serão puladas - use apenas em emergências"
-fi
 
 # Função helper para operações Docker protegidas pelo lock do deploy
 docker_with_deploy_lock() {
@@ -327,6 +344,13 @@ log_success "Pré-requisitos OK"
 # IMPORTANTE: Só faz deploy do que está no GitHub (já commitado e publicado)
 # Mudanças locais não commitadas são IGNORADAS (não sobem no deploy)
 sync_git_code() {
+    # Se modo skip-git-check, pular todas verificações
+    if [ "$SKIP_GIT_CHECK" = true ]; then
+        log_warn "⚠️  Pulando verificações Git (--skip-git-check ativado)"
+        log_warn "   Certifique-se de que o código está correto antes de continuar"
+        return 0
+    fi
+    
     log "Sincronizando código do GitHub (verificação obrigatória)..."
     log "⚠️  IMPORTANTE: Apenas código já publicado no GitHub será deployado"
     log "   Mudanças locais não commitadas serão IGNORADAS (não sobem no deploy)"
@@ -343,29 +367,22 @@ sync_git_code() {
         exit 1
     fi
     
-    # VERIFICAÇÃO 1: Status do repositório
-    log "Verificação 1/6: Verificando status do repositório..."
-    if ! git status &>/dev/null; then
-        log_error "Repositório Git inválido ou corrompido!"
-        exit 1
-    fi
+    # Obter branch atual (precisa antes das verificações)
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
     
-    # VERIFICAÇÃO 1.5: Detached HEAD (BLOQUEIA - estado inválido)
-    log "Verificação 1.5/6: Verificando se HEAD está em branch válido..."
+    # VERIFICAÇÃO 1: Detached HEAD (BLOQUEIA - estado inválido)
+    log "Verificação 1/7: Verificando estado do HEAD..."
     if ! git symbolic-ref -q HEAD >/dev/null 2>&1; then
         log_error "⚠️  HEAD está em estado detached (não está em um branch)!"
         log_error "   Isso pode causar problemas no deploy"
         log_error "   Solução: git checkout main (ou seu branch de trabalho)"
         exit 1
     else
-        log_success "HEAD está em branch válido"
+        log_success "HEAD está em branch válido: ${CURRENT_BRANCH}"
     fi
     
-    # Obter branch atual (precisa estar aqui para outras verificações)
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-    
-    # VERIFICAÇÃO 1.6: Branch correto (AVISO, não bloqueia)
-    log "Verificação 1.6/6: Verificando branch..."
+    # VERIFICAÇÃO 2: Branch correto (AVISO, não bloqueia)
+    log "Verificação 2/7: Verificando branch..."
     if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
         log_warn "⚠️  Você está no branch '${CURRENT_BRANCH}' (não é main/master)"
         log_warn "   Certifique-se de que é o branch correto para produção"
@@ -374,8 +391,31 @@ sync_git_code() {
         log_success "Branch correto: ${CURRENT_BRANCH}"
     fi
     
-    # VERIFICAÇÃO 2: Mudanças locais não commitadas (BLOQUEIA deploy se houver)
-    log "Verificação 2/6: Verificando mudanças locais não commitadas..."
+    # VERIFICAÇÃO 3: Status do repositório
+    log "Verificação 3/7: Verificando status do repositório..."
+    if ! git status &>/dev/null; then
+        log_error "Repositório Git inválido ou corrompido!"
+        exit 1
+    fi
+    
+    # VERIFICAÇÃO 4: Commits locais não pushados (AVISO, não bloqueia)
+    log "Verificação 4/7: Verificando commits locais não pushados..."
+    # Fetch primeiro para ter referências atualizadas
+    git fetch origin "$CURRENT_BRANCH" &>/dev/null || true
+    LOCAL_AHEAD=$(git rev-list --count "origin/${CURRENT_BRANCH}..HEAD" 2>/dev/null || echo "0")
+    if [ "$LOCAL_AHEAD" -gt "0" ]; then
+        log_warn "⚠️  Há $LOCAL_AHEAD commit(s) local(is) não pushado(s)!"
+        log_warn "   Esses commits NÃO estarão disponíveis para outros agentes"
+        log_warn "   Recomendado: git push origin ${CURRENT_BRANCH}"
+        log_warn "   Continuando deploy mesmo assim (apenas aviso)..."
+        log "   Últimos commits locais não pushados:"
+        git log "origin/${CURRENT_BRANCH}..HEAD" --oneline -5 2>/dev/null || true
+    else
+        log_success "Todos os commits locais já foram pushados"
+    fi
+    
+    # VERIFICAÇÃO 5: Mudanças locais não commitadas (BLOQUEIA deploy se houver)
+    log "Verificação 5/7: Verificando mudanças locais não commitadas..."
     if ! git diff --quiet || ! git diff --cached --quiet; then
         log_error "⚠️  Há mudanças locais não commitadas!"
         git status --short
@@ -395,28 +435,8 @@ sync_git_code() {
         log_success "Nenhuma mudança local não commitada"
     fi
     
-    # VERIFICAÇÃO 2.5: Commits locais não pushados (AVISO, não bloqueia)
-    log "Verificação 2.5/6: Verificando commits locais não pushados..."
-    # Verificar se branch remoto existe
-    if git ls-remote --heads origin "$CURRENT_BRANCH" &>/dev/null; then
-        LOCAL_AHEAD=$(git rev-list --count "origin/${CURRENT_BRANCH}..HEAD" 2>/dev/null || echo "0")
-        if [ "$LOCAL_AHEAD" -gt "0" ]; then
-            log_warn "⚠️  Há $LOCAL_AHEAD commit(s) local(is) não pushado(s)!"
-            log_warn "   Esses commits NÃO estarão disponíveis para outros agentes"
-            log_warn "   Recomendado: git push origin ${CURRENT_BRANCH}"
-            log_warn "   Continuando deploy mesmo assim (apenas aviso)..."
-            log "   Últimos commits locais não pushados:"
-            git log "origin/${CURRENT_BRANCH}..HEAD" --oneline -5 2>/dev/null | sed 's/^/     /' || true
-        else
-            log_success "Todos os commits locais já foram pushados"
-        fi
-    else
-        log_warn "Branch remoto '${CURRENT_BRANCH}' não existe ainda (primeiro push?)"
-        log_warn "Continuando deploy mesmo assim..."
-    fi
-    
-    # VERIFICAÇÃO 3: Fetch e Pull (primeira tentativa)
-    log "Verificação 3/6: Sincronizando com repositório remoto (primeira tentativa)..."
+    # VERIFICAÇÃO 6: Fetch e Pull (primeira tentativa)
+    log "Verificação 6/7: Sincronizando com repositório remoto (primeira tentativa)..."
     log "Branch atual: ${CURRENT_BRANCH}"
     
     # Fetch para atualizar referências remotas
@@ -464,8 +484,25 @@ sync_git_code() {
         log_success "Código atualizado do repositório remoto (mudanças de outros agentes incorporadas)"
     fi
     
-    # VERIFICAÇÃO 4: Verificação redundante (segunda tentativa)
-    log "Verificação 4/6: Verificação redundante (garantindo sincronização)..."
+    # Mostrar resumo do que será deployado (informação, não é verificação)
+    log "Resumo do que será deployado:"
+    log "Últimos commits que serão deployados:"
+    git log --oneline -5 "origin/${CURRENT_BRANCH}" 2>/dev/null || git log --oneline -5 || true
+    
+    # Verificar última tag se existir
+    LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    if [ -n "$LAST_TAG" ]; then
+        TAG_COMMIT=$(git rev-parse "$LAST_TAG" 2>/dev/null || echo "")
+        CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+        if [ "$TAG_COMMIT" = "$CURRENT_COMMIT" ]; then
+            log_success "Deployando versão taggeada: ${LAST_TAG}"
+        else
+            log "Última tag: ${LAST_TAG} (não é o commit atual)"
+        fi
+    fi
+    
+    # VERIFICAÇÃO 7: Verificação redundante (segunda tentativa)
+    log "Verificação 7/7: Verificação redundante (garantindo sincronização)..."
     sleep 1  # Pequeno delay para garantir que tudo foi escrito
     
     # Fetch novamente para garantir
@@ -506,36 +543,34 @@ sync_git_code() {
         exit 1
     fi
     
-    # VERIFICAÇÃO 5: Mostrar resumo do que será deployado
-    log "Verificação 5/6: Resumo do que será deployado..."
+    # Log commit atual para rastreabilidade (informação final)
+    log "Informações do commit que será deployado:"
     CURRENT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     CURRENT_BRANCH_FINAL=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "unknown")
+    COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an" 2>/dev/null || echo "unknown")
+    COMMIT_DATE=$(git log -1 --pretty=format:"%ad" --date=short 2>/dev/null || echo "unknown")
     
-    log "   Commit atual: ${CURRENT_COMMIT}"
+    log_success "Código sincronizado!"
+    log "   Commit: ${CURRENT_COMMIT}"
     log "   Branch: ${CURRENT_BRANCH_FINAL}"
+    log "   Mensagem: ${COMMIT_MESSAGE}"
+    log "   Autor: ${COMMIT_AUTHOR}"
+    log "   Data: ${COMMIT_DATE}"
     
-    # Mostrar últimos commits que serão deployados
-    log "   Últimos 5 commits que serão deployados:"
-    git log --oneline -5 2>/dev/null | sed 's/^/     /' || log_warn "   Não foi possível obter histórico"
-    
-    # Verificar se há tags
-    LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-    if [ -n "$LATEST_TAG" ]; then
-        TAG_DISTANCE=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "?")
-        log "   Última tag: ${LATEST_TAG} (${TAG_DISTANCE} commit(s) depois)"
-    else
-        log "   Nenhuma tag encontrada"
+    # Verificação final de integridade (informação)
+    log "Verificação final de integridade..."
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        log_warn "⚠️  Ainda há mudanças não commitadas após sincronização (pode ser normal)"
     fi
     
-    # VERIFICAÇÃO 6: Verificação final de integridade
-    log "Verificação 6/6: Verificação final de integridade..."
-    if ! git fsck --no-progress --no-dangling >/dev/null 2>&1; then
-        log_warn "Git fsck detectou problemas (continuando mesmo assim)"
-    else
-        log_success "Integridade do repositório OK"
+    # Verificar se há arquivos não rastreados importantes
+    UNTRACKED_COUNT=$(git ls-files --others --exclude-standard | wc -l 2>/dev/null || echo "0")
+    if [ "$UNTRACKED_COUNT" -gt "0" ]; then
+        log_warn "⚠️  Há $UNTRACKED_COUNT arquivo(s) não rastreado(s) (não afetam deploy)"
     fi
     
-    log_success "Código sincronizado! Commit: ${CURRENT_COMMIT} (branch: ${CURRENT_BRANCH_FINAL})"
+    log_success "Todas verificações Git concluídas com sucesso!"
     
     return 0
 }
@@ -618,17 +653,10 @@ log "  - Nova versão: ${NEW_VERSION}"
 
 # Sincronização Git OBRIGATÓRIA antes do build
 log "3/9 - Sincronizando código do Git (OBRIGATÓRIO)..."
-if [ "$SKIP_GIT_CHECK" = true ]; then
-    log_warn "⚠️  Pulando verificação Git (--skip-git-check ativado)"
-    log_warn "   Isso pode causar problemas com múltiplos agentes!"
-    log_warn "   Use apenas em emergências ou quando servidor não tem acesso ao GitHub"
-else
-    sync_git_code || {
-        log_error "Falha na sincronização Git! Deploy cancelado."
-        log_error "   Se precisar pular verificação Git (NÃO RECOMENDADO), use: --skip-git-check"
-        exit 1
-    }
-fi
+sync_git_code || {
+    log_error "Falha na sincronização Git! Deploy cancelado."
+    exit 1
+}
 
 # Build da nova versão (usando lock do deploy - não precisa orchestrator)
 log "4/9 - Fazendo build da nova versão (${NEW_VERSION})..."

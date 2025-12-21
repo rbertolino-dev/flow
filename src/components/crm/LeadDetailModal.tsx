@@ -643,12 +643,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
       if (error) throw error;
 
+      // ✅ Realtime já atualiza automaticamente - não precisa refetch manual
+      // O hook useLeads já está escutando mudanças em tempo real
+
       toast({
         title: "Nome atualizado",
         description: "O nome do contato foi atualizado com sucesso.",
       });
 
       setIsEditingName(false);
+      // Atualizar localmente para feedback imediato
+      setCurrentLead({ ...currentLead, name: editedName.trim() });
       onUpdated?.();
     } catch (error: any) {
       toast({

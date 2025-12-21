@@ -38,12 +38,24 @@ export function useLeads() {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'leads' },
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'leads',
+          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined
+        },
         (payload) => {
           console.log('🔄 Lead atualizado (realtime):', payload.new);
+          const updated = payload.new as any;
+          
+          // Verificar se pertence à organização ativa
+          if (activeOrgId && updated.organization_id !== activeOrgId) {
+            console.log('⚠️ Lead atualizado pertence a outra organização, ignorando...');
+            return;
+          }
+          
           // ✅ Update otimista: atualizar apenas o lead modificado sem refetch completo
           setLeads((prev) => {
-            const updated = payload.new as any;
             return prev.map((l) => {
               if (l.id === updated.id) {
                 return {

@@ -15,25 +15,78 @@ export function useTags() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchTags();
+    let channel: any = null;
+    let orgId: string | null = null;
 
-    const channel = supabase
-      .channel('tags-channel')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tags'
-        },
-        () => {
-          fetchTags();
-        }
-      )
-      .subscribe();
+    const setupRealtime = async () => {
+      // Buscar organization_id antes de configurar realtime
+      orgId = await getUserOrganizationId();
+      if (!orgId) {
+        fetchTags();
+        return;
+      }
+
+      fetchTags();
+
+      // Configurar realtime com filtro por organization_id
+      channel = supabase
+        .channel(`tags-channel-${orgId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tags',
+            filter: `organization_id=eq.${orgId}`
+          },
+          (payload: any) => {
+            console.log('🏷️ Etiqueta atualizada (realtime):', payload);
+            // Atualizar imediatamente sem refetch completo
+            if (payload.eventType === 'INSERT') {
+              // Nova etiqueta criada - adicionar otimisticamente
+              const newTag = payload.new;
+              setTags((prev) => {
+                // Verificar se já existe para evitar duplicatas
+                if (prev.find(t => t.id === newTag.id)) return prev;
+                return [...prev, {
+                  id: newTag.id,
+                  name: newTag.name,
+                  color: newTag.color
+                }].sort((a, b) => a.name.localeCompare(b.name));
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              // Etiqueta atualizada - atualizar otimisticamente
+              const updatedTag = payload.new;
+              setTags((prev) => 
+                prev.map(t => t.id === updatedTag.id ? {
+                  id: updatedTag.id,
+                  name: updatedTag.name,
+                  color: updatedTag.color
+                } : t).sort((a, b) => a.name.localeCompare(b.name))
+              );
+            } else if (payload.eventType === 'DELETE') {
+              // Etiqueta deletada - remover otimisticamente
+              const deletedId = payload.old?.id;
+              if (deletedId) {
+                setTags((prev) => prev.filter(t => t.id !== deletedId));
+              }
+            } else {
+              // Fallback: refetch completo
+              fetchTags();
+            }
+          }
+        )
+        .subscribe((status: string) => {
+          console.log('📡 Status do canal realtime de etiquetas:', status);
+        });
+    };
+
+    setupRealtime();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 

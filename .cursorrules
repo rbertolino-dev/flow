@@ -1620,17 +1620,21 @@ Deploy concluído - último deploy garantido no ar
 - O container rodando é apenas a versão já buildada anteriormente (não é usado no build)
 - Por isso precisamos fazer `git pull` ANTES do build para atualizar o diretório local
 
-### Verificações Implementadas (6 Verificações + Redundância):
+### Verificações Implementadas (7 Verificações + Informações):
 
-1. ✅ **Status do Repositório**: Verifica se repositório Git é válido
-2. ✅ **Detached HEAD**: Bloqueia se HEAD não está em branch válido (segurança)
-3. ✅ **Branch Correto**: Avisa se não for main/master (não bloqueia)
-4. ✅ **Mudanças Locais**: Bloqueia se houver mudanças não commitadas (segurança)
-5. ✅ **Commits Não Pushados**: Avisa se houver commits locais não pushados (não bloqueia)
+1. ✅ **Detached HEAD** (BLOQUEIA): Verifica se HEAD está em branch válido
+2. ✅ **Branch Correto** (AVISO): Avisa se não for main/master (não bloqueia)
+3. ✅ **Status do Repositório**: Verifica se repositório Git é válido
+4. ✅ **Commits Não Pushados** (AVISO): Detecta commits locais não pushados (não bloqueia)
+5. ✅ **Mudanças Não Commitadas** (BLOQUEIA): Detecta mudanças não commitadas (bloqueia deploy)
 6. ✅ **Fetch e Pull**: Sincroniza com repositório remoto (primeira tentativa)
 7. ✅ **Verificação Redundante**: Verifica novamente e tenta pull se necessário
-8. ✅ **Resumo do Deploy**: Mostra últimos commits e tags que serão deployados
-9. ✅ **Integridade**: Verifica integridade do repositório (git fsck)
+
+**Informações Adicionais (não bloqueiam):**
+- 📋 Resumo dos últimos commits que serão deployados
+- 🏷️ Última tag se existir
+- 📝 Detalhes do commit (hash, mensagem, autor, data)
+- 📊 Contagem de arquivos não rastreados
 
 ### Fluxo de Sincronização Git:
 
@@ -1643,18 +1647,11 @@ Verifica pré-requisitos
     ↓
 🔄 SINCRONIZAÇÃO GIT (OBRIGATÓRIA):
   1. Verifica status do repositório
-  2. Verifica se HEAD está em branch válido (bloqueia se detached)
-  3. Verifica branch correto (avisa se não for main/master)
-  4. Detecta mudanças locais não commitadas (BLOQUEIA se houver)
-  5. Detecta commits locais não pushados (AVISA, não bloqueia)
-  6. Fetch + Pull do GitHub (primeira tentativa)
-  7. Verificação redundante (segunda tentativa se necessário)
-  8. Mostra resumo do que será deployado (últimos commits, tags)
-  9. Verifica integridade do repositório
+  2. Detecta mudanças locais não commitadas (faz stash)
+  3. Fetch + Pull do GitHub (primeira tentativa)
+  4. Verificação redundante (segunda tentativa se necessário)
     ↓
 Se conflitos → Falha e pede resolução manual
-Se detached HEAD → Falha (estado inválido)
-Se mudanças não commitadas → Falha (segurança)
 Se sucesso → Continua com build
     ↓
 Faz build da nova versão (usa código atualizado do diretório local)
@@ -1682,6 +1679,35 @@ Faz build da nova versão (usa código atualizado do diretório local)
 
 **IMPORTANTE:** Apenas código já publicado no GitHub (commitado e com push) será deployado.
 
+### Tratamento de Commits Não Pushados:
+
+**Se há commits locais não pushados:**
+- ⚠️ **AVISO** (não bloqueia deploy)
+- 📝 Informa quantos commits não foram pushados
+- 📋 Mostra últimos commits locais
+- 💡 Recomenda fazer push, mas permite continuar
+
+**POR QUE NÃO BLOQUEIA:**
+- Commits já commitados podem ser pushados depois
+- Não afeta o código que será deployado (já está commitado)
+- Apenas avisa que outros agentes não vão pegar esses commits ainda
+
+### Tratamento de Branch Errado:
+
+**Se não está em main/master:**
+- ⚠️ **AVISO** (não bloqueia deploy)
+- 📝 Informa qual branch está sendo usado
+- 💡 Recomenda verificar se é o branch correto
+- ✅ Permite continuar (pode ser intencional)
+
+### Opção --skip-git-check:
+
+**Para casos especiais:**
+- Use apenas quando necessário (ex: servidor sem acesso ao GitHub)
+- Pula todas verificações Git
+- ⚠️ Use com cuidado - pode causar problemas de sincronização
+- Logs claros avisam que verificações foram puladas
+
 ### Tratamento de Conflitos:
 
 **Se conflitos detectados:**
@@ -1689,44 +1715,21 @@ Faz build da nova versão (usa código atualizado do diretório local)
 - 📝 Instruções claras para resolução
 - 🔒 Lock é liberado para permitir resolução
 
-### Opção de Emergência (NÃO RECOMENDADO):
-
-**`--skip-git-check`**: Pula todas verificações Git (apenas emergências)
-```bash
-./scripts/deploy-zero-downtime.sh --skip-git-check
-```
-
-**Quando usar:**
-- Servidor não tem acesso ao GitHub temporariamente
-- Emergência crítica que precisa deploy imediato
-- Ambiente de desenvolvimento isolado
-
-**⚠️ AVISOS:**
-- Outros agentes NÃO vão pegar mudanças locais
-- Pode causar sobrescrita de mudanças entre agentes
-- Use apenas quando absolutamente necessário
-
 ### O Que NUNCA Fazer:
 
-1. ❌ **NUNCA** fazer build sem sincronizar Git primeiro (exceto --skip-git-check em emergências)
+1. ❌ **NUNCA** fazer build sem sincronizar Git primeiro
 2. ❌ **NUNCA** ignorar conflitos e fazer deploy mesmo assim
 3. ❌ **NUNCA** fazer deploy de mudanças locais não commitadas
-4. ❌ **NUNCA** fazer deploy em detached HEAD
-5. ❌ **NUNCA** pular verificação redundante
-6. ❌ **NUNCA** usar --skip-git-check em produção sem necessidade real
+4. ❌ **NUNCA** pular verificação redundante
 
 ### Padrões Obrigatórios:
 
-1. ✅ **SEMPRE** executar `sync_git_code()` antes do build (exceto --skip-git-check)
+1. ✅ **SEMPRE** executar `sync_git_code()` antes do build
 2. ✅ **SEMPRE** fazer fetch + pull do GitHub antes de build
 3. ✅ **SEMPRE** verificar conflitos após pull
-4. ✅ **SEMPRE** verificar detached HEAD (bloqueia se inválido)
-5. ✅ **SEMPRE** verificar mudanças não commitadas (bloqueia se houver)
-6. ✅ **SEMPRE** avisar sobre commits não pushados (não bloqueia)
-7. ✅ **SEMPRE** fazer verificação redundante
-8. ✅ **SEMPRE** falhar deploy se houver conflitos ou detached HEAD
-9. ✅ **SEMPRE** mostrar resumo do que será deployado
-10. ✅ **SEMPRE** logar commit atual para rastreabilidade
+4. ✅ **SEMPRE** fazer verificação redundante
+5. ✅ **SEMPRE** falhar deploy se houver conflitos
+6. ✅ **SEMPRE** logar commit atual para rastreabilidade
 
 ### Exemplo de Log Esperado:
 
@@ -1734,31 +1737,14 @@ Faz build da nova versão (usa código atualizado do diretório local)
 [ZERO-DOWNTIME] Sincronizando código do GitHub (verificação obrigatória)...
 [ZERO-DOWNTIME] ⚠️  IMPORTANTE: Apenas código já publicado no GitHub será deployado
 [ZERO-DOWNTIME]    Mudanças locais não commitadas serão IGNORADAS (não sobem no deploy)
-[ZERO-DOWNTIME] Verificação 1/6: Verificando status do repositório...
-[ZERO-DOWNTIME] Verificação 1.5/6: Verificando se HEAD está em branch válido...
-[ZERO-DOWNTIME] ✅ HEAD está em branch válido
-[ZERO-DOWNTIME] Verificação 1.6/6: Verificando branch...
-[ZERO-DOWNTIME] ✅ Branch correto: main
-[ZERO-DOWNTIME] Verificação 2/6: Verificando mudanças locais não commitadas...
+[ZERO-DOWNTIME] Verificação 1/4: Verificando status do repositório...
+[ZERO-DOWNTIME] Verificação 2/4: Verificando mudanças locais não commitadas...
 [ZERO-DOWNTIME] ✅ Nenhuma mudança local não commitada
-[ZERO-DOWNTIME] Verificação 2.5/6: Verificando commits locais não pushados...
-[ZERO-DOWNTIME] ✅ Todos os commits locais já foram pushados
-[ZERO-DOWNTIME] Verificação 3/6: Sincronizando com repositório remoto...
+[ZERO-DOWNTIME] Verificação 3/4: Sincronizando com repositório remoto...
 [ZERO-DOWNTIME] Branch atual: main
-[ZERO-DOWNTIME] Mudanças remotas detectadas no GitHub (outro agente já publicou mudanças)
-[ZERO-DOWNTIME] Fazendo pull para pegar as mudanças mais recentes...
-[ZERO-DOWNTIME] ✅ Código atualizado do repositório remoto (mudanças de outros agentes incorporadas)
-[ZERO-DOWNTIME] Verificação 4/6: Verificação redundante...
-[ZERO-DOWNTIME] Verificação 5/6: Resumo do que será deployado...
-[ZERO-DOWNTIME]    Commit atual: a1b2c3d
-[ZERO-DOWNTIME]    Branch: main
-[ZERO-DOWNTIME]    Últimos 5 commits que serão deployados:
-[ZERO-DOWNTIME]      a1b2c3d feat: Adiciona nova funcionalidade
-[ZERO-DOWNTIME]      b2c3d4e fix: Corrige bug no formulário
-[ZERO-DOWNTIME]      c3d4e5f refactor: Melhora estrutura
-[ZERO-DOWNTIME]    Última tag: v1.2.3 (5 commit(s) depois)
-[ZERO-DOWNTIME] Verificação 6/6: Verificação final de integridade...
-[ZERO-DOWNTIME] ✅ Integridade do repositório OK
+[ZERO-DOWNTIME] Mudanças remotas detectadas. Fazendo pull...
+[ZERO-DOWNTIME] ✅ Código atualizado do repositório remoto
+[ZERO-DOWNTIME] Verificação 4/4: Verificação redundante...
 [ZERO-DOWNTIME] ✅ Código sincronizado! Commit: a1b2c3d (branch: main)
 ```
 

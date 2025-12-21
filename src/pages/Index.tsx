@@ -7,6 +7,7 @@ import { CalendarView } from "@/components/crm/CalendarView";
 import { CallQueue } from "@/components/crm/CallQueue";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
+import { TagManager } from "@/components/crm/TagManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
 import { useLeads } from "@/hooks/useLeads";
@@ -116,7 +117,8 @@ const Index = () => {
 
       if (error) throw error;
 
-      await refetchLeads();
+      // ✅ Realtime já atualiza automaticamente - não precisa refetch
+      // O hook useLeads já está escutando mudanças em tempo real
       
       toast({
         title: "Nome atualizado",
@@ -220,6 +222,7 @@ const Index = () => {
                   <span className="sm:inline">Importar</span>
                 </Button>
                 <PipelineStageManager />
+                <TagManager />
               </div>
             </div>
             <div className="flex flex-col gap-3">
