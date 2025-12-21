@@ -468,7 +468,6 @@ export function SellerPerformanceReport({
                       <TableHead>Ganhos</TableHead>
                       <TableHead>Perdidos</TableHead>
                       <TableHead>Atividades</TableHead>
-                      <TableHead>Tempo Resposta</TableHead>
                       <TableHead>Tempo Fechamento</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -527,12 +526,6 @@ export function SellerPerformanceReport({
                                 {seller.calls}
                               </span>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {seller.averageResponseTime.toFixed(1)}h
                           </div>
                         </TableCell>
                         <TableCell>
