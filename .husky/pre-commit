@@ -11,6 +11,23 @@
 
 echo "🔍 Executando validações pré-commit..."
 
+# 0. Verificar imports duplicados (antes de tudo)
+echo "🔍 Verificando imports duplicados..."
+if [ -f "scripts/validar-imports.sh" ]; then
+  chmod +x scripts/validar-imports.sh 2>/dev/null || true
+  # Verificar apenas arquivos staged (que serão commitados)
+  git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx)$' | while read -r file; do
+    if [ -f "$file" ]; then
+      ./scripts/validar-imports.sh "$file" || {
+        echo "❌ Imports duplicados encontrados em arquivos staged. Corrija antes de fazer commit."
+        exit 1
+      }
+    fi
+  done
+else
+  echo "⚠️  Script de verificação de imports não encontrado. Pulando..."
+fi
+
 # 1. Lint
 echo "📝 Executando ESLint..."
 npm run lint || {
