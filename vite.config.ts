@@ -15,4 +15,14 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      external: [
+        'firebase-admin/app',
+        'firebase-admin/storage',
+        '@aws-sdk/client-s3',
+        '@aws-sdk/s3-request-presigner',
+      ],
+    },
+  },
 }));
