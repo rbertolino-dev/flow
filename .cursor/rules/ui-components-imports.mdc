@@ -1,0 +1,337 @@
+# 🔍 REGRA CRÍTICA: Validação de Imports de Componentes UI
+
+## 📋 Regra Principal: SEMPRE Verificar Imports Antes de Usar Componentes
+
+**O Cursor DEVE SEMPRE verificar se TODOS os componentes usados estão importados antes de usar, especialmente componentes UI reutilizáveis.**
+
+---
+
+## ⚠️ ERRO RECORRENTE: Componentes UI Usados Sem Import
+
+### Problema Identificado:
+
+**Erro:** `ReferenceError: DialogDescription is not defined`
+
+**Causa Raiz:**
+- Componente `DialogDescription` foi usado em `CreateLeadDialog.tsx` (linha 393)
+- Mas NÃO estava importado na linha 2 do arquivo
+- O bundler (Vite/Rollup) não incluiu o componente no bundle porque não havia import explícito
+- Resultado: Erro em runtime quando o componente tentava renderizar
+
+**Impacto:**
+- ❌ Página branca ou erro crítico
+- ❌ Funcionalidade quebrada
+- ❌ Erro difícil de debugar (só aparece em runtime)
+
+---
+
+## ✅ REGRAS OBRIGATÓRIAS PARA PREVENÇÃO
+
+### 1. Validação de Imports ANTES de Usar Componentes
+
+**SEMPRE** seguir este fluxo:
+
+```
+1. Identificar componente a ser usado (ex: <DialogDescription>)
+   ↓
+2. Verificar se está importado no topo do arquivo
+   ↓
+3. Se NÃO estiver importado:
+   ✅ Adicionar import ANTES de usar
+   ✅ Verificar se componente existe no arquivo de origem
+   ✅ Verificar se está exportado corretamente
+   ↓
+4. Se estiver importado:
+   ✅ Verificar se import está correto (caminho, nome)
+   ✅ Verificar se componente está exportado no arquivo de origem
+```
+
+### 2. Padrão de Import para Componentes UI
+
+**SEMPRE** usar imports explícitos e completos:
+
+```typescript
+// ✅ CORRETO - Import explícito de todos os componentes usados
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,  // ✅ Incluído se for usar
+  DialogFooter 
+} from "@/components/ui/dialog";
+
+// ❌ ERRADO - Import incompleto (faltando DialogDescription)
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
+} from "@/components/ui/dialog";
+// Mas usando <DialogDescription> no código abaixo
+```
+
+### 3. Checklist ANTES de Usar Componente UI
+
+**SEMPRE** verificar antes de usar qualquer componente:
+
+- [ ] Componente está importado no topo do arquivo?
+- [ ] Import está correto (caminho e nome)?
+- [ ] Componente está exportado no arquivo de origem?
+- [ ] Nome do componente no import corresponde ao usado no JSX?
+- [ ] Não há typos no nome do componente?
+
+### 4. Validação Automática de Imports
+
+**SEMPRE** executar validação antes de fazer commit:
+
+```bash
+# Verificar imports faltando
+grep -r "<DialogDescription" src/ --include="*.tsx" | while read line; do
+  file=$(echo "$line" | cut -d: -f1)
+  if ! grep -q "DialogDescription" "$file" | head -20; then
+    echo "❌ ERRO: DialogDescription usado mas não importado em $file"
+  fi
+done
+```
+
+### 5. Padrões de Export em Componentes UI
+
+**SEMPRE** garantir que componentes UI estão exportados corretamente:
+
+```typescript
+// ✅ CORRETO - Export explícito e individual
+export { DialogDescription };
+
+export {
+  Dialog,
+  DialogPortal,
+  DialogOverlay,
+  DialogClose,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,  // ✅ Incluído no export group também
+};
+```
+
+**NUNCA** fazer:
+- ❌ Export apenas no grupo (pode ser removido por tree-shaking)
+- ❌ Export condicional
+- ❌ Export com nome diferente do componente
+
+---
+
+## 🔍 COMPONENTES UI CRÍTICOS (Verificar Sempre)
+
+### Componentes que Frequentemente Esquecem de Importar:
+
+1. **Dialog Components:**
+   - `DialogDescription` ⚠️ (mais comum)
+   - `DialogTitle`
+   - `DialogHeader`
+   - `DialogFooter`
+   - `DialogContent`
+   - `DialogTrigger`
+
+2. **Alert Dialog Components:**
+   - `AlertDialogDescription`
+   - `AlertDialogTitle`
+   - `AlertDialogHeader`
+   - `AlertDialogFooter`
+
+3. **Select Components:**
+   - `SelectContent`
+   - `SelectItem`
+   - `SelectTrigger`
+   - `SelectValue`
+
+4. **Table Components:**
+   - `TableHeader`
+   - `TableBody`
+   - `TableRow`
+   - `TableCell`
+   - `TableHead`
+
+5. **Card Components:**
+   - `CardHeader`
+   - `CardTitle`
+   - `CardDescription`
+   - `CardContent`
+   - `CardFooter`
+
+---
+
+## 🛡️ PREVENÇÃO AUTOMÁTICA
+
+### Regra de Validação no Cursor:
+
+**SEMPRE** executar estas verificações ao editar arquivos:
+
+1. **Antes de adicionar componente JSX:**
+   - Verificar se componente está importado
+   - Se não estiver, adicionar import automaticamente
+
+2. **Antes de fazer commit:**
+   - Verificar todos os componentes usados têm imports
+   - Verificar todos os imports estão corretos
+
+3. **Ao criar novo componente UI:**
+   - Garantir que está exportado corretamente
+   - Garantir que export está no lugar certo (não apenas no grupo)
+
+---
+
+## 📝 EXEMPLOS DE CORREÇÃO
+
+### Exemplo 1: DialogDescription Faltando
+
+**❌ ERRADO:**
+```typescript
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+// ... código ...
+
+<DialogContent>
+  <DialogHeader>
+    <DialogTitle>Título</DialogTitle>
+    <DialogDescription>Descrição</DialogDescription>  // ❌ Não importado!
+  </DialogHeader>
+</DialogContent>
+```
+
+**✅ CORRETO:**
+```typescript
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,  // ✅ Adicionado
+  DialogFooter 
+} from "@/components/ui/dialog";
+
+// ... código ...
+
+<DialogContent>
+  <DialogHeader>
+    <DialogTitle>Título</DialogTitle>
+    <DialogDescription>Descrição</DialogDescription>  // ✅ Agora funciona
+  </DialogHeader>
+</DialogContent>
+```
+
+### Exemplo 2: Múltiplos Componentes Faltando
+
+**❌ ERRADO:**
+```typescript
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+
+<Dialog>
+  <DialogContent>
+    <DialogHeader>  // ❌ Não importado
+      <DialogTitle>Título</DialogTitle>  // ❌ Não importado
+      <DialogDescription>Descrição</DialogDescription>  // ❌ Não importado
+    </DialogHeader>
+    <DialogFooter>  // ❌ Não importado
+      <Button>OK</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+**✅ CORRETO:**
+```typescript
+import { 
+  Dialog, 
+  DialogContent,
+  DialogHeader,  // ✅ Adicionado
+  DialogTitle,  // ✅ Adicionado
+  DialogDescription,  // ✅ Adicionado
+  DialogFooter  // ✅ Adicionado
+} from "@/components/ui/dialog";
+
+<Dialog>
+  <DialogContent>
+    <DialogHeader>  // ✅ Funciona
+      <DialogTitle>Título</DialogTitle>  // ✅ Funciona
+      <DialogDescription>Descrição</DialogDescription>  // ✅ Funciona
+    </DialogHeader>
+    <DialogFooter>  // ✅ Funciona
+      <Button>OK</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+---
+
+## 🚨 CHECKLIST OBRIGATÓRIO
+
+**SEMPRE** verificar antes de concluir edição:
+
+- [ ] Todos os componentes JSX usados estão importados?
+- [ ] Todos os imports estão no topo do arquivo?
+- [ ] Nomes dos imports correspondem aos usados no JSX?
+- [ ] Componentes estão exportados no arquivo de origem?
+- [ ] Não há typos nos nomes dos componentes?
+- [ ] Caminhos dos imports estão corretos (@/components/ui/...)?
+
+---
+
+## 🔧 FERRAMENTAS DE VALIDAÇÃO
+
+### Script de Validação (Opcional):
+
+```bash
+#!/bin/bash
+# scripts/validate-ui-imports.sh
+
+echo "🔍 Validando imports de componentes UI..."
+
+# Lista de componentes críticos
+COMPONENTS=("DialogDescription" "DialogTitle" "DialogHeader" "AlertDialogDescription" "SelectContent")
+
+for component in "${COMPONENTS[@]}"; do
+  echo "Verificando $component..."
+  grep -r "<$component" src/ --include="*.tsx" | while read line; do
+    file=$(echo "$line" | cut -d: -f1)
+    if ! grep -q "$component" "$file" | head -20; then
+      echo "❌ ERRO: $component usado mas não importado em $file"
+      exit 1
+    fi
+  done
+done
+
+echo "✅ Validação concluída!"
+```
+
+---
+
+## 📚 REFERÊNCIAS
+
+- **Arquivo de origem:** `src/components/ui/dialog.tsx`
+- **Erro original:** `ReferenceError: DialogDescription is not defined`
+- **Arquivo problemático:** `src/components/crm/CreateLeadDialog.tsx` (linha 393)
+- **Solução:** Adicionar import de `DialogDescription` na linha 2
+
+---
+
+## ⚡ AÇÃO IMEDIATA
+
+**SEMPRE** que usar um componente UI:
+
+1. ✅ Verificar se está importado
+2. ✅ Se não estiver, adicionar import
+3. ✅ Verificar se componente existe e está exportado
+4. ✅ Testar se funciona antes de fazer commit
+
+**NUNCA** usar componente sem verificar import primeiro!
+
+---
+
+**Última atualização:** 2025-12-21
+**Baseado em:** Erro `ReferenceError: DialogDescription is not defined` em `CreateLeadDialog.tsx`
