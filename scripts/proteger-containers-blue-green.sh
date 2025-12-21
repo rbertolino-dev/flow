@@ -67,9 +67,9 @@ if [ -f "$DEPLOY_LOCK_FILE" ]; then
                     log_warn "Lock travado com processos mortos. Removendo lock..."
                     rm -f "$DEPLOY_LOCK_FILE"
                 else
-                    log "Deploy em andamento detectado. Aguardando na fila (timeout: 5 minutos)..."
-                    # Aguardar com timeout de 5 minutos (ao invés de indefinidamente)
-                    timeout 300 flock 202 2>/dev/null || {
+                    log "Deploy em andamento detectado. Aguardando na fila (timeout: 30 segundos)..."
+                    # Aguardar com timeout de 30 segundos
+                    timeout 30 flock 202 2>/dev/null || {
                         log_warn "Timeout aguardando deploy. Continuando proteção sem lock..."
                     }
                 fi
@@ -77,9 +77,9 @@ if [ -f "$DEPLOY_LOCK_FILE" ]; then
         else
             exec 202>"$DEPLOY_LOCK_FILE"
             if ! flock -n 202 2>/dev/null; then
-                log "Deploy em andamento detectado. Aguardando na fila (timeout: 5 minutos)..."
-                # Aguardar com timeout de 5 minutos
-                timeout 300 flock 202 2>/dev/null || {
+                log "Deploy em andamento detectado. Aguardando na fila (timeout: 30 segundos)..."
+                # Aguardar com timeout de 30 segundos
+                timeout 30 flock 202 2>/dev/null || {
                     log_warn "Timeout aguardando deploy. Continuando proteção sem lock..."
                 }
             fi
