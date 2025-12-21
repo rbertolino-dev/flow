@@ -387,14 +387,14 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         autoSelectAfterCreate={true}
         onProductCreated={async (product) => {
           // Refetch produtos para garantir que a lista está atualizada
-          await refetchProducts();
-          
-          // Selecionar o produto recém-criado
-          setFormData(prev => ({
-            ...prev,
-            productId: product.id,
-            value: product.price.toString()
-          }));
+              await refetchProducts();
+              
+              // Selecionar o produto recém-criado
+              setFormData(prev => ({
+                ...prev,
+                productId: product.id,
+                value: product.price.toString()
+              }));
         }}
       />
     </Dialog>

@@ -62,36 +62,36 @@ export function ContractsList({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>Número</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Template</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Criação</TableHead>
-              <TableHead>Vigência</TableHead>
-              <TableHead>Assinatura</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <tr>
+            <TableHead>Número</TableHead>
+            <TableHead>Cliente</TableHead>
+            <TableHead>Template</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Criação</TableHead>
+            <TableHead>Vigência</TableHead>
+            <TableHead>Assinatura</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
             {paginatedContracts.map((contract) => (
-              <ContractTableRow
-                key={contract.id}
-                contract={contract}
-                onView={onView}
-                onSend={onSend}
-                onSign={onSign}
-                onCancel={onCancel}
-                onDownload={onDownload}
-                onEditMessage={onEditMessage}
-                onEditTemplate={onEditTemplate}
-              />
-            ))}
-          </TableBody>
-        </Table>
+            <ContractTableRow
+              key={contract.id}
+              contract={contract}
+              onView={onView}
+              onSend={onSend}
+              onSign={onSign}
+              onCancel={onCancel}
+              onDownload={onDownload}
+              onEditMessage={onEditMessage}
+              onEditTemplate={onEditTemplate}
+            />
+          ))}
+        </TableBody>
+      </Table>
       </div>
 
       {/* Paginação */}

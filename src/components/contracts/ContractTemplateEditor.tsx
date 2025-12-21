@@ -521,7 +521,7 @@ export function ContractTemplateEditor({
                 setShowForm(false);
                 // Se foi passado via prop (do parent), fechar o dialog
                 if (template) {
-                  onOpenChange(false);
+                onOpenChange(false);
                 }
               }}
             >

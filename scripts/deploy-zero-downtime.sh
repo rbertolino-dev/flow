@@ -2,9 +2,12 @@
 
 # 🚀 Script: Deploy Zero-Downtime (Blue-Green Deployment)
 # Descrição: Faz deploy sem downtime usando estratégia blue-green
-# Uso: ./scripts/deploy-zero-downtime.sh [--rollback] [--test-first] [--skip-git-check]
+# Uso: ./scripts/deploy-zero-downtime.sh --confirm [--rollback] [--test-first] [--skip-git-check]
+# 
+# ⚠️  OBRIGATÓRIO: Flag --confirm é REQUERIDA para fazer deploy
 # 
 # Opções:
+#   --confirm         CONFIRMAÇÃO OBRIGATÓRIA - você está ciente do que será deployado
 #   --rollback        Faz rollback para versão anterior
 #   --test-first      Faz deploy para ambiente de teste primeiro (porta 3002)
 #   --skip-git-check  Pula verificações Git (use apenas em casos especiais)
@@ -45,8 +48,7 @@ STABILITY_WAIT=30
 SKIP_GIT_CHECK=false
 ROLLBACK_MODE=false
 TEST_FIRST=false
-AUTO_COMMIT=false
-AUTO_COMMIT_MESSAGE=""
+CONFIRM_DEPLOY=false
 
 for arg in "$@"; do
     case "$arg" in
@@ -61,18 +63,24 @@ for arg in "$@"; do
         --skip-git-check)
             SKIP_GIT_CHECK=true
             ;;
-        --auto-commit)
-            AUTO_COMMIT=true
-            # Próximo argumento é a mensagem do commit
-            if [ -n "$2" ] && [ "${2#-}" = "$2" ]; then
-                AUTO_COMMIT_MESSAGE="$2"
-                shift
-            else
-                AUTO_COMMIT_MESSAGE="chore: commit automático antes do deploy"
-            fi
+        --confirm)
+            CONFIRM_DEPLOY=true
             ;;
     esac
 done
+
+# PROTEÇÃO: Exigir confirmação explícita para fazer deploy
+if [ "$CONFIRM_DEPLOY" != true ]; then
+    log_error "⚠️  DEPLOY REQUER CONFIRMAÇÃO EXPLÍCITA!"
+    log_error ""
+    log_error "   Para fazer deploy, você DEVE usar a flag --confirm:"
+    log_error "   ./scripts/deploy-zero-downtime.sh --confirm"
+    log_error ""
+    log_error "   Isso garante que você está ciente do que será deployado."
+    log_error "   NUNCA faça deploy sem revisar o que será publicado!"
+    log_error ""
+    exit 1
+fi
 
 if [ "$SKIP_GIT_CHECK" = true ]; then
     log_warn "⚠️  Modo --skip-git-check ativado (pulando verificações Git)"
@@ -428,76 +436,24 @@ sync_git_code() {
     
     # VERIFICAÇÃO 5: Mudanças locais não commitadas (BLOQUEIA deploy se houver)
     log "Verificação 5/7: Verificando mudanças locais não commitadas..."
-    
-    # Verificar mudanças não staged
-    UNSTAGED_CHANGES=$(git diff --name-only 2>/dev/null | wc -l || echo "0")
-    # Verificar mudanças staged
-    STAGED_CHANGES=$(git diff --cached --name-only 2>/dev/null | wc -l || echo "0")
-    
-    if [ "$UNSTAGED_CHANGES" -gt "0" ] || [ "$STAGED_CHANGES" -gt "0" ]; then
+    if ! git diff --quiet || ! git diff --cached --quiet; then
         log_error "⚠️  Há mudanças locais não commitadas!"
+        git status --short
         log_error ""
-        log_error "   Mudanças não staged: $UNSTAGED_CHANGES arquivo(s)"
-        log_error "   Mudanças staged: $STAGED_CHANGES arquivo(s)"
-        log_error ""
-        git status --short | head -20
-        if [ "$UNSTAGED_CHANGES" -gt "20" ] || [ "$STAGED_CHANGES" -gt "20" ]; then
-            log_error "   ... (mostrando apenas primeiros 20 arquivos)"
-        fi
-        log_error ""
-        log_error "   ⚠️  PROBLEMA CRÍTICO: Se você fizer deploy agora, essas mudanças NÃO vão para o GitHub"
+        log_error "   PROBLEMA: Se você fizer deploy agora, essas mudanças NÃO vão para o GitHub"
         log_error "   E outros agentes NÃO vão pegar essas mudanças no próximo deploy deles!"
-        log_error "   Isso causa inconsistências e funcionalidades que não aparecem no ar!"
         log_error ""
-        
-        # Se modo auto-commit está ativado, fazer commit automático
-        if [ "$AUTO_COMMIT" = true ]; then
-            log_warn "🔄 Modo --auto-commit ativado. Fazendo commit automático..."
-            
-            # Adicionar todas mudanças
-            if ! git add -A; then
-                log_error "Falha ao adicionar arquivos ao staging"
-                exit 1
-            fi
-            
-            # Fazer commit
-            if ! git commit -m "$AUTO_COMMIT_MESSAGE" --no-verify; then
-                log_error "Falha ao fazer commit"
-                exit 1
-            fi
-            
-            log_success "Commit criado: $AUTO_COMMIT_MESSAGE"
-            
-            # Fazer push
-            log "Fazendo push para GitHub..."
-            if ! git push origin "$CURRENT_BRANCH"; then
-                log_error "Falha ao fazer push para GitHub!"
-                log_error "Commit foi criado localmente, mas não foi publicado."
-                log_error "Execute: git push origin $CURRENT_BRANCH"
-                exit 1
-            fi
-            
-            log_success "Push concluído! Código publicado no GitHub."
-            log "Continuando com deploy..."
-        else
-            log_error "   ✅ SOLUÇÃO OBRIGATÓRIA (escolha uma):"
-            log_error ""
-            log_error "   OPÇÃO 1 - Commit manual (RECOMENDADO):"
-            log_error "   1. git add ."
-            log_error "   2. git commit -m 'Sua mensagem descritiva'"
-            log_error "   3. git push origin $(git rev-parse --abbrev-ref HEAD)"
-            log_error "   4. Execute o deploy novamente"
-            log_error ""
-            log_error "   OPÇÃO 2 - Commit automático (use com cuidado):"
-            log_error "   Execute: ./scripts/deploy-zero-downtime.sh --auto-commit 'Mensagem do commit'"
-            log_error ""
-            log_error "   ⛔ DEPLOY CANCELADO para evitar que mudanças não sejam compartilhadas entre agentes"
-            log_error "   ⛔ DEPLOY CANCELADO para garantir que código no ar = código no GitHub"
-            exit 1
-        fi
+        log_error "   SOLUÇÃO OBRIGATÓRIA:"
+        log_error "   1. git add ."
+        log_error "   2. git commit -m 'Sua mensagem'"
+        log_error "   3. git push origin $(git rev-parse --abbrev-ref HEAD)"
+        log_error "   4. Execute o deploy novamente"
+        log_error ""
+        log_error "   DEPLOY CANCELADO para evitar que mudanças não sejam compartilhadas entre agentes"
+        exit 1
+    else
+        log_success "Nenhuma mudança local não commitada"
     fi
-    
-    log_success "Nenhuma mudança local não commitada"
     
     # VERIFICAÇÃO 6: Fetch e Pull (primeira tentativa)
     log "Verificação 6/7: Sincronizando com repositório remoto (primeira tentativa)..."
@@ -726,40 +682,6 @@ sync_git_code || {
 log "4/9 - Fazendo build da nova versão (${NEW_VERSION})..."
 log "  Isso pode levar alguns minutos..."
 log "  Usando lock do deploy para evitar conflitos..."
-
-# VERIFICAÇÃO CRÍTICA: Garantir que código buildado = código do GitHub
-log "Verificação pré-build: Garantindo que código local = código do GitHub..."
-CURRENT_COMMIT_BEFORE_BUILD=$(git rev-parse HEAD 2>/dev/null || echo "")
-REMOTE_COMMIT_BEFORE_BUILD=$(git rev-parse "origin/${CURRENT_BRANCH}" 2>/dev/null || echo "")
-
-if [ "$CURRENT_COMMIT_BEFORE_BUILD" != "$REMOTE_COMMIT_BEFORE_BUILD" ]; then
-    log_error "⚠️  CÓDIGO NÃO SINCRONIZADO ANTES DO BUILD!"
-    log_error "   Local:  ${CURRENT_COMMIT_BEFORE_BUILD:0:8}"
-    log_error "   Remoto: ${REMOTE_COMMIT_BEFORE_BUILD:0:8}"
-    log_error "   Fazendo pull de emergência..."
-    
-    if ! git pull origin "$CURRENT_BRANCH" --no-rebase; then
-        log_error "Falha ao sincronizar código antes do build!"
-        log_error "Build cancelado para evitar deploy de código incorreto."
-        exit 1
-    fi
-    
-    # Verificar novamente
-    CURRENT_COMMIT_AFTER_PULL=$(git rev-parse HEAD 2>/dev/null || echo "")
-    if [ "$CURRENT_COMMIT_AFTER_PULL" != "$REMOTE_COMMIT_BEFORE_BUILD" ]; then
-        log_error "FALHA CRÍTICA: Código ainda não sincronizado após pull!"
-        log_error "Build cancelado."
-        exit 1
-    fi
-    
-    log_success "Código sincronizado antes do build"
-else
-    log_success "Código sincronizado: commit ${CURRENT_COMMIT_BEFORE_BUILD:0:8}"
-fi
-
-# Registrar commit que será buildado (para rastreabilidade)
-log "📦 Build será feito com commit: ${CURRENT_COMMIT_BEFORE_BUILD:0:8}"
-log "   Mensagem: $(git log -1 --pretty=format:'%s' 2>/dev/null || echo 'unknown')"
 
 docker_with_deploy_lock "docker compose -f docker-compose.${NEW_VERSION}.yml build --no-cache" || {
     log_error "Build falhou!"
