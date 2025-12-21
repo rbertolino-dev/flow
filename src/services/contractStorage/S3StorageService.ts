@@ -18,8 +18,9 @@ export class S3StorageService implements StorageService {
     }
 
     try {
-      // Importação dinâmica do AWS SDK
-      const { S3Client } = await import('@aws-sdk/client-s3');
+      // Importação dinâmica do AWS SDK (usando string para evitar erro de build)
+      const s3Module = await import(/* @vite-ignore */ '@aws-sdk/client-s3');
+      const { S3Client } = s3Module;
       
       this.s3Client = new S3Client({
         region: this.config.region,
@@ -40,8 +41,10 @@ export class S3StorageService implements StorageService {
 
   async uploadPDF(pdf: Blob, contractId: string, type: 'contract' | 'budget' = 'contract'): Promise<string> {
     const s3Client = await this.getS3Client();
-    const { PutObjectCommand, GetObjectCommand } = await import('@aws-sdk/client-s3');
-    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+    const s3ClientModule = await import(/* @vite-ignore */ '@aws-sdk/client-s3');
+    const s3PresignerModule = await import(/* @vite-ignore */ '@aws-sdk/s3-request-presigner');
+    const { PutObjectCommand, GetObjectCommand } = s3ClientModule;
+    const { getSignedUrl } = s3PresignerModule;
 
     const fileExt = 'pdf';
     const fileName = `${contractId}-${Date.now()}.${fileExt}`;
@@ -78,8 +81,10 @@ export class S3StorageService implements StorageService {
 
   async getPDFUrl(contractId: string): Promise<string> {
     const s3Client = await this.getS3Client();
-    const { ListObjectsV2Command, GetObjectCommand } = await import('@aws-sdk/client-s3');
-    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+    const s3ClientModule = await import(/* @vite-ignore */ '@aws-sdk/client-s3');
+    const s3PresignerModule = await import(/* @vite-ignore */ '@aws-sdk/s3-request-presigner');
+    const { ListObjectsV2Command, GetObjectCommand } = s3ClientModule;
+    const { getSignedUrl } = s3PresignerModule;
 
     // Listar objetos com prefixo do contractId
     const listCommand = new ListObjectsV2Command({
@@ -110,7 +115,8 @@ export class S3StorageService implements StorageService {
 
   async deletePDF(contractId: string): Promise<void> {
     const s3Client = await this.getS3Client();
-    const { ListObjectsV2Command, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+    const s3ClientModule = await import(/* @vite-ignore */ '@aws-sdk/client-s3');
+    const { ListObjectsV2Command, DeleteObjectCommand } = s3ClientModule;
 
     // Listar objetos com prefixo do contractId
     const listCommand = new ListObjectsV2Command({
@@ -139,7 +145,8 @@ export class S3StorageService implements StorageService {
 
   async getFileSize(contractId: string): Promise<number> {
     const s3Client = await this.getS3Client();
-    const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+    const s3ClientModule = await import(/* @vite-ignore */ '@aws-sdk/client-s3');
+    const { ListObjectsV2Command } = s3ClientModule;
 
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
@@ -157,8 +164,10 @@ export class S3StorageService implements StorageService {
 
   async listFiles(organizationId: string): Promise<Array<{ contractId: string; url: string; size: number; createdAt: string }>> {
     const s3Client = await this.getS3Client();
-    const { ListObjectsV2Command, GetObjectCommand } = await import('@aws-sdk/client-s3');
-    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+    const s3ClientModule = await import(/* @vite-ignore */ '@aws-sdk/client-s3');
+    const s3PresignerModule = await import(/* @vite-ignore */ '@aws-sdk/s3-request-presigner');
+    const { ListObjectsV2Command, GetObjectCommand } = s3ClientModule;
+    const { getSignedUrl } = s3PresignerModule;
 
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,

@@ -13,9 +13,11 @@ export class FirebaseStorageService implements StorageService {
 
   private async getFirebaseStorage() {
     try {
-      // Importação dinâmica do Firebase Admin SDK
-      const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-      const { getStorage } = await import('firebase-admin/storage');
+      // Importação dinâmica do Firebase Admin SDK (usando string para evitar erro de build)
+      const firebaseAdminApp = await import(/* @vite-ignore */ 'firebase-admin/app');
+      const firebaseAdminStorage = await import(/* @vite-ignore */ 'firebase-admin/storage');
+      const { initializeApp, getApps, cert } = firebaseAdminApp;
+      const { getStorage } = firebaseAdminStorage;
 
       let app;
       const apps = getApps();
