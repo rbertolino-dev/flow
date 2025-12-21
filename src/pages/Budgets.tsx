@@ -9,7 +9,7 @@ import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
 import { useBudgets } from '@/hooks/useBudgets';
 import { Budget, Service } from '@/types/budget';
 import type { Budget as BudgetType } from '@/types/budget';
-import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt } from 'lucide-react';
+import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
@@ -30,7 +30,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
 import { ProductBulkImport } from '@/components/shared/ProductBulkImport';
 import { Product } from '@/types/product';
-import { Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
