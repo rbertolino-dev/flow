@@ -118,3 +118,4 @@ Após as correções, o sistema deve:
 3. Capturar e exibir erros de renderização com ErrorBoundary
 4. Funcionar normalmente quando tudo estiver OK
 
+

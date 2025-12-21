@@ -94,16 +94,33 @@ export function useOnboarding() {
       const pipelineStagesCount = pipelineStages?.length || 0;
       const pipelineStepComplete = pipelineStagesCount >= 3;
 
-      // Verificar etapa de produtos
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true);
+      // Verificar etapa de produtos (usando Edge Function do PostgreSQL)
+      let productsCount = 0;
+      let productsStepComplete = completedSteps.includes('products');
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const response = await fetch(`${supabaseUrl}/functions/v1/products?is_active=true`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+          });
 
-      if (productsError) throw productsError;
-      const productsCount = products?.length || 0;
-      const productsStepComplete = productsCount > 0 || completedSteps.includes('products');
+          if (response.ok) {
+            const result = await response.json();
+            const products = result.data || [];
+            productsCount = products.length;
+            productsStepComplete = productsCount > 0 || completedSteps.includes('products');
+          }
+        }
+      } catch (productsError: any) {
+        console.error('Erro ao buscar produtos:', productsError);
+        // Se falhar, considerar como se não houvesse produtos (já inicializado acima)
+      }
 
       // Verificar etapa de Evolution
       const { data: evolutionInstances, error: evolutionError } = await supabase

@@ -4,7 +4,7 @@ import { useActiveOrganization } from './useActiveOrganization';
 import { Contract, ContractStatus, AuditAction } from '@/types/contract';
 import { useToast } from './use-toast';
 import { generateContractPDF } from '@/lib/contractPdfGenerator';
-import { SupabaseStorageService } from '@/services/contractStorage';
+// StorageService agora é obtido via StorageFactory
 
 // Helper function para criar log de auditoria
 async function createAuditLog(
@@ -230,9 +230,10 @@ export function useContracts(filters?: ContractFilters) {
           coverPageUrl: templateData?.cover_page_url,
         });
 
-        // Fazer upload do PDF
-        const storageService = new SupabaseStorageService(activeOrgId);
-        const pdfUrl = await storageService.uploadPDF(pdfBlob, contract.id);
+      // Fazer upload do PDF usando StorageFactory
+      const { createStorageService } = await import('@/services/contractStorage/StorageFactory');
+      const storageService = await createStorageService(activeOrgId);
+      const pdfUrl = await storageService.uploadPDF(pdfBlob, contract.id);
 
         // Atualizar contrato com URL do PDF
         const { error: updateError } = await supabase
@@ -438,8 +439,9 @@ export function useContracts(filters?: ContractFilters) {
         })) || [],
       });
 
-      // Fazer upload do PDF
-      const storageService = new SupabaseStorageService(activeOrgId);
+      // Fazer upload do PDF usando StorageFactory
+      const { createStorageService } = await import('@/services/contractStorage/StorageFactory');
+      const storageService = await createStorageService(activeOrgId);
       const pdfUrl = await storageService.uploadPDF(pdfBlob, contract.id);
 
       // Atualizar contrato com URL do PDF

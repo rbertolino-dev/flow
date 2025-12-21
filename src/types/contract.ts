@@ -66,9 +66,13 @@ export interface ContractSignature {
 export interface ContractStorageConfig {
   id: string;
   organization_id?: string;
-  storage_type: StorageType;
-  config: Record<string, any>;
-  is_active: boolean;
+  storage_type: StorageType; // Não usado mais (storage principal sempre é Supabase)
+  config: Record<string, any>; // Não usado mais (storage principal sempre é Supabase)
+  is_active: boolean; // Não usado mais (storage principal sempre é Supabase)
+  // Campos de backup storage (opcional)
+  backup_storage_type?: StorageType;
+  backup_config?: Record<string, any>;
+  backup_is_active?: boolean;
   created_at: string;
   updated_at: string;
 }

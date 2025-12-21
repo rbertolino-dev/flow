@@ -153,3 +153,4 @@ echo "  - Verificar sessão no navegador: localStorage.getItem('sb-*-auth-token'
 echo "  - Verificar organização: localStorage.getItem('active_organization_id')"
 echo ""
 
+

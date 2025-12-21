@@ -13,6 +13,9 @@ export function useProducts() {
   useEffect(() => {
     if (activeOrgId) {
       fetchProducts();
+    } else {
+      setProducts([]);
+      setLoading(false);
     }
   }, [activeOrgId]);
 
@@ -21,17 +24,33 @@ export function useProducts() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("organization_id", activeOrgId)
-        .order("category", { ascending: true })
-        .order("name", { ascending: true });
+      
+      // Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Usuário não autenticado");
+      }
 
-      if (error) throw error;
+      // Chamar Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const data = result.data || [];
 
       // Map database fields to Product interface
-      const mappedProducts: Product[] = (data || []).map((item: any) => ({
+      const mappedProducts: Product[] = data.map((item: any) => ({
         id: item.id,
         organization_id: item.organization_id,
         name: item.name,
@@ -49,7 +68,7 @@ export function useProducts() {
         created_at: item.created_at,
         updated_at: item.updated_at,
         created_by: item.created_by,
-        updated_by: null,
+        updated_by: item.updated_by || null,
       }));
 
       setProducts(mappedProducts);
@@ -69,20 +88,30 @@ export function useProducts() {
     if (!activeOrgId) throw new Error("Organização não encontrada");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      // Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Usuário não autenticado");
+      }
 
-      const { data, error } = await supabase
-        .from("products")
-        .insert({
-          ...productData,
-          organization_id: activeOrgId,
-          created_by: user.id,
-        })
-        .select()
-        .single();
+      // Chamar Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(productData),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const data = result.data;
 
       await fetchProducts();
       toast({
@@ -106,19 +135,27 @@ export function useProducts() {
     if (!activeOrgId) throw new Error("Organização não encontrada");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      // Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Usuário não autenticado");
+      }
 
-      const { error } = await supabase
-        .from("products")
-        .update({
-          ...productData,
-          updated_by: user.id,
-        })
-        .eq("id", productId)
-        .eq("organization_id", activeOrgId);
+      // Chamar Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/${productId}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(productData),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
 
       await fetchProducts();
       toast({
@@ -140,13 +177,26 @@ export function useProducts() {
     if (!activeOrgId) throw new Error("Organização não encontrada");
 
     try {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", productId)
-        .eq("organization_id", activeOrgId);
+      // Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Usuário não autenticado");
+      }
 
-      if (error) throw error;
+      // Chamar Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/${productId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
 
       await fetchProducts();
       toast({

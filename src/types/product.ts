@@ -1,6 +1,7 @@
 export interface Product {
   id: string;
   organization_id: string;
+  organization_name?: string; // Nome da organização (do PostgreSQL)
   name: string;
   description?: string | null;
   price: number;
@@ -16,7 +17,9 @@ export interface Product {
   created_at: string;
   updated_at: string;
   created_by?: string | null;
+  created_by_name?: string | null; // Nome do usuário que criou (do PostgreSQL)
   updated_by?: string | null;
+  updated_by_name?: string | null; // Nome do usuário que modificou (do PostgreSQL)
 }
 
 export interface ProductFormData {

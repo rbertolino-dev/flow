@@ -10,7 +10,7 @@ import { Loader2, FileSignature, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { generateContractPDF } from '@/lib/contractPdfGenerator';
-import { SupabaseStorageService } from '@/services/contractStorage';
+// StorageService agora é obtido via StorageFactory
 interface ContractData {
   id: string;
   organization_id: string;
@@ -362,8 +362,9 @@ export default function SignContract() {
 
       console.log('✅ PDF gerado com sucesso, tamanho:', pdfBlob.size, 'bytes');
 
-      // 3. Fazer upload do PDF assinado
-      const storageService = new SupabaseStorageService(contract.organization_id);
+      // 3. Fazer upload do PDF assinado usando StorageFactory
+      const { createStorageService } = await import('@/services/contractStorage/StorageFactory');
+      const storageService = await createStorageService(contract.organization_id);
       const signedPdfUrl = await storageService.uploadPDF(pdfBlob, `${contract.id}-signed`);
 
       // 4. Verificar se ambas as partes já assinaram antes de atualizar status

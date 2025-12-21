@@ -12,18 +12,15 @@ export function useLeads() {
   const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
-    console.log('🔧 Configurando realtime de leads...', { activeOrgId });
-    
     if (activeOrgId) {
       fetchLeads();
     } else {
-      console.warn('⚠️ ActiveOrgId não encontrado, pulando realtime de leads');
       setLoading(false);
     }
 
     // ✅ OTIMIZAÇÃO: Realtime com updates otimistas + Polling como fallback
     const channel = supabase
-      .channel(`leads-channel-${activeOrgId || 'no-org'}-${Date.now()}`)
+      .channel('schema-db-changes')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'leads' },
@@ -49,7 +46,16 @@ export function useLeads() {
         },
         (payload) => {
           console.log('🔄 Lead atualizado (realtime):', payload);
+          console.log('   EventType:', payload.eventType || payload.type);
+          console.log('   New:', payload.new);
+          console.log('   Old:', payload.old);
+          
           const updated = payload.new as any;
+          
+          if (!updated || !updated.id) {
+            console.error('❌ Payload UPDATE inválido:', payload);
+            return;
+          }
           
           // Verificar se pertence à organização ativa
           if (activeOrgId && updated.organization_id !== activeOrgId) {
@@ -59,39 +65,34 @@ export function useLeads() {
           
           // ✅ Update otimista: atualizar apenas o lead modificado sem refetch completo
           setLeads((prev) => {
-            const existingIndex = prev.findIndex(l => l.id === updated.id);
-            if (existingIndex === -1) {
-              console.log('⚠️ Lead não encontrado na lista atual, pode ser novo:', updated.id);
-              // Se não encontrou, pode ser um lead novo que ainda não foi carregado
-              // Não adicionamos aqui para evitar duplicatas - o INSERT handler cuida disso
+            const leadIndex = prev.findIndex(l => l.id === updated.id);
+            
+            if (leadIndex === -1) {
+              console.log('⚠️ Lead não encontrado na lista atual, pode ser novo lead:', updated.id);
+              // Se não encontrou, pode ser um lead novo que ainda não está na lista
+              // Não adicionamos aqui, deixamos o INSERT handler fazer isso
               return prev;
             }
             
-            const updatedLeads = prev.map((l) => {
-              if (l.id === updated.id) {
-                const newLead = {
-                  ...l,
-                  name: updated.name || l.name,
-                  phone: updated.phone || l.phone,
-                  email: updated.email || l.email,
-                  company: updated.company || l.company,
-                  value: updated.value !== undefined ? updated.value : l.value,
-                  status: (updated.status as LeadStatus) || l.status,
-                  assignedTo: updated.assigned_to || l.assignedTo || 'Não atribuído',
-                  lastContact: updated.last_contact ? new Date(updated.last_contact) : (updated.updated_at ? new Date(updated.updated_at) : l.lastContact),
-                  returnDate: updated.return_date ? new Date(updated.return_date) : l.returnDate,
-                  notes: updated.notes !== undefined ? updated.notes : l.notes,
-                  stageId: updated.stage_id || l.stageId,
-                };
-                console.log('✅ Lead atualizado via realtime:', updated.name || l.name, 'Mudanças:', {
-                  name: l.name !== newLead.name,
-                  phone: l.phone !== newLead.phone,
-                  stageId: l.stageId !== newLead.stageId
-                });
-                return newLead;
-              }
-              return l;
-            });
+            const updatedLeads = [...prev];
+            const oldLead = updatedLeads[leadIndex];
+            
+            updatedLeads[leadIndex] = {
+              ...oldLead,
+              name: updated.name ?? oldLead.name,
+              phone: updated.phone ?? oldLead.phone,
+              email: updated.email ?? oldLead.email,
+              company: updated.company ?? oldLead.company,
+              value: updated.value ?? oldLead.value,
+              status: (updated.status as LeadStatus) ?? oldLead.status,
+              assignedTo: updated.assigned_to || oldLead.assignedTo || 'Não atribuído',
+              lastContact: updated.last_contact ? new Date(updated.last_contact) : (updated.updated_at ? new Date(updated.updated_at) : oldLead.lastContact),
+              returnDate: updated.return_date ? new Date(updated.return_date) : oldLead.returnDate,
+              notes: updated.notes ?? oldLead.notes,
+              stageId: updated.stage_id ?? oldLead.stageId,
+            };
+            
+            console.log('✅ Lead atualizado via realtime:', updated.name || updated.phone, 'Campo alterado detectado');
             return updatedLeads;
           });
         }
@@ -120,13 +121,12 @@ export function useLeads() {
       .subscribe((status) => {
         console.log('📡 Status do canal realtime de leads:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Canal realtime de leads conectado e escutando mudanças');
+          console.log('✅ Canal realtime de leads conectado com sucesso!');
         } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
           console.error('❌ Erro no canal realtime de leads:', status);
           console.warn('⚠️ Realtime não está funcionando. Ativando polling como fallback...');
           // Polling a cada 10 segundos quando Realtime não funciona
           const pollingInterval = setInterval(() => {
-            console.log('🔄 Polling de fallback executado...');
             fetchLeads();
           }, 10000);
           

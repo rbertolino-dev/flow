@@ -9,7 +9,7 @@ import {
 } from '@/types/digital-contract';
 import { useToast } from './use-toast';
 import { generateContractPDF } from '@/lib/contractPdfGenerator';
-import { SupabaseStorageService } from '@/services/contractStorage';
+// StorageService agora é obtido via StorageFactory
 
 // Helper function para criar log de auditoria
 async function createAuditLog(
@@ -274,8 +274,9 @@ export function useDigitalContracts(filters?: DigitalContractFilters) {
           coverPageUrl: templateData?.cover_page_url,
         });
 
-        // Fazer upload do PDF
-        const storageService = new SupabaseStorageService(activeOrgId);
+        // Fazer upload do PDF usando StorageFactory
+        const { createStorageService } = await import('@/services/contractStorage/StorageFactory');
+        const storageService = await createStorageService(activeOrgId);
         const pdfUrl = await storageService.uploadPDF(pdfBlob, contract.id);
 
         // Atualizar contrato com URL do PDF

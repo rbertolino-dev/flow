@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
@@ -13,6 +13,7 @@ import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
 import { PlansManagementPanel } from "./PlansManagementPanel";
 import { AssistantConfigPanel } from "./AssistantConfigPanel";
 import { EvolutionProvidersPanel } from "./EvolutionProvidersPanel";
+import { ContractStorageConfig } from "./ContractStorageConfig";
 import { useNavigate } from "react-router-dom";
 
 interface OrganizationWithMembers {
@@ -47,6 +48,7 @@ export function SuperAdminDashboard() {
   const [showPlansManagement, setShowPlansManagement] = useState(false);
   const [showAssistantConfig, setShowAssistantConfig] = useState(false);
   const [showEvolutionProviders, setShowEvolutionProviders] = useState(false);
+  const [showContractStorage, setShowContractStorage] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -245,6 +247,19 @@ export function SuperAdminDashboard() {
     );
   }
 
+  if (showContractStorage) {
+    return (
+      <div className="h-full overflow-auto bg-background p-6">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => setShowContractStorage(false)}>
+            ← Voltar para Organizações
+          </Button>
+        </div>
+        <ContractStorageConfig />
+      </div>
+    );
+  }
+
   if (selectedOrg) {
     return (
       <div className="h-full overflow-auto bg-background p-6">
@@ -323,6 +338,14 @@ export function SuperAdminDashboard() {
               >
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Providers Evolution
+              </Button>
+              <Button 
+                onClick={() => setShowContractStorage(!showContractStorage)} 
+                variant="secondary" 
+                className="w-full sm:w-auto"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                Storage Contratos
               </Button>
               <Button onClick={() => setCreateUserOpen(true)} variant="outline" className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
