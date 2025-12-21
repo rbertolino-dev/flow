@@ -45,6 +45,8 @@ STABILITY_WAIT=30
 SKIP_GIT_CHECK=false
 ROLLBACK_MODE=false
 TEST_FIRST=false
+AUTO_COMMIT=false
+AUTO_COMMIT_MESSAGE=""
 
 for arg in "$@"; do
     case "$arg" in
@@ -58,6 +60,16 @@ for arg in "$@"; do
             ;;
         --skip-git-check)
             SKIP_GIT_CHECK=true
+            ;;
+        --auto-commit)
+            AUTO_COMMIT=true
+            # Próximo argumento é a mensagem do commit
+            if [ -n "$2" ] && [ "${2#-}" = "$2" ]; then
+                AUTO_COMMIT_MESSAGE="$2"
+                shift
+            else
+                AUTO_COMMIT_MESSAGE="chore: commit automático antes do deploy"
+            fi
             ;;
     esac
 done
