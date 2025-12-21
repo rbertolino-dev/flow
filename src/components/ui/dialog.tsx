@@ -75,15 +75,13 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
-// DialogDescription removido - usar <p className="text-sm text-muted-foreground"> diretamente
-// Mantendo export para compatibilidade com código existente, mas retornando elemento simples
 const DialogDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <p ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+  <DialogPrimitive.Description ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
 ));
-DialogDescription.displayName = "DialogDescription";
+DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
