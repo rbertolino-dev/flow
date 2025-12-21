@@ -18,20 +18,25 @@ export function usePipelineStages() {
   useEffect(() => {
     let channel: any = null;
     let orgId: string | null = null;
+    let isMounted = true;
 
     const setupRealtime = async () => {
       // Buscar organization_id antes de configurar realtime
       orgId = await getUserOrganizationId();
       if (!orgId) {
-        fetchStages();
+        if (isMounted) {
+          fetchStages();
+        }
         return;
       }
 
-      fetchStages();
+      if (isMounted) {
+        fetchStages();
+      }
 
       // Configurar realtime com filtro por organization_id
       channel = supabase
-        .channel(`pipeline-stages-channel-${orgId}`)
+        .channel(`pipeline-stages-channel-${orgId}-${Date.now()}`)
         .on(
           'postgres_changes',
           {
@@ -42,6 +47,8 @@ export function usePipelineStages() {
           },
           (payload: any) => {
             console.log('🔄 Etapa atualizada (realtime):', payload);
+            if (!isMounted) return;
+            
             // Atualizar imediatamente sem refetch completo
             if (payload.eventType === 'INSERT') {
               // Nova etapa criada - adicionar otimisticamente
@@ -49,33 +56,43 @@ export function usePipelineStages() {
               setStages((prev) => {
                 // Verificar se já existe para evitar duplicatas
                 if (prev.find(s => s.id === newStage.id)) return prev;
-                return [...prev, {
+                const updated = [...prev, {
                   id: newStage.id,
                   name: newStage.name,
                   color: newStage.color,
                   position: newStage.position
                 }].sort((a, b) => a.position - b.position);
+                console.log('✅ Nova etapa adicionada via realtime:', newStage.name);
+                return updated;
               });
             } else if (payload.eventType === 'UPDATE') {
               // Etapa atualizada - atualizar otimisticamente
               const updatedStage = payload.new;
-              setStages((prev) => 
-                prev.map(s => s.id === updatedStage.id ? {
+              setStages((prev) => {
+                const updated = prev.map(s => s.id === updatedStage.id ? {
                   id: updatedStage.id,
                   name: updatedStage.name,
                   color: updatedStage.color,
                   position: updatedStage.position
-                } : s).sort((a, b) => a.position - b.position)
-              );
+                } : s).sort((a, b) => a.position - b.position);
+                console.log('✅ Etapa atualizada via realtime:', updatedStage.name);
+                return updated;
+              });
             } else if (payload.eventType === 'DELETE') {
               // Etapa deletada - remover otimisticamente
               const deletedId = payload.old?.id;
               if (deletedId) {
-                setStages((prev) => prev.filter(s => s.id !== deletedId));
+                setStages((prev) => {
+                  const updated = prev.filter(s => s.id !== deletedId);
+                  console.log('✅ Etapa removida via realtime:', deletedId);
+                  return updated;
+                });
               }
             } else {
               // Fallback: refetch completo
-              fetchStages();
+              if (isMounted) {
+                fetchStages();
+              }
             }
           }
         )
@@ -87,6 +104,7 @@ export function usePipelineStages() {
     setupRealtime();
 
     return () => {
+      isMounted = false;
       if (channel) {
         supabase.removeChannel(channel);
       }

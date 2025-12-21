@@ -56,9 +56,9 @@ export function useLeads() {
           
           // ✅ Update otimista: atualizar apenas o lead modificado sem refetch completo
           setLeads((prev) => {
-            return prev.map((l) => {
+            const updatedLeads = prev.map((l) => {
               if (l.id === updated.id) {
-                return {
+                const newLead = {
                   ...l,
                   name: updated.name,
                   phone: updated.phone,
@@ -72,9 +72,12 @@ export function useLeads() {
                   notes: updated.notes,
                   stageId: updated.stage_id,
                 };
+                console.log('✅ Lead atualizado via realtime:', updated.name);
+                return newLead;
               }
               return l;
             });
+            return updatedLeads;
           });
         }
       )

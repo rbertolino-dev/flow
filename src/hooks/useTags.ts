@@ -163,7 +163,6 @@ export function useTags() {
       const { error } = await (supabase as any)
         .from('tags')
         .insert({
-          user_id: session.user.id,
           organization_id: orgId,
           name: name.trim(),
           color,
