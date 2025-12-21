@@ -8,6 +8,8 @@ import { Product } from '@/types/product';
 import { Plus, X, Search, Package, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { CreateProductDialog } from '@/components/shared/CreateProductDialog';
+import { useProducts } from '@/hooks/useProducts';
 
 interface ProductSelectorProps {
   products: Product[];
@@ -20,6 +22,8 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
   const [customPrice, setCustomPrice] = useState<string>('');
+  const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
+  const { refetch: refetchProducts } = useProducts();
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) && p.is_active
@@ -96,6 +100,15 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
                   className="pl-11 h-12 text-base"
                 />
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateProductDialogOpen(true)}
+                className="h-12 px-4 text-base font-semibold"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Criar Produto
+              </Button>
             </div>
 
             <Select value={selectedProductId} onValueChange={setSelectedProductId}>
@@ -199,6 +212,17 @@ export function ProductSelector({ products, selectedProducts, onProductsChange }
           )}
         </div>
       </CardContent>
+
+      {/* Dialog de Criar Produto - Componente Global */}
+      <CreateProductDialog
+        open={createProductDialogOpen}
+        onOpenChange={setCreateProductDialogOpen}
+        autoSelectAfterCreate={false}
+        onProductCreated={async (product) => {
+          // Refetch produtos para garantir que a lista está atualizada
+          await refetchProducts();
+        }}
+      />
     </Card>
   );
 }

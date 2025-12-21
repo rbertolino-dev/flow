@@ -33,7 +33,7 @@ if [ -z "$CREDS" ]; then
     exit 1
 fi
 
-POSTGRES_HOST=$(echo "$CREDS" | grep "POSTGRES_HOST=" | cut -d'=' -f2 | tr -d ' ')
+POSTGRES_HOST_ORIG=$(echo "$CREDS" | grep "POSTGRES_HOST=" | cut -d'=' -f2 | tr -d ' ')
 POSTGRES_PORT=$(echo "$CREDS" | grep "POSTGRES_PORT=" | cut -d'=' -f2 | tr -d ' ')
 POSTGRES_DB=$(echo "$CREDS" | grep "POSTGRES_DB=" | cut -d'=' -f2 | tr -d ' ')
 POSTGRES_USER=$(echo "$CREDS" | grep "POSTGRES_USER=" | cut -d'=' -f2 | tr -d ' ')
@@ -44,8 +44,16 @@ if [ -z "$POSTGRES_PASSWORD" ]; then
     exit 1
 fi
 
+# Se POSTGRES_HOST for localhost, usar IP do servidor (Edge Functions não conseguem acessar localhost)
+if [ "$POSTGRES_HOST_ORIG" = "localhost" ] || [ "$POSTGRES_HOST_ORIG" = "127.0.0.1" ]; then
+    POSTGRES_HOST="$SSH_HOST"  # Usar IP do servidor (95.217.2.116)
+    echo "⚠️  POSTGRES_HOST era 'localhost', alterando para IP do servidor: $POSTGRES_HOST"
+else
+    POSTGRES_HOST="$POSTGRES_HOST_ORIG"
+fi
+
 echo "📋 Valores encontrados:"
-echo "   POSTGRES_HOST: $POSTGRES_HOST"
+echo "   POSTGRES_HOST: $POSTGRES_HOST (original: $POSTGRES_HOST_ORIG)"
 echo "   POSTGRES_PORT: $POSTGRES_PORT"
 echo "   POSTGRES_DB: $POSTGRES_DB"
 echo "   POSTGRES_USER: $POSTGRES_USER"

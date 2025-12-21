@@ -113,12 +113,30 @@ async function getPostgresClient() {
   const postgresUser = Deno.env.get('POSTGRES_USER') || 'budget_user';
   const postgresPassword = Deno.env.get('POSTGRES_PASSWORD');
 
+  console.log('🔍 Configuração PostgreSQL:', {
+    host: postgresHost,
+    port: postgresPort,
+    db: postgresDb,
+    user: postgresUser,
+    hasPassword: !!postgresPassword,
+  });
+
   if (!postgresPassword) {
     throw new Error('POSTGRES_PASSWORD não configurada');
   }
 
+  // Se host for 'localhost', tentar usar IP do servidor Hetzner
+  // (Edge Functions do Supabase não conseguem acessar localhost do servidor)
+  let finalHost = postgresHost;
+  if (postgresHost === 'localhost' || postgresHost === '127.0.0.1') {
+    // Tentar usar IP do servidor Hetzner (se configurado)
+    const serverIp = Deno.env.get('POSTGRES_SERVER_IP') || '95.217.2.116';
+    finalHost = serverIp;
+    console.log(`⚠️  Host 'localhost' detectado. Usando IP do servidor: ${finalHost}`);
+  }
+
   const client = new Client({
-    hostname: postgresHost,
+    hostname: finalHost,
     port: postgresPort,
     database: postgresDb,
     user: postgresUser,
@@ -129,14 +147,21 @@ async function getPostgresClient() {
     },
     connection: {
       keepAlive: true,
+      connectTimeout: 10000, // 10 segundos
     },
   });
 
   try {
+    console.log('🔌 Tentando conectar ao PostgreSQL...');
     await client.connect();
+    console.log('✅ Conectado ao PostgreSQL com sucesso');
     return client;
   } catch (error: any) {
     console.error('❌ Erro ao conectar ao PostgreSQL:', error);
+    console.error('   Host tentado:', finalHost);
+    console.error('   Porta:', postgresPort);
+    console.error('   Database:', postgresDb);
+    console.error('   User:', postgresUser);
     throw new Error(`Erro ao conectar ao banco de dados: ${error.message || error}`);
   }
 }

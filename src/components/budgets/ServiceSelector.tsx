@@ -34,9 +34,12 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
   const { createService } = useServices();
   const { toast } = useToast();
 
-  const filteredServices = services.filter((s) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) && s.is_active
-  );
+  // Filtrar serviços: busca por nome E status ativo (se não houver busca, mostra todos os ativos)
+  const filteredServices = services.filter((s) => {
+    const matchesSearch = searchQuery.trim() === '' || s.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const isActive = s.is_active !== false; // Garantir que is_active seja true por padrão
+    return matchesSearch && isActive;
+  });
 
   const handleAddService = () => {
     if (!selectedServiceId) return;

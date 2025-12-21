@@ -249,10 +249,23 @@ serve(async (req) => {
           insertQuery,
           [organizationId, name, description || null, price, category || null, is_active !== false]
         );
+        
+        if (result.rows.length === 0) {
+          await client.end();
+          console.error('❌ Nenhum serviço foi retornado após inserção');
+          return new Response(
+            JSON.stringify({ error: 'Erro ao criar serviço' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const createdService = result.rows[0];
+        console.log('✅ Serviço criado com sucesso:', createdService.id, createdService.name);
+        
         await client.end();
 
         return new Response(
-          JSON.stringify({ data: result.rows[0] }),
+          JSON.stringify({ data: createdService }),
           { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

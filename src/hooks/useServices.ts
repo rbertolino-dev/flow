@@ -50,14 +50,33 @@ export function useServices() {
       // Garantir que retornamos um array mesmo se data for undefined
       const servicesData = responseData?.data || [];
       console.log('✅ Serviços carregados do servidor:', servicesData.length);
+      if (servicesData.length > 0) {
+        console.log('📋 IDs dos serviços:', servicesData.map((s: Service) => s.id));
+        console.log('📋 Nomes dos serviços:', servicesData.map((s: Service) => s.name));
+      }
       
-      return servicesData as Service[];
+      // Garantir que todos os serviços têm os campos obrigatórios
+      const validServices = servicesData.filter((s: any) => {
+        if (!s || !s.id || !s.name) {
+          console.warn('⚠️ Serviço inválido filtrado:', s);
+          return false;
+        }
+        return true;
+      });
+      
+      if (validServices.length !== servicesData.length) {
+        console.warn(`⚠️ ${servicesData.length - validServices.length} serviço(s) foram filtrados por falta de dados obrigatórios`);
+      }
+      
+      return validServices as Service[];
     },
     enabled: !!activeOrgId,
     // Refetch quando a janela ganha foco para garantir dados atualizados
     refetchOnWindowFocus: true,
-    // Cache por 5 minutos, mas permite refetch
-    staleTime: 5 * 60 * 1000,
+    // Cache por 30 segundos apenas (reduzido para garantir atualizações mais frequentes)
+    staleTime: 30 * 1000,
+    // Refetch a cada 1 minuto em background
+    refetchInterval: 60 * 1000,
   });
 
   // Criar serviço
@@ -82,23 +101,40 @@ export function useServices() {
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        console.error('❌ Erro ao criar serviço:', response.error);
+        throw response.error;
+      }
 
-      return response.data?.data as Service;
+      // Verificar se a resposta tem o formato correto
+      const createdService = response.data?.data;
+      if (!createdService) {
+        console.error('❌ Resposta inválida da edge function:', response.data);
+        throw new Error('Resposta inválida do servidor');
+      }
+
+      console.log('✅ Serviço criado com sucesso:', createdService);
+      return createdService as Service;
     },
     onSuccess: (newService, variables, context) => {
+      console.log('🔄 Atualizando cache com novo serviço:', newService);
+      
       // Atualizar cache diretamente para aparecer imediatamente na lista
       queryClient.setQueryData<Service[]>(['services', activeOrgId], (oldData = []) => {
         // Verificar se o serviço já existe (evitar duplicatas)
         const exists = oldData.some(s => s.id === newService.id);
         if (exists) {
+          console.log('⚠️ Serviço já existe no cache, atualizando...');
           return oldData.map(s => s.id === newService.id ? newService : s);
         }
+        console.log('✅ Adicionando novo serviço ao cache');
         return [...oldData, newService];
       });
       
-      // Refetch em background para garantir sincronização
-      queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
+      // Refetch em background após um pequeno delay para garantir sincronização
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['services', activeOrgId] });
+      }, 500);
       
       toast({
         title: "Serviço criado",
@@ -106,9 +142,10 @@ export function useServices() {
       });
     },
     onError: (error: any) => {
+      console.error('❌ Erro ao criar serviço:', error);
       toast({
         title: "Erro ao criar serviço",
-        description: error.message,
+        description: error.message || 'Erro desconhecido',
         variant: "destructive",
       });
     },
