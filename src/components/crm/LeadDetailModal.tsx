@@ -1413,7 +1413,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <EnhancedActivityHistory
               activities={otherActivities}
             />
-          </div>
+            </div>
           </ScrollArea>
         </div>
 

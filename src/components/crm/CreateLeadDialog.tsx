@@ -12,7 +12,6 @@ import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
-import { ProductsManagement } from "./ProductsManagement";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -391,5 +390,128 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Componente simplificado para criar produto
+function CreateProductForm({
+  onProductCreated,
+  onCancel,
+}: {
+  onProductCreated: () => void;
+  onCancel: () => void;
+}) {
+  const { createProduct } = useProducts();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    price: "",
+    category: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.price || !formData.category) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha nome, preço e categoria.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const priceNum = parseFloat(formData.price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      toast({
+        title: "Preço inválido",
+        description: "O preço deve ser um número positivo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createProduct({
+        name: formData.name,
+        description: formData.description || "",
+        price: priceNum,
+        category: formData.category,
+        is_active: true,
+      });
+      onProductCreated();
+      setFormData({ name: "", description: "", price: "", category: "" });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar produto",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="product-name">Nome do Produto/Serviço *</Label>
+        <Input
+          id="product-name"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="product-description">Descrição</Label>
+        <Textarea
+          id="product-description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          rows={3}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="product-price">Preço (R$) *</Label>
+          <Input
+            id="product-price"
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.price}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || parseFloat(val) >= 0) {
+                setFormData({ ...formData, price: val });
+              }
+            }}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="product-category">Categoria *</Label>
+          <Input
+            id="product-category"
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            placeholder="Ex: Produto, Serviço, Consultoria..."
+            required
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Criando..." : "Criar Produto"}
+        </Button>
+      </div>
+    </form>
   );
 }

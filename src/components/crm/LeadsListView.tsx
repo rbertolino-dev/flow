@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lead } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -38,6 +38,26 @@ export function LeadsListView({
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [localLeads, setLocalLeads] = useState<Lead[]>(leads);
+
+  // ✅ Atualizar leads locais quando prop mudar
+  useEffect(() => {
+    setLocalLeads(leads);
+  }, [leads]);
+
+  // ✅ Escutar eventos de refresh para atualizar comentários em tempo real
+  useEffect(() => {
+    const handleRefresh = (event: CustomEvent) => {
+      if (event.detail?.entity === 'lead') {
+        onRefetch();
+      }
+    };
+
+    window.addEventListener('data-refresh', handleRefresh as EventListener);
+    return () => {
+      window.removeEventListener('data-refresh', handleRefresh as EventListener);
+    };
+  }, [onRefetch]);
 
   const toggleStageCollapse = (stageId: string) => {
     setCollapsedStages(prev => {
@@ -63,7 +83,7 @@ export function LeadsListView({
   // Agrupar leads por etapa e ordenar por data de criação
   const leadsByStage = stages.map(stage => ({
     stage,
-    leads: leads
+    leads: localLeads
       .filter(lead => lead.stageId === stage.id)
       .sort((a, b) => {
         const dateA = new Date(a.createdAt).getTime();
