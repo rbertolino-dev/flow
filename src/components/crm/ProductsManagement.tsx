@@ -81,6 +81,7 @@ export function ProductsManagement() {
         description: product.description || "",
         price: product.price,
         category: product.category,
+        unit: product.unit || "",
         is_active: product.is_active,
         commission_percentage: product.commission_percentage || 0,
         commission_fixed: product.commission_fixed || 0,
@@ -92,6 +93,7 @@ export function ProductsManagement() {
         description: "",
         price: 0,
         category: "",
+        unit: "",
         is_active: true,
         commission_percentage: 0,
         commission_fixed: 0,
@@ -350,6 +352,41 @@ export function ProductsManagement() {
                     />
                   )}
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="unit">Unidade de Medida</Label>
+                <Select
+                  value={formData.unit || ""}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, unit: value || null })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a unidade (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sem unidade</SelectItem>
+                    <SelectItem value="un">Unidade (un)</SelectItem>
+                    <SelectItem value="kg">Quilograma (kg)</SelectItem>
+                    <SelectItem value="g">Grama (g)</SelectItem>
+                    <SelectItem value="m">Metro (m)</SelectItem>
+                    <SelectItem value="m²">Metro quadrado (m²)</SelectItem>
+                    <SelectItem value="m³">Metro cúbico (m³)</SelectItem>
+                    <SelectItem value="l">Litro (l)</SelectItem>
+                    <SelectItem value="ml">Mililitro (ml)</SelectItem>
+                    <SelectItem value="h">Hora (h)</SelectItem>
+                    <SelectItem value="dia">Dia</SelectItem>
+                    <SelectItem value="mês">Mês</SelectItem>
+                    <SelectItem value="ano">Ano</SelectItem>
+                    <SelectItem value="cx">Caixa (cx)</SelectItem>
+                    <SelectItem value="pct">Pacote (pct)</SelectItem>
+                    <SelectItem value="fardo">Fardo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Unidade de medida que aparece no orçamento (ex: un, kg, m², h)
+                </p>
               </div>
 
               <div className="flex items-center space-x-2">

@@ -61,6 +61,7 @@ export function useProducts() {
         sku: item.sku,
         stock_quantity: item.stock_quantity,
         min_stock: item.min_stock,
+        unit: item.unit,
         image_url: item.image_url,
         is_active: item.is_active,
         commission_percentage: item.commission_percentage,
@@ -229,11 +230,58 @@ export function useProducts() {
     return products.filter((p) => p.is_active);
   };
 
+  const createProductsBulk = async (productsData: ProductFormData[]) => {
+    if (!activeOrgId) throw new Error("Organização não encontrada");
+
+    try {
+      // Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Usuário não autenticado");
+      }
+
+      // Chamar Edge Function para criar produtos em massa
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/bulk`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ products: productsData }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      await fetchProducts();
+      
+      toast({
+        title: "Produtos importados",
+        description: `${productsData.length} produto(s) foram importados com sucesso.`,
+      });
+
+      return result.data as Product[];
+    } catch (error: any) {
+      console.error("Erro ao importar produtos:", error);
+      toast({
+        title: "Erro ao importar produtos",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   return {
     products,
     loading,
     refetch: fetchProducts,
     createProduct,
+    createProductsBulk,
     updateProduct,
     deleteProduct,
     getProductsByCategory,

@@ -262,7 +262,9 @@ serve(async (req) => {
     }
 
     const url = new URL(req.url);
-    const productId = url.pathname.split('/').pop();
+    const pathParts = url.pathname.split('/').filter(p => p);
+    const productId = pathParts[pathParts.length - 1];
+    const isBulkEndpoint = pathParts[pathParts.length - 1] === 'bulk';
     const search = url.searchParams.get('search');
     const category = url.searchParams.get('category');
     const isActive = url.searchParams.get('is_active');
@@ -438,7 +440,7 @@ serve(async (req) => {
           is_active !== undefined ? is_active : true,
           stock_quantity || null,
           min_stock || null,
-          unit || 'un',
+          unit || null,
           image_url || null,
           commission_percentage || null,
           commission_fixed || null,

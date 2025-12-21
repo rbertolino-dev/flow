@@ -10,6 +10,7 @@ export interface Product {
   sku?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
+  unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)
   image_url?: string | null;
   is_active: boolean;
   commission_percentage?: number | null;

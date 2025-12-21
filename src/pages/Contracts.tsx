@@ -9,6 +9,7 @@ import { CreateContractDialog } from '@/components/contracts/CreateContractDialo
 import { ContractTemplateEditor } from '@/components/contracts/ContractTemplateEditor';
 import { ContractSignatureDialog } from '@/components/contracts/ContractSignatureDialog';
 import { EditMessageDialog } from '@/components/contracts/EditMessageDialog';
+import { SendContractDialog } from '@/components/contracts/SendContractDialog';
 import { ContractFilters } from '@/components/contracts/ContractFilters';
 import { ContractCategories } from '@/components/contracts/ContractCategories';
 import { useContracts } from '@/hooks/useContracts';
@@ -488,72 +489,26 @@ export default function Contracts() {
           </>
         )}
 
-        <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Enviar Contrato via WhatsApp</DialogTitle>
-              <DialogDescription>
-                Selecione a instância do WhatsApp para enviar o contrato
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="instance">Instância WhatsApp *</Label>
-                <SimpleDropdown
-                  value={selectedInstanceId}
-                  onChange={setSelectedInstanceId}
-                  disabled={connectedInstances.length === 0 || configsLoading}
-                  options={connectedInstances
-                    .filter((config) => config.id && config.id.trim() !== '')
-                    .map((config) => ({
-                      value: config.id!.trim(),
-                      label: `${config.instance_name} - ${config.phone_number || 'Sem número'}`,
-                    }))}
-                  placeholder={
-                    configsLoading 
-                      ? 'Carregando instâncias...' 
-                      : connectedInstances.length === 0
-                      ? 'Nenhuma instância conectada'
-                      : 'Selecione uma instância'
-                  }
-                  searchable={true}
-                  emptyMessage={
-                    configsLoading 
-                      ? 'Carregando instâncias...' 
-                      : 'Nenhuma instância conectada encontrada. Configure uma instância WhatsApp primeiro.'
-                  }
-                />
-                {!configsLoading && connectedInstances.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Configure uma instância WhatsApp conectada em Configurações → Instâncias WhatsApp
-                  </p>
-                )}
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowSendDialog(false)}
-                  disabled={sendingWhatsApp}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleSendWhatsApp} 
-                  disabled={!selectedInstanceId || sendingWhatsApp}
-                >
-                  {sendingWhatsApp ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    'Enviar'
-                  )}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {selectedContract && (
+          <SendContractDialog
+            open={showSendDialog}
+            onOpenChange={setShowSendDialog}
+            contract={selectedContract}
+            onSuccess={async () => {
+              await refetch();
+              // Atualizar contrato selecionado também
+              const updated = await supabase
+                .from('contracts')
+                .select('*, lead:leads(*), template:contract_templates(*)')
+                .eq('id', selectedContract.id)
+                .single();
+              if (updated.data) {
+                setSelectedContract(updated.data as Contract);
+              }
+            }}
+          />
+        )}
+
       </div>
     </CRMLayout>
   );

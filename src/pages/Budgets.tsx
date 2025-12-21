@@ -115,7 +115,7 @@ export default function Budgets() {
   });
   const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
   const { services, loading: servicesLoading, createService, updateService, deleteService, createServicesBulk, categories } = useServices();
-  const { products, loading: productsLoading, createProduct, updateProduct, deleteProduct, refetch: refetchProducts } = useProducts();
+  const { products, loading: productsLoading, createProduct, createProductsBulk, updateProduct, deleteProduct, refetch: refetchProducts } = useProducts();
   const { leads = [] } = useLeads();
   const { toast } = useToast();
   
@@ -819,6 +819,17 @@ export default function Budgets() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
+                      <ProductBulkImport
+                        onImport={async (productsData) => {
+                          try {
+                            await createProductsBulk(productsData);
+                            await refetchProducts();
+                          } catch (error: any) {
+                            console.error('Erro ao importar produtos:', error);
+                          }
+                        }}
+                        isImporting={false}
+                      />
                       <Button onClick={() => {
                         setEditingProduct(null);
                         setCreateProductDialogOpen(true);
@@ -951,6 +962,13 @@ export default function Budgets() {
                           <TableCell>
                             {product.category ? (
                               <Badge variant="outline">{product.category}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {product.unit ? (
+                              <Badge variant="secondary">{product.unit}</Badge>
                             ) : (
                               <span className="text-muted-foreground text-sm">-</span>
                             )}
@@ -1448,6 +1466,7 @@ export default function Budgets() {
                 const description = formData.get('description') as string;
                 const price = parseFloat(formData.get('price') as string);
                 const category = formData.get('category') as string;
+                const unit = (formData.get('unit') as string) || null;
 
                 if (!name || !price || price < 0) {
                   toast({
@@ -1464,6 +1483,7 @@ export default function Budgets() {
                     description: description.trim() || null,
                     price: price,
                     category: category.trim() || 'Produto',
+                    unit: unit.trim() || null,
                     is_active: editingProduct.is_active,
                   });
                   await refetchProducts();
@@ -1531,6 +1551,39 @@ export default function Budgets() {
                       placeholder="Ex: Produto, Serviço"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-product-unit">Unidade de Medida</Label>
+                  <Select
+                    name="unit"
+                    defaultValue={editingProduct.unit || ''}
+                  >
+                    <SelectTrigger id="edit-product-unit">
+                      <SelectValue placeholder="Selecione a unidade (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sem unidade</SelectItem>
+                      <SelectItem value="un">Unidade (un)</SelectItem>
+                      <SelectItem value="kg">Quilograma (kg)</SelectItem>
+                      <SelectItem value="g">Grama (g)</SelectItem>
+                      <SelectItem value="m">Metro (m)</SelectItem>
+                      <SelectItem value="m²">Metro quadrado (m²)</SelectItem>
+                      <SelectItem value="m³">Metro cúbico (m³)</SelectItem>
+                      <SelectItem value="l">Litro (l)</SelectItem>
+                      <SelectItem value="ml">Mililitro (ml)</SelectItem>
+                      <SelectItem value="h">Hora (h)</SelectItem>
+                      <SelectItem value="dia">Dia</SelectItem>
+                      <SelectItem value="mês">Mês</SelectItem>
+                      <SelectItem value="ano">Ano</SelectItem>
+                      <SelectItem value="cx">Caixa (cx)</SelectItem>
+                      <SelectItem value="pct">Pacote (pct)</SelectItem>
+                      <SelectItem value="fardo">Fardo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Unidade de medida que aparece no orçamento (ex: un, kg, m², h)
+                  </p>
                 </div>
 
                 <DialogFooter>
