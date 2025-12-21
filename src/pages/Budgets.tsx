@@ -43,7 +43,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { ServiceBulkImport } from '@/components/budgets/ServiceBulkImport';
 import { ServiceCategoriesManager } from '@/components/budgets/ServiceCategoriesManager';
-import { Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
