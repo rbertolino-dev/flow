@@ -69,6 +69,22 @@ for arg in "$@"; do
     esac
 done
 
+log() {
+    echo -e "${BLUE}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
+log_error() {
+    echo -e "${RED}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
 # PROTEÇÃO: Exigir confirmação explícita para fazer deploy
 if [ "$CONFIRM_DEPLOY" != true ]; then
     log_error "⚠️  DEPLOY REQUER CONFIRMAÇÃO EXPLÍCITA!"
@@ -86,22 +102,6 @@ if [ "$SKIP_GIT_CHECK" = true ]; then
     log_warn "⚠️  Modo --skip-git-check ativado (pulando verificações Git)"
     log_warn "   Use apenas em casos especiais (ex: servidor sem acesso ao GitHub)"
 fi
-
-log() {
-    echo -e "${BLUE}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-}
-
-log_error() {
-    echo -e "${RED}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[ZERO-DOWNTIME]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-}
 
 # Função helper para operações Docker protegidas pelo lock do deploy
 docker_with_deploy_lock() {
