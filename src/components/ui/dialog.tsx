@@ -83,6 +83,9 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
+// Export individual ANTES do export group para garantir inclusão
+export { DialogDescription };
+
 // Garantir que DialogDescription seja sempre incluído no bundle
 // Forçar referência para evitar tree-shaking
 if (typeof window !== 'undefined') {
@@ -99,5 +102,4 @@ export {
   DialogHeader,
   DialogFooter,
   DialogTitle,
-  DialogDescription,
 };
