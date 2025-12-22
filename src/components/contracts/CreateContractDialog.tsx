@@ -6,6 +6,7 @@ import { useContractTemplates } from '@/hooks/useContractTemplates';
 import { useContracts } from '@/hooks/useContracts';
 import { useLeads } from '@/hooks/useLeads';
 import { useContractCategories } from '@/hooks/useContractCategories';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, X, FileText, Upload } from 'lucide-react';
@@ -30,6 +31,7 @@ export function CreateContractDialog({
   const { createContract } = useContracts();
   const { leads, loading: leadsLoading } = useLeads();
   const { categories } = useContractCategories();
+  const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
 
   const [creationMode, setCreationMode] = useState<CreationMode>('template');
@@ -163,21 +165,31 @@ export function CreateContractDialog({
         content = generateContent(template, lead);
       } else {
         // Modo upload: fazer upload do PDF e criar contrato
+        if (!activeOrgId) {
+          throw new Error('Organização não selecionada');
+        }
+
         const fileExt = pdfFile!.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `contracts/${fileName}`;
+        // Path correto: organizationId/contracts/filename.pdf (sem duplicar "contracts")
+        const filePath = `${activeOrgId}/contracts/${fileName}`;
+        const BUCKET_ID = 'whatsapp-workflow-media'; // Bucket correto conforme SupabaseStorageService
 
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('contracts')
+          .from(BUCKET_ID)
           .upload(filePath, pdfFile!, {
             cacheControl: '3600',
             upsert: false,
+            contentType: 'application/pdf',
           });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Erro no upload:', uploadError);
+          throw new Error(`Erro ao fazer upload do PDF: ${uploadError.message}`);
+        }
 
         const { data: { publicUrl } } = supabase.storage
-          .from('contracts')
+          .from(BUCKET_ID)
           .getPublicUrl(filePath);
 
         pdfUrl = publicUrl;
