@@ -22,9 +22,12 @@ const loadReactPdf = async () => {
       
       // Configurar worker do PDF.js
       if (pdfjs && pdfjs.GlobalWorkerOptions) {
-        // Usar worker local copiado para public/ (mais confiável que CDN)
-        // O arquivo pdf.worker.min.js está em public/ e será servido como asset estático
-        pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+        // IMPORTANTE: react-pdf usa pdfjs-dist@5.4.296 internamente
+        // Precisamos usar o worker da mesma versão para evitar incompatibilidade
+        // Usar a versão do pdfjs que vem com react-pdf (não a versão instalada diretamente)
+        const pdfjsVersion = pdfjs.version || '5.4.296';
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
+        console.log(`📄 PDF.js Worker configurado: versão ${pdfjsVersion}`);
       }
     } catch (error) {
       console.error('Erro ao carregar react-pdf:', error);
