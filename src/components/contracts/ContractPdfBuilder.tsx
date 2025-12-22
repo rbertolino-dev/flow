@@ -22,7 +22,9 @@ const loadReactPdf = async () => {
       
       // Configurar worker do PDF.js
       if (pdfjs && pdfjs.GlobalWorkerOptions) {
-        pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+        // Usar versão específica do CDN que sabemos que funciona
+        // Versão 5.4.449 corresponde ao pdfjs-dist instalado
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.449/pdf.worker.min.js`;
       }
     } catch (error) {
       console.error('Erro ao carregar react-pdf:', error);

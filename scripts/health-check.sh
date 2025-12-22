@@ -71,10 +71,27 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${HEALTH_URL}" 2>/dev/null || echo "000")
     
     if [ "$HTTP_RESPONSE" = "200" ] && [ "$HEALTH_STATUS" != "unhealthy" ]; then
-        log_success "Container ${CONTAINER_NAME} está saudável!"
-        log "  - HTTP Status: ${HTTP_RESPONSE}"
-        log "  - Docker Health: ${HEALTH_STATUS}"
-        exit 0
+        # Validação adicional: verificar se aplicação renderiza corretamente
+        VALIDATE_RENDER="$SCRIPT_DIR/validate-app-rendering.sh"
+        if [ -f "$VALIDATE_RENDER" ] && [ -x "$VALIDATE_RENDER" ]; then
+            if "$VALIDATE_RENDER" "$VERSION" 10 >/dev/null 2>&1; then
+                log_success "Container ${CONTAINER_NAME} está saudável!"
+                log "  - HTTP Status: ${HTTP_RESPONSE}"
+                log "  - Docker Health: ${HEALTH_STATUS}"
+                log "  - Aplicação renderiza corretamente"
+                exit 0
+            else
+                log_warn "Health check HTTP OK, mas validação de renderização falhou"
+                log_warn "Aguardando mais tempo para aplicação inicializar..."
+                # Continuar loop para tentar novamente
+            fi
+        else
+            # Fallback se script de validação não estiver disponível
+            log_success "Container ${CONTAINER_NAME} está saudável!"
+            log "  - HTTP Status: ${HTTP_RESPONSE}"
+            log "  - Docker Health: ${HEALTH_STATUS}"
+            exit 0
+        fi
     fi
     
     ELAPSED=$(($(date +%s) - START_TIME))

@@ -28,6 +28,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 HEALTH_CHECK="$SCRIPT_DIR/health-check.sh"
+VALIDATE_RENDER="$SCRIPT_DIR/validate-app-rendering.sh"
 ORCHESTRATOR="$SCRIPT_DIR/docker-orchestrator.sh"
 GET_LAST_DEPLOY="$SCRIPT_DIR/get-last-deploy.sh"
 VERIFY_LAST_DEPLOY="$SCRIPT_DIR/verify-last-deploy-in-air.sh"
@@ -357,6 +358,7 @@ fi
 
 # Tornar scripts executáveis
 chmod +x "$HEALTH_CHECK" 2>/dev/null || true
+chmod +x "$VALIDATE_RENDER" 2>/dev/null || true
 
 log_success "Pré-requisitos OK"
 
@@ -683,12 +685,42 @@ log "4/9 - Fazendo build da nova versão (${NEW_VERSION})..."
 log "  Isso pode levar alguns minutos..."
 log "  Usando lock do deploy para evitar conflitos..."
 
+# Capturar hash do bundle ANTES do build (se versão atual existir)
+PRE_BUILD_BUNDLE_HASH=""
+if docker ps --format '{{.Names}}' | grep -q "kanban-buzz-app-${CURRENT_VERSION}"; then
+    CURRENT_PORT=$([ "$CURRENT_VERSION" = "blue" ] && echo "3000" || echo "3001")
+    PRE_BUILD_BUNDLE_HASH=$(curl -s "http://localhost:${CURRENT_PORT}" 2>/dev/null | grep -o 'index-[^"]*\.js' | head -1 || echo "")
+    if [ -n "$PRE_BUILD_BUNDLE_HASH" ]; then
+        log "Hash do bundle atual (${CURRENT_VERSION}): ${PRE_BUILD_BUNDLE_HASH}"
+    fi
+fi
+
 docker_with_deploy_lock "docker compose -f docker-compose.${NEW_VERSION}.yml build --no-cache" || {
     log_error "Build falhou!"
     rollback
 }
 
 log_success "Build concluído"
+
+# Verificar que build gerou novos arquivos (validação pós-build)
+log "4.1/9 - Validando que build gerou arquivos corretamente..."
+NEW_PORT=$([ "$NEW_VERSION" = "blue" ] && echo "3000" || echo "3001")
+sleep 2  # Aguardar container iniciar se já estiver rodando
+
+# Verificar se dist/ foi criado no container (após build)
+if docker compose -f docker-compose.${NEW_VERSION}.yml exec -T app-${NEW_VERSION} test -d /usr/share/nginx/html 2>/dev/null; then
+    DIST_FILES=$(docker compose -f docker-compose.${NEW_VERSION}.yml exec -T app-${NEW_VERSION} ls -1 /usr/share/nginx/html 2>/dev/null | wc -l || echo "0")
+    if [ "$DIST_FILES" -lt 3 ]; then
+        log_error "Build pode ter falhado - poucos arquivos em dist/ (${DIST_FILES})"
+        log_error "Verificando logs do build..."
+        docker compose -f docker-compose.${NEW_VERSION}.yml logs --tail=50 app-${NEW_VERSION} 2>&1 | tail -20
+        rollback
+        exit 1
+    fi
+    log "✓ Build gerou ${DIST_FILES} arquivos em dist/"
+else
+    log_warn "Não foi possível verificar dist/ diretamente (container pode não estar rodando ainda)"
+fi
 
 # Subir nova versão (usando lock do deploy)
 log "5/9 - Subindo nova versão (${NEW_VERSION}) na porta alternativa..."
@@ -727,6 +759,25 @@ if ! "$HEALTH_CHECK" "${NEW_VERSION}" 30; then
 fi
 
 log_success "Nova versão está saudável e estável (3 verificações OK)!"
+
+# VALIDAÇÃO CRÍTICA: Verificar se aplicação renderiza corretamente (não fica em branco)
+log "6.1/9 - Validando renderização da aplicação (CRÍTICO - previne tela em branco)..."
+if [ -f "$VALIDATE_RENDER" ] && [ -x "$VALIDATE_RENDER" ]; then
+    if ! "$VALIDATE_RENDER" "${NEW_VERSION}" 30; then
+        log_error "FALHA CRÍTICA: Aplicação não renderiza corretamente (tela em branco detectada)!"
+        log_error "Isso pode indicar:"
+        log_error "  - Erro no bundle JavaScript"
+        log_error "  - Imports quebrados (ex: react-pdf importado estaticamente)"
+        log_error "  - Erro de inicialização do React"
+        log_error "Executando rollback para evitar versão quebrada no ar..."
+        rollback
+        exit 1
+    fi
+    log_success "Aplicação renderiza corretamente - seguro para alternar tráfego"
+else
+    log_warn "Script validate-app-rendering.sh não encontrado. Pulando validação de renderização."
+    log_warn "⚠️  RECOMENDADO: Instalar script para prevenir deploys com tela em branco"
+fi
 
 # Garantir que versão atual ainda está rodando antes de alternar
 log "Verificando que versão atual (${CURRENT_VERSION}) ainda está rodando..."
@@ -822,6 +873,18 @@ if ! "$HEALTH_CHECK" "${NEW_VERSION}" 10 >/dev/null 2>&1; then
 fi
 log_success "Nova versão está recebendo e respondendo ao tráfego"
 
+# Validação adicional: verificar renderização após alternar tráfego
+log "8.1/9 - Validando renderização após alternar tráfego..."
+if [ -f "$VALIDATE_RENDER" ] && [ -x "$VALIDATE_RENDER" ]; then
+    if ! "$VALIDATE_RENDER" "${NEW_VERSION}" 20; then
+        log_error "FALHA CRÍTICA: Aplicação não renderiza após alternar tráfego!"
+        log_error "Executando rollback imediato..."
+        rollback
+        exit 1
+    fi
+    log_success "Aplicação renderiza corretamente após alternar tráfego"
+fi
+
 # Aguardar estabilidade - MÚLTIPLAS VERIFICAÇÕES
 log "9/9 - Aguardando estabilidade (${STABILITY_WAIT}s)..."
 
@@ -850,6 +913,18 @@ fi
 log "Verificação 3/3: OK"
 
 log_success "Nova versão estável após 3 verificações consecutivas!"
+
+# VALIDAÇÃO FINAL: Verificar renderização novamente após estabilidade
+log "9.1/9 - Validação final de renderização (após estabilidade)..."
+if [ -f "$VALIDATE_RENDER" ] && [ -x "$VALIDATE_RENDER" ]; then
+    if ! "$VALIDATE_RENDER" "${NEW_VERSION}" 15; then
+        log_error "FALHA CRÍTICA: Aplicação não renderiza após estabilidade!"
+        log_error "Executando rollback de emergência..."
+        rollback
+        exit 1
+    fi
+    log_success "Validação final de renderização: OK"
+fi
 
 # VERIFICAÇÃO FINAL CRÍTICA - Garantir que nova versão está no ar
 log "10/10 - Verificação final crítica - Garantindo que nova versão está no ar..."
