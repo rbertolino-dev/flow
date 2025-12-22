@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,8 @@ import { ContractTemplateEditor } from '@/components/contracts/ContractTemplateE
 import { ContractSignatureDialog } from '@/components/contracts/ContractSignatureDialog';
 import { EditMessageDialog } from '@/components/contracts/EditMessageDialog';
 import { SendContractDialog } from '@/components/contracts/SendContractDialog';
-import { ContractPdfBuilder } from '@/components/contracts/ContractPdfBuilder';
+// Import dinâmico do ContractPdfBuilder para evitar carregar react-pdf na inicialização
+const ContractPdfBuilder = React.lazy(() => import('@/components/contracts/ContractPdfBuilder').then(module => ({ default: module.ContractPdfBuilder })));
 import { ContractFilters } from '@/components/contracts/ContractFilters';
 import { ContractCategories } from '@/components/contracts/ContractCategories';
 import { useContracts } from '@/hooks/useContracts';
