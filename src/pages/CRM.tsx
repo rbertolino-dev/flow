@@ -56,12 +56,18 @@ export default function CRM() {
   const itemsPerPage = 25;
 
   const filteredLeads = useMemo(() => {
+    if (!leads || !Array.isArray(leads)) {
+      return [];
+    }
+    
     return leads.filter(lead => {
+      if (!lead) return false;
+      
       // Busca avançada
-      if (advancedFilters.name && !lead.name.toLowerCase().includes(advancedFilters.name.toLowerCase())) {
+      if (advancedFilters.name && lead.name && !lead.name.toLowerCase().includes(advancedFilters.name.toLowerCase())) {
         return false;
       }
-      if (advancedFilters.phone && !lead.phone.includes(advancedFilters.phone.replace(/\D/g, ""))) {
+      if (advancedFilters.phone && lead.phone && !lead.phone.includes(advancedFilters.phone.replace(/\D/g, ""))) {
         return false;
       }
       if (advancedFilters.email && (!lead.email || !lead.email.toLowerCase().includes(advancedFilters.email.toLowerCase()))) {
