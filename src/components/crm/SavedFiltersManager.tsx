@@ -23,6 +23,7 @@ import {
 import { AdvancedSearchFilters, AdvancedSearchPanel } from "./AdvancedSearchPanel";
 import { useToast } from "@/hooks/use-toast";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useTags } from "@/hooks/useTags";
 
 interface SavedFilter {
   id: string;
