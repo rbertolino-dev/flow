@@ -1,5 +1,5 @@
 import { Lead } from "@/types/lead";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useTags } from "@/hooks/useTags";
+import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
@@ -97,29 +98,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
-  const [editLeadDialogOpen, setEditLeadDialogOpen] = useState(false);
-  const [editLeadFormData, setEditLeadFormData] = useState({
-    name: lead.name,
-    phone: lead.phone,
-    email: lead.email || "",
-    company: lead.company || "",
-    value: lead.value?.toString() || "",
-    notes: lead.notes || "",
-  });
 
   // Atualizar currentLead quando o lead prop mudar
   useEffect(() => {
     setCurrentLead(lead);
-    setEditedName(lead.name);
-    setEditLeadFormData({
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email || "",
-      company: lead.company || "",
-      value: lead.value?.toString() || "",
-      notes: lead.notes || "",
-    });
-  }, [lead.id]); // Usar lead.id para evitar atualizações desnecessárias
+  }, [lead]);
 
   // Identificar listas que contêm este lead
   const leadLists = useMemo(() => {
@@ -447,7 +430,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       const { error: updateError } = await supabase
         .from('leads')
         .update({ notes: newComment })
-        .eq('id', currentLead.id);
+        .eq('id', lead.id);
 
       if (updateError) throw updateError;
 
@@ -614,7 +597,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           return_date: zonedDate.toISOString(),
           updated_at: new Date().toISOString()
         })
-        .eq('id', currentLead.id);
+        .eq('id', lead.id);
 
       if (result.error) {
         // Se erro de coluna não existir, tentar sem return_date (fallback)
@@ -629,7 +612,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             .update({ 
               updated_at: new Date().toISOString()
             })
-            .eq('id', currentLead.id);
+            .eq('id', lead.id);
           
           if (fallbackResult.error) {
             updateError = fallbackResult.error;
@@ -691,51 +674,33 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   };
 
   const handleSaveName = async () => {
-    if (!editedName.trim()) {
-      toast({
-        title: "Erro",
-        description: "O nome não pode estar vazio",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (editedName.trim() === currentLead.name) {
+    if (!editedName.trim() || editedName === lead.name) {
       setIsEditingName(false);
       return;
     }
 
     try {
-      // ✅ Atualização otimista - atualizar UI imediatamente
-      const previousName = currentLead.name;
-      setCurrentLead({ ...currentLead, name: editedName.trim() });
-      setIsEditingName(false);
-
-      // ✅ Salvar no banco
       const { error } = await supabase
         .from("leads")
         .update({ name: editedName.trim() })
-        .eq("id", currentLead.id);
+        .eq("id", lead.id);
 
-      if (error) {
-        // Rollback em caso de erro
-        setCurrentLead({ ...currentLead, name: previousName });
-        throw error;
-      }
+      if (error) throw error;
 
-      // ✅ Disparar evento de refresh para atualizar em tempo real em outras abas
+      // ✅ Atualizar localmente para feedback imediato
+      setCurrentLead({ ...currentLead, name: editedName.trim() });
+      
+      // ✅ Disparar evento de refresh para atualizar em tempo real na aba CRM
       window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead', id: lead.id }
+        detail: { type: 'update', entity: 'lead' }
       }));
-
-      // ✅ Atualizar editLeadFormData também
-      setEditLeadFormData(prev => ({ ...prev, name: editedName.trim() }));
 
       toast({
         title: "Nome atualizado",
         description: "O nome do contato foi atualizado com sucesso.",
       });
 
+      setIsEditingName(false);
       onUpdated?.();
     } catch (error: any) {
       toast({
@@ -743,80 +708,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         description: error.message,
         variant: "destructive",
       });
-      setIsEditingName(true); // Reabrir edição em caso de erro
     }
   };
 
   const handleCancelEditName = () => {
     setEditedName(lead.name);
     setIsEditingName(false);
-  };
-
-  const handleSaveLeadEdit = async () => {
-    if (!editLeadFormData.name.trim() || !editLeadFormData.phone.trim()) {
-      toast({
-        title: "Erro",
-        description: "Nome e telefone são obrigatórios",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // ✅ Atualização otimista - atualizar UI imediatamente
-      const previousLead = { ...currentLead };
-      setCurrentLead({
-        ...currentLead,
-        name: editLeadFormData.name.trim(),
-        phone: editLeadFormData.phone.trim(),
-        email: editLeadFormData.email.trim() || undefined,
-        company: editLeadFormData.company.trim() || undefined,
-        value: editLeadFormData.value ? parseFloat(editLeadFormData.value) : undefined,
-        notes: editLeadFormData.notes.trim() || undefined,
-      });
-      
-      // Fechar edição do nome se estiver aberta
-      setIsEditingName(false);
-      setEditLeadDialogOpen(false);
-
-      // ✅ Salvar no banco
-      const { error } = await supabase
-        .from('leads')
-        .update({
-          name: editLeadFormData.name.trim(),
-          phone: editLeadFormData.phone.trim(),
-          email: editLeadFormData.email.trim() || null,
-          company: editLeadFormData.company.trim() || null,
-          value: editLeadFormData.value ? parseFloat(editLeadFormData.value) : null,
-          notes: editLeadFormData.notes.trim() || null,
-        })
-        .eq('id', currentLead.id);
-
-      if (error) {
-        // Rollback em caso de erro
-        setCurrentLead(previousLead);
-        setEditLeadDialogOpen(true);
-        throw error;
-      }
-
-      // ✅ Disparar evento de refresh para atualizar em tempo real em outras abas
-      window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead', id: lead.id }
-      }));
-
-      toast({
-        title: "Contato atualizado",
-        description: "As informações do contato foram atualizadas com sucesso.",
-      });
-
-      onUpdated?.();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao atualizar contato",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
   };
 
   const handleRemoveFromList = async (listId: string, listName: string) => {
@@ -890,7 +787,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col">
         <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
-            <div className="flex items-start justify-between gap-3 sm:gap-4">
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
               {isEditingName ? (
                 <div className="flex items-center gap-2 mb-2">
@@ -899,13 +796,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                     onChange={(e) => setEditedName(e.target.value)}
                     className="text-lg font-semibold"
                     autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveName();
-                      } else if (e.key === 'Escape') {
-                        handleCancelEditName();
-                      }
-                    }}
                   />
                   <Button size="sm" onClick={handleSaveName}>
                     Salvar
@@ -916,28 +806,14 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 </div>
               ) : (
                 <div className="flex items-center gap-2 mb-2">
-                  <DialogTitle className="text-xl sm:text-2xl truncate">{currentLead.name}</DialogTitle>
+                  <DialogTitle className="text-xl sm:text-2xl truncate">{lead.name}</DialogTitle>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="h-6 w-6 p-0"
                     onClick={() => setIsEditingName(true)}
-                    title="Editar nome rapidamente"
                   >
                     <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => {
-                      setIsEditingName(false);
-                      setEditLeadDialogOpen(true);
-                    }}
-                    title="Editar todas as informações"
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Editar Tudo
                   </Button>
                 </div>
               )}
@@ -948,14 +824,14 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 <Badge variant="outline" className="text-xs sm:text-sm">{lead.status}</Badge>
               </div>
             </div>
-            {currentLead.value && (
+            {lead.value && (
               <div className="text-right shrink-0">
                 <p className="text-xs sm:text-sm text-muted-foreground">Valor</p>
                 <p className="text-lg sm:text-2xl font-bold text-primary">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
-                  }).format(currentLead.value)}
+                  }).format(lead.value)}
                 </p>
               </div>
             )}
@@ -973,9 +849,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
               <div className="grid gap-3">
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatBrazilianPhone(currentLead.phone)}</span>
+                  <span>{formatBrazilianPhone(lead.phone)}</span>
                   <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
-                    const formatted = buildCopyNumber(currentLead.phone);
+                    const formatted = buildCopyNumber(lead.phone);
                     navigator.clipboard.writeText(formatted);
                     toast({
                       title: "Telefone copiado",
@@ -985,22 +861,22 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                     Ligar
                   </Button>
                 </div>
-                {currentLead.email && (
+                {lead.email && (
                   <div className="flex items-center gap-3 text-sm">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{currentLead.email}</span>
+                    <span>{lead.email}</span>
                   </div>
                 )}
-                {currentLead.company && (
+                {lead.company && (
                   <div className="flex items-center gap-3 text-sm">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span>{currentLead.company}</span>
+                    <span>{lead.company}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-3 text-sm">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    Último contato: {format(currentLead.lastContact, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    Último contato: {format(lead.lastContact, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
@@ -1511,90 +1387,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
           onUpdated?.();
         }}
       />
-
-      {/* Dialog de Edição Completa do Lead */}
-      <Dialog open={editLeadDialogOpen} onOpenChange={setEditLeadDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Dados do Contato</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Nome *</Label>
-              <Input
-                id="edit-name"
-                value={editLeadFormData.name}
-                onChange={(e) => setEditLeadFormData({ ...editLeadFormData, name: e.target.value })}
-                placeholder="Nome completo"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-phone">Telefone *</Label>
-              <Input
-                id="edit-phone"
-                value={editLeadFormData.phone}
-                onChange={(e) => setEditLeadFormData({ ...editLeadFormData, phone: e.target.value })}
-                placeholder="(11) 98765-4321"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={editLeadFormData.email}
-                onChange={(e) => setEditLeadFormData({ ...editLeadFormData, email: e.target.value })}
-                placeholder="email@exemplo.com"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-company">Empresa</Label>
-              <Input
-                id="edit-company"
-                value={editLeadFormData.company}
-                onChange={(e) => setEditLeadFormData({ ...editLeadFormData, company: e.target.value })}
-                placeholder="Nome da empresa"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-value">Valor</Label>
-              <Input
-                id="edit-value"
-                type="number"
-                step="0.01"
-                value={editLeadFormData.value}
-                onChange={(e) => setEditLeadFormData({ ...editLeadFormData, value: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-notes">Observações</Label>
-              <Textarea
-                id="edit-notes"
-                value={editLeadFormData.notes}
-                onChange={(e) => setEditLeadFormData({ ...editLeadFormData, notes: e.target.value })}
-                placeholder="Observações sobre o contato..."
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditLeadDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveLeadEdit}>
-              Salvar Alterações
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 }
