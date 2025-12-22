@@ -7,8 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, X, Save, MousePointer2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+// CSS imports removidos - serão carregados dinamicamente se necessário
 
 // Configurar worker do PDF.js
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
