@@ -281,7 +281,16 @@ export function ContractPdfBuilder({
                 accept="application/pdf"
                 onChange={handleFileUpload}
                 className="hidden"
+                disabled={!reactPdfLoaded}
               />
+              {!reactPdfLoaded && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Aguardando carregamento do visualizador...
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Tamanho máximo: 10MB
+              </p>
             </div>
           )}
 
