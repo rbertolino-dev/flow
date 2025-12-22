@@ -423,16 +423,24 @@ export function useFollowUpTemplates() {
     try {
       // Se não especificar ordem, usar a próxima disponível
       if (executionOrder === undefined) {
-        const { data: existingAutomations } = await (supabase as any)
+        const { data: existingAutomations, error: queryError } = await (supabase as any)
           .from('follow_up_step_automations')
           .select('execution_order')
           .eq('step_id', stepId)
           .order('execution_order', { ascending: false })
           .limit(1);
 
-        executionOrder = existingAutomations && existingAutomations.length > 0
-          ? existingAutomations[0].execution_order + 1
-          : 1;
+        // Se tabela não existe, usar ordem 1
+        if (queryError && (queryError.code === 'PGRST116' || queryError.message?.includes('not found') || queryError.message?.includes('schema cache'))) {
+          console.warn('[useFollowUpTemplates] Tabela follow_up_step_automations não encontrada ao buscar ordem. Usando ordem 1.');
+          executionOrder = 1;
+        } else if (queryError) {
+          throw queryError;
+        } else {
+          executionOrder = existingAutomations && existingAutomations.length > 0
+            ? existingAutomations[0].execution_order + 1
+            : 1;
+        }
       }
 
       const { error } = await (supabase as any)
@@ -445,7 +453,13 @@ export function useFollowUpTemplates() {
           is_active: true,
         });
 
-      if (error) throw error;
+      if (error) {
+        // Se tabela não existe, mostrar mensagem específica
+        if (error.code === 'PGRST116' || error.message?.includes('not found') || error.message?.includes('schema cache')) {
+          throw new Error('Tabela de automações não encontrada. Aplique a migration 20251222202000_create_follow_up_step_automations_if_not_exists.sql no Supabase.');
+        }
+        throw error;
+      }
 
       await fetchTemplates();
       toast({
@@ -490,7 +504,13 @@ export function useFollowUpTemplates() {
         .update(updateData)
         .eq('id', automationId);
 
-      if (error) throw error;
+      if (error) {
+        // Se tabela não existe, mostrar mensagem específica
+        if (error.code === 'PGRST116' || error.message?.includes('not found') || error.message?.includes('schema cache')) {
+          throw new Error('Tabela de automações não encontrada. Aplique a migration 20251222202000_create_follow_up_step_automations_if_not_exists.sql no Supabase.');
+        }
+        throw error;
+      }
 
       await fetchTemplates();
       toast({
@@ -516,7 +536,13 @@ export function useFollowUpTemplates() {
         .delete()
         .eq('id', automationId);
 
-      if (error) throw error;
+      if (error) {
+        // Se tabela não existe, mostrar mensagem específica
+        if (error.code === 'PGRST116' || error.message?.includes('not found') || error.message?.includes('schema cache')) {
+          throw new Error('Tabela de automações não encontrada. Aplique a migration 20251222202000_create_follow_up_step_automations_if_not_exists.sql no Supabase.');
+        }
+        throw error;
+      }
 
       await fetchTemplates();
       toast({

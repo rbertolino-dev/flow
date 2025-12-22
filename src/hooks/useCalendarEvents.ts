@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export interface CalendarEvent {
   id: string;
@@ -79,6 +79,25 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
     }
   }, [initialEvents]);
 
+  // Função para verificar se evento está dentro do range de datas e filtros
+  const shouldIncludeEvent = useCallback((event: CalendarEvent): boolean => {
+    // Verificar filtro de googleCalendarConfigId
+    if (googleCalendarConfigId && event.google_calendar_config_id !== googleCalendarConfigId) {
+      return false;
+    }
+    
+    // Verificar range de datas
+    if (!startDate && !endDate) return true;
+    
+    const eventStart = new Date(event.start_datetime);
+    const eventEnd = new Date(event.end_datetime);
+    
+    if (startDate && eventEnd < startDate) return false;
+    if (endDate && eventStart > endDate) return false;
+    
+    return true;
+  }, [startDate, endDate, googleCalendarConfigId]);
+
   // Configurar realtime subscription
   useEffect(() => {
     if (!activeOrgId) return;
@@ -102,17 +121,37 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
           
           if (eventType === 'INSERT') {
             const newEvent = payload.new as CalendarEvent;
-            setEvents((prev) => {
-              if (prev.find(e => e.id === newEvent.id)) return prev;
-              return [...prev, newEvent].sort((a, b) => 
-                new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
-              );
-            });
+            // Verificar se está dentro do range de datas e filtros antes de adicionar
+            if (shouldIncludeEvent(newEvent)) {
+              setEvents((prev) => {
+                if (prev.find(e => e.id === newEvent.id)) return prev;
+                return [...prev, newEvent].sort((a, b) => 
+                  new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+                );
+              });
+            }
           } else if (eventType === 'UPDATE') {
             const updatedEvent = payload.new as CalendarEvent;
-            setEvents((prev) =>
-              prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
-            );
+            setEvents((prev) => {
+              const existingIndex = prev.findIndex(e => e.id === updatedEvent.id);
+              
+              // Se evento existe e ainda está no range, atualizar
+              if (existingIndex >= 0 && shouldIncludeEvent(updatedEvent)) {
+                return prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+              }
+              // Se evento existe mas saiu do range, remover
+              if (existingIndex >= 0 && !shouldIncludeEvent(updatedEvent)) {
+                return prev.filter(e => e.id !== updatedEvent.id);
+              }
+              // Se evento não existe mas está no range, adicionar
+              if (existingIndex < 0 && shouldIncludeEvent(updatedEvent)) {
+                return [...prev, updatedEvent].sort((a, b) => 
+                  new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+                );
+              }
+              
+              return prev;
+            });
           } else if (eventType === 'DELETE') {
             const deletedId = payload.old?.id;
             if (deletedId) {
@@ -136,7 +175,7 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
       console.log('🔌 Desconectando realtime de calendar_events');
       supabase.removeChannel(channel);
     };
-  }, [activeOrgId, refetch]);
+  }, [activeOrgId, refetch, isEventInDateRange]);
 
   return {
     events: events || [],
