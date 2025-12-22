@@ -134,18 +134,25 @@ export function useSellerGoals() {
         throw error;
       }
 
+      // Atualizar lista de metas imediatamente (otimista)
+      const newGoal: SellerGoal = {
+        ...data,
+        period_type: data.period_type || data.goal_type || 'monthly',
+        target_leads: data.target_leads || 0,
+        target_commission: data.target_commission || 0,
+      } as SellerGoal;
+      
+      setGoals(prev => [newGoal, ...prev]);
+      
+      // Buscar novamente para garantir sincronização
       await fetchGoals();
+      
       toast({
         title: "Meta criada",
         description: "A meta foi criada com sucesso.",
       });
 
-      return {
-        ...data,
-        period_type: data.period_type || data.goal_type,
-        target_leads: data.target_leads || 0,
-        target_commission: data.target_commission || 0,
-      } as SellerGoal;
+      return newGoal;
     } catch (error: any) {
       console.error("Erro ao criar meta:", error);
       toast({

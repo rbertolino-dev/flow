@@ -100,12 +100,28 @@ export function SellerGoalsManagement() {
       setSaving(true);
       if (editingGoal) {
         await updateGoal(editingGoal.id, formData);
+        toast.success("Meta atualizada com sucesso!");
       } else {
         await createGoal(formData);
+        toast.success("Meta criada com sucesso!");
       }
       setIsDialogOpen(false);
+      // Resetar formulário
+      setFormData({
+        user_id: "",
+        period_type: "monthly",
+        period_start: "",
+        period_end: "",
+        target_leads: 0,
+        target_value: 0,
+        target_commission: 0,
+      });
+      setEditingGoal(null);
+      // Forçar atualização da lista
+      await refetch();
     } catch (error) {
       console.error(error);
+      // Erro já é tratado no hook, mas podemos adicionar feedback adicional se necessário
     } finally {
       setSaving(false);
     }
