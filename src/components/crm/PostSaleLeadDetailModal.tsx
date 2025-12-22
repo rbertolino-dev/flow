@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, Tag as TagIcon } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, Tag as TagIcon, ListChecks } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { usePostSaleStages } from "@/hooks/usePostSaleStages";
 import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
 import { useLeadFollowUps } from "@/hooks/useLeadFollowUps";
-import { ListChecks } from "lucide-react";
 
 interface PostSaleLeadDetailModalProps {
   lead: PostSaleLead;
@@ -39,10 +38,20 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   const { stages } = usePostSaleStages();
   const { toast } = useToast();
   const [notes, setNotes] = useState(lead.notes || "");
+  const [value, setValue] = useState(lead.value?.toString() || "");
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Atualizar valores quando lead mudar
+  useEffect(() => {
+    setNotes(lead.notes || "");
+    setValue(lead.value?.toString() || "");
+  }, [lead.id, lead.notes, lead.value]);
   
   // Follow-up hooks
   const { templates, loading: templatesLoading } = useFollowUpTemplates();
+  // Para pós-venda, usar o ID do post_sale_lead diretamente (a migration permite isso)
+  // Se tiver originalLeadId, usar ele (é o lead de vendas original)
+  // Caso contrário, usar o id do post_sale_lead (a migration permite follow-ups em post_sale_leads)
   const leadIdForFollowUp = lead.originalLeadId || lead.id;
   const { applyTemplate } = useLeadFollowUps(leadIdForFollowUp);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -87,16 +96,8 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   const handleApplyFollowUp = async (templateId: string) => {
     if (!templateId) return;
     
-    // Se não tiver originalLeadId, avisar que precisa ter um lead original
-    if (!lead.originalLeadId) {
-      toast({
-        title: "Atenção",
-        description: "Este contato precisa estar vinculado a um lead original para aplicar follow-up.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
+    // A migration permite follow-ups tanto em leads quanto em post_sale_leads
+    // Então podemos aplicar mesmo sem originalLeadId
     const success = await applyTemplate(templateId);
     if (success) {
       toast({
@@ -155,22 +156,65 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                     <span className="font-medium">{lead.company}</span>
                   </div>
                 )}
-                {lead.value && (
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Valor:</span>
-                    <span className="font-medium">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.value)}
-                    </span>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Valor:</span>
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={value}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        // Permitir apenas valores positivos ou vazio
+                        if (val === "" || parseFloat(val) >= 0) {
+                          setValue(val);
+                        }
+                      }}
+                      className="w-32 h-8"
+                      placeholder="0.00"
+                    />
+                    {value && parseFloat(value) >= 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          setIsSaving(true);
+                          try {
+                            await updateLead(lead.id, { value: value ? parseFloat(value) : undefined });
+                            toast({
+                              title: "Valor atualizado",
+                              description: "O valor foi atualizado com sucesso.",
+                            });
+                            onUpdated?.();
+                          } catch (error: any) {
+                            toast({
+                              title: "Erro ao atualizar valor",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        }}
+                        disabled={isSaving || (value && parseFloat(value) < 0)}
+                      >
+                        Salvar
+                      </Button>
+                    )}
+                    {value && parseFloat(value) < 0 && (
+                      <p className="text-xs text-destructive">Valor não pode ser negativo</p>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
             <Separator />
 
             {/* Follow-up */}
-            {lead.originalLeadId && activeTemplates.length > 0 && (
+            {activeTemplates.length > 0 && (
               <>
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg flex items-center gap-2">

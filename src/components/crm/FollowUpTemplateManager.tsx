@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export function FollowUpTemplateManager() {
-  const { templates, loading, createTemplate, updateTemplate, deleteTemplate, addStep, updateStep, deleteStep } = useFollowUpTemplates();
+  const { templates, loading, createTemplate, updateTemplate, deleteTemplate, addStep, updateStep, deleteStep, refetch } = useFollowUpTemplates();
   const [open, setOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FollowUpTemplate | null>(null);
   const [editingStep, setEditingStep] = useState<FollowUpTemplateStep | null>(null);
@@ -105,6 +105,16 @@ export function FollowUpTemplateManager() {
       return;
     }
 
+    // Validar que o step tem ID (não é um novo step)
+    if (!editingStep.id) {
+      toast({
+        title: "Erro",
+        description: "Etapa não encontrada. Por favor, recarregue a página.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const success = await updateStep(editingStep.id, stepTitle, stepDescription, stepTip);
     if (success) {
       setEditingStep(null);
@@ -147,7 +157,11 @@ export function FollowUpTemplateManager() {
   };
 
   const handleToggleTemplateActive = async (template: FollowUpTemplate) => {
-    await updateTemplate(template.id, template.name, template.description, !template.isActive);
+    const newActiveState = !template.isActive;
+    // Atualizar no banco (o hook já atualiza o estado via realtime)
+    await updateTemplate(template.id, template.name, template.description, newActiveState);
+    // Forçar refetch para garantir atualização imediata
+    await refetch();
   };
 
   return (

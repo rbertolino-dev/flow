@@ -35,6 +35,11 @@ export function CreatePostSaleLeadDialog({ open, onOpenChange, onCreated }: Crea
       return;
     }
 
+    // Validar valor não negativo
+    if (value && parseFloat(value) < 0) {
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -43,7 +48,7 @@ export function CreatePostSaleLeadDialog({ open, onOpenChange, onCreated }: Crea
         phone: phone.trim(),
         email: email.trim() || undefined,
         company: company.trim() || undefined,
-        value: value ? parseFloat(value) : undefined,
+        value: value && parseFloat(value) >= 0 ? parseFloat(value) : undefined,
         notes: notes.trim() || undefined,
         stageId: stageId || undefined,
       });
@@ -125,10 +130,20 @@ export function CreatePostSaleLeadDialog({ open, onOpenChange, onCreated }: Crea
               id="value"
               type="number"
               step="0.01"
+              min="0"
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                // Permitir apenas valores positivos ou vazio
+                if (val === "" || parseFloat(val) >= 0) {
+                  setValue(val);
+                }
+              }}
               placeholder="0.00"
             />
+            {value && parseFloat(value) < 0 && (
+              <p className="text-xs text-destructive">O valor não pode ser negativo</p>
+            )}
           </div>
 
           <div className="space-y-2">

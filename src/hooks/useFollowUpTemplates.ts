@@ -318,6 +318,10 @@ export function useFollowUpTemplates() {
 
   const updateStep = async (stepId: string, title: string, description?: string, tip?: string) => {
     try {
+      if (!stepId || stepId.trim() === '') {
+        throw new Error('ID da etapa é obrigatório');
+      }
+
       const { error } = await (supabase as any)
         .from('follow_up_template_steps')
         .update({
@@ -327,7 +331,10 @@ export function useFollowUpTemplates() {
         })
         .eq('id', stepId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useFollowUpTemplates] Erro ao atualizar etapa:', error);
+        throw error;
+      }
 
       await fetchTemplates();
       toast({
