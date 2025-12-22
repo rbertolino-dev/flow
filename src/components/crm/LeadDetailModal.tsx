@@ -97,11 +97,22 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
+  
+  // Estados para edição de informações do lead
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [editedPhone, setEditedPhone] = useState(lead.phone);
+  const [editedEmail, setEditedEmail] = useState(lead.email || "");
+  const [editedCompany, setEditedCompany] = useState(lead.company || "");
+  const [editedNotes, setEditedNotes] = useState(lead.notes || "");
 
   // Atualizar currentLead e editedName quando o lead prop mudar
   useEffect(() => {
     setCurrentLead(lead);
     setEditedName(lead.name);
+    setEditedPhone(lead.phone);
+    setEditedEmail(lead.email || "");
+    setEditedCompany(lead.company || "");
+    setEditedNotes(lead.notes || "");
   }, [lead]);
 
   // Identificar listas que contêm este lead
@@ -720,6 +731,71 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     setIsEditingName(false);
   };
 
+  const handleSaveLeadInfo = async () => {
+    try {
+      const updates: any = {};
+      
+      if (editedPhone !== currentLead.phone) {
+        updates.phone = editedPhone.trim();
+      }
+      if (editedEmail !== (currentLead.email || "")) {
+        updates.email = editedEmail.trim() || null;
+      }
+      if (editedCompany !== (currentLead.company || "")) {
+        updates.company = editedCompany.trim() || null;
+      }
+      if (editedNotes !== (currentLead.notes || "")) {
+        updates.notes = editedNotes.trim() || null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        setIsEditingInfo(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("leads")
+        .update(updates)
+        .eq("id", currentLead.id);
+
+      if (error) throw error;
+
+      // ✅ Atualizar localmente para feedback imediato
+      setCurrentLead({
+        ...currentLead,
+        ...updates,
+      });
+      
+      // ✅ Disparar evento de refresh para atualizar em tempo real na aba CRM
+      window.dispatchEvent(new CustomEvent('data-refresh', {
+        detail: { type: 'update', entity: 'lead', leadId: currentLead.id }
+      }));
+
+      toast({
+        title: "Informações atualizadas",
+        description: "As informações do contato foram atualizadas com sucesso.",
+      });
+
+      setIsEditingInfo(false);
+      onUpdated?.();
+    } catch (error: any) {
+      console.error("Erro ao atualizar informações do lead:", error);
+      toast({
+        title: "Erro ao atualizar informações",
+        description: error.message || "Erro desconhecido ao atualizar informações",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEditInfo = () => {
+    setEditedPhone(currentLead.phone);
+    setEditedEmail(currentLead.email || "");
+    setEditedCompany(currentLead.company || "");
+    setEditedNotes(currentLead.notes || "");
+    setIsEditingInfo(false);
+  };
+
   const handleRemoveFromList = async (listId: string, listName: string) => {
     try {
       const list = lists.find((l) => l.id === listId);
@@ -861,65 +937,128 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
-              <h3 className="font-semibold text-lg">Informações de Contato</h3>
-              <div className="grid gap-3">
-                <div className="flex items-center gap-3 text-sm">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatBrazilianPhone(lead.phone)}</span>
-                  <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
-                    const formatted = buildCopyNumber(lead.phone);
-                    navigator.clipboard.writeText(formatted);
-                    toast({
-                      title: "Telefone copiado",
-                      description: `${formatted} copiado para a área de transferência`,
-                    });
-                  }}>
-                    Ligar
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Informações de Contato</h3>
+                {!isEditingInfo && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsEditingInfo(true)}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar Informações
                   </Button>
-                </div>
-                {lead.email && (
-                  <div className="flex items-center gap-3 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{lead.email}</span>
-                  </div>
                 )}
-                {lead.company && (
-                  <div className="flex items-center gap-3 text-sm">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span>{lead.company}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 text-sm">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    Último contato: {format(lead.lastContact, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <Label htmlFor="return-date" className="text-sm">Data de Retorno:</Label>
-                  </div>
-                  <div className="flex items-center gap-2 flex-1">
+              </div>
+              {isEditingInfo ? (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-phone">Telefone *</Label>
                     <Input
-                      id="return-date"
-                      type="date"
-                      value={returnDate}
-                      onChange={(e) => setReturnDate(e.target.value)}
-                      className="h-8 w-full sm:w-40"
+                      id="edit-phone"
+                      value={editedPhone}
+                      onChange={(e) => setEditedPhone(e.target.value)}
+                      placeholder="(00) 00000-0000"
                     />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={handleUpdateReturnDate}
-                      disabled={!returnDate}
-                      className="flex-shrink-0"
-                    >
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-email">Email</Label>
+                    <Input
+                      id="edit-email"
+                      type="email"
+                      value={editedEmail}
+                      onChange={(e) => setEditedEmail(e.target.value)}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-company">Empresa</Label>
+                    <Input
+                      id="edit-company"
+                      value={editedCompany}
+                      onChange={(e) => setEditedCompany(e.target.value)}
+                      placeholder="Nome da empresa"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-notes">Observações</Label>
+                    <Textarea
+                      id="edit-notes"
+                      value={editedNotes}
+                      onChange={(e) => setEditedNotes(e.target.value)}
+                      placeholder="Observações sobre o contato..."
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={handleCancelEditInfo}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={handleSaveLeadInfo}>
                       Salvar
                     </Button>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid gap-3">
+                  <div className="flex items-center gap-3 text-sm">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span>{formatBrazilianPhone(currentLead.phone)}</span>
+                    <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+                      const formatted = buildCopyNumber(currentLead.phone);
+                      navigator.clipboard.writeText(formatted);
+                      toast({
+                        title: "Telefone copiado",
+                        description: `${formatted} copiado para a área de transferência`,
+                      });
+                    }}>
+                      Ligar
+                    </Button>
+                  </div>
+                  {currentLead.email && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span>{currentLead.email}</span>
+                    </div>
+                  )}
+                  {currentLead.company && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <span>{currentLead.company}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      Último contato: {format(currentLead.lastContact, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Label htmlFor="return-date" className="text-sm">Data de Retorno:</Label>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        id="return-date"
+                        type="date"
+                        value={returnDate}
+                        onChange={(e) => setReturnDate(e.target.value)}
+                        className="h-8 w-full sm:w-40"
+                      />
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleUpdateReturnDate}
+                        disabled={!returnDate}
+                        className="flex-shrink-0"
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -939,10 +1078,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                   </span>
                 </div>
               </div>
-              {lead.notes && (
+              {!isEditingInfo && currentLead.notes && (
                 <div className="mt-3 p-3 bg-muted rounded-md">
                   <p className="text-sm text-muted-foreground">Observações:</p>
-                  <p className="text-sm mt-1">{lead.notes}</p>
+                  <p className="text-sm mt-1">{currentLead.notes}</p>
                 </div>
               )}
             </div>
