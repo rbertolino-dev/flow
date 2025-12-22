@@ -359,7 +359,7 @@ export function SellerGoalsManagement() {
                       <TableHead>Meta Leads</TableHead>
                       <TableHead>Meta Valor</TableHead>
                       <TableHead>Meta Comissão</TableHead>
-                      <TableHead className="w-[120px] text-right">Ações</TableHead>
+                      <TableHead className="w-[150px] text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -377,25 +377,27 @@ export function SellerGoalsManagement() {
                         <TableCell>{goal.target_leads}</TableCell>
                         <TableCell>{formatCurrency(goal.target_value)}</TableCell>
                         <TableCell>{formatCurrency(goal.target_commission)}</TableCell>
-                        <TableCell className="w-[120px] sticky right-0 bg-background">
+                        <TableCell className="w-[150px]">
                           <div className="flex gap-2 items-center justify-end">
                             <Button 
                               variant="default" 
                               size="sm" 
                               onClick={() => handleOpenDialog(goal)} 
                               title="Editar meta"
-                              className="h-8 w-8 p-0 bg-primary hover:bg-primary/90"
+                              className="h-8 px-3"
                             >
-                              <Pencil className="h-4 w-4 text-primary-foreground" />
+                              <Pencil className="h-4 w-4 mr-1" />
+                              Editar
                             </Button>
                             <Button 
                               variant="destructive" 
                               size="sm" 
                               onClick={() => handleDelete(goal.id)} 
                               title="Excluir meta"
-                              className="h-8 w-8 p-0"
+                              className="h-8 px-3"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Excluir
                             </Button>
                           </div>
                         </TableCell>
@@ -481,7 +483,7 @@ export function SellerGoalsManagement() {
                         <TableHead>Meta Leads</TableHead>
                         <TableHead>Meta Valor</TableHead>
                         <TableHead>Meta Comissão</TableHead>
-                        <TableHead className="w-[120px] text-right">Ações</TableHead>
+                        <TableHead className="w-[150px] text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -498,25 +500,27 @@ export function SellerGoalsManagement() {
                           <TableCell>{goal.target_leads}</TableCell>
                           <TableCell>{formatCurrency(goal.target_value)}</TableCell>
                           <TableCell>{formatCurrency(goal.target_commission)}</TableCell>
-                          <TableCell className="w-[120px] sticky right-0 bg-background">
+                          <TableCell className="w-[150px]">
                             <div className="flex gap-2 items-center justify-end">
                               <Button 
                                 variant="default" 
                                 size="sm" 
                                 onClick={() => handleOpenDialog(goal)} 
                                 title="Editar meta"
-                                className="h-8 w-8 p-0 bg-primary hover:bg-primary/90"
+                                className="h-8 px-3"
                               >
-                                <Pencil className="h-4 w-4 text-primary-foreground" />
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Editar
                               </Button>
                               <Button 
                                 variant="destructive" 
                                 size="sm" 
                                 onClick={() => handleDelete(goal.id)} 
                                 title="Excluir meta"
-                                className="h-8 w-8 p-0"
+                                className="h-8 px-3"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Excluir
                               </Button>
                             </div>
                           </TableCell>
