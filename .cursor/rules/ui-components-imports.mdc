@@ -333,5 +333,19 @@ echo "✅ Validação concluída!"
 
 ---
 
-**Última atualização:** 2025-12-21
-**Baseado em:** Erro `ReferenceError: DialogDescription is not defined` em `CreateLeadDialog.tsx`
+**Última atualização:** 2025-12-22
+**Baseado em:** 
+- Erro `ReferenceError: DialogDescription is not defined` em `CreateLeadDialog.tsx`
+- Erro `ReferenceError: useTags is not defined` em `SavedFiltersManager.tsx`
+
+## 🔄 INTEGRAÇÃO COM DEPLOY
+
+**O script de deploy (`deploy-zero-downtime.sh`) agora executa validação de imports automaticamente antes do build:**
+
+1. ✅ Valida hooks críticos (useTags, useLeads, etc.)
+2. ✅ Valida componentes UI críticos (DialogDescription, etc.)
+3. ✅ Verifica build sem erros
+4. ✅ Verifica TypeScript sem erros
+5. ❌ **BLOQUEIA deploy se encontrar erros**
+
+**Script de validação:** `scripts/validate-imports-before-deploy.sh`

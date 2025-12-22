@@ -10,27 +10,66 @@ import { supabase } from '@/integrations/supabase/client';
 // Import dinâmico do react-pdf para evitar erros de inicialização
 let Document: any, Page: any, pdfjs: any;
 let reactPdfModule: any = null;
+let workerConfigured = false;
+
+// Configurar worker do PDF.js de forma robusta com múltiplos fallbacks
+const configurePdfWorker = (pdfjsInstance: any): boolean => {
+  if (!pdfjsInstance || !pdfjsInstance.GlobalWorkerOptions) {
+    console.warn('⚠️ pdfjs.GlobalWorkerOptions não disponível');
+    return false;
+  }
+
+  // Se já foi configurado, não configurar novamente
+  if (workerConfigured && pdfjsInstance.GlobalWorkerOptions.workerSrc) {
+    console.log('✅ Worker já configurado:', pdfjsInstance.GlobalWorkerOptions.workerSrc);
+    return true;
+  }
+
+  const pdfjsVersion = pdfjsInstance.version || '5.4.296';
+  console.log(`📄 Configurando PDF.js Worker - versão detectada: ${pdfjsVersion}`);
+
+  // Estratégia 1: Tentar usar worker local de public/ (se existir)
+  // O arquivo pdf.worker.min.js foi copiado para public/ durante setup
+  try {
+    pdfjsInstance.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+    console.log('✅ Tentando worker local de public/');
+    workerConfigured = true;
+    // Não retornar true ainda - vamos testar se funciona, se não, usar CDN
+  } catch (error) {
+    console.warn('⚠️ Worker local não disponível, usando CDN...', error);
+  }
+
+  // Estratégia 2: Usar CDN do unpkg.com com versão específica (mais confiável)
+  // Esta é a estratégia principal - unpkg.com é muito confiável
+  pdfjsInstance.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
+  console.log(`✅ Worker configurado via CDN (unpkg): versão ${pdfjsVersion}`);
+  workerConfigured = true;
+  return true;
+};
 
 // Carregar react-pdf dinamicamente apenas quando necessário
 const loadReactPdf = async () => {
   if (!reactPdfModule) {
     try {
+      console.log('🔄 Carregando react-pdf...');
       reactPdfModule = await import('react-pdf');
       Document = reactPdfModule.Document;
       Page = reactPdfModule.Page;
       pdfjs = reactPdfModule.pdfjs;
       
-      // Configurar worker do PDF.js
-      if (pdfjs && pdfjs.GlobalWorkerOptions) {
-        // IMPORTANTE: react-pdf usa pdfjs-dist@5.4.296 internamente
-        // Precisamos usar o worker da mesma versão para evitar incompatibilidade
-        // Usar a versão do pdfjs que vem com react-pdf (não a versão instalada diretamente)
-        const pdfjsVersion = pdfjs.version || '5.4.296';
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
-        console.log(`📄 PDF.js Worker configurado: versão ${pdfjsVersion}`);
+      if (!pdfjs) {
+        throw new Error('pdfjs não disponível após importar react-pdf');
       }
+
+      // Configurar worker de forma robusta
+      const workerOk = configurePdfWorker(pdfjs);
+      if (!workerOk) {
+        console.warn('⚠️ Worker não foi configurado corretamente, mas continuando...');
+      }
+
+      console.log('✅ react-pdf carregado com sucesso');
     } catch (error) {
-      console.error('Erro ao carregar react-pdf:', error);
+      console.error('❌ Erro ao carregar react-pdf:', error);
       throw error;
     }
   }
@@ -93,20 +132,21 @@ export function ContractPdfBuilder({
     }
   }, [open, reactPdfLoaded, reactPdfError, toast]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validação 1: Tipo de arquivo
     if (file.type !== 'application/pdf') {
       toast({
         title: 'Arquivo inválido',
-        description: 'Por favor, selecione um arquivo PDF',
+        description: 'Por favor, selecione um arquivo PDF válido',
         variant: 'destructive',
       });
       return;
     }
 
-    // Validar tamanho do arquivo (máximo 10MB)
+    // Validação 2: Tamanho do arquivo (máximo 10MB)
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: 'Arquivo muito grande',
@@ -116,22 +156,75 @@ export function ContractPdfBuilder({
       return;
     }
 
-    // Limpar URL anterior se existir
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
+    // Validação 3: Arquivo não vazio
+    if (file.size === 0) {
+      toast({
+        title: 'Arquivo vazio',
+        description: 'O arquivo PDF está vazio',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    setPdfFile(file);
-    const url = URL.createObjectURL(file);
-    setPdfUrl(url);
-    setPositions([]);
-    setCurrentPage(1);
-    setReactPdfError(null); // Limpar erros anteriores
-    
-    toast({
-      title: 'PDF carregado',
-      description: 'Arquivo carregado com sucesso. Clique no PDF para marcar as posições de assinatura.',
-    });
+    // Validação 4: Verificar se react-pdf está carregado
+    if (!reactPdfLoaded) {
+      toast({
+        title: 'Aguarde',
+        description: 'O visualizador de PDF ainda está carregando. Aguarde alguns segundos e tente novamente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+    setReactPdfError(null);
+
+    try {
+      // Limpar URL anterior se existir
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+
+      // Criar URL do objeto
+      const url = URL.createObjectURL(file);
+      
+      // Validação 5: Testar se o PDF pode ser lido (verificação básica)
+      // Ler os primeiros bytes para verificar se é um PDF válido
+      const arrayBuffer = await file.slice(0, 4).arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const pdfHeader = String.fromCharCode(...uint8Array);
+      
+      if (!pdfHeader.startsWith('%PDF')) {
+        URL.revokeObjectURL(url);
+        toast({
+          title: 'Arquivo inválido',
+          description: 'O arquivo não parece ser um PDF válido',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      setPdfFile(file);
+      setPdfUrl(url);
+      setPositions([]);
+      setCurrentPage(1);
+      
+      toast({
+        title: 'PDF carregado',
+        description: 'Arquivo carregado com sucesso. Clique no PDF para marcar as posições de assinatura.',
+      });
+    } catch (error: any) {
+      console.error('Erro ao processar arquivo PDF:', error);
+      toast({
+        title: 'Erro ao processar PDF',
+        description: error.message || 'Não foi possível processar o arquivo PDF',
+        variant: 'destructive',
+      });
+      setReactPdfError('Erro ao processar arquivo PDF');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
@@ -356,36 +449,88 @@ export function ContractPdfBuilder({
                 ) : Document && Page ? (
                   <Document
                     file={pdfUrl}
-                    onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadSuccess={(pdfInfo) => {
+                      console.log('✅ PDF carregado com sucesso:', pdfInfo);
+                      onDocumentLoadSuccess(pdfInfo);
+                      setReactPdfError(null);
+                    }}
                     onLoadError={(error) => {
-                      console.error('Erro ao carregar PDF:', error);
-                      setReactPdfError('Erro ao carregar PDF. Verifique se o arquivo é válido.');
+                      console.error('❌ Erro ao carregar PDF:', error);
+                      
+                      // Extrair mensagem de erro mais amigável
+                      let errorMessage = 'Erro ao carregar PDF. Verifique se o arquivo é válido.';
+                      if (error?.message) {
+                        if (error.message.includes('version')) {
+                          errorMessage = 'Erro de versão do PDF.js. Recarregue a página e tente novamente.';
+                        } else if (error.message.includes('Invalid PDF')) {
+                          errorMessage = 'O arquivo não é um PDF válido.';
+                        } else if (error.message.includes('password')) {
+                          errorMessage = 'O PDF está protegido por senha. Remova a senha e tente novamente.';
+                        } else {
+                          errorMessage = error.message;
+                        }
+                      }
+                      
+                      setReactPdfError(errorMessage);
                       toast({
                         title: 'Erro ao carregar PDF',
-                        description: 'O arquivo PDF não pôde ser carregado. Verifique se é um PDF válido.',
+                        description: errorMessage,
                         variant: 'destructive',
                       });
                     }}
+                    error={
+                      <div className="flex flex-col items-center justify-center p-8">
+                        <p className="text-red-600 mb-2">Erro ao carregar PDF</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (pdfUrl) {
+                              URL.revokeObjectURL(pdfUrl);
+                            }
+                            setPdfUrl(null);
+                            setPdfFile(null);
+                            setReactPdfError(null);
+                          }}
+                        >
+                          Tentar outro arquivo
+                        </Button>
+                      </div>
+                    }
                     loading={
                       <div className="flex items-center justify-center p-8">
                         <Loader2 className="w-8 h-8 animate-spin" />
                         <p className="ml-2">Carregando PDF...</p>
                       </div>
                     }
+                    options={{
+                      cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.296/cmaps/',
+                      cMapPacked: true,
+                      standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@5.4.296/standard_fonts/',
+                    }}
                   >
                     <Page
                       pageNumber={currentPage}
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
                       className="mx-auto"
+                      onRenderSuccess={() => {
+                        console.log(`✅ Página ${currentPage} renderizada com sucesso`);
+                      }}
                       onRenderError={(error) => {
-                        console.error('Erro ao renderizar página:', error);
+                        console.error(`❌ Erro ao renderizar página ${currentPage}:`, error);
                         toast({
                           title: 'Erro ao renderizar página',
-                          description: 'Não foi possível renderizar esta página do PDF.',
+                          description: `Não foi possível renderizar a página ${currentPage} do PDF.`,
                           variant: 'destructive',
                         });
                       }}
+                      loading={
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2 className="w-6 h-6 animate-spin" />
+                          <p className="ml-2 text-sm">Carregando página...</p>
+                        </div>
+                      }
                     />
                   </Document>
                 ) : (

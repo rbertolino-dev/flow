@@ -29,6 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 HEALTH_CHECK="$SCRIPT_DIR/health-check.sh"
 VALIDATE_RENDER="$SCRIPT_DIR/validate-app-rendering.sh"
+VALIDATE_IMPORTS="$SCRIPT_DIR/validate-imports-before-deploy.sh"
 ORCHESTRATOR="$SCRIPT_DIR/docker-orchestrator.sh"
 GET_LAST_DEPLOY="$SCRIPT_DIR/get-last-deploy.sh"
 VERIFY_LAST_DEPLOY="$SCRIPT_DIR/verify-last-deploy-in-air.sh"
@@ -359,6 +360,7 @@ fi
 # Tornar scripts executáveis
 chmod +x "$HEALTH_CHECK" 2>/dev/null || true
 chmod +x "$VALIDATE_RENDER" 2>/dev/null || true
+chmod +x "$VALIDATE_IMPORTS" 2>/dev/null || true
 
 log_success "Pré-requisitos OK"
 
@@ -679,6 +681,19 @@ sync_git_code || {
     log_error "Falha na sincronização Git! Deploy cancelado."
     exit 1
 }
+
+# Validação de Imports e Build ANTES do build Docker
+log "3.1/9 - Validando imports e build (OBRIGATÓRIO)..."
+if [ -f "$VALIDATE_IMPORTS" ]; then
+    if ! "$VALIDATE_IMPORTS"; then
+        log_error "Validação de imports falhou! Deploy cancelado."
+        log_error "Corrija os erros antes de fazer deploy."
+        exit 1
+    fi
+    log_success "Validação de imports OK"
+else
+    log_warn "Script de validação de imports não encontrado. Pulando validação..."
+fi
 
 # Build da nova versão (usando lock do deploy - não precisa orchestrator)
 log "4/9 - Fazendo build da nova versão (${NEW_VERSION})..."

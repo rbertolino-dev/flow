@@ -1,5 +1,5 @@
 import { Lead } from "@/types/lead";
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useTags } from "@/hooks/useTags";
-import { useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
@@ -99,9 +98,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
 
-  // Atualizar currentLead quando o lead prop mudar
+  // Atualizar currentLead e editedName quando o lead prop mudar
   useEffect(() => {
     setCurrentLead(lead);
+    setEditedName(lead.name);
   }, [lead]);
 
   // Identificar listas que contêm este lead
@@ -674,7 +674,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   };
 
   const handleSaveName = async () => {
-    if (!editedName.trim() || editedName === lead.name) {
+    const trimmedName = editedName.trim();
+    if (!trimmedName || trimmedName === currentLead.name) {
       setIsEditingName(false);
       return;
     }
@@ -682,17 +683,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     try {
       const { error } = await supabase
         .from("leads")
-        .update({ name: editedName.trim() })
-        .eq("id", lead.id);
+        .update({ name: trimmedName })
+        .eq("id", currentLead.id);
 
       if (error) throw error;
 
       // ✅ Atualizar localmente para feedback imediato
-      setCurrentLead({ ...currentLead, name: editedName.trim() });
+      setCurrentLead({ ...currentLead, name: trimmedName });
       
       // ✅ Disparar evento de refresh para atualizar em tempo real na aba CRM
       window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead' }
+        detail: { type: 'update', entity: 'lead', leadId: currentLead.id }
       }));
 
       toast({
@@ -703,16 +704,19 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       setIsEditingName(false);
       onUpdated?.();
     } catch (error: any) {
+      console.error("Erro ao atualizar nome do lead:", error);
       toast({
         title: "Erro ao atualizar nome",
-        description: error.message,
+        description: error.message || "Erro desconhecido ao atualizar nome",
         variant: "destructive",
       });
+      // Restaurar nome original em caso de erro
+      setEditedName(currentLead.name);
     }
   };
 
   const handleCancelEditName = () => {
-    setEditedName(lead.name);
+    setEditedName(currentLead.name);
     setIsEditingName(false);
   };
 
@@ -794,6 +798,15 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                   <Input 
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveName();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        handleCancelEditName();
+                      }
+                    }}
                     className="text-lg font-semibold"
                     autoFocus
                   />
@@ -806,12 +819,15 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 </div>
               ) : (
                 <div className="flex items-center gap-2 mb-2">
-                  <DialogTitle className="text-xl sm:text-2xl truncate">{lead.name}</DialogTitle>
+                  <DialogTitle className="text-xl sm:text-2xl truncate">{currentLead.name}</DialogTitle>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="h-6 w-6 p-0"
-                    onClick={() => setIsEditingName(true)}
+                    onClick={() => {
+                      setEditedName(currentLead.name);
+                      setIsEditingName(true);
+                    }}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
