@@ -199,3 +199,5 @@ echo "=============================================="
 echo -e "${GREEN}✅ Verificação concluída!${NC}"
 echo ""
 
+
+

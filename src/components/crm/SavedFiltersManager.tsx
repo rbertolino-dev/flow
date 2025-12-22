@@ -20,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AdvancedSearchFilters } from "./AdvancedSearchPanel";
+import { AdvancedSearchFilters, AdvancedSearchPanel } from "./AdvancedSearchPanel";
 import { useToast } from "@/hooks/use-toast";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 
 interface SavedFilter {
   id: string;
@@ -41,11 +42,14 @@ export function SavedFiltersManager({
   currentFilters,
 }: SavedFiltersManagerProps) {
   const { toast } = useToast();
+  const { stages } = usePipelineStages();
+  const { tags } = useTags();
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingFilter, setEditingFilter] = useState<SavedFilter | null>(null);
   const [filterName, setFilterName] = useState("");
+  const [editingFilters, setEditingFilters] = useState<AdvancedSearchFilters>({});
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -72,7 +76,7 @@ export function SavedFiltersManager({
       // Editar filtro existente
       const updated = savedFilters.map(f => 
         f.id === editingFilter.id 
-          ? { ...f, name: filterName, filters: currentFilters }
+          ? { ...f, name: filterName, filters: editingFilters }
           : f
       );
       setSavedFilters(updated);
@@ -107,7 +111,7 @@ export function SavedFiltersManager({
   const handleEditFilter = (filter: SavedFilter) => {
     setEditingFilter(filter);
     setFilterName(filter.name);
-    onLoadFilter(filter.filters); // Carregar filtros do filtro sendo editado
+    setEditingFilters(filter.filters); // Carregar filtros para edição
     setEditDialogOpen(true);
   };
 
@@ -242,11 +246,11 @@ export function SavedFiltersManager({
 
       {/* Dialog de Edição */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Filtro</DialogTitle>
             <DialogDescription>
-              Edite o nome e os filtros salvos
+              Edite o nome e os campos do filtro salvo
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -258,19 +262,27 @@ export function SavedFiltersManager({
                 value={filterName}
                 onChange={(e) => setFilterName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") saveFilter();
+                  if (e.key === "Enter") e.preventDefault();
                 }}
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Os filtros atuais serão salvos neste filtro
-            </p>
+            <div>
+              <Label>Campos do Filtro</Label>
+              <AdvancedSearchPanel
+                filters={editingFilters}
+                onChange={setEditingFilters}
+                stages={stages}
+                tags={tags}
+                onClear={() => setEditingFilters({})}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setEditDialogOpen(false);
               setEditingFilter(null);
               setFilterName("");
+              setEditingFilters({});
             }}>
               Cancelar
             </Button>

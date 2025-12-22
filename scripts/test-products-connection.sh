@@ -116,3 +116,4 @@ echo "   2. Verificar logs da Edge Function se houver erro"
 echo ""
 
 
+
