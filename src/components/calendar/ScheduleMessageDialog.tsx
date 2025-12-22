@@ -210,6 +210,7 @@ export function ScheduleMessageDialog({
         const { error: scheduleError } = await supabase
           .from('scheduled_messages')
           .insert({
+            organization_id: orgId,
             user_id: user.id,
             lead_id: leadId,
             instance_id: formData.selectedInstanceId,

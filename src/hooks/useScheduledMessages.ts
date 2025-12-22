@@ -63,9 +63,14 @@ export function useScheduledMessages(leadId?: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      // Obter organization_id
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) throw new Error('Organização não encontrada');
+
       const { data, error } = await supabase
         .from('scheduled_messages')
         .insert({
+          organization_id: organizationId,
           user_id: user.id,
           lead_id: params.leadId,
           instance_id: params.instanceId,

@@ -175,7 +175,7 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
       console.log('🔌 Desconectando realtime de calendar_events');
       supabase.removeChannel(channel);
     };
-  }, [activeOrgId, refetch, isEventInDateRange]);
+  }, [activeOrgId, refetch, shouldIncludeEvent]);
 
   return {
     events: events || [],
