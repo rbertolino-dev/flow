@@ -53,16 +53,25 @@ export function useCalendarMessageTemplates() {
         throw new Error("Organização não encontrada");
       }
 
+      // Construir objeto de insert apenas com campos que existem
+      const insertData: any = {
+        organization_id: activeOrgId,
+        name: input.name,
+        template: input.template,
+        is_active: input.is_active ?? true,
+      };
+
+      // Só incluir media_url e media_type se fornecidos
+      if (input.media_url !== undefined) {
+        insertData.media_url = input.media_url || null;
+      }
+      if (input.media_type !== undefined) {
+        insertData.media_type = input.media_type || null;
+      }
+
       const { data, error } = await supabase
         .from("calendar_message_templates")
-        .insert({
-          organization_id: activeOrgId,
-          name: input.name,
-          template: input.template,
-          is_active: input.is_active ?? true,
-          media_url: input.media_url || null,
-          media_type: input.media_type || null,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -93,13 +102,24 @@ export function useCalendarMessageTemplates() {
       id: string;
       updates: Partial<CreateCalendarMessageTemplateInput>;
     }) => {
+      // Construir objeto de update apenas com campos fornecidos
+      const updateData: any = {};
+      
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.template !== undefined) updateData.template = updates.template;
+      if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
+      
+      // Só incluir media_url e media_type se fornecidos
+      if (updates.media_url !== undefined) {
+        updateData.media_url = updates.media_url || null;
+      }
+      if (updates.media_type !== undefined) {
+        updateData.media_type = updates.media_type || null;
+      }
+
       const { data, error } = await supabase
         .from("calendar_message_templates")
-        .update({
-          ...updates,
-          media_url: updates.media_url !== undefined ? updates.media_url : undefined,
-          media_type: updates.media_type !== undefined ? updates.media_type : undefined,
-        })
+        .update(updateData)
         .eq("id", id)
         .select()
         .single();

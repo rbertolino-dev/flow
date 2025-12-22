@@ -211,22 +211,30 @@ export function CalendarMessageTemplateManager() {
     }
 
     if (editingTemplate) {
-      updateTemplate({
-        id: editingTemplate.id,
-        updates: {
-          name: formData.name,
-          template: formData.template,
-          media_url: formData.media_url,
-          media_type: formData.media_type,
-        },
-      });
-    } else {
-      createTemplate({
+      const updateData: any = {
         name: formData.name,
         template: formData.template,
-        media_url: formData.media_url,
-        media_type: formData.media_type,
+      };
+      // Só incluir media_url e media_type se existirem
+      if (formData.media_url) {
+        updateData.media_url = formData.media_url;
+        updateData.media_type = formData.media_type || 'image';
+      }
+      updateTemplate({
+        id: editingTemplate.id,
+        updates: updateData,
       });
+    } else {
+      const createData: any = {
+        name: formData.name,
+        template: formData.template,
+      };
+      // Só incluir media_url e media_type se existirem
+      if (formData.media_url) {
+        createData.media_url = formData.media_url;
+        createData.media_type = formData.media_type || 'image';
+      }
+      createTemplate(createData);
     }
 
     handleCloseDialog();

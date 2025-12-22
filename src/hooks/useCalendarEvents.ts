@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { useEffect, useState } from "react";
 
 export interface CalendarEvent {
   id: string;
@@ -32,8 +33,9 @@ interface UseCalendarEventsOptions {
 export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
   const { activeOrgId } = useActiveOrganization();
   const { startDate, endDate, googleCalendarConfigId } = options;
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
 
-  const { data: events, isLoading, error } = useQuery({
+  const { data: initialEvents, isLoading, error, refetch } = useQuery({
     queryKey: [
       "calendar-events",
       activeOrgId,
@@ -69,6 +71,72 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
     },
     enabled: !!activeOrgId,
   });
+
+  // Atualizar eventos quando dados iniciais mudarem
+  useEffect(() => {
+    if (initialEvents) {
+      setEvents(initialEvents);
+    }
+  }, [initialEvents]);
+
+  // Configurar realtime subscription
+  useEffect(() => {
+    if (!activeOrgId) return;
+
+    console.log('🔌 Configurando realtime para calendar_events...');
+
+    const channel = supabase
+      .channel(`calendar-events-${activeOrgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calendar_events',
+          filter: `organization_id=eq.${activeOrgId}`,
+        },
+        (payload: any) => {
+          console.log('📅 Evento do calendário atualizado (realtime):', payload);
+          
+          const eventType = payload.eventType || payload.type;
+          
+          if (eventType === 'INSERT') {
+            const newEvent = payload.new as CalendarEvent;
+            setEvents((prev) => {
+              if (prev.find(e => e.id === newEvent.id)) return prev;
+              return [...prev, newEvent].sort((a, b) => 
+                new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+              );
+            });
+          } else if (eventType === 'UPDATE') {
+            const updatedEvent = payload.new as CalendarEvent;
+            setEvents((prev) =>
+              prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
+            );
+          } else if (eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setEvents((prev) => prev.filter((e) => e.id !== deletedId));
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Status do canal realtime de calendar_events:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Canal realtime de calendar_events conectado!');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('⚠️ Erro no canal realtime de calendar_events:', status);
+          // Refetch como fallback
+          refetch();
+        }
+      });
+
+    return () => {
+      console.log('🔌 Desconectando realtime de calendar_events');
+      supabase.removeChannel(channel);
+    };
+  }, [activeOrgId, refetch]);
 
   return {
     events: events || [],

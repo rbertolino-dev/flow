@@ -450,25 +450,27 @@ export function CalendarView() {
               <CardTitle>Calendário Mensal</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={calendarSize === "full" ? "flex justify-center py-4" : "py-2"}>
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={handleDateSelect}
-                  month={currentMonth}
-                  onMonthChange={handleMonthChange}
-                  locale={ptBR}
-                  className={`rounded-md border ${calendarSize === "full" ? "scale-125" : ""}`}
-                  modifiers={{
-                    hasEvents: (date) => {
-                      const dateKey = format(date, "yyyy-MM-dd");
-                      return eventsByDate.has(dateKey);
-                    },
-                  }}
-                  modifiersClassNames={{
-                    hasEvents: "bg-primary/20 font-semibold border-primary/50",
-                  }}
-                />
+              <div className={calendarSize === "full" ? "flex justify-center py-4 overflow-hidden" : "py-2"}>
+                <div className={calendarSize === "full" ? "scale-125 origin-center w-full max-w-[600px]" : "w-full"}>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={handleDateSelect}
+                    month={currentMonth}
+                    onMonthChange={handleMonthChange}
+                    locale={ptBR}
+                    className="rounded-md border w-full"
+                    modifiers={{
+                      hasEvents: (date) => {
+                        const dateKey = format(date, "yyyy-MM-dd");
+                        return eventsByDate.has(dateKey);
+                      },
+                    }}
+                    modifiersClassNames={{
+                      hasEvents: "bg-primary/20 font-semibold border-primary/50",
+                    }}
+                  />
+                </div>
               </div>
               <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
@@ -534,6 +536,10 @@ export function CalendarView() {
             setViewMode("day");
           }}
           isLoading={isLoading}
+          onEdit={handleEditEvent}
+          onDelete={handleDeleteEvent}
+          onMarkCompleted={handleMarkCompleted}
+          onScheduleMessage={handleScheduleMessage}
         />
       ) : viewMode === "day" ? (
         <DayView
@@ -541,6 +547,9 @@ export function CalendarView() {
           events={events}
           isLoading={isLoading}
           onScheduleMessage={handleScheduleMessage}
+          onEdit={handleEditEvent}
+          onDelete={handleDeleteEvent}
+          onMarkCompleted={handleMarkCompleted}
         />
       ) : (
         /* Visualização em Lista */
@@ -549,7 +558,7 @@ export function CalendarView() {
             <CardTitle>Todos os Agendamentos</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && sortedEvents.length === 0 ? (
               <div className="flex items-center justify-center py-8">
                 <p className="text-sm text-muted-foreground">Carregando eventos...</p>
               </div>

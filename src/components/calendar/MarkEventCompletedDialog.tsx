@@ -65,17 +65,28 @@ export function MarkEventCompletedDialog({
 
     setLoading(true);
     try {
-      // Atualizar status do evento
+      // Atualizar status do evento - garantir que completion_notes seja salvo mesmo se vazio
+      const updateData: any = {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      };
+      
+      // Sempre incluir completion_notes (mesmo se vazio, será null)
+      if (notes && notes.trim()) {
+        updateData.completion_notes = notes.trim();
+      } else {
+        updateData.completion_notes = null;
+      }
+
       const { error: updateError } = await supabase
         .from("calendar_events")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          completion_notes: notes || null,
-        })
+        .update(updateData)
         .eq("id", event.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Erro ao atualizar evento:', updateError);
+        throw updateError;
+      }
 
       // Se deve enviar proposta comercial
       if (sendProposal && contactInfo.phone && selectedInstanceId && messageText) {

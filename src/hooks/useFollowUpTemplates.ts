@@ -119,7 +119,17 @@ export function useFollowUpTemplates() {
                 .eq('step_id', step.id)
                 .order('execution_order', { ascending: true });
 
-              if (automationsError) throw automationsError;
+              // Se erro 404 ou tabela não encontrada, tratar como tabela não existe ainda
+              if (automationsError) {
+                // Se for erro de tabela não encontrada, apenas logar e continuar sem automações
+                if (automationsError.code === 'PGRST116' || automationsError.message?.includes('not found') || automationsError.message?.includes('schema cache')) {
+                  console.warn('[useFollowUpTemplates] Tabela follow_up_step_automations não encontrada. Aplique a migration 20251222202000_create_follow_up_step_automations_if_not_exists.sql');
+                  // Continuar sem automações para não quebrar a aplicação
+                } else {
+                  // Outros erros, propagar
+                  throw automationsError;
+                }
+              }
 
               return {
                 id: step.id,

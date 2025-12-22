@@ -13,9 +13,22 @@ interface WeekViewProps {
   events: CalendarEvent[];
   onDateClick?: (date: Date) => void;
   isLoading?: boolean;
+  onEdit?: (event: CalendarEvent) => void;
+  onDelete?: (event: CalendarEvent) => void;
+  onMarkCompleted?: (event: CalendarEvent) => void;
+  onScheduleMessage?: (event: CalendarEvent) => void;
 }
 
-export function WeekView({ currentDate, events, onDateClick, isLoading }: WeekViewProps) {
+export function WeekView({ 
+  currentDate, 
+  events, 
+  onDateClick, 
+  isLoading,
+  onEdit,
+  onDelete,
+  onMarkCompleted,
+  onScheduleMessage,
+}: WeekViewProps) {
   const weekStart = startOfWeek(currentDate, { locale: ptBR });
   const weekEnd = endOfWeek(currentDate, { locale: ptBR });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
@@ -86,18 +99,14 @@ export function WeekView({ currentDate, events, onDateClick, isLoading }: WeekVi
                 <ScrollArea className="h-[220px]">
                   <div className="space-y-2">
                     {dayEvents.slice(0, 5).map((event) => (
-                      <div
+                      <EventCard
                         key={event.id}
-                        className="text-xs p-2 rounded bg-background border cursor-pointer hover:bg-accent transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        <p className="font-medium truncate mb-1">{event.summary || "Sem título"}</p>
-                        <p className="text-muted-foreground text-[10px]">
-                          {formatSaoPauloTime(new Date(event.start_datetime))}
-                        </p>
-                      </div>
+                        event={event}
+                        onEdit={onEdit ? () => onEdit(event) : undefined}
+                        onDelete={onDelete ? () => onDelete(event) : undefined}
+                        onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(event) : undefined}
+                        onScheduleMessage={onScheduleMessage ? () => onScheduleMessage(event) : undefined}
+                      />
                     ))}
                     {dayEvents.length > 5 && (
                       <p className="text-xs text-muted-foreground text-center pt-1 font-medium">

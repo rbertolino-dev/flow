@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -71,28 +71,26 @@ export function CalendarEventsReport() {
   };
 
   const dateRange = getDateRange();
+  
   const { events, isLoading } = useCalendarEvents({
     startDate: dateRange.start,
     endDate: dateRange.end,
   });
 
-  // Agrupar eventos por etapa
+  // Agrupar eventos por etapa (desconsiderar "sem etiqueta")
   const eventsByStage = useMemo(() => {
-    const grouped: Record<string, { stage: any; count: number; completed: number; events: any[] }> = {
-      'sem-etiqueta': {
-        stage: { id: 'sem-etiqueta', name: 'Sem Etiqueta', color: '#9ca3af' },
-        count: 0,
-        completed: 0,
-        events: [],
-      },
-    };
+    const grouped: Record<string, { stage: any; count: number; completed: number; events: any[] }> = {};
 
     events.forEach((event) => {
-      const stageId = event.stage_id || 'sem-etiqueta';
+      // Ignorar eventos sem etiqueta
+      if (!event.stage_id) return;
+      
+      const stageId = event.stage_id;
       if (!grouped[stageId]) {
         const stage = stages.find(s => s.id === stageId);
+        if (!stage) return; // Ignorar se etapa não existe mais
         grouped[stageId] = {
-          stage: stage || { id: stageId, name: 'Etiqueta Removida', color: '#9ca3af' },
+          stage: stage,
           count: 0,
           completed: 0,
           events: [],
@@ -260,6 +258,7 @@ export function CalendarEventsReport() {
                         setShowStartCalendar(false);
                       }}
                       initialFocus
+                      locale={ptBR}
                     />
                   </PopoverContent>
                 </Popover>
@@ -280,6 +279,7 @@ export function CalendarEventsReport() {
                         setShowEndCalendar(false);
                       }}
                       initialFocus
+                      locale={ptBR}
                     />
                   </PopoverContent>
                 </Popover>

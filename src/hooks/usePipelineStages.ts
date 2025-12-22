@@ -132,14 +132,12 @@ export function usePipelineStages() {
           if (status === 'SUBSCRIBED') {
             console.log('✅ Canal realtime de etapas conectado com sucesso!');
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.error('❌ Erro no canal realtime de etapas:', status);
-            // Tentar reconectar após 2 segundos
-            setTimeout(() => {
-              if (isMounted) {
-                console.log('🔄 Tentando reconectar canal realtime de etapas...');
-                setupRealtime();
-              }
-            }, 2000);
+            console.warn('⚠️ Erro no canal realtime de etapas:', status);
+            // Não tentar reconectar automaticamente - apenas fazer refetch
+            // O componente pode tentar reconectar manualmente se necessário
+            if (isMounted) {
+              fetchStages();
+            }
           }
         });
     };

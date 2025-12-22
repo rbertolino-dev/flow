@@ -12,9 +12,20 @@ interface DayViewProps {
   events: CalendarEvent[];
   isLoading?: boolean;
   onScheduleMessage?: (event: CalendarEvent) => void;
+  onEdit?: (event: CalendarEvent) => void;
+  onDelete?: (event: CalendarEvent) => void;
+  onMarkCompleted?: (event: CalendarEvent) => void;
 }
 
-export function DayView({ currentDate, events, isLoading, onScheduleMessage }: DayViewProps) {
+export function DayView({ 
+  currentDate, 
+  events, 
+  isLoading, 
+  onScheduleMessage,
+  onEdit,
+  onDelete,
+  onMarkCompleted,
+}: DayViewProps) {
   const dayStart = startOfDay(currentDate);
   const dayEnd = endOfDay(currentDate);
   const hours = eachHourOfInterval({ start: dayStart, end: dayEnd });
@@ -84,9 +95,10 @@ export function DayView({ currentDate, events, isLoading, onScheduleMessage }: D
                         <EventCard 
                           key={event.id} 
                           event={event}
-                          onEdit={() => {}}
-                          onDelete={() => {}}
+                          onEdit={onEdit ? () => onEdit(event) : undefined}
+                          onDelete={onDelete ? () => onDelete(event) : undefined}
                           onScheduleMessage={onScheduleMessage ? () => onScheduleMessage(event) : undefined}
+                          onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(event) : undefined}
                         />
                       ))
                     ) : (
