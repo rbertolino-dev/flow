@@ -11,7 +11,36 @@ import { ContractSignatureDialog } from '@/components/contracts/ContractSignatur
 import { EditMessageDialog } from '@/components/contracts/EditMessageDialog';
 import { SendContractDialog } from '@/components/contracts/SendContractDialog';
 // Import dinâmico do ContractPdfBuilder para evitar carregar react-pdf na inicialização
-const ContractPdfBuilder = React.lazy(() => import('@/components/contracts/ContractPdfBuilder').then(module => ({ default: module.ContractPdfBuilder })));
+// Com tratamento de erro robusto para cache de navegador com hash antigo
+const ContractPdfBuilder = React.lazy(() => 
+  import('@/components/contracts/ContractPdfBuilder')
+    .then(module => ({ default: module.ContractPdfBuilder }))
+    .catch((error) => {
+      // Se falhar ao carregar (ex: hash antigo no cache), recarregar página
+      console.error('Erro ao carregar ContractPdfBuilder:', error);
+      if (error.message && error.message.includes('Failed to fetch dynamically imported module')) {
+        console.warn('Hash antigo detectado no cache. Recarregando página para pegar versão atual...');
+        // Aguardar um pouco antes de recarregar para evitar loop
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      }
+      // Retornar componente de erro
+      return {
+        default: () => (
+          <div className="flex flex-col items-center justify-center p-8">
+            <p className="text-red-600 mb-4">Erro ao carregar visualizador de PDF</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              O arquivo pode ter sido atualizado. Recarregando página...
+            </p>
+            <Button onClick={() => window.location.reload()}>
+              Recarregar Página
+            </Button>
+          </div>
+        )
+      };
+    })
+);
 import { ContractFilters } from '@/components/contracts/ContractFilters';
 import { ContractCategories } from '@/components/contracts/ContractCategories';
 import { useContracts } from '@/hooks/useContracts';
@@ -609,18 +638,27 @@ export default function Contracts() {
                 }
               }}
             />
-            <ContractPdfBuilder
-              open={showPdfBuilder}
-              onOpenChange={setShowPdfBuilder}
-              contractId={selectedContract.id}
-              onSuccess={async () => {
-                await refetch();
-                toast({
-                  title: 'Posições configuradas',
-                  description: 'As posições de assinatura foram salvas com sucesso',
-                });
-              }}
-            />
+            <React.Suspense 
+              fallback={
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <p className="ml-2">Carregando builder de PDF...</p>
+                </div>
+              }
+            >
+              <ContractPdfBuilder
+                open={showPdfBuilder}
+                onOpenChange={setShowPdfBuilder}
+                contractId={selectedContract.id}
+                onSuccess={async () => {
+                  await refetch();
+                  toast({
+                    title: 'Posições configuradas',
+                    description: 'As posições de assinatura foram salvas com sucesso',
+                  });
+                }}
+              />
+            </React.Suspense>
           </>
         )}
 
