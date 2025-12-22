@@ -937,16 +937,18 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">Informações de Contato</h3>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 className="font-semibold text-lg flex-1 min-w-0">Informações de Contato</h3>
                 {!isEditingInfo && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="default"
                     onClick={() => setIsEditingInfo(true)}
+                    className="flex-shrink-0 whitespace-nowrap bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                   >
                     <Pencil className="h-4 w-4 mr-2" />
-                    Editar Informações
+                    <span className="hidden sm:inline">Editar Informações</span>
+                    <span className="sm:hidden">Editar</span>
                   </Button>
                 )}
               </div>
