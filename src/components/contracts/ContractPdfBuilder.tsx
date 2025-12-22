@@ -103,11 +103,32 @@ export function ContractPdfBuilder({
       return;
     }
 
+    // Validar tamanho do arquivo (máximo 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'O PDF deve ter no máximo 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Limpar URL anterior se existir
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    }
+
     setPdfFile(file);
     const url = URL.createObjectURL(file);
     setPdfUrl(url);
     setPositions([]);
     setCurrentPage(1);
+    setReactPdfError(null); // Limpar erros anteriores
+    
+    toast({
+      title: 'PDF carregado',
+      description: 'Arquivo carregado com sucesso. Clique no PDF para marcar as posições de assinatura.',
+    });
   };
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
@@ -324,9 +345,19 @@ export function ContractPdfBuilder({
                   <Document
                     file={pdfUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadError={(error) => {
+                      console.error('Erro ao carregar PDF:', error);
+                      setReactPdfError('Erro ao carregar PDF. Verifique se o arquivo é válido.');
+                      toast({
+                        title: 'Erro ao carregar PDF',
+                        description: 'O arquivo PDF não pôde ser carregado. Verifique se é um PDF válido.',
+                        variant: 'destructive',
+                      });
+                    }}
                     loading={
                       <div className="flex items-center justify-center p-8">
                         <Loader2 className="w-8 h-8 animate-spin" />
+                        <p className="ml-2">Carregando PDF...</p>
                       </div>
                     }
                   >
@@ -335,6 +366,14 @@ export function ContractPdfBuilder({
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
                       className="mx-auto"
+                      onRenderError={(error) => {
+                        console.error('Erro ao renderizar página:', error);
+                        toast({
+                          title: 'Erro ao renderizar página',
+                          description: 'Não foi possível renderizar esta página do PDF.',
+                          variant: 'destructive',
+                        });
+                      }}
                     />
                   </Document>
                 ) : (
@@ -409,9 +448,14 @@ export function ContractPdfBuilder({
           <Button
             variant="outline"
             onClick={() => {
+              // Limpar URL do objeto para liberar memória
+              if (pdfUrl) {
+                URL.revokeObjectURL(pdfUrl);
+              }
               setPdfFile(null);
               setPdfUrl(null);
               setPositions([]);
+              setReactPdfError(null);
               onOpenChange(false);
             }}
             disabled={saving}

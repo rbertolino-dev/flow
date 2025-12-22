@@ -31,6 +31,46 @@ export interface ContractPdfOptions {
 
 import { jsPDF } from 'jspdf';
 
+// Função auxiliar para carregar imagem com tratamento de CORS
+async function loadImage(url: string): Promise<string | null> {
+  try {
+    // Tentar carregar diretamente primeiro
+    const response = await fetch(url, {
+      mode: 'cors',
+      credentials: 'omit',
+    });
+    
+    if (!response.ok) {
+      console.warn('⚠️ Erro ao carregar imagem (HTTP):', response.statusText);
+      // Tentar usar proxy do Supabase se disponível
+      if (url.includes('storage.googleapis.com')) {
+        console.warn('⚠️ Imagem do Google Cloud Storage não acessível via CORS. Pulando...');
+        return null;
+      }
+      return null;
+    }
+    
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => {
+        console.error('❌ Erro ao converter imagem para base64');
+        resolve(null);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error: any) {
+    // Se for erro de CORS, apenas logar e continuar sem a imagem
+    if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+      console.warn('⚠️ Erro de CORS ao carregar imagem. A imagem será pulada:', url);
+      return null;
+    }
+    console.error('❌ Erro ao carregar imagem:', error);
+    return null;
+  }
+}
+
 export async function generateContractPDF(options: ContractPdfOptions): Promise<Blob> {
   
   const doc = new jsPDF({
