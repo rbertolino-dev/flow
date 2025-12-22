@@ -377,13 +377,25 @@ export function SellerGoalsManagement() {
                         <TableCell>{goal.target_leads}</TableCell>
                         <TableCell>{formatCurrency(goal.target_value)}</TableCell>
                         <TableCell>{formatCurrency(goal.target_commission)}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(goal)} title="Editar meta">
+                        <TableCell className="w-[120px]">
+                          <div className="flex gap-2 items-center justify-end">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleOpenDialog(goal)} 
+                              title="Editar meta"
+                              className="h-8 w-8 p-0"
+                            >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(goal.id)} title="Excluir meta">
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleDelete(goal.id)} 
+                              title="Excluir meta"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -469,7 +481,7 @@ export function SellerGoalsManagement() {
                         <TableHead>Meta Leads</TableHead>
                         <TableHead>Meta Valor</TableHead>
                         <TableHead>Meta Comissão</TableHead>
-                        <TableHead className="w-[100px]">Ações</TableHead>
+                        <TableHead className="w-[120px] text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -486,13 +498,25 @@ export function SellerGoalsManagement() {
                           <TableCell>{goal.target_leads}</TableCell>
                           <TableCell>{formatCurrency(goal.target_value)}</TableCell>
                           <TableCell>{formatCurrency(goal.target_commission)}</TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(goal)} title="Editar meta">
+                          <TableCell className="w-[120px]">
+                            <div className="flex gap-2 items-center justify-end">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleOpenDialog(goal)} 
+                                title="Editar meta"
+                                className="h-8 w-8 p-0"
+                              >
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDelete(goal.id)} title="Excluir meta">
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleDelete(goal.id)} 
+                                title="Excluir meta"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
