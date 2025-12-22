@@ -100,19 +100,11 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
     // Então podemos aplicar mesmo sem originalLeadId
     const success = await applyTemplate(templateId);
     if (success) {
-      toast({
-        title: "Follow-up aplicado",
-        description: "Template de follow-up aplicado com sucesso.",
-      });
       setSelectedTemplateId("");
       onUpdated?.();
-    } else {
-      toast({
-        title: "Erro ao aplicar follow-up",
-        description: "Não foi possível aplicar o template de follow-up.",
-        variant: "destructive",
-      });
+      // Toast já é mostrado pelo hook useLeadFollowUps
     }
+    // Se falhar, o toast de erro já é mostrado pelo hook useLeadFollowUps
   };
 
   return (

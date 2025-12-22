@@ -149,7 +149,29 @@ export function useLeadFollowUps(leadId: string) {
           description: "Usuário não autenticado",
           variant: "destructive",
         });
-        return null;
+        return false;
+      }
+
+      // Verificar se lead_id existe em leads ou post_sale_leads
+      const { data: leadCheck } = await (supabase as any)
+        .from('leads')
+        .select('id')
+        .eq('id', leadId)
+        .maybeSingle();
+
+      const { data: postSaleLeadCheck } = await (supabase as any)
+        .from('post_sale_leads')
+        .select('id')
+        .eq('id', leadId)
+        .maybeSingle();
+
+      if (!leadCheck && !postSaleLeadCheck) {
+        toast({
+          title: "Erro",
+          description: "Lead não encontrado. Verifique se o lead existe.",
+          variant: "destructive",
+        });
+        return false;
       }
 
       const { data, error } = await (supabase as any)
@@ -162,7 +184,25 @@ export function useLeadFollowUps(leadId: string) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useLeadFollowUps] Erro ao aplicar template:', error);
+        
+        // Se erro de RLS, pode ser que migration não foi aplicada
+        if (error.message?.includes('policy') || error.message?.includes('security') || error.code === '42501') {
+          toast({
+            title: "Erro de permissão",
+            description: "Erro ao aplicar template. Verifique se a migration de RLS foi aplicada no Supabase. Erro: " + error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Erro ao aplicar template",
+            description: error.message || "Não foi possível aplicar o template de follow-up.",
+            variant: "destructive",
+          });
+        }
+        return false;
+      }
 
       await fetchFollowUps();
       toast({
@@ -170,14 +210,15 @@ export function useLeadFollowUps(leadId: string) {
         description: "Template de follow-up aplicado ao lead com sucesso",
       });
 
-      return data.id;
+      return true;
     } catch (error: any) {
+      console.error('[useLeadFollowUps] Erro inesperado ao aplicar template:', error);
       toast({
         title: "Erro ao aplicar template",
-        description: error.message,
+        description: error.message || "Não foi possível aplicar o template de follow-up.",
         variant: "destructive",
       });
-      return null;
+      return false;
     }
   };
 

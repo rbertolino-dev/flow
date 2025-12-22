@@ -37,8 +37,9 @@ export function useFollowUpTemplates() {
           schema: 'public',
           table: 'follow_up_template_steps'
         },
-        () => {
-          console.log('[FollowUp] Step changed, refetching...');
+        (payload) => {
+          console.log('[FollowUp] Step changed:', payload.eventType, 'refetching...');
+          // Refetch imediato para aparecer em tempo real
           fetchTemplates();
         }
       )
@@ -299,6 +300,7 @@ export function useFollowUpTemplates() {
 
       if (error) throw error;
 
+      // Forçar refetch imediato para aparecer em tempo real
       await fetchTemplates();
       toast({
         title: "Etapa adicionada",

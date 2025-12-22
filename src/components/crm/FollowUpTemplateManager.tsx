@@ -97,6 +97,8 @@ export function FollowUpTemplateManager() {
       setStepDescription("");
       setStepTip("");
       setEditingStep(null);
+      // Forçar refetch imediato para aparecer em tempo real
+      await refetch();
     }
   };
 
@@ -478,7 +480,13 @@ export function FollowUpTemplateManager() {
                               </div>
                               <div className="flex gap-2">
                                 <Button
-                                  onClick={() => editingStep.id ? handleUpdateStep() : handleAddStep(template.id)}
+                                  onClick={async () => {
+                                    if (editingStep.id) {
+                                      await handleUpdateStep();
+                                    } else {
+                                      await handleAddStep(template.id);
+                                    }
+                                  }}
                                   className="flex-1"
                                 >
                                   {editingStep.id ? "Salvar" : "Adicionar"} Etapa
