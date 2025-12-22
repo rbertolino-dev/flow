@@ -111,6 +111,10 @@ export function ContractPdfBuilder({
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  // Estado temporário para preview durante drag/resize (evita re-renders)
+  const [previewPosition, setPreviewPosition] = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
+  const positionsRef = useRef<SignaturePosition[]>([]);
+  const rafIdRef = useRef<number | null>(null);
 
   // Carregar react-pdf quando o componente abrir
   useEffect(() => {
@@ -265,9 +269,14 @@ export function ContractPdfBuilder({
     }
   };
 
-  const updatePosition = (id: string, updates: Partial<SignaturePosition>) => {
-    setPositions(positions.map(p => p.id === id ? { ...p, ...updates } : p));
-  };
+  // Atualizar referência quando positions mudar
+  useEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
+
+  const updatePosition = useCallback((id: string, updates: Partial<SignaturePosition>) => {
+    setPositions(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  }, []);
 
   const handlePositionMouseDown = (e: React.MouseEvent, positionId: string) => {
     e.stopPropagation();
@@ -296,51 +305,84 @@ export function ContractPdfBuilder({
   };
 
   useEffect(() => {
+    // Cancelar qualquer animação pendente
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || !selectedPositionId) return;
 
-      if (isDragging && selectedPositionId) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const pos = positions.find(p => p.id === selectedPositionId);
-        if (!pos) return;
-
-        const deltaX = e.clientX - dragStart.x;
-        const deltaY = e.clientY - dragStart.y;
-
-        const newX = Math.max(0, Math.min(pos.x + deltaX, rect.width - pos.width));
-        const newY = Math.max(0, Math.min(pos.y + deltaY, rect.height - pos.height));
-
-        updatePosition(selectedPositionId, { x: newX, y: newY });
-        setDragStart({ x: e.clientX, y: e.clientY });
-      } else if (isResizing && selectedPositionId) {
-        const pos = positions.find(p => p.id === selectedPositionId);
-        if (!pos) return;
-
-        const deltaX = e.clientX - resizeStart.x;
-        const deltaY = e.clientY - resizeStart.y;
-
-        const newWidth = Math.max(60, resizeStart.width + deltaX);
-        const newHeight = Math.max(30, resizeStart.height + deltaY);
-
-        updatePosition(selectedPositionId, { width: newWidth, height: newHeight });
+      // Usar requestAnimationFrame para atualizações suaves
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
       }
+
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (!containerRef.current || !selectedPositionId) return;
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const pos = positionsRef.current.find(p => p.id === selectedPositionId);
+        if (!pos) return;
+
+        if (isDragging) {
+          const deltaX = e.clientX - dragStart.x;
+          const deltaY = e.clientY - dragStart.y;
+
+          const newX = Math.max(0, Math.min(pos.x + deltaX, rect.width - pos.width));
+          const newY = Math.max(0, Math.min(pos.y + deltaY, rect.height - pos.height));
+
+          // Atualizar apenas preview durante drag (evita re-renders)
+          setPreviewPosition({ id: selectedPositionId, x: newX, y: newY, width: pos.width, height: pos.height });
+        } else if (isResizing) {
+          const deltaX = e.clientX - resizeStart.x;
+          const deltaY = e.clientY - resizeStart.y;
+
+          const newWidth = Math.max(60, resizeStart.width + deltaX);
+          const newHeight = Math.max(30, resizeStart.height + deltaY);
+
+          // Atualizar apenas preview durante resize (evita re-renders)
+          setPreviewPosition({ id: selectedPositionId, x: pos.x, y: pos.y, width: newWidth, height: newHeight });
+        }
+      });
     };
 
     const handleMouseUp = () => {
+      // Aplicar mudanças finais quando soltar
+      if (previewPosition && selectedPositionId) {
+        updatePosition(selectedPositionId, {
+          x: previewPosition.x,
+          y: previewPosition.y,
+          width: previewPosition.width,
+          height: previewPosition.height,
+        });
+        setPreviewPosition(null);
+      }
+
       setIsDragging(false);
       setIsResizing(false);
+      
+      // Cancelar animação pendente
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
     };
 
     if (isDragging || isResizing) {
-      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mousemove', handleMouseMove, { passive: true });
       window.addEventListener('mouseup', handleMouseUp);
     }
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
     };
-  }, [isDragging, isResizing, selectedPositionId, positions, dragStart, resizeStart]);
+  }, [isDragging, isResizing, selectedPositionId, dragStart, resizeStart, previewPosition, updatePosition]);
 
   const handleSave = async () => {
     if (positions.length === 0) {
@@ -662,6 +704,16 @@ export function ContractPdfBuilder({
                   .filter(p => p.pageNumber === currentPage)
                   .map((pos) => {
                     const isSelected = selectedPositionId === pos.id;
+                    const isPreview = previewPosition?.id === pos.id;
+                    
+                    // Usar preview se disponível durante drag/resize
+                    const displayPos = isPreview && previewPosition ? {
+                      x: previewPosition.x,
+                      y: previewPosition.y,
+                      width: previewPosition.width,
+                      height: previewPosition.height,
+                    } : pos;
+                    
                     const signerTypeLabel = pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica';
                     
                     // Cores baseadas no tipo de assinatura
@@ -669,24 +721,24 @@ export function ContractPdfBuilder({
                       if (pos.signerType === 'user') {
                         return {
                           border: isSelected ? 'border-blue-500' : 'border-blue-300',
-                          bg: isSelected ? 'bg-blue-200' : 'bg-blue-100/50',
-                          hover: 'hover:border-blue-400 hover:bg-blue-150',
+                          bg: isSelected ? 'bg-blue-200/80' : 'bg-blue-100/40',
+                          hover: 'hover:border-blue-400 hover:bg-blue-100/60',
                           labelBg: 'bg-blue-500',
                           handleBg: 'bg-blue-500',
                         };
                       } else if (pos.signerType === 'client') {
                         return {
                           border: isSelected ? 'border-green-500' : 'border-green-300',
-                          bg: isSelected ? 'bg-green-200' : 'bg-green-100/50',
-                          hover: 'hover:border-green-400 hover:bg-green-150',
+                          bg: isSelected ? 'bg-green-200/80' : 'bg-green-100/40',
+                          hover: 'hover:border-green-400 hover:bg-green-100/60',
                           labelBg: 'bg-green-500',
                           handleBg: 'bg-green-500',
                         };
                       } else {
                         return {
                           border: isSelected ? 'border-purple-500' : 'border-purple-300',
-                          bg: isSelected ? 'bg-purple-200' : 'bg-purple-100/50',
-                          hover: 'hover:border-purple-400 hover:bg-purple-150',
+                          bg: isSelected ? 'bg-purple-200/80' : 'bg-purple-100/40',
+                          hover: 'hover:border-purple-400 hover:bg-purple-100/60',
                           labelBg: 'bg-purple-500',
                           handleBg: 'bg-purple-500',
                         };
@@ -698,12 +750,13 @@ export function ContractPdfBuilder({
                     return (
                       <div
                         key={pos.id}
-                        className={`signature-position absolute border-2 rounded cursor-move transition-all ${colors.border} ${colors.bg} ${!isSelected ? colors.hover : ''} ${isSelected ? 'shadow-lg z-10' : ''}`}
+                        className={`signature-position absolute border-2 rounded cursor-move ${colors.border} ${colors.bg} ${!isSelected ? colors.hover : ''} ${isSelected ? 'shadow-lg z-10' : 'z-0'} ${isPreview ? 'transition-none' : 'transition-all duration-75'}`}
                         style={{
-                          left: `${pos.x}px`,
-                          top: `${pos.y}px`,
-                          width: `${pos.width}px`,
-                          height: `${pos.height}px`,
+                          left: `${displayPos.x}px`,
+                          top: `${displayPos.y}px`,
+                          width: `${displayPos.width}px`,
+                          height: `${displayPos.height}px`,
+                          willChange: isPreview ? 'transform' : 'auto',
                         }}
                         onMouseDown={(e) => handlePositionMouseDown(e, pos.id)}
                         onClick={(e) => {
@@ -713,7 +766,7 @@ export function ContractPdfBuilder({
                         title={`${signerTypeLabel} - Arraste para mover, arraste o canto para redimensionar`}
                       >
                         {/* Label do tipo */}
-                        <div className={`absolute -top-6 left-0 text-xs text-white px-2 py-0.5 rounded flex items-center gap-1 ${colors.labelBg}`}>
+                        <div className={`absolute -top-6 left-0 text-xs text-white px-2 py-0.5 rounded flex items-center gap-1 ${colors.labelBg} shadow-sm`}>
                           {signerTypeLabel}
                           {isSelected && <Edit2 className="w-3 h-3" />}
                         </div>
@@ -721,41 +774,50 @@ export function ContractPdfBuilder({
                         {/* Botão de excluir (visível quando selecionado) */}
                         {isSelected && (
                           <button
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-20 shadow-md"
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors z-20 shadow-lg hover:scale-110"
                             onClick={(e) => {
                               e.stopPropagation();
                               removePosition(pos.id);
                             }}
                             title="Excluir posição"
+                            onMouseDown={(e) => e.stopPropagation()}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         )}
 
                         {/* Handle de redimensionamento (canto inferior direito) */}
                         <div
-                          className={`resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize ${colors.handleBg} rounded-tl-full opacity-70 hover:opacity-100 transition-opacity`}
+                          className={`resize-handle absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize ${colors.handleBg} rounded-tl-full opacity-80 hover:opacity-100 transition-opacity shadow-sm`}
                           title="Arraste para redimensionar"
+                          onMouseDown={(e) => e.stopPropagation()}
                         />
 
                         {/* Indicador visual quando selecionado */}
                         {isSelected && (
-                          <div className="absolute inset-0 border-2 border-dashed border-white/50 rounded" />
+                          <div className="absolute inset-0 border-2 border-dashed border-white/60 rounded pointer-events-none" />
                         )}
                       </div>
                     );
                   })}
               </div>
 
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800 flex items-center gap-2">
-                  <MousePointer2 className="w-4 h-4" />
-                  <span>
-                    <strong>Como usar:</strong> Clique no PDF para adicionar uma posição de assinatura. 
-                    Selecione uma posição para editá-la: arraste para mover, arraste o canto para redimensionar, 
-                    ou clique no X para excluir.
-                  </span>
-                </p>
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+                <div className="flex items-start gap-3">
+                  <MousePointer2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-blue-900">
+                      Como usar o Builder de Assinaturas:
+                    </p>
+                    <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                      <li><strong>Adicionar:</strong> Selecione o tipo (Usuário/Cliente/Rubrica) e clique no PDF</li>
+                      <li><strong>Mover:</strong> Clique e arraste a posição selecionada</li>
+                      <li><strong>Redimensionar:</strong> Arraste o canto inferior direito da posição</li>
+                      <li><strong>Excluir:</strong> Selecione a posição e clique no X vermelho</li>
+                      <li><strong>Editar:</strong> Clique na posição na lista abaixo para navegar até ela</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
 
               {/* Lista de posições */}
