@@ -8,7 +8,8 @@ import { useLeads } from '@/hooks/useLeads';
 import { useContractCategories } from '@/hooks/useContractCategories';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, FileText, Upload } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CreateContractDialogProps {
   open: boolean;
@@ -16,6 +17,8 @@ interface CreateContractDialogProps {
   onSuccess?: () => void;
   defaultLeadId?: string;
 }
+
+type CreationMode = 'template' | 'upload';
 
 export function CreateContractDialog({
   open,
@@ -29,6 +32,7 @@ export function CreateContractDialog({
   const { categories } = useContractCategories();
   const { toast } = useToast();
 
+  const [creationMode, setCreationMode] = useState<CreationMode>('template');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedLeadId, setSelectedLeadId] = useState<string>(defaultLeadId || '');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
@@ -37,6 +41,8 @@ export function CreateContractDialog({
     format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
   );
   const [submitting, setSubmitting] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -45,34 +51,27 @@ export function CreateContractDialog({
       } else {
         setSelectedLeadId('');
       }
+      setCreationMode('template');
       setSelectedTemplateId('');
       setSelectedCategoryId('');
       setContractNumber('');
       setExpiresAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
+      setPdfFile(null);
     }
   }, [open, defaultLeadId]);
 
   if (!open) return null;
 
   const generateContent = (template: any, lead: any): string => {
-    console.log('🔵 generateContent chamado:', { template: template?.id, lead: lead?.id });
-    
     if (!template || !lead) {
-      console.error('❌ Template ou Lead não fornecido:', { template: !!template, lead: !!lead });
       return '';
     }
     
-    // Verificar se template tem conteúdo
     if (!template.content || template.content.trim() === '') {
-      console.error('❌ Template não tem conteúdo:', template);
-      // Retornar conteúdo padrão se template estiver vazio
       return `CONTRATO\n\nEntre ${lead.name || 'Cliente'} e a empresa, fica estabelecido o seguinte contrato.\n\nData: ${format(new Date(), 'dd/MM/yyyy')}\n\nValidade: ${expiresAt ? format(new Date(expiresAt), 'dd/MM/yyyy') : 'Não especificada'}`;
     }
     
     let content = template.content;
-    console.log('📝 Conteúdo original do template:', content.substring(0, 100) + '...');
-    
-    // Substituir variáveis do template
     content = content.replace(/\{\{nome\}\}/g, lead.name || '');
     content = content.replace(/\{\{telefone\}\}/g, lead.phone || '');
     content = content.replace(/\{\{email\}\}/g, lead.email || '');
@@ -84,81 +83,140 @@ export function CreateContractDialog({
     content = content.replace(/\{\{etapa_funil\}\}/g, lead.status || '');
     content = content.replace(/\{\{produto\}\}/g, lead.product?.name || '');
     
-    console.log('✅ Conteúdo gerado:', content.substring(0, 100) + '...');
     return content;
+  };
+
+  const handlePdfUpload = async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      toast({
+        title: 'Arquivo inválido',
+        description: 'Por favor, selecione um arquivo PDF',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'O PDF deve ter no máximo 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPdfFile(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedTemplateId || !selectedLeadId) {
+    if (!selectedLeadId) {
       toast({
         title: 'Erro',
-        description: 'Template e Lead são obrigatórios',
+        description: 'Lead/Cliente é obrigatório',
         variant: 'destructive',
       });
       return;
     }
 
-    // Buscar template e lead selecionados
-    const template = templates.find((t) => t.id === selectedTemplateId);
+    if (creationMode === 'template' && !selectedTemplateId) {
+      toast({
+        title: 'Erro',
+        description: 'Template é obrigatório',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (creationMode === 'upload' && !pdfFile) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, faça upload do PDF',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const lead = leads.find((l) => l.id === selectedLeadId);
-
-    console.log('🔵 Criando contrato:', {
-      selectedTemplateId,
-      selectedLeadId,
-      templateFound: !!template,
-      leadFound: !!lead,
-      templateContent: template?.content ? template.content.substring(0, 50) + '...' : 'VAZIO',
-    });
-
-    if (!template || !lead) {
-      console.error('❌ Template ou Lead não encontrado:', { template: !!template, lead: !!lead });
+    if (!lead) {
       toast({
         title: 'Erro',
-        description: 'Template ou Lead não encontrado',
+        description: 'Lead não encontrado',
         variant: 'destructive',
       });
       return;
     }
-
-    // Gerar conteúdo do contrato
-    const content = generateContent(template, lead);
-
-    if (!content || content.trim() === '') {
-      console.error('❌ Conteúdo gerado está vazio!');
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível gerar o conteúdo do contrato. Verifique se o template tem conteúdo válido.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    console.log('✅ Enviando contrato com content:', content.substring(0, 100) + '...');
 
     setSubmitting(true);
+    setUploadingPdf(creationMode === 'upload');
+    
     try {
+      let content = '';
+      let pdfUrl: string | undefined = undefined;
+
+      if (creationMode === 'template') {
+        const template = templates.find((t) => t.id === selectedTemplateId);
+        if (!template) {
+          throw new Error('Template não encontrado');
+        }
+        content = generateContent(template, lead);
+      } else {
+        // Modo upload: fazer upload do PDF e criar contrato
+        const fileExt = pdfFile!.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `contracts/${fileName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('contracts')
+          .upload(filePath, pdfFile!, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('contracts')
+          .getPublicUrl(filePath);
+
+        pdfUrl = publicUrl;
+        content = `Contrato em PDF: ${lead.name || 'Cliente'}\n\nArquivo: ${pdfFile!.name}\n\nData: ${format(new Date(), 'dd/MM/yyyy')}`;
+      }
+
+      if (!content || content.trim() === '') {
+        throw new Error('Não foi possível gerar o conteúdo do contrato');
+      }
+
       const contractData = {
-        template_id: selectedTemplateId,
+        template_id: creationMode === 'template' ? selectedTemplateId : undefined,
         lead_id: selectedLeadId,
-        content: content, // ✅ Campo content obrigatório
+        content: content,
         contract_number: contractNumber || undefined,
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : undefined,
         category_id: selectedCategoryId || undefined,
+        pdf_url: pdfUrl,
       };
       
-      console.log('📤 Dados do contrato:', {
-        ...contractData,
-        content: contractData.content.substring(0, 50) + '...',
-      });
-      
-      await createContract(contractData);
+      const newContract = await createContract(contractData);
 
       toast({
         title: 'Sucesso',
         description: 'Contrato criado com sucesso',
       });
+
+      // Se foi upload de PDF, abrir builder de assinaturas automaticamente
+      if (creationMode === 'upload' && newContract?.id) {
+        toast({
+          title: 'Próximo passo',
+          description: 'Configure as posições de assinatura no PDF',
+        });
+        // O onSuccess pode abrir o builder de assinaturas
+        onSuccess?.();
+        onOpenChange(false);
+        // Retornar o contrato criado para que a página possa abrir o builder
+        return;
+      }
 
       onSuccess?.();
       onOpenChange(false);
@@ -170,6 +228,7 @@ export function CreateContractDialog({
       });
     } finally {
       setSubmitting(false);
+      setUploadingPdf(false);
     }
   };
 
@@ -190,26 +249,118 @@ export function CreateContractDialog({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="template">Template *</Label>
-            <select
-              id="template"
-              value={selectedTemplateId}
-              onChange={(e) => setSelectedTemplateId(e.target.value)}
-              disabled={templatesLoading}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              required
-            >
-              <option value="">{templatesLoading ? 'Carregando...' : 'Selecione um template'}</option>
-              {validTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Seleção do modo de criação */}
+          <div className="space-y-3">
+            <Label>Como deseja criar o contrato? *</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setCreationMode('template')}
+                className={`p-4 border-2 rounded-lg transition-all ${
+                  creationMode === 'template'
+                    ? 'border-primary bg-primary/5 shadow-md'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <FileText className={`w-8 h-8 mx-auto mb-2 ${creationMode === 'template' ? 'text-primary' : 'text-gray-400'}`} />
+                <div className="font-semibold">Usar Template</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Criar a partir de um template existente
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreationMode('upload')}
+                className={`p-4 border-2 rounded-lg transition-all ${
+                  creationMode === 'upload'
+                    ? 'border-primary bg-primary/5 shadow-md'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <Upload className={`w-8 h-8 mx-auto mb-2 ${creationMode === 'upload' ? 'text-primary' : 'text-gray-400'}`} />
+                <div className="font-semibold">Upload de PDF</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Fazer upload de PDF e adicionar assinaturas
+                </div>
+              </button>
+            </div>
           </div>
 
+          {/* Opções específicas do modo template */}
+          {creationMode === 'template' && (
+            <div className="space-y-2">
+              <Label htmlFor="template">Template *</Label>
+              <select
+                id="template"
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                disabled={templatesLoading}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                required
+              >
+                <option value="">{templatesLoading ? 'Carregando...' : 'Selecione um template'}</option>
+                {validTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Opções específicas do modo upload */}
+          {creationMode === 'upload' && (
+            <div className="space-y-2">
+              <Label htmlFor="pdf-upload">Arquivo PDF *</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                {pdfFile ? (
+                  <div className="space-y-2">
+                    <FileText className="w-12 h-12 mx-auto text-primary" />
+                    <p className="font-medium">{pdfFile.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(pdfFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPdfFile(null)}
+                    >
+                      Trocar arquivo
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <Label htmlFor="pdf-upload" className="cursor-pointer">
+                      <Button variant="outline" type="button" asChild>
+                        <span>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Fazer Upload do PDF
+                        </span>
+                      </Button>
+                    </Label>
+                    <Input
+                      id="pdf-upload"
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePdfUpload(file);
+                      }}
+                      className="hidden"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Tamanho máximo: 10MB
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Campos comuns */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="lead">Lead/Cliente *</Label>
@@ -276,10 +427,10 @@ export function CreateContractDialog({
           <Button 
             type="submit" 
             onClick={handleSubmit}
-            disabled={submitting || !selectedTemplateId || !selectedLeadId}
+            disabled={submitting || !selectedLeadId || (creationMode === 'template' && !selectedTemplateId) || (creationMode === 'upload' && !pdfFile)}
           >
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Criar Contrato
+            {creationMode === 'upload' && uploadingPdf ? 'Fazendo upload...' : 'Criar Contrato'}
           </Button>
         </div>
       </div>
