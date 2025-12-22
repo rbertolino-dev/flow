@@ -10,6 +10,7 @@ import { ContractTemplateEditor } from '@/components/contracts/ContractTemplateE
 import { ContractSignatureDialog } from '@/components/contracts/ContractSignatureDialog';
 import { EditMessageDialog } from '@/components/contracts/EditMessageDialog';
 import { SendContractDialog } from '@/components/contracts/SendContractDialog';
+import { ContractPdfBuilder } from '@/components/contracts/ContractPdfBuilder';
 import { ContractFilters } from '@/components/contracts/ContractFilters';
 import { ContractCategories } from '@/components/contracts/ContractCategories';
 import { useContracts } from '@/hooks/useContracts';
@@ -46,9 +47,12 @@ export default function Contracts() {
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showEditMessageDialog, setShowEditMessageDialog] = useState(false);
+  const [showPdfBuilder, setShowPdfBuilder] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
+  const [monthStats, setMonthStats] = useState<{ current: number; previous: number } | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
   const { contracts, loading, updateContractStatus, deleteContract, regenerateContractPDF, refetch } = useContracts({
@@ -112,6 +116,48 @@ export default function Contracts() {
     }
   };
 
+  // Carregar estatísticas do mês
+  useEffect(() => {
+    if (!activeOrgId) return;
+    
+    const fetchMonthStats = async () => {
+      setLoadingStats(true);
+      try {
+        const now = new Date();
+        const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+        // Contar contratos do mês atual
+        const { count: currentCount } = await supabase
+          .from('contracts')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', activeOrgId)
+          .gte('created_at', startOfCurrentMonth.toISOString());
+
+        // Contar contratos do mês anterior
+        const { count: previousCount } = await supabase
+          .from('contracts')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', activeOrgId)
+          .gte('created_at', startOfPreviousMonth.toISOString())
+          .lte('created_at', endOfPreviousMonth.toISOString());
+
+        setMonthStats({
+          current: currentCount || 0,
+          previous: previousCount || 0,
+        });
+      } catch (error) {
+        console.error('Erro ao contar contratos do mês:', error);
+        setMonthStats({ current: 0, previous: 0 });
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchMonthStats();
+  }, [activeOrgId, contracts.length]); // Atualizar quando contratos mudarem
+
   // Realtime: Atualizar contratos quando assinaturas mudarem
   useEffect(() => {
     if (!activeOrgId) return;
@@ -170,6 +216,11 @@ export default function Contracts() {
       setSelectedTemplateToEdit(contract.template);
       setShowTemplateEditor(true);
     }
+  };
+
+  const handleConfigureSignatures = (contract: Contract) => {
+    setSelectedContract(contract);
+    setShowPdfBuilder(true);
   };
 
   const handleCancel = async (contract: Contract) => {
@@ -293,6 +344,54 @@ export default function Contracts() {
   return (
     <CRMLayout activeView="contracts" onViewChange={() => {}}>
       <div className="space-y-6 p-6">
+        {/* Indicador de Contratos do Mês */}
+        {monthStats !== null && (
+          <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Contratos criados este mês
+                  </p>
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-4xl font-bold text-primary">
+                      {loadingStats ? (
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      ) : (
+                        monthStats.current
+                      )}
+                    </h2>
+                    {!loadingStats && monthStats.previous > 0 && (
+                      <div className="flex items-center gap-1 text-sm">
+                        {monthStats.current >= monthStats.previous ? (
+                          <>
+                            <TrendingUp className="w-4 h-4 text-green-600" />
+                            <span className="text-green-600 font-medium">
+                              +{monthStats.current - monthStats.previous} vs mês anterior
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <TrendingDown className="w-4 h-4 text-red-600" />
+                            <span className="text-red-600 font-medium">
+                              {monthStats.current - monthStats.previous} vs mês anterior
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">
+                    Mês anterior: {monthStats.previous}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Contratos</h1>
@@ -394,6 +493,7 @@ export default function Contracts() {
               onDownload={handleDownload}
               onEditMessage={handleEditMessage}
               onEditTemplate={handleEditTemplate}
+              onConfigureSignatures={handleConfigureSignatures}
             />
           </div>
         ) : (
@@ -490,23 +590,37 @@ export default function Contracts() {
         )}
 
         {selectedContract && (
-          <SendContractDialog
-            open={showSendDialog}
-            onOpenChange={setShowSendDialog}
-            contract={selectedContract}
-            onSuccess={async () => {
-              await refetch();
-              // Atualizar contrato selecionado também
-              const updated = await supabase
-                .from('contracts')
-                .select('*, lead:leads(*), template:contract_templates(*)')
-                .eq('id', selectedContract.id)
-                .single();
-              if (updated.data) {
-                setSelectedContract(updated.data as Contract);
-              }
-            }}
-          />
+          <>
+            <SendContractDialog
+              open={showSendDialog}
+              onOpenChange={setShowSendDialog}
+              contract={selectedContract}
+              onSuccess={async () => {
+                await refetch();
+                // Atualizar contrato selecionado também
+                const updated = await supabase
+                  .from('contracts')
+                  .select('*, lead:leads(*), template:contract_templates(*)')
+                  .eq('id', selectedContract.id)
+                  .single();
+                if (updated.data) {
+                  setSelectedContract(updated.data as Contract);
+                }
+              }}
+            />
+            <ContractPdfBuilder
+              open={showPdfBuilder}
+              onOpenChange={setShowPdfBuilder}
+              contractId={selectedContract.id}
+              onSuccess={async () => {
+                await refetch();
+                toast({
+                  title: 'Posições configuradas',
+                  description: 'As posições de assinatura foram salvas com sucesso',
+                });
+              }}
+            />
+          </>
         )}
 
       </div>

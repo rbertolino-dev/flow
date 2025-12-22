@@ -6,7 +6,8 @@ import { Contract, ContractSignature } from '@/types/contract';
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
-import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText } from 'lucide-react';
+import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings } from 'lucide-react';
+import { GoogleDriveBackupButton } from './GoogleDriveBackupButton';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ContractReminders } from './ContractReminders';
@@ -20,6 +21,7 @@ interface ContractViewerProps {
   onDownload?: (contract: Contract) => void;
   onEditMessage?: (contract: Contract) => void;
   onEditTemplate?: (template: ContractTemplate) => void;
+  onConfigureSignatures?: (contract: Contract) => void;
 }
 
 export function ContractViewer({
@@ -30,6 +32,7 @@ export function ContractViewer({
   onDownload,
   onEditMessage,
   onEditTemplate,
+  onConfigureSignatures,
 }: ContractViewerProps) {
   const { signatures, loading: signaturesLoading } = useContractSignatures(contract.id);
   const [expandedSignatures, setExpandedSignatures] = useState<Set<string>>(new Set());
@@ -179,6 +182,12 @@ export function ContractViewer({
               <Button onClick={() => onSign(contract)}>
                 <FileSignature className="w-4 h-4 mr-2" />
                 Assinar
+              </Button>
+            )}
+            {onConfigureSignatures && (
+              <Button variant="outline" onClick={() => onConfigureSignatures(contract)}>
+                <Settings className="w-4 h-4 mr-2" />
+                Configurar Assinaturas
               </Button>
             )}
             {onSend && contract.status === 'signed' && (
@@ -383,6 +392,26 @@ export function ContractViewer({
                 );
               })}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Google Drive Backup */}
+      {contract.lead_id && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Backup no Google Drive</CardTitle>
+            <CardDescription>
+              Salve o contrato assinado no Google Drive do cliente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GoogleDriveBackupButton
+              contract={contract}
+              onSuccess={() => {
+                // Atualizar visualização se necessário
+              }}
+            />
           </CardContent>
         </Card>
       )}

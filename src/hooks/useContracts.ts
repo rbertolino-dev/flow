@@ -4,6 +4,7 @@ import { useActiveOrganization } from './useActiveOrganization';
 import { Contract, ContractStatus, AuditAction } from '@/types/contract';
 import { useToast } from './use-toast';
 import { generateContractPDF } from '@/lib/contractPdfGenerator';
+import { getSignaturePositions } from '@/lib/pdfAnnotationUtils';
 // StorageService agora é obtido via StorageFactory
 
 // Helper function para criar log de auditoria
@@ -418,9 +419,12 @@ export function useContracts(filters?: ContractFilters) {
       // Buscar assinaturas com dados de autenticação (se houver)
       const { data: signatures } = await supabase
         .from('contract_signatures')
-        .select('signer_name, signature_data, signed_at, ip_address, user_agent, signed_ip_country, validation_hash')
+        .select('signer_name, signature_data, signed_at, signer_type, ip_address, user_agent, signed_ip_country, validation_hash')
         .eq('contract_id', contractId)
         .order('signed_at', { ascending: true });
+
+      // Buscar posições de assinatura definidas no builder (se houver)
+      const signaturePositions = await getSignaturePositions(contractId);
 
       // Gerar PDF com assinaturas e dados de autenticação
       const pdfBlob = await generateContractPDF({
@@ -432,11 +436,20 @@ export function useContracts(filters?: ContractFilters) {
           name: sig.signer_name,
           signatureData: sig.signature_data,
           signedAt: sig.signed_at,
+          signerType: sig.signer_type as 'user' | 'client',
           ipAddress: sig.ip_address || undefined,
           userAgent: sig.user_agent || undefined,
           signedIpCountry: sig.signed_ip_country || undefined,
           validationHash: sig.validation_hash || undefined,
         })) || [],
+        signaturePositions: signaturePositions.length > 0 ? signaturePositions.map(pos => ({
+          signerType: pos.signer_type,
+          pageNumber: pos.page_number,
+          x: pos.x_position,
+          y: pos.y_position,
+          width: pos.width,
+          height: pos.height,
+        })) : undefined,
       });
 
       // Fazer upload do PDF usando StorageFactory

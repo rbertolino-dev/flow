@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createStorageService, createBackupStorageService } from './StorageFactory';
+import { createGoogleDriveServiceForClient } from './createGoogleDriveServiceForClient';
 import { StorageService } from './StorageService';
 
 export type BackupType = 'daily' | 'replication' | 'version';

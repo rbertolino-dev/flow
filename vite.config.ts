@@ -25,4 +25,7 @@ export default defineConfig(({ mode }) => ({
       ],
     },
   },
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
+  },
 }));

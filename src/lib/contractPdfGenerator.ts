@@ -1,6 +1,15 @@
 // Função para gerar PDF do contrato usando jsPDF
 // Nota: jsPDF precisa ser instalado: npm install jspdf
 
+export interface SignaturePosition {
+  signerType: 'user' | 'client' | 'rubric';
+  pageNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ContractPdfOptions {
   content: string;
   contractNumber: string;
@@ -15,7 +24,9 @@ export interface ContractPdfOptions {
     userAgent?: string; // User Agent
     signedIpCountry?: string; // País do IP
     validationHash?: string; // Hash de validação
+    signerType?: 'user' | 'client'; // Tipo de signatário para mapear com posições
   }>; // Assinaturas a serem adicionadas ao PDF
+  signaturePositions?: SignaturePosition[]; // Posições definidas no builder (opcional)
 }
 
 import { jsPDF } from 'jspdf';
@@ -142,14 +153,80 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
   // Adicionar rodapé na última página de conteúdo
   addFooter(pageHeight - margin);
 
-  // Adicionar assinaturas no final (DEPOIS do rodapé)
+  // Adicionar assinaturas
   console.log('📝 Gerando PDF - Assinaturas recebidas:', options.signatures?.length || 0);
+  console.log('📝 Posições definidas:', options.signaturePositions?.length || 0);
   
   if (options.signatures && options.signatures.length > 0) {
-    console.log('📝 Adicionando página de assinaturas com', options.signatures.length, 'assinatura(s)');
-    // Criar nova página dedicada para assinaturas
-    doc.addPage();
-    yPosition = margin;
+    // Se houver posições definidas no builder, usar essas posições
+    if (options.signaturePositions && options.signaturePositions.length > 0) {
+      console.log('📝 Usando posições definidas no builder');
+      
+      // Mapear assinaturas para posições
+      const signatureMap = new Map<string, typeof options.signatures[0]>();
+      options.signatures.forEach(sig => {
+        if (sig.signerType) {
+          signatureMap.set(sig.signerType, sig);
+        }
+      });
+
+      // Adicionar assinaturas nas posições definidas
+      for (const position of options.signaturePositions) {
+        const signature = signatureMap.get(position.signerType);
+        if (!signature) continue;
+
+        // Garantir que a página existe
+        while (doc.getNumberOfPages() < position.pageNumber) {
+          doc.addPage();
+        }
+
+        // Ir para a página correta
+        doc.setPage(position.pageNumber);
+        
+        // Converter coordenadas de pixels para mm (assumindo que o PDF foi renderizado em escala)
+        // Nota: As coordenadas do builder são em pixels da renderização, precisamos converter
+        // Para simplificar, vamos assumir que o PDF tem 210mm de largura (A4)
+        // e que o container de renderização tem uma largura conhecida
+        // Por enquanto, vamos usar as coordenadas diretamente como mm (ajustar depois se necessário)
+        const xMm = (position.x / 10); // Aproximação: 10px = 1mm
+        const yMm = (position.y / 10);
+        const widthMm = (position.width / 10);
+        const heightMm = (position.height / 10);
+
+        try {
+          const signatureImg = new Image();
+          signatureImg.crossOrigin = 'anonymous';
+          
+          await new Promise<void>((resolve, reject) => {
+            signatureImg.onload = () => resolve();
+            signatureImg.onerror = () => reject(new Error('Erro ao carregar imagem da assinatura'));
+            signatureImg.src = signature.signatureData;
+          });
+
+          // Adicionar assinatura na posição definida
+          doc.addImage(
+            signatureImg,
+            'PNG',
+            xMm,
+            yMm,
+            widthMm,
+            heightMm
+          );
+
+          // Adicionar nome do signatário acima da assinatura
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(signature.name, xMm, yMm - 3);
+        } catch (error) {
+          console.error('Erro ao adicionar assinatura na posição:', error);
+        }
+      }
+    } else {
+      // Comportamento padrão: adicionar assinaturas no final
+      console.log('📝 Adicionando página de assinaturas com', options.signatures.length, 'assinatura(s)');
+      // Criar nova página dedicada para assinaturas
+      doc.addPage();
+      yPosition = margin;
 
     // Título da seção de assinaturas
     doc.setFontSize(14);
@@ -285,8 +362,9 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
       }
     }
 
-    // Adicionar rodapé na última página de assinaturas
-    addFooter(pageHeight - margin);
+      // Adicionar rodapé na última página de assinaturas
+      addFooter(pageHeight - margin);
+    }
   }
 
   // Gerar blob do PDF

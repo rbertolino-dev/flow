@@ -3,6 +3,7 @@ import { StorageService } from './StorageService';
 import { SupabaseStorageService } from './SupabaseStorageService';
 import { FirebaseStorageService } from './FirebaseStorageService';
 import { S3StorageService } from './S3StorageService';
+import { GoogleDriveStorageService } from './GoogleDriveStorageService';
 import { StorageType } from '@/types/contract';
 
 /**
@@ -61,6 +62,13 @@ export async function createBackupStorageService(organizationId: string): Promis
           return null;
         }
         return new S3StorageService(organizationId, backupConfig);
+
+      case 'google_drive':
+        // Google Drive usa configuração por cliente (client_google_drive_configs)
+        // Para backup global, precisamos de uma configuração diferente
+        // Por enquanto, retornar null (será implementado via configuração por cliente)
+        console.warn('Google Drive para backup global ainda não implementado. Use configuração por cliente.');
+        return null;
 
       case 'custom':
         console.warn('Storage customizado para backup ainda não implementado');
