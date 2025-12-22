@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 export function SellerGoalsManagement() {
   const { activeOrgId } = useActiveOrganization();
-  const { goals, loading, createGoal, updateGoal, deleteGoal } = useSellerGoals();
+  const { goals, loading, createGoal, updateGoal, deleteGoal, refetch } = useSellerGoals();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<SellerGoal | null>(null);
   const [saving, setSaving] = useState(false);
