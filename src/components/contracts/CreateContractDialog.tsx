@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface CreateContractDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
+  onSuccess?: (contractId?: string, isPdfUpload?: boolean) => void;
   defaultLeadId?: string;
 }
 
@@ -205,20 +205,18 @@ export function CreateContractDialog({
         description: 'Contrato criado com sucesso',
       });
 
-      // Se foi upload de PDF, abrir builder de assinaturas automaticamente
+      // Se foi upload de PDF, passar o ID do contrato para abrir builder de assinaturas
       if (creationMode === 'upload' && newContract?.id) {
         toast({
           title: 'Próximo passo',
           description: 'Configure as posições de assinatura no PDF',
         });
-        // O onSuccess pode abrir o builder de assinaturas
-        onSuccess?.();
+        onSuccess?.(newContract.id, true);
         onOpenChange(false);
-        // Retornar o contrato criado para que a página possa abrir o builder
         return;
       }
 
-      onSuccess?.();
+      onSuccess?.(newContract?.id, false);
       onOpenChange(false);
     } catch (error: any) {
       toast({

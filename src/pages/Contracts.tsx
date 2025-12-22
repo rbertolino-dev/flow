@@ -544,9 +544,27 @@ export default function Contracts() {
         <CreateContractDialog
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          onSuccess={() => {
-            refetch();
+          onSuccess={async (contractId, isPdfUpload) => {
+            await refetch();
             setShowCreateDialog(false);
+            
+            // Se foi upload de PDF, abrir builder de assinaturas automaticamente
+            if (isPdfUpload && contractId) {
+              // Buscar o contrato criado para selecioná-lo
+              const { data: newContract } = await supabase
+                .from('contracts')
+                .select('*, lead:leads(*), template:contract_templates(*)')
+                .eq('id', contractId)
+                .single();
+              
+              if (newContract) {
+                setSelectedContract(newContract as Contract);
+                // Aguardar um pouco para garantir que o contrato foi selecionado
+                setTimeout(() => {
+                  setShowPdfBuilder(true);
+                }, 300);
+              }
+            }
           }}
         />
 

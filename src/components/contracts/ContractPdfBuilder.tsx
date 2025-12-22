@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, X, Save, MousePointer2 } from 'lucide-react';
+import { Loader2, Upload, X, Save, MousePointer2, Move, Maximize2, Trash2, Edit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 // Import dinâmico do react-pdf para evitar erros de inicialização
@@ -106,6 +106,11 @@ export function ContractPdfBuilder({
   const [reactPdfLoaded, setReactPdfLoaded] = useState(false);
   const [reactPdfError, setReactPdfError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
   // Carregar react-pdf quando o componente abrir
   useEffect(() => {
@@ -227,6 +232,12 @@ export function ContractPdfBuilder({
   }, []);
 
   const handlePageClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Não adicionar nova posição se estiver arrastando ou redimensionando
+    if (isDragging || isResizing) return;
+    
+    // Não adicionar se clicou em uma posição existente
+    if ((event.target as HTMLElement).closest('.signature-position')) return;
+
     if (!containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
@@ -239,16 +250,97 @@ export function ContractPdfBuilder({
       pageNumber: currentPage,
       x,
       y,
-      width: 60,
-      height: 30,
+      width: 120,
+      height: 50,
     };
 
     setPositions([...positions, newPosition]);
+    setSelectedPositionId(newPosition.id);
   };
 
   const removePosition = (id: string) => {
     setPositions(positions.filter(p => p.id !== id));
+    if (selectedPositionId === id) {
+      setSelectedPositionId(null);
+    }
   };
+
+  const updatePosition = (id: string, updates: Partial<SignaturePosition>) => {
+    setPositions(positions.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
+  const handlePositionMouseDown = (e: React.MouseEvent, positionId: string) => {
+    e.stopPropagation();
+    setSelectedPositionId(positionId);
+    
+    if ((e.target as HTMLElement).classList.contains('resize-handle')) {
+      // Iniciar redimensionamento
+      const pos = positions.find(p => p.id === positionId);
+      if (!pos) return;
+      
+      setIsResizing(true);
+      setResizeStart({
+        x: e.clientX,
+        y: e.clientY,
+        width: pos.width,
+        height: pos.height,
+      });
+    } else {
+      // Iniciar arrastar
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX,
+        y: e.clientY,
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+
+      if (isDragging && selectedPositionId) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const pos = positions.find(p => p.id === selectedPositionId);
+        if (!pos) return;
+
+        const deltaX = e.clientX - dragStart.x;
+        const deltaY = e.clientY - dragStart.y;
+
+        const newX = Math.max(0, Math.min(pos.x + deltaX, rect.width - pos.width));
+        const newY = Math.max(0, Math.min(pos.y + deltaY, rect.height - pos.height));
+
+        updatePosition(selectedPositionId, { x: newX, y: newY });
+        setDragStart({ x: e.clientX, y: e.clientY });
+      } else if (isResizing && selectedPositionId) {
+        const pos = positions.find(p => p.id === selectedPositionId);
+        if (!pos) return;
+
+        const deltaX = e.clientX - resizeStart.x;
+        const deltaY = e.clientY - resizeStart.y;
+
+        const newWidth = Math.max(60, resizeStart.width + deltaX);
+        const newHeight = Math.max(30, resizeStart.height + deltaY);
+
+        updatePosition(selectedPositionId, { width: newWidth, height: newHeight });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setIsResizing(false);
+    };
+
+    if (isDragging || isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, isResizing, selectedPositionId, positions, dragStart, resizeStart]);
 
   const handleSave = async () => {
     if (positions.length === 0) {
@@ -336,12 +428,40 @@ export function ContractPdfBuilder({
     }
   }, [contractId]);
 
-  // Carregar posições existentes quando abrir
+  // Carregar PDF do contrato se já existir
+  const loadContractPdf = useCallback(async () => {
+    if (!contractId || !open) return;
+
+    try {
+      const { data: contract, error } = await supabase
+        .from('contracts')
+        .select('pdf_url')
+        .eq('id', contractId)
+        .single();
+
+      if (error) throw error;
+
+      if (contract?.pdf_url) {
+        // PDF já existe no contrato, usar ele
+        setPdfUrl(contract.pdf_url);
+        toast({
+          title: 'PDF carregado',
+          description: 'PDF do contrato carregado. Clique no PDF para marcar as posições de assinatura.',
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar PDF do contrato:', error);
+      // Não mostrar erro - pode ser que o PDF ainda não exista
+    }
+  }, [contractId, open, toast]);
+
+  // Carregar posições existentes e PDF quando abrir
   useEffect(() => {
     if (open && contractId) {
       loadExistingPositions();
+      loadContractPdf();
     }
-  }, [open, contractId, loadExistingPositions]);
+  }, [open, contractId, loadExistingPositions, loadContractPdf]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -381,6 +501,9 @@ export function ContractPdfBuilder({
               )}
               <p className="text-xs text-muted-foreground mt-2">
                 Tamanho máximo: 10MB
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Ou aguarde enquanto carregamos o PDF do contrato...
               </p>
             </div>
           )}
@@ -537,33 +660,101 @@ export function ContractPdfBuilder({
                 {/* Marcadores de posição */}
                 {positions
                   .filter(p => p.pageNumber === currentPage)
-                  .map((pos) => (
-                    <div
-                      key={pos.id}
-                      className="absolute border-2 border-primary bg-primary/20 rounded cursor-pointer"
-                      style={{
-                        left: `${pos.x}px`,
-                        top: `${pos.y}px`,
-                        width: `${pos.width}px`,
-                        height: `${pos.height}px`,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removePosition(pos.id);
-                      }}
-                      title={`${pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica'} - Clique para remover`}
-                    >
-                      <div className="absolute -top-6 left-0 text-xs bg-primary text-white px-1 rounded">
-                        {pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica'}
+                  .map((pos) => {
+                    const isSelected = selectedPositionId === pos.id;
+                    const signerTypeLabel = pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica';
+                    
+                    // Cores baseadas no tipo de assinatura
+                    const getColorClasses = () => {
+                      if (pos.signerType === 'user') {
+                        return {
+                          border: isSelected ? 'border-blue-500' : 'border-blue-300',
+                          bg: isSelected ? 'bg-blue-200' : 'bg-blue-100/50',
+                          hover: 'hover:border-blue-400 hover:bg-blue-150',
+                          labelBg: 'bg-blue-500',
+                          handleBg: 'bg-blue-500',
+                        };
+                      } else if (pos.signerType === 'client') {
+                        return {
+                          border: isSelected ? 'border-green-500' : 'border-green-300',
+                          bg: isSelected ? 'bg-green-200' : 'bg-green-100/50',
+                          hover: 'hover:border-green-400 hover:bg-green-150',
+                          labelBg: 'bg-green-500',
+                          handleBg: 'bg-green-500',
+                        };
+                      } else {
+                        return {
+                          border: isSelected ? 'border-purple-500' : 'border-purple-300',
+                          bg: isSelected ? 'bg-purple-200' : 'bg-purple-100/50',
+                          hover: 'hover:border-purple-400 hover:bg-purple-150',
+                          labelBg: 'bg-purple-500',
+                          handleBg: 'bg-purple-500',
+                        };
+                      }
+                    };
+                    
+                    const colors = getColorClasses();
+                    
+                    return (
+                      <div
+                        key={pos.id}
+                        className={`signature-position absolute border-2 rounded cursor-move transition-all ${colors.border} ${colors.bg} ${!isSelected ? colors.hover : ''} ${isSelected ? 'shadow-lg z-10' : ''}`}
+                        style={{
+                          left: `${pos.x}px`,
+                          top: `${pos.y}px`,
+                          width: `${pos.width}px`,
+                          height: `${pos.height}px`,
+                        }}
+                        onMouseDown={(e) => handlePositionMouseDown(e, pos.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPositionId(pos.id);
+                        }}
+                        title={`${signerTypeLabel} - Arraste para mover, arraste o canto para redimensionar`}
+                      >
+                        {/* Label do tipo */}
+                        <div className={`absolute -top-6 left-0 text-xs text-white px-2 py-0.5 rounded flex items-center gap-1 ${colors.labelBg}`}>
+                          {signerTypeLabel}
+                          {isSelected && <Edit2 className="w-3 h-3" />}
+                        </div>
+
+                        {/* Botão de excluir (visível quando selecionado) */}
+                        {isSelected && (
+                          <button
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-20 shadow-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePosition(pos.id);
+                            }}
+                            title="Excluir posição"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+
+                        {/* Handle de redimensionamento (canto inferior direito) */}
+                        <div
+                          className={`resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize ${colors.handleBg} rounded-tl-full opacity-70 hover:opacity-100 transition-opacity`}
+                          title="Arraste para redimensionar"
+                        />
+
+                        {/* Indicador visual quando selecionado */}
+                        {isSelected && (
+                          <div className="absolute inset-0 border-2 border-dashed border-white/50 rounded" />
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800 flex items-center gap-2">
                   <MousePointer2 className="w-4 h-4" />
-                  Clique no PDF para marcar onde a assinatura deve aparecer. Clique em um marcador para removê-lo.
+                  <span>
+                    <strong>Como usar:</strong> Clique no PDF para adicionar uma posição de assinatura. 
+                    Selecione uma posição para editá-la: arraste para mover, arraste o canto para redimensionar, 
+                    ou clique no X para excluir.
+                  </span>
                 </p>
               </div>
 
@@ -572,23 +763,61 @@ export function ContractPdfBuilder({
                 <div className="border rounded-lg p-4">
                   <h3 className="font-semibold mb-2">Posições Definidas ({positions.length})</h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {positions.map((pos) => (
-                      <div
-                        key={pos.id}
-                        className="flex items-center justify-between p-2 bg-muted rounded text-sm"
-                      >
-                        <span>
-                          Página {pos.pageNumber} - {pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica'} ({pos.x.toFixed(0)}, {pos.y.toFixed(0)})
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removePosition(pos.id)}
+                    {positions.map((pos) => {
+                      const isSelected = selectedPositionId === pos.id;
+                      const signerTypeLabel = pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica';
+                      
+                      return (
+                        <div
+                          key={pos.id}
+                          className={`flex items-center justify-between p-2 rounded text-sm cursor-pointer transition-colors ${
+                            isSelected ? 'bg-primary/20 border-2 border-primary' : 'bg-muted hover:bg-muted/80'
+                          }`}
+                          onClick={() => {
+                            setSelectedPositionId(pos.id);
+                            if (pos.pageNumber !== currentPage) {
+                              setCurrentPage(pos.pageNumber);
+                            }
+                          }}
                         >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              Página {pos.pageNumber} - {signerTypeLabel}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              ({pos.x.toFixed(0)}, {pos.y.toFixed(0)}) - {pos.width.toFixed(0)}x{pos.height.toFixed(0)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPositionId(pos.id);
+                                if (pos.pageNumber !== currentPage) {
+                                  setCurrentPage(pos.pageNumber);
+                                }
+                              }}
+                              title="Editar posição"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removePosition(pos.id);
+                              }}
+                              title="Excluir posição"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
