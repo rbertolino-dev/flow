@@ -12,7 +12,7 @@ let Document: any, Page: any, pdfjs: any;
 let reactPdfModule: any = null;
 let workerConfigured = false;
 
-// Configurar worker do PDF.js de forma robusta com múltiplos fallbacks
+// Configurar worker do PDF.js usando APENAS worker local (evita problemas de CORS)
 const configurePdfWorker = (pdfjsInstance: any): boolean => {
   if (!pdfjsInstance || !pdfjsInstance.GlobalWorkerOptions) {
     console.warn('⚠️ pdfjs.GlobalWorkerOptions não disponível');
@@ -28,21 +28,16 @@ const configurePdfWorker = (pdfjsInstance: any): boolean => {
   const pdfjsVersion = pdfjsInstance.version || '5.4.296';
   console.log(`📄 Configurando PDF.js Worker - versão detectada: ${pdfjsVersion}`);
 
-  // Estratégia 1: Tentar usar worker local de public/ (se existir)
-  // O arquivo pdf.worker.min.js foi copiado para public/ durante setup
-  try {
-    pdfjsInstance.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
-    console.log('✅ Tentando worker local de public/');
-    workerConfigured = true;
-    // Não retornar true ainda - vamos testar se funciona, se não, usar CDN
-  } catch (error) {
-    console.warn('⚠️ Worker local não disponível, usando CDN...', error);
-  }
-
-  // Estratégia 2: Usar CDN do unpkg.com com versão específica (mais confiável)
-  // Esta é a estratégia principal - unpkg.com é muito confiável
-  pdfjsInstance.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
-  console.log(`✅ Worker configurado via CDN (unpkg): versão ${pdfjsVersion}`);
+  // ESTRATÉGIA PRINCIPAL: Usar worker local de public/ (evita CORS e problemas de CDN)
+  // O arquivo pdf.worker.min.js está em public/ e é servido pelo Vite/Nginx
+  // Isso é mais confiável que CDN porque:
+  // 1. Não tem problemas de CORS
+  // 2. Não depende de serviços externos
+  // 3. Funciona mesmo offline
+  // 4. Sempre disponível no mesmo domínio
+  pdfjsInstance.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+  console.log('✅ Worker configurado para usar arquivo local: /pdf.worker.min.js');
+  console.log('   (Evita problemas de CORS e dependência de CDN)');
   workerConfigured = true;
   return true;
 };
