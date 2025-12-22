@@ -73,6 +73,34 @@ export function useSellerGoals() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // Verificar se já existe uma meta com os mesmos valores (constraint UNIQUE)
+      const { data: existingGoal, error: checkError } = await supabase
+        .from("seller_goals")
+        .select("id, period_type, period_start")
+        .eq("organization_id", activeOrgId)
+        .eq("user_id", goalData.user_id)
+        .eq("period_type", goalData.period_type)
+        .eq("period_start", goalData.period_start)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        throw checkError;
+      }
+
+      if (existingGoal) {
+        const periodTypeLabel = {
+          monthly: 'mensal',
+          weekly: 'semanal',
+          quarterly: 'trimestral',
+          yearly: 'anual'
+        }[goalData.period_type] || goalData.period_type;
+
+        throw new Error(
+          `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${new Date(goalData.period_start).toLocaleDateString('pt-BR')}. ` +
+          `Por favor, edite a meta existente ou escolha um período diferente.`
+        );
+      }
+
       const { data, error } = await supabase
         .from("seller_goals")
         .insert({
@@ -88,7 +116,23 @@ export function useSellerGoals() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Tratar erro 409 (Conflict) de forma mais clara
+        if (error.code === '23505') { // PostgreSQL unique violation
+          const periodTypeLabel = {
+            monthly: 'mensal',
+            weekly: 'semanal',
+            quarterly: 'trimestral',
+            yearly: 'anual'
+          }[goalData.period_type] || goalData.period_type;
+
+          throw new Error(
+            `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${new Date(goalData.period_start).toLocaleDateString('pt-BR')}. ` +
+            `Por favor, edite a meta existente ou escolha um período diferente.`
+          );
+        }
+        throw error;
+      }
 
       await fetchGoals();
       toast({
@@ -106,7 +150,7 @@ export function useSellerGoals() {
       console.error("Erro ao criar meta:", error);
       toast({
         title: "Erro ao criar meta",
-        description: error.message,
+        description: error.message || "Erro desconhecido ao criar meta",
         variant: "destructive",
       });
       throw error;
