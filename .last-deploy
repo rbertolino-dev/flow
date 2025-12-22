@@ -1,6 +1,6 @@
 {
-  "version": "green",
-  "timestamp": "2025-12-22T00:50:57Z",
-  "image_id": "sha256:2cbd194af6573fcc3d463edbeaa8da2cb6bb2d6ad09228b7afd6968ba094dade",
-  "deploy_id": "f5e134bb-c9b4-47a4-9fd7-7b8d3c664faf"
+  "version": "blue",
+  "timestamp": "2025-12-22T00:55:06Z",
+  "image_id": "sha256:205c32064716f9a0cc4a27cdb8fe9e52268ee3e121b95f7b3334fbaf6789a0a9",
+  "deploy_id": "8fab67b5-c5e0-4803-8530-18ae709d1459"
 }

@@ -6,11 +6,31 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, X, Save, MousePointer2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Document, Page, pdfjs } from 'react-pdf';
-// CSS imports removidos - serão carregados dinamicamente se necessário
 
-// Configurar worker do PDF.js
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Import dinâmico do react-pdf para evitar erros de inicialização
+let Document: any, Page: any, pdfjs: any;
+let reactPdfModule: any = null;
+
+// Carregar react-pdf dinamicamente apenas quando necessário
+const loadReactPdf = async () => {
+  if (!reactPdfModule) {
+    try {
+      reactPdfModule = await import('react-pdf');
+      Document = reactPdfModule.Document;
+      Page = reactPdfModule.Page;
+      pdfjs = reactPdfModule.pdfjs;
+      
+      // Configurar worker do PDF.js
+      if (pdfjs && pdfjs.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+      }
+    } catch (error) {
+      console.error('Erro ao carregar react-pdf:', error);
+      throw error;
+    }
+  }
+  return { Document, Page, pdfjs };
+};
 
 interface SignaturePosition {
   id: string;
@@ -44,7 +64,29 @@ export function ContractPdfBuilder({
   const [selectedSignerType, setSelectedSignerType] = useState<'user' | 'client' | 'rubric'>('user');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reactPdfLoaded, setReactPdfLoaded] = useState(false);
+  const [reactPdfError, setReactPdfError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Carregar react-pdf quando o componente abrir
+  useEffect(() => {
+    if (open && !reactPdfLoaded && !reactPdfError) {
+      loadReactPdf()
+        .then(() => {
+          setReactPdfLoaded(true);
+          setReactPdfError(null);
+        })
+        .catch((error) => {
+          console.error('Erro ao carregar react-pdf:', error);
+          setReactPdfError('Erro ao carregar visualizador de PDF');
+          toast({
+            title: 'Erro',
+            description: 'Erro ao carregar visualizador de PDF. Tente novamente.',
+            variant: 'destructive',
+          });
+        });
+    }
+  }, [open, reactPdfLoaded, reactPdfError, toast]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,9 +108,9 @@ export function ContractPdfBuilder({
     setCurrentPage(1);
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
-  };
+  }, []);
 
   const handlePageClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
@@ -229,7 +271,7 @@ export function ContractPdfBuilder({
                   <Label>Tipo de Assinatura:</Label>
                   <select
                     value={selectedSignerType}
-                    onChange={(e) => setSelectedSignerType(e.target.value as any)}
+                    onChange={(e) => setSelectedSignerType(e.target.value as 'user' | 'client' | 'rubric')}
                     className="px-3 py-1 border rounded"
                   >
                     <option value="user">Usuário</option>
@@ -267,22 +309,37 @@ export function ContractPdfBuilder({
                 style={{ maxHeight: '600px' }}
                 onClick={handlePageClick}
               >
-                <Document
-                  file={pdfUrl}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  loading={
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="w-8 h-8 animate-spin" />
-                    </div>
-                  }
-                >
-                  <Page
-                    pageNumber={currentPage}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                    className="mx-auto"
-                  />
-                </Document>
+                {!reactPdfLoaded ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <p className="ml-2">Carregando visualizador de PDF...</p>
+                  </div>
+                ) : reactPdfError ? (
+                  <div className="flex items-center justify-center p-8">
+                    <p className="text-red-600">{reactPdfError}</p>
+                  </div>
+                ) : Document && Page ? (
+                  <Document
+                    file={pdfUrl}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    loading={
+                      <div className="flex items-center justify-center p-8">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      </div>
+                    }
+                  >
+                    <Page
+                      pageNumber={currentPage}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="mx-auto"
+                    />
+                  </Document>
+                ) : (
+                  <div className="flex items-center justify-center p-8">
+                    <p className="text-red-600">Erro ao carregar visualizador de PDF</p>
+                  </div>
+                )}
 
                 {/* Marcadores de posição */}
                 {positions
@@ -380,4 +437,3 @@ export function ContractPdfBuilder({
     </Dialog>
   );
 }
-
