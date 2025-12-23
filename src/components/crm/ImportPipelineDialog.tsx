@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useImportPipeline } from "@/hooks/useImportPipeline";
-import * as XLSX from "xlsx";
 
 interface ImportPipelineDialogProps {
   open: boolean;
@@ -30,7 +29,7 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
   const [importResult, setImportResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const convertXLSXToPipelineData = (workbook: XLSX.WorkBook): any => {
+  const convertXLSXToPipelineData = (workbook: any, XLSX: any): any => {
     const data: any = {
       version: "1.0",
       exportedAt: new Date().toISOString(),
@@ -148,11 +147,16 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
         const text = await selectedFile.text();
         parsed = JSON.parse(text);
       } else {
-        // Processar XLSX
-        const arrayBuffer = await selectedFile.arrayBuffer();
-        const data = new Uint8Array(arrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        parsed = convertXLSXToPipelineData(workbook);
+        // Processar XLSX - importação dinâmica para segurança
+        try {
+          const XLSX = await import("xlsx");
+          const arrayBuffer = await selectedFile.arrayBuffer();
+          const data = new Uint8Array(arrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          parsed = convertXLSXToPipelineData(workbook, XLSX);
+        } catch (xlsxError: any) {
+          throw new Error(`Erro ao processar arquivo Excel: ${xlsxError.message || "Biblioteca XLSX não disponível"}`);
+        }
       }
 
       // Validar estrutura básica
