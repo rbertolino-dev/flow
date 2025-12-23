@@ -416,7 +416,7 @@ export function useImportPipeline() {
                 }
               }
 
-              // Criar lead
+              // Criar lead - usando apenas campos que existem no schema cache
               const leadData: any = {
                 name: lead.name.trim(),
                 phone: normalizedPhone,
@@ -428,7 +428,9 @@ export function useImportPipeline() {
                 assigned_to: assignedTo,
                 notes: lead.notes || null,
                 stage_id: stageId,
-                source_instance_name: lead.source_instance_name || null,
+                // Removido: source_instance_name (não existe no schema cache)
+                // Removido: return_date (não existe no schema cache)
+                // Removido: created_by (não existe no schema cache)
                 organization_id: organizationId,
                 user_id: user.id,
               };
