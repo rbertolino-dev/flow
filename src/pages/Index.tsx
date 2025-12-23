@@ -10,17 +10,7 @@ import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { TagManager } from "@/components/crm/TagManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
-// Import dinâmico do ImportPipelineDialog para evitar quebrar a página se houver erro
-const ImportPipelineDialog = React.lazy(() => 
-  import("@/components/crm/ImportPipelineDialog")
-    .then(module => ({ default: module.ImportPipelineDialog }))
-    .catch((error) => {
-      console.error('Erro ao carregar ImportPipelineDialog:', error);
-      return {
-        default: () => null // Retorna componente vazio se houver erro
-      };
-    })
-);
+import { ImportPipelineDialog } from "@/components/crm/ImportPipelineDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -532,13 +522,11 @@ const Index = () => {
         stages={stages}
         tags={tags}
       />
-      <React.Suspense fallback={null}>
-        <ImportPipelineDialog
-          open={importPipelineOpen}
-          onOpenChange={setImportPipelineOpen}
-          onPipelineImported={refetchLeads}
-        />
-      </React.Suspense>
+      <ImportPipelineDialog
+        open={importPipelineOpen}
+        onOpenChange={setImportPipelineOpen}
+        onPipelineImported={refetchLeads}
+      />
       </CRMLayout>
     </AuthGuard>
   );
