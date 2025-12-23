@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDetailModal } from "@/components/crm/LeadDetailModal";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
+import { ImportPipelineDialog } from "@/components/crm/ImportPipelineDialog";
 import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Lead } from "@/types/lead";
@@ -47,6 +48,7 @@ export default function CRM() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
+  const [importPipelineOpen, setImportPipelineOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [salesReportOpen, setSalesReportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -666,6 +668,15 @@ export default function CRM() {
           }}
           stages={stages}
           tags={tags}
+        />
+
+        <ImportPipelineDialog
+          open={importPipelineOpen}
+          onOpenChange={setImportPipelineOpen}
+          onPipelineImported={() => {
+            refetchLeads();
+            setImportPipelineOpen(false);
+          }}
         />
 
         <ExportLeadsDialog
