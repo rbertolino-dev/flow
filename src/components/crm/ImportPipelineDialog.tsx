@@ -3,11 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileText, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, FileText, X, CheckCircle2, AlertCircle, Loader2, FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useImportPipeline } from "@/hooks/useImportPipeline";
+import * as XLSX from "xlsx";
 
 interface ImportPipelineDialogProps {
   open: boolean;
@@ -29,14 +30,109 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
   const [importResult, setImportResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const convertXLSXToPipelineData = (workbook: XLSX.WorkBook): any => {
+    const data: any = {
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      pipelineStages: [],
+      tags: [],
+      products: [],
+      leads: [],
+    };
+
+    // Ler aba de Stages
+    if (workbook.SheetNames.includes("Stages") || workbook.SheetNames.includes("Etapas")) {
+      const sheetName = workbook.SheetNames.find((n) => n.toLowerCase().includes("stage") || n.toLowerCase().includes("etapa"));
+      if (sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        data.pipelineStages = rows.map((row: any, index: number) => ({
+          name: row["Nome"] || row["Name"] || row["nome"] || row["name"] || "",
+          color: row["Cor"] || row["Color"] || row["color"] || "#3B82F6",
+          position: row["Posição"] || row["Position"] || row["posição"] || row["position"] || index,
+        })).filter((s: any) => s.name);
+      }
+    }
+
+    // Ler aba de Tags
+    if (workbook.SheetNames.some((n) => n.toLowerCase().includes("tag"))) {
+      const sheetName = workbook.SheetNames.find((n) => n.toLowerCase().includes("tag"));
+      if (sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        data.tags = rows.map((row: any) => ({
+          name: row["Nome"] || row["Name"] || row["nome"] || row["name"] || "",
+          color: row["Cor"] || row["Color"] || row["color"] || "#3B82F6",
+        })).filter((t: any) => t.name);
+      }
+    }
+
+    // Ler aba de Products
+    if (workbook.SheetNames.some((n) => n.toLowerCase().includes("product") || n.toLowerCase().includes("produto"))) {
+      const sheetName = workbook.SheetNames.find((n) => n.toLowerCase().includes("product") || n.toLowerCase().includes("produto"));
+      if (sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        data.products = rows.map((row: any) => ({
+          name: row["Nome"] || row["Name"] || row["nome"] || row["name"] || "",
+          description: row["Descrição"] || row["Description"] || row["descrição"] || row["description"] || "",
+          price: parseFloat(row["Preço"] || row["Price"] || row["preço"] || row["price"] || "0") || 0,
+          category: row["Categoria"] || row["Category"] || row["categoria"] || row["category"] || "",
+          is_active: row["Ativo"] !== undefined ? row["Ativo"] : (row["Active"] !== undefined ? row["Active"] : true),
+        })).filter((p: any) => p.name);
+      }
+    }
+
+    // Ler aba de Leads (principal)
+    const leadsSheetName = workbook.SheetNames.find((n) => 
+      n.toLowerCase().includes("lead") || 
+      n.toLowerCase().includes("contato") || 
+      n.toLowerCase().includes("contact") ||
+      n === "Leads" ||
+      n === "Sheet1"
+    ) || workbook.SheetNames[0];
+
+    if (leadsSheetName) {
+      const sheet = workbook.Sheets[leadsSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+      data.leads = rows.map((row: any) => {
+        const lead: any = {
+          name: row["Nome"] || row["Name"] || row["nome"] || row["name"] || "",
+          phone: row["Telefone"] || row["Phone"] || row["telefone"] || row["phone"] || "",
+          email: row["Email"] || row["email"] || "",
+          company: row["Empresa"] || row["Company"] || row["empresa"] || row["company"] || "",
+          value: parseFloat(row["Valor"] || row["Value"] || row["valor"] || row["value"] || "0") || null,
+          status: row["Status"] || row["status"] || "novo",
+          source: row["Origem"] || row["Source"] || row["origem"] || row["source"] || "manual",
+          assigned_to: row["Responsável"] || row["Assigned To"] || row["responsável"] || row["assigned_to"] || "",
+          notes: row["Notas"] || row["Notes"] || row["notas"] || row["notes"] || "",
+          stage_name: row["Etapa"] || row["Stage"] || row["etapa"] || row["stage"] || "",
+        };
+
+        // Tags (pode ser string separada por vírgula ou array)
+        const tagsStr = row["Tags"] || row["tags"] || "";
+        if (tagsStr) {
+          lead.tags = typeof tagsStr === "string" ? tagsStr.split(",").map((t: string) => t.trim()) : tagsStr;
+        }
+
+        return lead;
+      }).filter((l: any) => l.name && l.phone);
+    }
+
+    return data;
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
-    if (!selectedFile.name.endsWith(".json")) {
+    const isJSON = selectedFile.name.endsWith(".json");
+    const isXLSX = selectedFile.name.match(/\.(xlsx|xls)$/i);
+
+    if (!isJSON && !isXLSX) {
       toast({
         title: "Arquivo inválido",
-        description: "Por favor, selecione um arquivo JSON",
+        description: "Por favor, selecione um arquivo JSON ou Excel (.xlsx, .xls)",
         variant: "destructive",
       });
       return;
@@ -46,12 +142,22 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
     setImportResult(null);
 
     try {
-      const text = await selectedFile.text();
-      const parsed = JSON.parse(text);
+      let parsed: any;
+
+      if (isJSON) {
+        const text = await selectedFile.text();
+        parsed = JSON.parse(text);
+      } else {
+        // Processar XLSX
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        parsed = convertXLSXToPipelineData(workbook);
+      }
 
       // Validar estrutura básica
       if (!parsed.pipelineStages && !parsed.tags && !parsed.products && !parsed.leads) {
-        throw new Error("JSON inválido: deve conter pipelineStages, tags, products ou leads");
+        throw new Error("Arquivo inválido: deve conter pipelineStages, tags, products ou leads");
       }
 
       setJsonData(parsed);
@@ -64,7 +170,7 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
     } catch (error: any) {
       toast({
         title: "Erro ao ler arquivo",
-        description: error.message || "Arquivo JSON inválido",
+        description: error.message || "Arquivo inválido",
         variant: "destructive",
       });
       setFile(null);
@@ -150,21 +256,29 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                   <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground mb-4">
-                    Selecione um arquivo JSON exportado do pipeline
+                    Selecione um arquivo JSON ou Excel (.xlsx) exportado do pipeline
                   </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    id="pipeline-json-upload"
-                  />
-                  <label htmlFor="pipeline-json-upload">
-                    <Button asChild variant="outline">
-                      <span>Selecionar Arquivo JSON</span>
-                    </Button>
-                  </label>
+                  <div className="flex gap-2 justify-center">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json,.xlsx,.xls"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="pipeline-file-upload"
+                    />
+                    <label htmlFor="pipeline-file-upload">
+                      <Button asChild variant="outline">
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Selecionar Arquivo
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">
+                    Formatos suportados: JSON ou Excel (.xlsx, .xls)
+                  </p>
                 </div>
               </div>
             )}
@@ -196,7 +310,11 @@ export function ImportPipelineDialog({ open, onOpenChange, onPipelineImported }:
 
                 {file && (
                   <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    {file.name.match(/\.(xlsx|xls)$/i) ? (
+                      <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    )}
                     <span className="text-sm flex-1 truncate">{file.name}</span>
                     <Button
                       variant="ghost"
