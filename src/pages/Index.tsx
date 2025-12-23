@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
@@ -10,7 +10,17 @@ import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { TagManager } from "@/components/crm/TagManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
-import { ImportPipelineDialog } from "@/components/crm/ImportPipelineDialog";
+// Import dinâmico do ImportPipelineDialog para evitar quebrar a página se houver erro
+const ImportPipelineDialog = React.lazy(() => 
+  import("@/components/crm/ImportPipelineDialog")
+    .then(module => ({ default: module.ImportPipelineDialog }))
+    .catch((error) => {
+      console.error('Erro ao carregar ImportPipelineDialog:', error);
+      return {
+        default: () => null // Retorna componente vazio se houver erro
+      };
+    })
+);
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -522,11 +532,13 @@ const Index = () => {
         stages={stages}
         tags={tags}
       />
-      <ImportPipelineDialog
-        open={importPipelineOpen}
-        onOpenChange={setImportPipelineOpen}
-        onPipelineImported={refetchLeads}
-      />
+      <React.Suspense fallback={null}>
+        <ImportPipelineDialog
+          open={importPipelineOpen}
+          onOpenChange={setImportPipelineOpen}
+          onPipelineImported={refetchLeads}
+        />
+      </React.Suspense>
       </CRMLayout>
     </AuthGuard>
   );
