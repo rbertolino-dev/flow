@@ -265,7 +265,6 @@ export function useImportPipeline() {
                   name: tag.name.trim(),
                   color: tag.color || "#3B82F6",
                   organization_id: organizationId,
-                  user_id: user.id,
                 })
                 .select("id")
                 .single();
@@ -315,7 +314,6 @@ export function useImportPipeline() {
                   description: product.description || null,
                   price: product.price || 0,
                   category: product.category || null,
-                  sku: product.sku || null,
                   is_active: product.is_active !== undefined ? product.is_active : true,
                   organization_id: organizationId,
                   created_by: user.id,
@@ -434,7 +432,6 @@ export function useImportPipeline() {
                 source_instance_name: lead.source_instance_name || null,
                 organization_id: organizationId,
                 user_id: user.id,
-                created_by: user.id,
               };
 
               // Adicionar timestamps se fornecidos
