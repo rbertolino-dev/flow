@@ -65,7 +65,7 @@ export function useCallQueue() {
       // Buscar dados da fila (sem join do assigned_user para evitar erro se migração não aplicada)
       const { data, error: queryError } = await (supabase as any)
         .from('call_queue')
-        .select('*, leads(id, name, phone, call_count, created_at)')
+        .select('*, leads(id, name, phone, call_count, created_at, deleted_at)')
         .eq('organization_id', activeOrgId)
         .order('scheduled_for', { ascending: true });
 
@@ -75,7 +75,32 @@ export function useCallQueue() {
       }
 
       let queueData: any[] = data || [];
-      console.log('📞 Call queue data encontrada:', queueData.length, 'itens');
+      
+      // ✅ CORREÇÃO: Filtrar leads deletados permanentemente (deleted_at não nulo)
+      queueData = queueData.filter((item: any) => {
+        // Se o lead não existe ou foi deletado (deleted_at não é null), excluir da fila
+        if (!item.leads || item.leads.deleted_at) {
+          // Se o lead foi deletado, remover da fila automaticamente
+          if (item.leads?.deleted_at) {
+            console.log('🗑️ Lead deletado encontrado na fila, removendo automaticamente:', item.lead_id);
+            // Remover da fila em background (não bloquear a UI)
+            (supabase as any)
+              .from('call_queue')
+              .delete()
+              .eq('id', item.id)
+              .then(() => {
+                console.log('✅ Item removido da fila automaticamente');
+              })
+              .catch((err: any) => {
+                console.error('❌ Erro ao remover item deletado da fila:', err);
+              });
+          }
+          return false;
+        }
+        return true;
+      });
+      
+      console.log('📞 Call queue data encontrada:', queueData.length, 'itens (após filtrar deletados)');
 
       // Se houver dados, tentar buscar informações do usuário atribuído separadamente
       // Isso evita erro se a migração ainda não foi aplicada
@@ -556,6 +581,42 @@ export function useCallQueue() {
     }
   };
 
+  const updateCallStatus = async (callQueueId: string, newStatus: 'pending' | 'completed' | 'rescheduled') => {
+    try {
+      // Atualização otimista da UI
+      setCallQueue((prev) => prev.map((c) =>
+        c.id === callQueueId
+          ? { ...c, status: newStatus }
+          : c
+      ));
+
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .update({ status: newStatus })
+        .eq('id', callQueueId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status atualizado",
+        description: `Status alterado para ${newStatus === 'pending' ? 'Pendente' : newStatus === 'completed' ? 'Concluída' : 'Reagendada'}`,
+      });
+
+      // Forçar recarregamento para garantir sincronização
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      // Reverter mudança otimista em caso de erro
+      await fetchCallQueue();
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   return { 
     callQueue, 
     loading, 
@@ -565,6 +626,7 @@ export function useCallQueue() {
     refetch: fetchCallQueue,
     addCallQueueTag,
     removeCallQueueTag,
-    assignToUser
+    assignToUser,
+    updateCallStatus
   };
 }

@@ -74,16 +74,31 @@ export function RescheduleCallDialog({
           
           <div className="space-y-2">
             <Label htmlFor="time">Horário</Label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="time"
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !time && "text-muted-foreground"
+                  )}
+                >
+                  <Clock className="mr-2 h-4 w-4" />
+                  {time || <span>Selecione o horário</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-3">
+                  <Input
+                    id="time"
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
         <DialogFooter>

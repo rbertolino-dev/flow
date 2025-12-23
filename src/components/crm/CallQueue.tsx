@@ -36,6 +36,7 @@ interface CallQueueProps {
   onAddTag: (callQueueId: string, tagId: string) => void;
   onRemoveTag: (callQueueId: string, tagId: string) => void;
   onAssignToUser: (callQueueId: string, userId: string | null) => void;
+  onUpdateStatus?: (callQueueId: string, status: 'pending' | 'completed' | 'rescheduled') => void;
   onRefetch: () => void;
 }
 
@@ -51,7 +52,7 @@ const priorityLabels = {
   low: "Baixa",
 };
 
-export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onAssignToUser, onRefetch }: CallQueueProps) {
+export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onAssignToUser, onUpdateStatus, onRefetch }: CallQueueProps) {
   const { toast } = useToast();
   const { tags: allTags } = useTags();
   const { users: organizationUsers } = useOrganizationUsers();
@@ -1130,6 +1131,29 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                           <p className="text-sm text-muted-foreground mt-1 p-2 bg-muted/50 rounded">
                             <strong>Notas do lead:</strong> {call.notes}
                           </p>
+                        )}
+                        {/* Botão de editar status */}
+                        {onUpdateStatus && (
+                          <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                            <Label htmlFor={`status-${call.id}`} className="text-sm font-medium whitespace-nowrap">
+                              Status:
+                            </Label>
+                            <Select
+                              value={call.status}
+                              onValueChange={(value) => {
+                                onUpdateStatus(call.id, value as 'pending' | 'completed' | 'rescheduled');
+                              }}
+                            >
+                              <SelectTrigger id={`status-${call.id}`} className="flex-1 h-8 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pendente</SelectItem>
+                                <SelectItem value="completed">Concluída</SelectItem>
+                                <SelectItem value="rescheduled">Reagendada</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         )}
                       </div>
                     </div>

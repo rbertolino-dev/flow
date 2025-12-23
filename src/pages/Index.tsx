@@ -61,7 +61,7 @@ const Index = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
-  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, assignToUser, refetch: refetchCallQueue } = useCallQueue();
+  const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, assignToUser, updateCallStatus, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
   const { tags } = useTags();
   const { viewMode, toggleView } = useViewPreference();
@@ -496,6 +496,7 @@ const Index = () => {
           onAddTag={addCallQueueTag}
           onRemoveTag={removeCallQueueTag}
           onAssignToUser={assignToUser}
+          onUpdateStatus={updateCallStatus}
           onRefetch={refetchCallQueue}
         />
       )}
