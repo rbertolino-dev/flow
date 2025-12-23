@@ -10,6 +10,7 @@ import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { TagManager } from "@/components/crm/TagManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
+import { ImportPipelineDialog } from "@/components/crm/ImportPipelineDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -50,6 +51,7 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
+  const [importPipelineOpen, setImportPipelineOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
   const [filterCreatedDateStart, setFilterCreatedDateStart] = useState<string>("");
   const [filterCreatedDateEnd, setFilterCreatedDateEnd] = useState<string>("");
@@ -220,6 +222,10 @@ const Index = () => {
                 <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="flex-1 sm:flex-none">
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="sm:inline">Importar</span>
+                </Button>
+                <Button onClick={() => setImportPipelineOpen(true)} size="sm" variant="outline" className="flex-1 sm:flex-none">
+                  <Upload className="h-4 w-4 mr-2" />
+                  <span className="sm:inline">Importar Pipeline</span>
                 </Button>
                 <PipelineStageManager />
                 <TagManager />
@@ -515,6 +521,11 @@ const Index = () => {
         onLeadsImported={refetchLeads}
         stages={stages}
         tags={tags}
+      />
+      <ImportPipelineDialog
+        open={importPipelineOpen}
+        onOpenChange={setImportPipelineOpen}
+        onPipelineImported={refetchLeads}
       />
       </CRMLayout>
     </AuthGuard>
