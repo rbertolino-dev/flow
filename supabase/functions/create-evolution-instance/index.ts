@@ -107,8 +107,32 @@ serve(async (req) => {
       error: countError ? countError.message : null
     });
     
+    // Verificar se usuário é super admin antes de chamar RPC
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+    
+    const { data: isPubdigital } = await supabase
+      .rpc('is_pubdigital_user', { _user_id: userId });
+    
+    const isSuperAdmin = !!userRole || !!isPubdigital;
+    
+    console.log('[CREATE-EVOLUTION-INSTANCE] Verificação de super admin:', {
+      userId,
+      hasAdminRole: !!userRole,
+      isPubdigital: !!isPubdigital,
+      isSuperAdmin
+    });
+    
+    // Chamar RPC passando userId para verificação de super admin
     const { data: canCreate, error: limitError } = await supabase
-      .rpc('can_create_evolution_instance', { _org_id: organizationId });
+      .rpc('can_create_evolution_instance', { 
+        _org_id: organizationId,
+        _user_id: userId  // Passa userId para verificar super admin
+      });
 
     if (limitError) {
       console.error('[CREATE-EVOLUTION-INSTANCE] Erro ao verificar limites:', {
