@@ -598,11 +598,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       const dateInSaoPaulo = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
       const zonedDate = fromZonedTime(dateInSaoPaulo, TIMEZONE);
       
-      // ✅ RESILIENTE: Tentar atualizar return_date, se falhar usar fallback
-      let updateError: any = null;
-      
-      // Primeira tentativa: atualizar return_date
-      const result = await (supabase as any)
+      // Usar cliente Supabase corretamente (sem as any)
+      const { error: updateError } = await supabase
         .from('leads')
         .update({ 
           return_date: zonedDate.toISOString(),
@@ -610,38 +607,28 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         })
         .eq('id', lead.id);
 
-      if (result.error) {
-        // Se erro de coluna não existir, tentar sem return_date (fallback)
-        if (result.error.message?.includes('return_date') || 
-            result.error.code === 'PGRST204' ||
-            result.error.message?.includes('schema cache')) {
+      if (updateError) {
+        console.error('❌ Erro ao atualizar return_date:', updateError);
+        
+        // Se erro de coluna não existir ou schema cache, avisar mas não falhar
+        if (updateError.message?.includes('return_date') || 
+            updateError.code === 'PGRST204' ||
+            updateError.message?.includes('schema cache') ||
+            updateError.message?.includes('column') ||
+            updateError.code === '42703') {
           console.warn('⚠️ Coluna return_date não encontrada no cache, usando fallback...');
           
-          // Tentar atualizar apenas updated_at (coluna sempre existe)
-          const fallbackResult = await (supabase as any)
-            .from('leads')
-            .update({ 
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', lead.id);
-          
-          if (fallbackResult.error) {
-            updateError = fallbackResult.error;
-          } else {
-            // Se fallback funcionou, avisar usuário mas não falhar
-            toast({
-              title: "Aviso",
-              description: "Data de retorno não pôde ser salva (coluna não disponível no momento). Tente novamente mais tarde.",
-              variant: "default",
-            });
-            return;
-          }
-        } else {
-          updateError = result.error;
+          toast({
+            title: "Aviso",
+            description: "Data de retorno não pôde ser salva (coluna não disponível no momento). Tente novamente mais tarde.",
+            variant: "default",
+          });
+          return;
         }
+        
+        // Para outros erros, lançar exceção
+        throw updateError;
       }
-
-      if (updateError) throw updateError;
 
       toast({
         title: "Data de retorno salva",
@@ -651,7 +638,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       // Solicitar atualização da lista/board
       onUpdated?.();
     } catch (error: any) {
-      console.error('Erro ao salvar data de retorno:', error);
+      console.error('❌ Erro ao salvar data de retorno:', error);
       toast({
         title: "Erro ao salvar",
         description: error.message || "Não foi possível salvar a data de retorno",
