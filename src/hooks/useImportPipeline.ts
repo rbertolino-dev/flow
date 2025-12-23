@@ -428,7 +428,6 @@ export function useImportPipeline() {
                 assigned_to: assignedTo,
                 notes: lead.notes || null,
                 stage_id: stageId,
-                return_date: lead.return_date || null,
                 source_instance_name: lead.source_instance_name || null,
                 organization_id: organizationId,
                 user_id: user.id,
