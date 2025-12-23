@@ -37,6 +37,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 
 interface WorkflowListManagerProps {
   open: boolean;
@@ -74,6 +75,7 @@ export function WorkflowListManager({
   const [contacts, setContacts] = useState<WorkflowListContact[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [searchContact, setSearchContact] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!open) {
@@ -126,20 +128,60 @@ export function WorkflowListManager({
   };
 
   const handleAddManual = () => {
-    if (!manualPhone) return;
+    if (!manualPhone || !manualPhone.trim()) {
+      toast({
+        title: "Telefone obrigatório",
+        description: "Por favor, insira um número de telefone",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const sanitizedPhone = manualPhone.replace(/\D/g, "");
-    if (sanitizedPhone.length < 10) return;
-    const exists = contacts.some((c) => c.phone === sanitizedPhone);
-    if (exists) return;
+    
+    // Validação melhorada com feedback
+    if (sanitizedPhone.length < 10) {
+      toast({
+        title: "Telefone inválido",
+        description: "O telefone deve ter pelo menos 10 dígitos",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Verificar se já existe
+    const exists = contacts.some((c) => {
+      const existingPhone = c.phone.replace(/\D/g, "");
+      return existingPhone === sanitizedPhone;
+    });
+    
+    if (exists) {
+      toast({
+        title: "Contato já existe",
+        description: "Este telefone já está na lista de contatos",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Adicionar contato
+    const contactName = manualName?.trim() || sanitizedPhone;
     setContacts((prev) => [
       ...prev,
       {
         lead_id: null,
         phone: sanitizedPhone,
-        name: manualName || sanitizedPhone,
+        name: contactName,
         variables: {},
       },
     ]);
+    
+    toast({
+      title: "Contato adicionado",
+      description: `${contactName} foi adicionado à lista`,
+    });
+    
+    // Limpar campos
     setManualName("");
     setManualPhone("");
   };

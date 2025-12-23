@@ -115,16 +115,20 @@ export function BroadcastCampaignTemplateManager({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const templateData = {
+      // Preparar message_variations como JSONB válido
+      // Filtrar variações vazias e garantir que seja um array válido
+      const validVariations = formData.messageVariations.filter(v => v && v.trim().length > 0);
+      
+      const templateData: any = {
         organization_id: organizationId,
         user_id: user.id,
-        name: formData.name,
-        description: formData.description || null,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || null,
         instance_id: null,
         instance_name: null,
         message_template_id: null,
-        custom_message: formData.customMessage || null,
-        message_variations: formData.messageVariations.length > 0 ? formData.messageVariations : null,
+        custom_message: formData.customMessage?.trim() || null,
+        message_variations: validVariations.length > 0 ? validVariations : null,
         min_delay_seconds: 30,
         max_delay_seconds: 60,
       };
