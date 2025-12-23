@@ -139,15 +139,30 @@ serve(async (req) => {
           throw new Error("Instância não configurada para este contato");
         }
 
-        // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Dupla verificação do status da campanha
-        if (campaign.status === 'cancelled' || campaign.status === 'paused') {
-          console.log(`🛑 BLOQUEIO DE SEGURANÇA: Campanha ${campaign.id} está ${campaign.status} - mensagem NÃO será enviada`);
+        // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Buscar status mais recente da campanha ANTES de processar
+        // Isso garante que mesmo se a campanha foi cancelada durante o processamento, não enviará
+        const { data: currentCampaign, error: statusError } = await supabase
+          .from("broadcast_campaigns")
+          .select("status")
+          .eq("id", campaign.id)
+          .single();
+        
+        if (statusError) {
+          console.error(`Erro ao verificar status da campanha ${campaign.id}:`, statusError);
+          throw statusError;
+        }
+        
+        // Usar status mais recente (pode ter mudado desde que o item foi carregado)
+        const currentStatus = currentCampaign?.status || campaign.status;
+        
+        if (currentStatus === 'cancelled' || currentStatus === 'paused') {
+          console.log(`🛑 BLOQUEIO DE SEGURANÇA: Campanha ${campaign.id} está ${currentStatus} - mensagem NÃO será enviada`);
           
           await supabase
             .from("broadcast_queue")
             .update({
               status: "cancelled",
-              error_message: `Bloqueado: campanha ${campaign.status}`,
+              error_message: `Bloqueado: campanha ${currentStatus}`,
             })
             .eq("id", item.id);
           

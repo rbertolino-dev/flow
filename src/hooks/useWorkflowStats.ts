@@ -46,7 +46,24 @@ export function useWorkflowStats() {
         .select("id, is_active, status")
         .eq("organization_id", activeOrgId);
 
-      if (workflowsError) throw workflowsError;
+      if (workflowsError) {
+        // Se tabela não existe, retornar zeros ao invés de erro
+        if (workflowsError.code === 'PGRST205' || workflowsError.message?.includes('Could not find the table')) {
+          console.warn("Tabela whatsapp_workflows não encontrada. Retornando estatísticas zeradas.");
+          return {
+            total: 0,
+            active: 0,
+            paused: 0,
+            completed: 0,
+            messagesSentToday: 0,
+            messagesSentThisWeek: 0,
+            messagesPending: 0,
+            messagesFailed: 0,
+            nextExecutions: 0,
+          };
+        }
+        throw workflowsError;
+      }
 
       const total = workflows?.length || 0;
       const active = workflows?.filter((w) => w.is_active).length || 0;

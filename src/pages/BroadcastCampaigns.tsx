@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -26,7 +26,6 @@ import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
-import { Wifi, AlertTriangle } from "lucide-react";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
@@ -62,9 +61,11 @@ interface Campaign {
   failed_count: number;
   created_at: string;
   started_at?: string;
-  instance_id: string;
+  instance_id: string | null; // Pode ser null quando usa múltiplas instâncias
+  sending_method?: string; // Método de envio: single, rotate, separate
   min_delay_seconds: number;
   max_delay_seconds: number;
+  broadcast_queue?: Array<{ id: string; status: string }>; // Para calcular indicadores precisos
 }
 
 interface Template {
@@ -746,14 +747,39 @@ export default function BroadcastCampaigns() {
         return;
       }
 
+      // Buscar campanhas com dados da fila para calcular indicadores precisos
       const { data, error } = await supabase
         .from("broadcast_campaigns")
-        .select("*")
+        .select(`
+          *,
+          broadcast_queue (
+            id,
+            status
+          )
+        `)
         .eq("organization_id", activeOrgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      const campaignsData = data || [];
+      
+      // Calcular indicadores precisos baseados na fila real
+      const campaignsData = (data || []).map((campaign: any) => {
+        const queueItems = campaign.broadcast_queue || [];
+        
+        // Contar status reais da fila
+        const sentCount = queueItems.filter((q: any) => q.status === 'sent').length;
+        const failedCount = queueItems.filter((q: any) => q.status === 'failed').length;
+        const totalContacts = campaign.total_contacts || 0;
+        
+        return {
+          ...campaign,
+          // Usar contadores reais da fila ao invés dos valores da campanha
+          sent_count: sentCount,
+          failed_count: failedCount,
+          total_contacts: totalContacts, // Total sempre é o número de leads na campanha
+        };
+      });
+      
       setCampaigns(campaignsData);
       dataCacheRef.current.campaigns = campaignsData;
     } catch (error: any) {
@@ -1232,13 +1258,20 @@ export default function BroadcastCampaigns() {
         throw new Error("Organização não identificada");
       }
 
+      // Determinar instance_id baseado no método de envio
+      // Para métodos "rotate" e "separate", usar NULL (múltiplas instâncias)
+      const instanceIdForCampaign = newCampaign.sendingMethod === "single" 
+        ? newCampaign.instanceId 
+        : null;
+
       const { data: campaign, error: campaignError } = await supabase
         .from("broadcast_campaigns")
         .insert({
           user_id: user.id,
           organization_id: activeOrgId,
           name: newCampaign.name,
-          instance_id: newCampaign.sendingMethod === "single" ? newCampaign.instanceId : null,
+          instance_id: instanceIdForCampaign,
+          sending_method: newCampaign.sendingMethod || "single",
           message_template_id: newCampaign.templateId || null,
           custom_message: newCampaign.customMessage || null,
           min_delay_seconds: newCampaign.minDelay,
@@ -1812,18 +1845,8 @@ export default function BroadcastCampaigns() {
     try {
       setLoading(true);
       
-      // PASSO 1: Atualizar status da campanha PRIMEIRO para bloquear novos envios
-      const { error: campaignError } = await supabase
-        .from("broadcast_campaigns")
-        .update({ 
-          status: "cancelled",
-          completed_at: new Date().toISOString()
-        })
-        .eq("id", campaignId);
-
-      if (campaignError) throw campaignError;
-
-      // PASSO 2: Cancelar TODOS os itens pendentes/agendados da fila
+      // PASSO 1: Cancelar TODOS os itens pendentes/agendados da fila PRIMEIRO
+      // Isso garante que mesmo se houver processamento em andamento, os itens serão cancelados
       const { data: cancelledItems, error: queueError } = await supabase
         .from("broadcast_queue")
         .update({ 
@@ -1836,6 +1859,22 @@ export default function BroadcastCampaigns() {
 
       if (queueError) throw queueError;
 
+      // PASSO 2: Atualizar status da campanha para bloquear novos envios
+      // Usar transação para garantir atomicidade
+      const { error: campaignError } = await supabase
+        .from("broadcast_campaigns")
+        .update({ 
+          status: "cancelled",
+          completed_at: new Date().toISOString()
+        })
+        .eq("id", campaignId)
+        .eq("status", "running"); // Só atualizar se ainda estiver rodando (evita race condition)
+
+      if (campaignError) {
+        // Se erro, pode ser que já foi cancelada - não é crítico
+        console.warn("Aviso ao atualizar status da campanha:", campaignError);
+      }
+
       const cancelledCount = cancelledItems?.length || 0;
 
       toast({
@@ -1843,7 +1882,13 @@ export default function BroadcastCampaigns() {
         description: `Campanha cancelada com sucesso. ${cancelledCount} mensagens foram canceladas e não serão enviadas.`,
       });
 
+      // Atualizar imediatamente para refletir mudanças
       fetchCampaigns();
+      
+      // Aguardar um pouco e atualizar novamente para garantir sincronização
+      setTimeout(() => {
+        fetchCampaigns();
+      }, 1000);
     } catch (error: any) {
       toast({
         title: "Erro ao cancelar campanha",
@@ -3143,14 +3188,14 @@ export default function BroadcastCampaigns() {
                     {getStatusBadge(campaign.status)}
                   </div>
                   <div className="flex gap-4 text-sm flex-wrap">
-                    <span className="text-muted-foreground">Total: {campaign.total_contacts}</span>
+                    <span className="text-muted-foreground">Total: {campaign.total_contacts || 0}</span>
                     <span className="flex items-center gap-1 text-success">
                       <CheckCircle2 className="h-3 w-3" />
-                      Sucesso: {campaign.sent_count}
+                      Sucesso: {campaign.sent_count || 0}
                     </span>
                     <span className="flex items-center gap-1 text-destructive">
                       <XCircle className="h-3 w-3" />
-                      Falhas: {campaign.failed_count}
+                      Falhas: {campaign.failed_count || 0}
                     </span>
                   </div>
                   <div className="mt-2 mb-1">

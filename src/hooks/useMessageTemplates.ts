@@ -56,7 +56,26 @@ export function useMessageTemplates() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Se coluna media_type não existe, tentar sem ela
+        if (error.code === 'PGRST204' || error.message?.includes("Could not find the 'media_type' column")) {
+          const { data: retryData, error: retryError } = await supabase
+            .from('message_templates')
+            .insert({
+              user_id: user.id,
+              organization_id: orgId,
+              name: template.name,
+              content: template.content,
+              media_url: template.media_url || null,
+            })
+            .select()
+            .single();
+          
+          if (retryError) throw retryError;
+          return retryData;
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

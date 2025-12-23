@@ -29,6 +29,11 @@ export function useWorkflowApprovals(workflowId?: string) {
       const { data, error } = await query;
 
       if (error) {
+        // Se tabela não existe, retornar array vazio ao invés de erro
+        if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+          console.warn("Tabela whatsapp_workflow_approvals não encontrada. Retornando array vazio.");
+          return [];
+        }
         console.error("Erro ao buscar aprovações", error);
         throw error;
       }
@@ -58,6 +63,11 @@ export function useWorkflowApprovals(workflowId?: string) {
         .order("created_at", { ascending: false });
 
       if (error) {
+        // Se tabela não existe, retornar array vazio ao invés de erro
+        if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+          console.warn("Tabela whatsapp_workflow_approvals não encontrada. Retornando array vazio.");
+          return [];
+        }
         console.error("Erro ao buscar aprovações pendentes", error);
         throw error;
       }

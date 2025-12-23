@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
@@ -14,7 +14,6 @@ import { WorkflowExecutionHistory } from "@/components/whatsapp/workflows/Workfl
 import { WorkflowErrorsLog } from "@/components/whatsapp/workflows/WorkflowErrorsLog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWorkflowApprovals } from "@/hooks/useWorkflowApprovals";
-import { useEffect } from "react";
 import {
   WorkflowFilters as FiltersState,
   WorkflowEnvio,
@@ -127,10 +126,10 @@ export default function PeriodicWorkflows() {
     return Array.from(set);
   }, [workflows]);
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     setEditingWorkflow(null);
     setFormOpen(true);
-  };
+  }, []);
 
   const handleEdit = (workflow: WorkflowEnvio) => {
     setEditingWorkflow(workflow);
@@ -183,14 +182,27 @@ export default function PeriodicWorkflows() {
   // Atalhos de teclado
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignorar se estiver digitando em um input, textarea ou select
+      const target = event.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
       // Ctrl/Cmd + N para novo workflow
-      if ((event.ctrlKey || event.metaKey) && event.key === "n") {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
+        event.stopPropagation();
         handleCreate();
       }
       // Ctrl/Cmd + F para focar na busca
-      if ((event.ctrlKey || event.metaKey) && event.key === "f") {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
+        event.stopPropagation();
         const searchInput = document.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
         if (searchInput) {
           searchInput.focus();
@@ -198,13 +210,15 @@ export default function PeriodicWorkflows() {
       }
       // Esc para fechar formulário
       if (event.key === "Escape" && formOpen) {
+        event.preventDefault();
+        event.stopPropagation();
         setFormOpen(false);
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [formOpen]);
+    window.addEventListener("keydown", handleKeyDown, true); // Usar capture phase
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [formOpen, handleCreate]);
 
   const handleSaveWorkflow = async (
     data: WorkflowFormValues & { workflow_list_id: string },

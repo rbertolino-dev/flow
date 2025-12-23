@@ -56,6 +56,11 @@ export function useWhatsAppWorkflows() {
         .limit(100);
 
       if (error) {
+        // Se tabela não existe, retornar array vazio ao invés de erro
+        if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+          console.warn("Tabela whatsapp_workflows não encontrada. Retornando array vazio.");
+          return [];
+        }
         console.error("Erro ao buscar workflows", error);
         toast({
           title: "Erro ao carregar workflows",
@@ -331,7 +336,13 @@ export function useWhatsAppWorkflows() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Se tabela não existe, mostrar erro mais claro
+        if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+          throw new Error("Tabela whatsapp_workflows não encontrada. Por favor, execute as migrations do banco de dados.");
+        }
+        throw error;
+      }
 
       const workflow = data as WorkflowEnvio;
       if (payload.attachmentsToUpload?.length) {

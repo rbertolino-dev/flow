@@ -126,6 +126,8 @@ export default function FormBuilderPage() {
   };
 
   const handleUpdateSurvey = async (surveyId: string, data: {
+    name?: string;
+    description?: string;
     fields: FormField[];
     style: FormStyle;
     success_message: string;
@@ -138,6 +140,8 @@ export default function FormBuilderPage() {
     try {
       await updateSurvey({
         id: surveyId,
+        name: data.name,
+        description: data.description,
         fields: data.fields,
         style: data.style,
         success_message: data.success_message,
@@ -184,9 +188,9 @@ export default function FormBuilderPage() {
 
             <TabsContent value="forms" className="space-y-4">
               <div className="flex justify-end">
-                <Dialog open={editingForm !== null && !formToEdit} onOpenChange={(open) => !open && setEditingForm(null)}>
+                <Dialog open={editingForm === "new"} onOpenChange={(open) => setEditingForm(open ? "new" : null)}>
                   <DialogTrigger asChild>
-                    <Button>
+                    <Button onClick={() => setEditingForm("new")}>
                       <Plus className="h-4 w-4 mr-2" />
                       Novo Formulário
                     </Button>
@@ -196,7 +200,10 @@ export default function FormBuilderPage() {
                       <DialogTitle>Criar Novo Formulário</DialogTitle>
                     </DialogHeader>
                     <FormBuilderEditor
-                      onSave={handleCreateForm}
+                      onSave={(data) => {
+                        handleCreateForm(data);
+                        setEditingForm(null);
+                      }}
                     />
                   </DialogContent>
                 </Dialog>
@@ -305,9 +312,17 @@ export default function FormBuilderPage() {
                     <SurveyBuilder
                       onSave={(data) => {
                         handleCreateSurvey({
-                          name: `Pesquisa ${new Date().toLocaleDateString()}`,
+                          name: data.name || `Pesquisa ${new Date().toLocaleDateString()}`,
+                          description: data.description,
                           type: "standard",
-                          ...data,
+                          fields: data.fields,
+                          style: data.style,
+                          success_message: data.success_message,
+                          redirect_url: data.redirect_url,
+                          allow_multiple_responses: data.allow_multiple_responses,
+                          collect_respondent_info: data.collect_respondent_info,
+                          expires_at: data.expires_at,
+                          is_closed: data.is_closed,
                         });
                         setEditingSurvey(null);
                       }}
@@ -328,6 +343,8 @@ export default function FormBuilderPage() {
                       <DialogTitle>Editar Pesquisa: {surveyToEdit.name}</DialogTitle>
                     </DialogHeader>
                     <SurveyBuilder
+                      initialName={surveyToEdit.name}
+                      initialDescription={surveyToEdit.description || ""}
                       initialFields={surveyToEdit.fields}
                       initialStyle={surveyToEdit.style}
                       initialSuccessMessage={surveyToEdit.success_message}

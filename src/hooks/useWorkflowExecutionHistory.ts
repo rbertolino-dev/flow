@@ -39,10 +39,10 @@ export function useWorkflowExecutionHistory(workflowId?: string, limit: number =
           error_message,
           lead_id,
           created_at,
-          workflows:workflow_id (
+          workflow:whatsapp_workflows!left(
             name
           ),
-          leads:lead_id (
+          lead:leads!left(
             name
           )
         `)
@@ -61,7 +61,7 @@ export function useWorkflowExecutionHistory(workflowId?: string, limit: number =
       return (data || []).map((item: any) => ({
         id: item.id,
         workflow_id: item.workflow_id,
-        workflow_name: item.workflows?.name || null,
+        workflow_name: item.workflow?.name || null,
         scheduled_for: item.scheduled_for,
         sent_at: item.sent_at,
         status: item.status,
@@ -69,7 +69,7 @@ export function useWorkflowExecutionHistory(workflowId?: string, limit: number =
         message: item.message,
         error_message: item.error_message,
         lead_id: item.lead_id,
-        lead_name: item.leads?.name || null,
+        lead_name: item.lead?.name || null,
         created_at: item.created_at,
       }));
     },

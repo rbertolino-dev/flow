@@ -9,6 +9,9 @@ import { Code, Trash2, Edit, Eye, BarChart3, Link2, Copy, Check } from "lucide-r
 import { EmbedCodeGenerator } from "@/components/form-builder/EmbedCodeGenerator";
 import { SurveyReport } from "./SurveyReport";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 interface SurveysListProps {
   onEdit: (surveyId: string) => void;
@@ -18,9 +21,39 @@ interface SurveysListProps {
 export function SurveysList({ onEdit, onCreateNew }: SurveysListProps) {
   const { surveys, isLoading, deleteSurvey } = useSurveys();
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
   const [showEmbedCode, setShowEmbedCode] = useState<string | null>(null);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // Buscar contagem de respostas para todas as pesquisas
+  const { data: responseCounts } = useQuery({
+    queryKey: ["survey-response-counts", surveys.map(s => s.id).join(","), activeOrgId],
+    enabled: surveys.length > 0 && !!activeOrgId,
+    queryFn: async () => {
+      if (!activeOrgId || surveys.length === 0) return {};
+
+      const surveyIds = surveys.map(s => s.id);
+      const { data, error } = await supabase
+        .from("survey_responses")
+        .select("survey_id")
+        .in("survey_id", surveyIds)
+        .eq("organization_id", activeOrgId);
+
+      if (error) {
+        console.error("Erro ao buscar contagem de respostas", error);
+        return {};
+      }
+
+      // Contar respostas por pesquisa
+      const counts: Record<string, number> = {};
+      (data || []).forEach((response) => {
+        counts[response.survey_id] = (counts[response.survey_id] || 0) + 1;
+      });
+
+      return counts;
+    },
+  });
 
   const getPublicUrl = (survey: Survey) => {
     const baseUrl = window.location.origin;
@@ -83,12 +116,17 @@ export function SurveysList({ onEdit, onCreateNew }: SurveysListProps) {
                   <Badge variant={survey.type === "quick" ? "secondary" : "default"}>
                     {survey.type === "quick" ? "Rápida" : "Padrão"}
                   </Badge>
-                  <Badge variant={survey.is_active ? "default" : "outline"}>
-                    {survey.is_active ? "Ativa" : "Inativa"}
+                  <Badge variant={survey.is_closed ? "destructive" : (survey.is_active ? "default" : "outline")}>
+                    {survey.is_closed ? "Encerrada" : (survey.is_active ? "Ativa" : "Inativa")}
                   </Badge>
                 </div>
                 <CardDescription>
                   {survey.description || "Sem descrição"}
+                  {responseCounts && responseCounts[survey.id] !== undefined && (
+                    <span className="ml-2 font-semibold text-blue-600">
+                      • {responseCounts[survey.id]} resposta(s)
+                    </span>
+                  )}
                 </CardDescription>
                 <div className="mt-2 text-sm text-gray-500">
                   {survey.fields.length} pergunta(s) • Criada em {new Date(survey.created_at).toLocaleDateString("pt-BR")}

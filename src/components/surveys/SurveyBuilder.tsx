@@ -15,6 +15,8 @@ import { FormPreview } from "@/components/form-builder/FormPreview";
 import { useToast } from "@/hooks/use-toast";
 
 interface SurveyBuilderProps {
+  initialName?: string;
+  initialDescription?: string;
   initialFields?: FormField[];
   initialStyle?: FormStyle;
   initialSuccessMessage?: string;
@@ -24,6 +26,8 @@ interface SurveyBuilderProps {
   initialExpiresAt?: string;
   initialIsClosed?: boolean;
   onSave: (data: {
+    name?: string;
+    description?: string;
     fields: FormField[];
     style: FormStyle;
     success_message: string;
@@ -51,6 +55,8 @@ const defaultStyle: FormStyle = {
 };
 
 export function SurveyBuilder({
+  initialName = "",
+  initialDescription = "",
   initialFields = [],
   initialStyle = defaultStyle,
   initialSuccessMessage = "Obrigado por participar da pesquisa!",
@@ -64,6 +70,8 @@ export function SurveyBuilder({
   const { toast } = useToast();
   // Garantir que os campos tenham ordem correta ao inicializar
   const normalizedInitialFields = initialFields.map((f, idx) => ({ ...f, order: f.order !== undefined ? f.order : idx }));
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
   const [fields, setFields] = useState<FormField[]>(normalizedInitialFields);
   const [style, setStyle] = useState<FormStyle>(initialStyle);
   const [successMessage, setSuccessMessage] = useState(initialSuccessMessage);
@@ -159,6 +167,8 @@ export function SurveyBuilder({
     }
 
     onSave({
+      name: name || undefined,
+      description: description || undefined,
       fields,
       style,
       success_message: successMessage,
@@ -181,6 +191,32 @@ export function SurveyBuilder({
         </TabsList>
 
         <TabsContent value="fields" className="space-y-4">
+          {!initialName && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações da Pesquisa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Nome da Pesquisa *</Label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: Pesquisa de Satisfação"
+                  />
+                </div>
+                <div>
+                  <Label>Descrição (opcional)</Label>
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Descreva o objetivo desta pesquisa..."
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Adicionar Pergunta</CardTitle>

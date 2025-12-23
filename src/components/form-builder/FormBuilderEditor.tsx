@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, GripVertical, Eye } from "lucide-react";
+import { Plus, Trash2, GripVertical, Eye, ChevronUp, ChevronDown } from "lucide-react";
 import { FormPreview } from "./FormPreview";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 
@@ -86,6 +86,38 @@ export function FormBuilderEditor({
     setFields(fields.filter(f => f.id !== fieldId).map((f, idx) => ({ ...f, order: idx })));
   };
 
+  const moveFieldUp = (fieldId: string) => {
+    const sortedFields = [...fields].sort((a, b) => a.order - b.order);
+    const currentIndex = sortedFields.findIndex(f => f.id === fieldId);
+    
+    if (currentIndex > 0) {
+      const newFields = [...sortedFields];
+      // Trocar posições
+      const temp = newFields[currentIndex - 1];
+      newFields[currentIndex - 1] = newFields[currentIndex];
+      newFields[currentIndex] = temp;
+      // Atualizar ordem
+      const reordered = newFields.map((f, idx) => ({ ...f, order: idx }));
+      setFields(reordered);
+    }
+  };
+
+  const moveFieldDown = (fieldId: string) => {
+    const sortedFields = [...fields].sort((a, b) => a.order - b.order);
+    const currentIndex = sortedFields.findIndex(f => f.id === fieldId);
+    
+    if (currentIndex < sortedFields.length - 1 && currentIndex >= 0) {
+      const newFields = [...sortedFields];
+      // Trocar posições
+      const temp = newFields[currentIndex];
+      newFields[currentIndex] = newFields[currentIndex + 1];
+      newFields[currentIndex + 1] = temp;
+      // Atualizar ordem
+      const reordered = newFields.map((f, idx) => ({ ...f, order: idx }));
+      setFields(reordered);
+    }
+  };
+
   const handleSave = () => {
     onSave({
       fields,
@@ -136,29 +168,73 @@ export function FormBuilderEditor({
               {fields.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">Nenhum campo adicionado ainda. Clique em um tipo acima para adicionar.</p>
               ) : (
-                fields.sort((a, b) => a.order - b.order).map((field) => (
-                  <div key={field.id} className="flex items-center gap-2 p-3 border rounded">
-                    <GripVertical className="h-5 w-5 text-gray-400" />
-                    <div className="flex-1">
-                      <div className="font-medium">{field.label}</div>
-                      <div className="text-sm text-gray-500">{field.type} • {field.required ? 'Obrigatório' : 'Opcional'}</div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingField(field)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteField(field.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                ))
+                (() => {
+                  const sortedFields = [...fields].sort((a, b) => a.order - b.order);
+                  return sortedFields.map((field, index) => {
+                    const isFirst = index === 0;
+                    const isLast = index === sortedFields.length - 1;
+                    
+                    return (
+                      <div key={field.id} className="flex items-center gap-2 p-3 border rounded hover:bg-gray-50 transition-colors">
+                        <GripVertical className="h-5 w-5 text-gray-400 cursor-move" />
+                        <div className="flex-1">
+                          <div className="font-medium">{field.label}</div>
+                          <div className="text-sm text-gray-500">
+                            {field.type} • {field.required ? 'Obrigatório' : 'Opcional'} • Ordem: {index + 1}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              moveFieldUp(field.id);
+                            }}
+                            disabled={isFirst}
+                            title="Mover para cima"
+                            type="button"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              moveFieldDown(field.id);
+                            }}
+                            disabled={isLast}
+                            title="Mover para baixo"
+                            type="button"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingField(field)}
+                            title="Editar campo"
+                            type="button"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteField(field.id)}
+                            title="Excluir campo"
+                            type="button"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
               )}
             </CardContent>
           </Card>
