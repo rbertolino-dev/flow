@@ -123,8 +123,12 @@ export function useSellerPerformance({
     const performance: SellerPerformance[] = sellersToProcess.map((seller) => {
       const sellerLeads = seller.leads;
 
-      // Filtrar por período se fornecido
+      // Filtrar por período se fornecido e excluir leads do funil
       const filteredLeads = sellerLeads.filter((lead) => {
+        // Excluir leads que foram removidos do funil
+        if (lead.excluded_from_funnel) return false;
+        
+        // Filtrar por período se fornecido
         if (!startDate || !endDate) return true;
         const leadDate = new Date(lead.createdAt);
         return leadDate >= startOfDay(startDate) && leadDate <= endOfDay(endDate);

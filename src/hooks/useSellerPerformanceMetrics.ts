@@ -85,10 +85,13 @@ export function useSellerPerformanceMetrics({
       const commission = commissions.find((c) => c.sellerId === perf.sellerId);
 
       // Calcular progresso
+      // NOTA: target_leads é comparado com wonLeads (leads ganhos)
+      // Se quiser comparar com total de leads, usar perf.totalLeads
       const leadsProgress = currentGoal && currentGoal.target_leads > 0
         ? (perf.wonLeads / currentGoal.target_leads) * 100
         : 0;
 
+      // valueProgress usa totalValue que agora é apenas de leads ganhos (corrigido em useSellerPerformance.ts)
       const valueProgress = currentGoal && currentGoal.target_value > 0
         ? (perf.totalValue / currentGoal.target_value) * 100
         : 0;

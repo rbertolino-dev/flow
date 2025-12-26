@@ -1,3 +1,4 @@
+7
 # 🔐 Credenciais de Acesso - Usuário Visualizador PostgreSQL
 
 **Data de criação:** 2025-12-22  

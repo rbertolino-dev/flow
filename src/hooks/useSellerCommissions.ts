@@ -25,6 +25,9 @@ export function useSellerCommissions({
   return useMemo(() => {
     // Filtrar leads por período e vendedor
     const filteredLeads = leads.filter((lead) => {
+      // Excluir leads que foram removidos do funil
+      if (lead.excluded_from_funnel) return false;
+      
       // Filtrar por vendedor
       if (sellerId) {
         const seller = users.find(
@@ -36,8 +39,14 @@ export function useSellerCommissions({
         if (!seller) return false;
       }
 
-      // Filtrar por período
+      // Filtrar por período - usar data de fechamento para leads ganhos
       if (periodStart && periodEnd) {
+        // Para leads ganhos, usar data de fechamento (lastContact ou createdAt quando ganhou)
+        if (lead.status === "ganho" || lead.stageId === "ganho") {
+          const closeDate = lead.lastContact || lead.createdAt;
+          return closeDate >= periodStart && closeDate <= periodEnd;
+        }
+        // Para leads não ganhos, usar data de criação
         const leadDate = new Date(lead.createdAt);
         return leadDate >= periodStart && leadDate <= periodEnd;
       }
