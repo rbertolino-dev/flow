@@ -622,6 +622,22 @@ function GoalForm({
   });
   const [selectedPeriodType, setSelectedPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>(periodType);
 
+  // Inicializar formData quando goal mudar (ao editar)
+  useEffect(() => {
+    if (goal) {
+      setFormData({
+        user_id: goal.user_id,
+        period_type: goal.period_type,
+        period_start: goal.period_start,
+        period_end: goal.period_end,
+        target_leads: goal.target_leads || 0,
+        target_value: goal.target_value || 0,
+        target_commission: goal.target_commission || 0,
+      });
+      setSelectedPeriodType(goal.period_type);
+    }
+  }, [goal]);
+
   useEffect(() => {
     // Calcular período baseado no tipo selecionado
     const now = new Date();

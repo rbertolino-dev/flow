@@ -101,7 +101,9 @@ export function SellerGoalsManagement() {
     try {
       setSaving(true);
       if (editingGoal) {
-        await updateGoal(editingGoal.id, formData);
+        // Ao editar, não enviar user_id (não pode mudar o vendedor da meta)
+        const { user_id, ...updateData } = formData;
+        await updateGoal(editingGoal.id, updateData);
         toast.success("Meta atualizada com sucesso!");
       } else {
         await createGoal(formData);

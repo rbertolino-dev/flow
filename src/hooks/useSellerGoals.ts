@@ -168,13 +168,99 @@ export function useSellerGoals() {
     if (!activeOrgId) throw new Error("Organização não encontrada");
 
     try {
+      // Preparar dados para update - remover campos que não devem ser atualizados
+      const updateData: any = {};
+      
+      // Apenas atualizar campos que foram fornecidos e são permitidos
+      if (goalData.period_type !== undefined) updateData.period_type = goalData.period_type;
+      if (goalData.period_start !== undefined) updateData.period_start = goalData.period_start;
+      if (goalData.period_end !== undefined) updateData.period_end = goalData.period_end;
+      if (goalData.target_leads !== undefined) updateData.target_leads = goalData.target_leads;
+      if (goalData.target_value !== undefined) updateData.target_value = goalData.target_value;
+      if (goalData.target_commission !== undefined) updateData.target_commission = goalData.target_commission;
+      
+      // NÃO atualizar user_id (não pode mudar o vendedor da meta)
+      // NÃO atualizar organization_id (não pode mudar a organização)
+      
+      // Se mudou período, verificar se não viola constraint unique
+      if (goalData.period_type !== undefined || goalData.period_start !== undefined) {
+        // Buscar meta atual para comparar
+        const { data: currentGoal } = await supabase
+          .from("seller_goals")
+          .select("user_id, period_type, period_start")
+          .eq("id", goalId)
+          .eq("organization_id", activeOrgId)
+          .single();
+
+        if (currentGoal) {
+          const newPeriodType = goalData.period_type || currentGoal.period_type;
+          const newPeriodStart = goalData.period_start || currentGoal.period_start;
+          
+          // Verificar se já existe outra meta com os mesmos valores (exceto a atual)
+          const { data: existingGoal, error: checkError } = await supabase
+            .from("seller_goals")
+            .select("id, period_type, period_start")
+            .eq("organization_id", activeOrgId)
+            .eq("user_id", currentGoal.user_id)
+            .eq("period_type", newPeriodType)
+            .eq("period_start", newPeriodStart)
+            .neq("id", goalId) // Excluir a meta atual
+            .maybeSingle();
+
+          if (checkError && checkError.code !== 'PGRST116') {
+            throw checkError;
+          }
+
+          if (existingGoal) {
+            const periodTypeLabel = {
+              monthly: 'mensal',
+              weekly: 'semanal',
+              quarterly: 'trimestral',
+              yearly: 'anual'
+            }[newPeriodType] || newPeriodType;
+
+            throw new Error(
+              `Já existe outra meta ${periodTypeLabel} para este vendedor com início em ${new Date(newPeriodStart).toLocaleDateString('pt-BR')}. ` +
+              `Por favor, escolha um período diferente ou exclua a meta existente.`
+            );
+          }
+        }
+      }
+
       const { error } = await supabase
         .from("seller_goals")
-        .update(goalData)
+        .update(updateData)
         .eq("id", goalId)
         .eq("organization_id", activeOrgId);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro detalhado do Supabase:", error);
+        
+        // Tratar erros específicos
+        if (error.code === '23505') { // PostgreSQL unique_violation
+          const periodTypeLabel = {
+            monthly: 'mensal',
+            weekly: 'semanal',
+            quarterly: 'trimestral',
+            yearly: 'anual'
+          }[goalData.period_type || 'monthly'] || goalData.period_type || 'mensal';
+          
+          throw new Error(
+            `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${goalData.period_start ? new Date(goalData.period_start).toLocaleDateString('pt-BR') : 'este período'}. ` +
+            `Por favor, escolha um período diferente.`
+          );
+        }
+        
+        if (error.code === '23503') { // Foreign key violation
+          throw new Error("Erro ao atualizar meta: referência inválida (vendedor ou organização não encontrada).");
+        }
+        
+        if (error.code === '23502') { // Not null violation
+          throw new Error("Erro ao atualizar meta: campo obrigatório não informado.");
+        }
+        
+        throw error;
+      }
 
       await fetchGoals();
       toast({
@@ -183,9 +269,10 @@ export function useSellerGoals() {
       });
     } catch (error: any) {
       console.error("Erro ao atualizar meta:", error);
+      const errorMessage = error.message || "Erro desconhecido ao atualizar meta";
       toast({
         title: "Erro ao atualizar meta",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
