@@ -598,7 +598,7 @@ function GoalForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="period_type">Período da Meta</Label>
+        <Label htmlFor="period_type">Tipo de Período</Label>
         <Select value={selectedPeriodType} onValueChange={(v: any) => setSelectedPeriodType(v)}>
           <SelectTrigger>
             <SelectValue />
@@ -610,12 +610,207 @@ function GoalForm({
             <SelectItem value="yearly">Anual</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">
-          Período: {formData.period_start && formData.period_end 
-            ? `${format(new Date(formData.period_start), "dd/MM/yyyy", { locale: ptBR })} até ${format(new Date(formData.period_end), "dd/MM/yyyy", { locale: ptBR })}`
-            : "Selecione um período"}
-        </p>
       </div>
+
+      {/* Seletor de Período Específico */}
+      {selectedPeriodType === 'monthly' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Mês</Label>
+            <Select 
+              value={formData.period_start ? new Date(formData.period_start).getMonth().toString() : new Date().getMonth().toString()}
+              onValueChange={(month) => {
+                const year = formData.period_start ? new Date(formData.period_start).getFullYear() : new Date().getFullYear();
+                const start = new Date(year, parseInt(month), 1);
+                const end = new Date(year, parseInt(month) + 1, 0);
+                setFormData({
+                  ...formData,
+                  period_start: format(start, "yyyy-MM-dd"),
+                  period_end: format(end, "yyyy-MM-dd"),
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => (
+                  <SelectItem key={i} value={i.toString()}>
+                    {format(new Date(2024, i, 1), "MMMM", { locale: ptBR })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Ano</Label>
+            <Select 
+              value={formData.period_start ? new Date(formData.period_start).getFullYear().toString() : new Date().getFullYear().toString()}
+              onValueChange={(year) => {
+                const month = formData.period_start ? new Date(formData.period_start).getMonth() : new Date().getMonth();
+                const start = new Date(parseInt(year), month, 1);
+                const end = new Date(parseInt(year), month + 1, 0);
+                setFormData({
+                  ...formData,
+                  period_start: format(start, "yyyy-MM-dd"),
+                  period_end: format(end, "yyyy-MM-dd"),
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - 2 + i;
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {selectedPeriodType === 'quarterly' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Trimestre</Label>
+            <Select 
+              value={formData.period_start ? Math.floor(new Date(formData.period_start).getMonth() / 3).toString() : Math.floor(new Date().getMonth() / 3).toString()}
+              onValueChange={(quarter) => {
+                const year = formData.period_start ? new Date(formData.period_start).getFullYear() : new Date().getFullYear();
+                const start = new Date(year, parseInt(quarter) * 3, 1);
+                const end = new Date(year, (parseInt(quarter) + 1) * 3, 0);
+                end.setHours(23, 59, 59, 999);
+                setFormData({
+                  ...formData,
+                  period_start: format(start, "yyyy-MM-dd"),
+                  period_end: format(end, "yyyy-MM-dd"),
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">1º Trimestre</SelectItem>
+                <SelectItem value="1">2º Trimestre</SelectItem>
+                <SelectItem value="2">3º Trimestre</SelectItem>
+                <SelectItem value="3">4º Trimestre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Ano</Label>
+            <Select 
+              value={formData.period_start ? new Date(formData.period_start).getFullYear().toString() : new Date().getFullYear().toString()}
+              onValueChange={(year) => {
+                const quarter = formData.period_start ? Math.floor(new Date(formData.period_start).getMonth() / 3) : Math.floor(new Date().getMonth() / 3);
+                const start = new Date(parseInt(year), quarter * 3, 1);
+                const end = new Date(parseInt(year), (quarter + 1) * 3, 0);
+                end.setHours(23, 59, 59, 999);
+                setFormData({
+                  ...formData,
+                  period_start: format(start, "yyyy-MM-dd"),
+                  period_end: format(end, "yyyy-MM-dd"),
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - 2 + i;
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {selectedPeriodType === 'yearly' && (
+        <div className="space-y-2">
+          <Label>Ano</Label>
+          <Select 
+            value={formData.period_start ? new Date(formData.period_start).getFullYear().toString() : new Date().getFullYear().toString()}
+            onValueChange={(year) => {
+              const start = new Date(parseInt(year), 0, 1);
+              const end = new Date(parseInt(year), 11, 31);
+              end.setHours(23, 59, 59, 999);
+              setFormData({
+                ...formData,
+                period_start: format(start, "yyyy-MM-dd"),
+                period_end: format(end, "yyyy-MM-dd"),
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - 2 + i;
+                return (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {selectedPeriodType === 'weekly' && (
+        <div className="space-y-2">
+          <Label>Semana (edite manualmente as datas abaixo)</Label>
+          <p className="text-xs text-muted-foreground">
+            Para semanas específicas, ajuste as datas de início e fim manualmente
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="period_start">Data de Início</Label>
+          <Input
+            id="period_start"
+            type="date"
+            value={formData.period_start}
+            onChange={(e) =>
+              setFormData({ ...formData, period_start: e.target.value })
+            }
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="period_end">Data de Fim</Label>
+          <Input
+            id="period_end"
+            type="date"
+            value={formData.period_end}
+            onChange={(e) =>
+              setFormData({ ...formData, period_end: e.target.value })
+            }
+            required
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Período: {formData.period_start && formData.period_end 
+          ? `${format(new Date(formData.period_start), "dd/MM/yyyy", { locale: ptBR })} até ${format(new Date(formData.period_end), "dd/MM/yyyy", { locale: ptBR })}`
+          : "Selecione um período"}
+      </p>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="target_leads">Meta de Leads</Label>
