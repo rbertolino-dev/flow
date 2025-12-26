@@ -623,6 +623,7 @@ function GoalForm({
     target_commission: goal?.target_commission || 0,
   });
   const [selectedPeriodType, setSelectedPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>(periodType);
+  const [userSelectedPeriod, setUserSelectedPeriod] = useState(false); // Flag para saber se usuário já selecionou período
 
   // Inicializar formData quando goal mudar (ao editar)
   useEffect(() => {
@@ -637,10 +638,19 @@ function GoalForm({
         target_commission: goal.target_commission || 0,
       });
       setSelectedPeriodType(goal.period_type);
+      setUserSelectedPeriod(true); // Meta já tem período definido
+    } else {
+      setUserSelectedPeriod(false); // Nova meta, pode recalcular
     }
   }, [goal]);
 
   useEffect(() => {
+    // Só recalcular automaticamente se o usuário ainda não selecionou um período específico
+    // E não estiver editando uma meta existente
+    if (userSelectedPeriod || goal) {
+      return; // Não recalcular se usuário já selecionou ou está editando
+    }
+
     // Calcular período baseado no tipo selecionado
     const now = new Date();
     let start: Date;
@@ -685,7 +695,7 @@ function GoalForm({
       period_start: format(start, "yyyy-MM-dd"),
       period_end: format(end, "yyyy-MM-dd"),
     }));
-  }, [selectedPeriodType]);
+  }, [selectedPeriodType, userSelectedPeriod, goal]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

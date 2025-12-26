@@ -626,9 +626,9 @@ export function SellerGoalsManagement() {
                 <div className="space-y-2">
                   <Label>Mês</Label>
                   <Select 
-                    value={new Date(formData.period_start || new Date()).getMonth().toString()}
+                    value={formData.period_start ? new Date(formData.period_start).getMonth().toString() : new Date().getMonth().toString()}
                     onValueChange={(month) => {
-                      const year = new Date(formData.period_start || new Date()).getFullYear();
+                      const year = formData.period_start ? new Date(formData.period_start).getFullYear() : new Date().getFullYear();
                       const start = new Date(year, parseInt(month), 1);
                       const end = new Date(year, parseInt(month) + 1, 0);
                       setFormData({
