@@ -852,8 +852,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col">
-        <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
+      <DialogContent className="max-w-2xl max-h-[95vh] sm:max-h-[85vh] p-0 w-[100vw] sm:w-[95vw] md:w-full flex flex-col m-0 sm:m-4 rounded-none sm:rounded-lg">
+        <DialogHeader className="p-3 sm:p-6 pb-2 sm:pb-4 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
               {isEditingName ? (

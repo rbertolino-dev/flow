@@ -130,25 +130,26 @@ export default function CRM() {
     <AuthGuard>
       <CRMLayout activeView="crm" onViewChange={() => {}}>
         <div className="h-full bg-gradient-to-br from-background via-background to-muted/20">
-          <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-7xl">
             {/* Header Section */}
-            <div className="mb-8 flex items-center justify-between">
-              <div className="space-y-2">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <div className="mb-4 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1 sm:space-y-2">
+                <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                   CRM
                 </h1>
-                <p className="text-muted-foreground text-lg">
+                <p className="text-muted-foreground text-sm sm:text-lg">
                   Gestão completa dos seus contatos e oportunidades
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={() => setCreateDialogOpen(true)} size="lg">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button onClick={() => setCreateDialogOpen(true)} size="default" className="w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Lead
                 </Button>
-                <Button onClick={() => setImportLeadsOpen(true)} size="lg" variant="outline">
+                <Button onClick={() => setImportLeadsOpen(true)} size="default" variant="outline" className="w-full sm:w-auto">
                   <Upload className="h-4 w-4 mr-2" />
-                  Importar Contatos
+                  <span className="hidden sm:inline">Importar Contatos</span>
+                  <span className="sm:hidden">Importar</span>
                 </Button>
               </div>
             </div>
@@ -171,7 +172,7 @@ export default function CRM() {
                   handleFilterChange();
                 }}
               />
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                 <SavedFiltersManager
                   onLoadFilter={(filters) => {
                     setAdvancedFilters(filters);
@@ -186,6 +187,7 @@ export default function CRM() {
                         variant="outline"
                         size="sm"
                         onClick={() => setExportDialogOpen(true)}
+                        className="w-full sm:w-auto"
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Exportar
@@ -201,48 +203,56 @@ export default function CRM() {
 
             {/* Tabs para organizar as visualizações */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-6 mb-6">
-                <TabsTrigger value="all" className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" />
-                  Todos os Leads
-                </TabsTrigger>
-                <TabsTrigger value="attention" className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Leads que Precisam Atenção
-                </TabsTrigger>
-                <TabsTrigger value="my-dashboard" className="flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  Meu Painel
-                </TabsTrigger>
-                <TabsTrigger value="sellers" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Atividades por Vendedor
-                </TabsTrigger>
-                <TabsTrigger value="reports" className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Relatórios
-                </TabsTrigger>
-                <TabsTrigger value="config" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Configuração
-                </TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0 mb-4 sm:mb-6">
+                <TabsList className="inline-flex w-full sm:grid sm:grid-cols-6 min-w-max sm:min-w-0">
+                  <TabsTrigger value="all" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                    <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Todos os Leads</span>
+                    <span className="sm:hidden">Todos</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="attention" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                    <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Leads que Precisam Atenção</span>
+                    <span className="sm:hidden">Atenção</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="my-dashboard" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                    <Target className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Meu Painel</span>
+                    <span className="sm:hidden">Painel</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="sellers" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                    <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Atividades por Vendedor</span>
+                    <span className="sm:hidden">Vendedores</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                    <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Relatórios</span>
+                    <span className="sm:hidden">Relatórios</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="config" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
+                    <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Configuração</span>
+                    <span className="sm:hidden">Config</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-              <TabsContent value="all" className="space-y-6">
+              <TabsContent value="all" className="space-y-4 sm:space-y-6">
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow cursor-help">
-                          <CardContent className="pt-6">
+                          <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="text-sm text-muted-foreground">Total de Leads</p>
-                                <p className="text-3xl font-bold">{filteredLeads.length}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Total de Leads</p>
+                                <p className="text-xl sm:text-3xl font-bold">{filteredLeads.length}</p>
                               </div>
-                              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                <MessageSquare className="h-6 w-6 text-primary" />
+                              <div className="h-8 w-8 sm:h-12 sm:w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                <MessageSquare className="h-4 w-4 sm:h-6 sm:w-6 text-primary" />
                               </div>
                             </div>
                           </CardContent>
@@ -261,14 +271,14 @@ export default function CRM() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow cursor-help">
-                              <CardContent className="pt-6">
+                              <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
                                 <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">{stage.name}</p>
-                                    <p className="text-3xl font-bold">{stageLeads.length}</p>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs sm:text-sm text-muted-foreground truncate">{stage.name}</p>
+                                    <p className="text-xl sm:text-3xl font-bold">{stageLeads.length}</p>
                                   </div>
                                   <div 
-                                    className="h-12 w-12 rounded-full flex items-center justify-center"
+                                    className="h-8 w-8 sm:h-12 sm:w-12 rounded-full flex items-center justify-center flex-shrink-0 ml-2"
                                     style={{ backgroundColor: `${stage.color}20` }}
                                   >
                                     <div 
@@ -328,14 +338,14 @@ export default function CRM() {
 
                 {/* Leads Table */}
             <Card className="border-border/50 shadow-lg">
-              <CardHeader>
-                <CardTitle>Lista de Leads</CardTitle>
-                <CardDescription>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-lg sm:text-xl">Lista de Leads</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   {filteredLeads.length} {filteredLeads.length === 1 ? 'lead encontrado' : 'leads encontrados'}
                   {totalPages > 1 && ` - Página ${currentPage} de ${totalPages}`}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0 sm:p-6">
                 {loading ? (
                   <div className="rounded-md border">
                     <Table>
@@ -357,38 +367,148 @@ export default function CRM() {
                     </Table>
                   </div>
                 ) : filteredLeads.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">Nenhum lead encontrado</p>
+                  <div className="text-center py-8 sm:py-12 px-4">
+                    <p className="text-muted-foreground text-sm sm:text-base">Nenhum lead encontrado</p>
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12">
-                            <Checkbox
-                              checked={selectedIds.size === paginatedLeads.length && paginatedLeads.length > 0}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedIds(new Set(paginatedLeads.map(l => l.id)));
-                                } else {
-                                  setSelectedIds(new Set());
-                                }
-                              }}
-                            />
-                          </TableHead>
-                          <TableHead>Nome</TableHead>
-                          <TableHead>Contato</TableHead>
-                          <TableHead>Etapa</TableHead>
-                          <TableHead>Valor</TableHead>
-                          <TableHead>Data Retorno</TableHead>
-                          <TableHead>Tags</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TooltipProvider>
-                          {paginatedLeads.map(lead => {
+                  <>
+                    {/* Mobile: Cards View */}
+                    <div className="block sm:hidden space-y-3 p-4">
+                      {paginatedLeads.map(lead => {
+                        const stage = getStage(lead.stageId);
+                        const isSelected = selectedIds.has(lead.id);
+                        return (
+                          <LeadPreviewTooltip key={lead.id} lead={lead}>
+                            <Card 
+                              className={`cursor-pointer hover:shadow-md transition-shadow ${isSelected ? 'bg-muted/30 border-primary' : ''}`}
+                              onClick={() => setSelectedLead(lead)}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        const newSelected = new Set(selectedIds);
+                                        if (checked) {
+                                          newSelected.add(lead.id);
+                                        } else {
+                                          newSelected.delete(lead.id);
+                                        }
+                                        setSelectedIds(newSelected);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mt-1"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-semibold text-sm truncate">{lead.name}</h3>
+                                      {lead.company && (
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                          <Building2 className="h-3 w-3" />
+                                          {lead.company}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {stage && (
+                                    <Badge 
+                                      variant="outline"
+                                      className="text-xs flex-shrink-0"
+                                      style={{ 
+                                        borderColor: stage.color,
+                                        color: stage.color,
+                                        backgroundColor: `${stage.color}10`
+                                      }}
+                                    >
+                                      {stage.name}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="space-y-2 text-xs">
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    <Phone className="h-3 w-3" />
+                                    <span>{lead.phone}</span>
+                                  </div>
+                                  {lead.email && (
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                      <Mail className="h-3 w-3" />
+                                      <span className="truncate">{lead.email}</span>
+                                    </div>
+                                  )}
+                                  {lead.value && (
+                                    <div className="flex items-center gap-2">
+                                      <DollarSign className="h-3 w-3 text-green-600" />
+                                      <span className="font-semibold text-green-600">
+                                        R$ {lead.value.toLocaleString('pt-BR')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {lead.returnDate && (
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>{format(new Date(lead.returnDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                    </div>
+                                  )}
+                                  {lead.tags && lead.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {lead.tags.slice(0, 3).map(tag => (
+                                        <Badge
+                                          key={tag.id}
+                                          variant="secondary"
+                                          className="text-xs"
+                                          style={{
+                                            backgroundColor: `${tag.color}20`,
+                                            color: tag.color,
+                                            borderColor: tag.color
+                                          }}
+                                        >
+                                          {tag.name}
+                                        </Badge>
+                                      ))}
+                                      {lead.tags.length > 3 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          +{lead.tags.length - 3}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </LeadPreviewTooltip>
+                        );
+                      })}
+                    </div>
+
+                    {/* Desktop: Table View */}
+                    <div className="hidden sm:block rounded-md border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={selectedIds.size === paginatedLeads.length && paginatedLeads.length > 0}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedIds(new Set(paginatedLeads.map(l => l.id)));
+                                  } else {
+                                    setSelectedIds(new Set());
+                                  }
+                                }}
+                              />
+                            </TableHead>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Contato</TableHead>
+                            <TableHead>Etapa</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead>Data Retorno</TableHead>
+                            <TableHead>Tags</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TooltipProvider>
+                            {paginatedLeads.map(lead => {
                             const stage = getStage(lead.stageId);
                             const isSelected = selectedIds.has(lead.id);
                             return (
@@ -526,25 +646,27 @@ export default function CRM() {
                       </TableBody>
                     </Table>
                   </div>
-                )}
+                    </>
+                  )}
 
                 {/* Paginação */}
                 {!loading && filteredLeads.length > 0 && totalPages > 1 && (
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-0">
+                    <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                       Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredLeads.length)} de {filteredLeads.length} leads
                     </div>
                     <Pagination>
-                      <PaginationContent>
+                      <PaginationContent className="flex-wrap">
                         <PaginationItem>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
+                            className="text-xs sm:text-sm"
                           >
-                            <ChevronLeft className="h-4 w-4" />
-                            Anterior
+                            <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span className="hidden sm:inline">Anterior</span>
                           </Button>
                         </PaginationItem>
                         
@@ -565,6 +687,7 @@ export default function CRM() {
                               <PaginationLink
                                 onClick={() => setCurrentPage(pageNum)}
                                 isActive={currentPage === pageNum}
+                                className="text-xs sm:text-sm min-w-[2rem] sm:min-w-[2.5rem]"
                               >
                                 {pageNum}
                               </PaginationLink>
@@ -578,9 +701,10 @@ export default function CRM() {
                             size="sm"
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
+                            className="text-xs sm:text-sm"
                           >
-                            Próxima
-                            <ChevronRight className="h-4 w-4" />
+                            <span className="hidden sm:inline">Próxima</span>
+                            <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </PaginationItem>
                       </PaginationContent>
@@ -589,7 +713,7 @@ export default function CRM() {
                 )}
               </CardContent>
             </Card>
-              </TabsContent>
+            </TabsContent>
 
               <TabsContent value="attention" className="space-y-6">
                 <LeadsAttentionPanel
