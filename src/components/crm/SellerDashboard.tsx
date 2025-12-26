@@ -98,7 +98,9 @@ export function SellerDashboard() {
   const handleCreateOrUpdateGoal = async (goalData: SellerGoalFormData) => {
     try {
       if (editingGoal) {
-        await updateGoal(editingGoal.id, goalData);
+        // Ao editar, não enviar user_id (não pode mudar o vendedor da meta)
+        const { user_id, ...updateData } = goalData;
+        await updateGoal(editingGoal.id, updateData);
       } else {
         await createGoal({
           ...goalData,
