@@ -232,8 +232,11 @@ export function useSellerPerformance({
           ? 100
             : 0);
 
-      // Métricas de valor
-      const totalValue = filteredLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+      // Métricas de valor - apenas leads ganhos para metas
+      const wonLeadsForValue = filteredLeads.filter(
+        (lead) => lead.status === "ganho" || lead.stageId === "ganho"
+      );
+      const totalValue = wonLeadsForValue.reduce((sum, lead) => sum + (lead.value || 0), 0);
       const averageTicket =
         filteredLeads.length > 0 ? totalValue / filteredLeads.length : 0;
 
