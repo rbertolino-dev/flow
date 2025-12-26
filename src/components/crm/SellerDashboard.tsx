@@ -46,7 +46,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 export function SellerDashboard() {
   const { leads } = useLeads();
   const { products } = useProducts();
-  const { goals, loading: goalsLoading, createGoal, updateGoal, deleteGoal, getCurrentGoal } = useSellerGoals();
+  const { goals, loading: goalsLoading, createGoal, updateGoal, deleteGoal, getCurrentGoal, refetch: refetchGoals } = useSellerGoals();
   const { toast } = useToast();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [periodType, setPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>('monthly');
@@ -72,7 +72,9 @@ export function SellerDashboard() {
   });
 
   const currentMetric = metrics.find((m) => m.sellerId === currentUserId) || metrics[0];
-  const currentGoal = currentMetric?.currentGoal;
+  // Buscar meta atual usando getCurrentGoal também (fallback)
+  const currentGoalFromHook = currentUserId ? getCurrentGoal(currentUserId, periodType) : null;
+  const currentGoal = currentMetric?.currentGoal || currentGoalFromHook;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -91,6 +93,10 @@ export function SellerDashboard() {
           user_id: currentUserId!,
         });
       }
+      // Forçar atualização das metas
+      await refetchGoals();
+      // Forçar atualização das metas
+      await refetchGoals();
       setGoalDialogOpen(false);
       setEditingGoal(null);
     } catch (error) {
@@ -429,12 +435,85 @@ export function SellerDashboard() {
           <CardContent className="p-6 text-center">
             <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p className="text-muted-foreground mb-4">
-              Você ainda não possui uma meta definida para este período.
+              Você ainda não possui uma meta definida para este período ({periodType === 'monthly' ? 'mensal' : periodType === 'weekly' ? 'semanal' : periodType === 'quarterly' ? 'trimestral' : 'anual'}).
             </p>
-            <Button onClick={() => setGoalDialogOpen(true)}>
+            <Button onClick={() => {
+              setEditingGoal(null);
+              setGoalDialogOpen(true);
+            }}>
               <Target className="h-4 w-4 mr-2" />
               Definir Meta
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Lista de todas as metas do período */}
+      {goals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Todas as Metas {periodType === 'monthly' ? 'Mensais' : periodType === 'weekly' ? 'Semanais' : periodType === 'quarterly' ? 'Trimestrais' : 'Anuais'}</CardTitle>
+            <CardDescription>
+              Metas definidas para o período {periodType === 'monthly' ? 'mensal' : periodType === 'weekly' ? 'semanal' : periodType === 'quarterly' ? 'trimestral' : 'anual'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {goals
+                .filter(g => g.user_id === currentUserId && g.period_type === periodType)
+                .sort((a, b) => new Date(b.period_start).getTime() - new Date(a.period_start).getTime())
+                .map((goal) => {
+                  const isActive = goal.id === currentGoal?.id;
+                  return (
+                    <div
+                      key={goal.id}
+                      className={`p-4 border rounded-lg ${isActive ? 'border-primary bg-primary/5' : 'border-border'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant={isActive ? 'default' : 'secondary'}>
+                              {isActive ? 'Ativa' : 'Inativa'}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              {format(new Date(goal.period_start), "dd/MM/yyyy", { locale: ptBR })} - {format(new Date(goal.period_end), "dd/MM/yyyy", { locale: ptBR })}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 mt-2">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Meta Leads</p>
+                              <p className="text-lg font-semibold">{goal.target_leads}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Meta Valor</p>
+                              <p className="text-lg font-semibold">{formatCurrency(goal.target_value)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Meta Comissão</p>
+                              <p className="text-lg font-semibold">{formatCurrency(goal.target_commission)}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingGoal(goal);
+                            setGoalDialogOpen(true);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              {goals.filter(g => g.user_id === currentUserId && g.period_type === periodType).length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  Nenhuma meta encontrada para este período
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

@@ -247,12 +247,23 @@ export function useSellerGoals() {
         end = endOfMonth(now);
     }
 
+    // Buscar meta que esteja ativa no período atual
+    // Uma meta está ativa se o período atual está dentro do período da meta
     return goals.find(
-      (goal) =>
-        goal.user_id === userId &&
-        goal.period_type === periodType &&
-        new Date(goal.period_start) <= start &&
-        new Date(goal.period_end) >= end
+      (goal) => {
+        if (goal.user_id !== userId || goal.period_type !== periodType) {
+          return false;
+        }
+        
+        const goalStart = new Date(goal.period_start);
+        const goalEnd = new Date(goal.period_end);
+        
+        // Meta está ativa se: período atual está dentro do período da meta
+        // OU se a meta começa antes do fim do período atual e termina depois do início
+        return (
+          (goalStart <= end && goalEnd >= start)
+        );
+      }
     );
   };
 

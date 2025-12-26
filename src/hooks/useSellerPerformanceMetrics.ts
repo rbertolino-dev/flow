@@ -66,12 +66,19 @@ export function useSellerPerformanceMetrics({
   return useMemo(() => {
     const metrics: SellerPerformanceMetrics[] = performance.map((perf) => {
       // Buscar meta atual do vendedor
+      // Uma meta está ativa se o período atual está dentro do período da meta
       const currentGoal = goals.find(
-        (goal) =>
-          goal.user_id === perf.sellerId &&
-          goal.period_type === periodType &&
-          new Date(goal.period_start) <= periodStart &&
-          new Date(goal.period_end) >= periodEnd
+        (goal) => {
+          if (goal.user_id !== perf.sellerId || goal.period_type !== periodType) {
+            return false;
+          }
+          
+          const goalStart = new Date(goal.period_start);
+          const goalEnd = new Date(goal.period_end);
+          
+          // Meta está ativa se: período atual está dentro do período da meta
+          return (goalStart <= periodEnd && goalEnd >= periodStart);
+        }
       );
 
       // Buscar comissão do vendedor
