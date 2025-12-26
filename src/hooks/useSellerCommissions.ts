@@ -117,13 +117,12 @@ export function useSellerCommissions({
             });
           }
         } else {
-          // Lead sem produto vinculado, usar valor do lead
+          // Lead ganho sem produto vinculado, usar valor do lead
           commission.totalSales += lead.value || 0;
         }
-      } else {
-        // Lead sem produto, usar valor do lead
-        commission.totalSales += lead.value || 0;
       }
+      // ❌ Removido: else { commission.totalSales += lead.value || 0; }
+      // totalSales deve ser apenas de leads ganhos para consistência com comissões
     });
 
     return Array.from(commissionMap.values()).sort(
