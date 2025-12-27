@@ -118,6 +118,110 @@ export function useLeads() {
           fetchLeads();
         }
       )
+      .on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'activities',
+          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined
+        },
+        (payload) => {
+          console.log('💬 Nova atividade/comentário inserida:', payload);
+          const newActivity = payload.new as any;
+          
+          // Se for um comentário (note), atualizar o lead correspondente
+          if (newActivity.type === 'note' && newActivity.lead_id) {
+            // Buscar o lead na lista atual
+            setLeads((prev) => {
+              const leadIndex = prev.findIndex(l => l.id === newActivity.lead_id);
+              
+              if (leadIndex === -1) {
+                // Lead não encontrado na lista, fazer refetch completo
+                console.log('⚠️ Lead não encontrado na lista, fazendo refetch...');
+                fetchLeads();
+                return prev;
+              }
+              
+              // Atualizar o lead com o novo comentário
+              const updatedLeads = [...prev];
+              const lead = updatedLeads[leadIndex];
+              
+              // Criar nova atividade
+              const newActivityObj: Activity = {
+                id: newActivity.id,
+                type: newActivity.type as ActivityType,
+                content: newActivity.content,
+                timestamp: new Date(newActivity.created_at || new Date()),
+                user: newActivity.user_name || newActivity.user_id || 'Usuário',
+                direction: newActivity.direction || 'internal',
+                user_name: newActivity.user_name,
+              };
+              
+              // Atualizar o campo notes com o conteúdo do comentário mais recente
+              // (o campo notes do lead armazena o último comentário)
+              updatedLeads[leadIndex] = {
+                ...lead,
+                notes: newActivity.content, // Atualizar notes com o novo comentário
+                // Adicionar a atividade à lista de atividades do lead (no início para manter ordem cronológica)
+                activities: [
+                  newActivityObj,
+                  ...(lead.activities || [])
+                ]
+              };
+              
+              console.log('✅ Lead atualizado com novo comentário via realtime:', lead.name || lead.phone);
+              return updatedLeads;
+            });
+          } else {
+            // Para outros tipos de atividade, fazer refetch para garantir consistência
+            fetchLeads();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'activities',
+          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined
+        },
+        (payload) => {
+          console.log('🔄 Atividade/comentário atualizada:', payload);
+          // Quando uma atividade é atualizada, atualizar o lead correspondente
+          const updatedActivity = payload.new as any;
+          
+          if (updatedActivity.lead_id) {
+            setLeads((prev) => {
+              const leadIndex = prev.findIndex(l => l.id === updatedActivity.lead_id);
+              
+              if (leadIndex === -1) {
+                return prev;
+              }
+              
+              const updatedLeads = [...prev];
+              const lead = updatedLeads[leadIndex];
+              
+              // Atualizar a atividade na lista de atividades do lead
+              updatedLeads[leadIndex] = {
+                ...lead,
+                activities: (lead.activities || []).map(activity => 
+                  activity.id === updatedActivity.id
+                    ? {
+                        ...activity,
+                        content: updatedActivity.content || activity.content,
+                        type: updatedActivity.type as ActivityType || activity.type,
+                      }
+                    : activity
+                )
+              };
+              
+              return updatedLeads;
+            });
+          }
+        }
+      )
       .subscribe((status) => {
         console.log('📡 Status do canal realtime de leads:', status);
         if (status === 'SUBSCRIBED') {

@@ -446,10 +446,22 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       if (updateError) throw updateError;
 
       // Registrar a atividade no histórico
+      // Buscar organization_id do lead atualizado
+      const { data: updatedLead } = await supabase
+        .from('leads')
+        .select('organization_id')
+        .eq('id', lead.id)
+        .single();
+      
+      if (!updatedLead?.organization_id) {
+        throw new Error('Organização não encontrada para o lead');
+      }
+      
       const { error: activityError } = await (supabase as any)
         .from('activities')
         .insert({
           lead_id: lead.id,
+          organization_id: updatedLead.organization_id,
           type: 'note',
           content: newComment,
           user_name: user?.email || 'Usuário',
