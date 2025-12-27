@@ -25,6 +25,27 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Diagnóstico: Verificar se JavaScript está executando
+      console.log('✅ HTML carregado');
+      console.log('✅ Root element:', document.getElementById('root'));
+      
+      // Verificar se módulo ES6 está carregando
+      window.addEventListener('error', function(e) {
+        console.error('❌ Erro JavaScript:', e.message, e.filename, e.lineno);
+      });
+      
+      // Verificar se script está carregando
+      const script = document.querySelector('script[type="module"]');
+      if (script) {
+        script.addEventListener('error', function(e) {
+          console.error('❌ Erro ao carregar script:', e);
+        });
+        script.addEventListener('load', function() {
+          console.log('✅ Script carregado com sucesso');
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
