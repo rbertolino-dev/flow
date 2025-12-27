@@ -43,6 +43,15 @@
         const root = document.getElementById('root');
         console.log('✅ Root element encontrado:', root !== null);
         
+        // Teste simples: tentar renderizar algo diretamente
+        if (root) {
+          root.innerHTML = '<div style="padding: 20px; text-align: center;"><h1>Teste de Renderização</h1><p>Se você vê isso, o JavaScript está funcionando!</p></div>';
+          setTimeout(function() {
+            root.innerHTML = '';
+            console.log('✅ Teste de renderização concluído');
+          }, 2000);
+        }
+        
         // Mostrar fallback se React não carregar em 5 segundos
         setTimeout(function() {
           if (root && root.children.length === 0) {
@@ -72,7 +81,9 @@
         
         // Verificar se script está carregando
         const scripts = document.querySelectorAll('script[type="module"]');
+        console.log('📋 Scripts encontrados:', scripts.length);
         scripts.forEach(function(script, index) {
+          console.log('📋 Script ' + index + ':', script.src || script.innerHTML.substring(0, 50));
           script.addEventListener('error', function(e) {
             console.error('❌ Erro ao carregar script ' + index + ':', {
               src: script.src,

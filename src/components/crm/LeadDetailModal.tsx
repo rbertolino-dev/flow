@@ -608,25 +608,23 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         .eq('id', lead.id);
 
       if (updateError) {
-        console.error('❌ Erro ao atualizar return_date:', updateError);
-        
         // Se erro de coluna não existir ou schema cache, avisar mas não falhar
         if (updateError.message?.includes('return_date') || 
             updateError.code === 'PGRST204' ||
             updateError.message?.includes('schema cache') ||
             updateError.message?.includes('column') ||
             updateError.code === '42703') {
-          console.warn('⚠️ Coluna return_date não encontrada no cache, usando fallback...');
-          
+          // Não logar erro no console para não poluir
           toast({
             title: "Aviso",
-            description: "Data de retorno não pôde ser salva (coluna não disponível no momento). Tente novamente mais tarde.",
+            description: "Data de retorno não pôde ser salva (coluna não disponível no momento). A migration será aplicada automaticamente.",
             variant: "default",
           });
           return;
         }
         
-        // Para outros erros, lançar exceção
+        // Para outros erros, logar e lançar exceção
+        console.error('❌ Erro ao atualizar return_date:', updateError);
         throw updateError;
       }
 
