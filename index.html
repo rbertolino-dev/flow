@@ -24,27 +24,68 @@
 </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <noscript>
+        <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+          <h1>JavaScript Desabilitado</h1>
+          <p>Por favor, habilite JavaScript no seu navegador para usar esta aplicação.</p>
+        </div>
+      </noscript>
+      <div id="loading-fallback" style="padding: 20px; text-align: center; font-family: Arial, sans-serif; display: none;">
+        <h1>Carregando...</h1>
+        <p>Se esta mensagem persistir, verifique o console do navegador (F12) para erros.</p>
+      </div>
+    </div>
     <script>
-      // Diagnóstico: Verificar se JavaScript está executando
-      console.log('✅ HTML carregado');
-      console.log('✅ Root element:', document.getElementById('root'));
-      
-      // Verificar se módulo ES6 está carregando
-      window.addEventListener('error', function(e) {
-        console.error('❌ Erro JavaScript:', e.message, e.filename, e.lineno);
-      });
-      
-      // Verificar se script está carregando
-      const script = document.querySelector('script[type="module"]');
-      if (script) {
-        script.addEventListener('error', function(e) {
-          console.error('❌ Erro ao carregar script:', e);
+      // Diagnóstico completo de renderização
+      (function() {
+        console.log('✅ HTML carregado');
+        const root = document.getElementById('root');
+        console.log('✅ Root element encontrado:', root !== null);
+        
+        // Mostrar fallback se React não carregar em 5 segundos
+        setTimeout(function() {
+          if (root && root.children.length === 0) {
+            const fallback = document.getElementById('loading-fallback');
+            if (fallback) {
+              fallback.style.display = 'block';
+              console.warn('⚠️ React não renderizou após 5 segundos');
+            }
+          }
+        }, 5000);
+        
+        // Capturar todos os erros
+        window.addEventListener('error', function(e) {
+          console.error('❌ Erro JavaScript:', {
+            message: e.message,
+            filename: e.filename,
+            lineno: e.lineno,
+            colno: e.colno,
+            error: e.error
+          });
+        }, true);
+        
+        // Capturar erros de promise não tratados
+        window.addEventListener('unhandledrejection', function(e) {
+          console.error('❌ Promise rejeitada:', e.reason);
         });
-        script.addEventListener('load', function() {
-          console.log('✅ Script carregado com sucesso');
+        
+        // Verificar se script está carregando
+        const scripts = document.querySelectorAll('script[type="module"]');
+        scripts.forEach(function(script, index) {
+          script.addEventListener('error', function(e) {
+            console.error('❌ Erro ao carregar script ' + index + ':', {
+              src: script.src,
+              error: e
+            });
+          });
+          script.addEventListener('load', function() {
+            console.log('✅ Script ' + index + ' carregado:', script.src);
+          });
         });
-      }
+        
+        console.log('✅ Diagnóstico configurado');
+      })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
