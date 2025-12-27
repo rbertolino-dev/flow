@@ -11,9 +11,12 @@ import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
+import { useTags } from "@/hooks/useTags";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
-import { Plus } from "lucide-react";
+import { CreateTagDialog } from "@/components/crm/CreateTagDialog";
+import { Plus, Tag as TagIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -25,9 +28,12 @@ interface CreateLeadDialogProps {
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
   const { getActiveProducts, refetch: refetchProducts } = useProducts();
+  const { tags, refetch: refetchTags } = useTags();
   const [loading, setLoading] = useState(false);
   const [addToQueue, setAddToQueue] = useState(true);
   const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
+  const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -52,6 +58,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         stageId: stages[0]?.id || "",
         notes: "",
       });
+      setSelectedTagIds([]);
       setAddToQueue(true);
       setLoading(false);
     }
@@ -135,6 +142,23 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           });
       }
 
+      // Vincular tags ao lead se selecionadas
+      if (selectedTagIds.length > 0 && leadId) {
+        const tagAssociations = selectedTagIds.map(tagId => ({
+          lead_id: leadId,
+          tag_id: tagId,
+        }));
+
+        const { error: tagsError } = await supabase
+          .from('lead_tags')
+          .insert(tagAssociations);
+
+        if (tagsError) {
+          console.error('Erro ao vincular tags:', tagsError);
+          // Não falhar o processo se houver erro nas tags
+        }
+      }
+
       // Opcionalmente adicionar à fila de ligações
       if (addToQueue && leadId) {
         const { error: queueError } = await supabase.rpc('add_to_call_queue_secure', {
@@ -185,6 +209,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         stageId: stages[0]?.id || "",
         notes: "",
       });
+      setSelectedTagIds([]);
       setAddToQueue(true);
 
       // Aguardar um pouco para garantir que o lead foi criado antes de chamar callback
@@ -364,6 +389,86 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
             />
           </div>
 
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="tags">Etiquetas (opcional)</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreateTagDialogOpen(true)}
+                className="h-7 text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Criar Etiqueta
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {tags.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma etiqueta disponível. Clique em "Criar Etiqueta" para criar uma.
+                </p>
+              ) : (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
+                  {tags.map((tag) => (
+                    <div key={tag.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`tag-${tag.id}`}
+                        checked={selectedTagIds.includes(tag.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedTagIds([...selectedTagIds, tag.id]);
+                          } else {
+                            setSelectedTagIds(selectedTagIds.filter(id => id !== tag.id));
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={`tag-${tag.id}`}
+                        className="flex-1 flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <Badge
+                          variant="outline"
+                          style={{
+                            backgroundColor: `${tag.color}20`,
+                            borderColor: tag.color,
+                            color: tag.color,
+                          }}
+                          className="text-xs"
+                        >
+                          <TagIcon className="h-3 w-3 mr-1" />
+                          {tag.name}
+                        </Badge>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedTagIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedTagIds.map((tagId) => {
+                    const tag = tags.find(t => t.id === tagId);
+                    if (!tag) return null;
+                    return (
+                      <Badge
+                        key={tagId}
+                        variant="secondary"
+                        style={{
+                          backgroundColor: `${tag.color}20`,
+                          borderColor: tag.color,
+                          color: tag.color,
+                        }}
+                        className="text-xs border"
+                      >
+                        {tag.name}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <Checkbox id="addToQueue" checked={addToQueue} onCheckedChange={(v) => setAddToQueue(Boolean(v))} />
             <Label htmlFor="addToQueue">Adicionar à fila de ligações</Label>
@@ -395,6 +500,22 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
                 productId: product.id,
                 value: product.price.toString()
               }));
+        }}
+      />
+
+      {/* Dialog de Criar Etiqueta */}
+      <CreateTagDialog
+        open={createTagDialogOpen}
+        onOpenChange={setCreateTagDialogOpen}
+        autoSelectAfterCreate={true}
+        onTagCreated={async (tag) => {
+          // Refetch tags para garantir que a lista está atualizada
+          await refetchTags();
+          
+          // Selecionar a tag recém-criada
+          if (!selectedTagIds.includes(tag.id)) {
+            setSelectedTagIds([...selectedTagIds, tag.id]);
+          }
         }}
       />
     </Dialog>

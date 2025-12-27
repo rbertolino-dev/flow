@@ -46,6 +46,7 @@ import { AddLeadToListDialog } from "./AddLeadToListDialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { TransferToPostSaleDialog } from "./TransferToPostSaleDialog";
 import { EnhancedActivityHistory } from "./EnhancedActivityHistory";
+import { CreateTagDialog } from "./CreateTagDialog";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -81,6 +82,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [newComment, setNewComment] = useState<string>("");
   const [whatsappMessage, setWhatsappMessage] = useState<string>("");
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [showSchedulePanel, setShowSchedulePanel] = useState(false);
@@ -1121,14 +1123,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                         className="gap-1"
                       >
                         {tag.name}
-                        {!isEditingTags && (
-                          <button
-                            onClick={() => handleRemoveTag(tag.id)}
-                            className="ml-1 hover:bg-white/20 rounded-full"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleRemoveTag(tag.id)}
+                          className="ml-1 hover:bg-white/20 rounded-full p-0.5"
+                          title="Remover etiqueta"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </Badge>
                     ))}
                   </div>
@@ -1167,37 +1168,53 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                 {/* Controles de edição */}
                 {isEditingTags && (
                   <>
-                    {availableTags.filter(t => !pendingTags.includes(t.id)).length > 0 && (
-                      <div className="flex gap-2">
-                        <Select value={selectedTagId} onValueChange={setSelectedTagId}>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Selecione uma etiqueta" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableTags
-                              .filter(t => !pendingTags.includes(t.id))
-                              .map((tag) => (
-                                <SelectItem key={tag.id} value={tag.id}>
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-3 h-3 rounded-full"
-                                      style={{ backgroundColor: tag.color }}
-                                    />
-                                    {tag.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          onClick={handleAddTagTemp}
-                          disabled={!selectedTagId}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-2">
+                      {availableTags.filter(t => !pendingTags.includes(t.id)).length > 0 ? (
+                        <>
+                          <Select value={selectedTagId} onValueChange={setSelectedTagId}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Selecione uma etiqueta" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableTags
+                                .filter(t => !pendingTags.includes(t.id))
+                                .map((tag) => (
+                                  <SelectItem key={tag.id} value={tag.id}>
+                                    <div className="flex items-center gap-2">
+                                      <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: tag.color }}
+                                      />
+                                      {tag.name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            onClick={handleAddTagTemp}
+                            disabled={!selectedTagId}
+                            variant="outline"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="flex-1 text-sm text-muted-foreground py-2 px-3 border rounded-md">
+                          Nenhuma etiqueta disponível
+                        </div>
+                      )}
+                      <Button
+                        size="sm"
+                        onClick={() => setCreateTagDialogOpen(true)}
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <TagIcon className="h-4 w-4" />
+                        Criar
+                      </Button>
+                    </div>
                     
                     {/* Botões de salvar/cancelar */}
                     <div className="flex gap-2">
@@ -1539,6 +1556,23 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         onOpenChange={setTransferToPostSaleDialogOpen}
         onTransferred={() => {
           onUpdated?.();
+        }}
+      />
+
+      {/* Dialog de Criar Etiqueta */}
+      <CreateTagDialog
+        open={createTagDialogOpen}
+        onOpenChange={setCreateTagDialogOpen}
+        autoSelectAfterCreate={true}
+        onTagCreated={async (tag) => {
+          // Refetch tags para garantir que a lista está atualizada
+          await refetchTags();
+          
+          // Adicionar a tag recém-criada automaticamente se estiver editando tags
+          if (isEditingTags && !pendingTags.includes(tag.id) && !currentLead.tags?.some(t => t.id === tag.id)) {
+            setPendingTags([...pendingTags, tag.id]);
+            setSelectedTagId("");
+          }
         }}
       />
     </Dialog>

@@ -472,6 +472,23 @@ const Index = () => {
                 filterInCallQueue={filterInCallQueue}
                 callQueue={callQueue}
                 filterTags={selectedTags}
+                selectedLeadIds={selectedLeads}
+                onToggleSelection={handleLeadSelect}
+                onToggleAllInStage={(stageId, leadIds) => {
+                  const stageLeads = leads.filter(l => l.stageId === stageId);
+                  const allSelected = stageLeads.every(l => selectedLeads.has(l.id));
+                  setSelectedLeads(prev => {
+                    const next = new Set(prev);
+                    leadIds.forEach(id => {
+                      if (allSelected) {
+                        next.delete(id);
+                      } else {
+                        next.add(id);
+                      }
+                    });
+                    return next;
+                  });
+                }}
               />
             ) : viewMode === 'list' ? (
               <LeadsListView

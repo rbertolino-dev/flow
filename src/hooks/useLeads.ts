@@ -477,6 +477,18 @@ export function useLeads() {
 
   const deleteLead = async (leadId: string) => {
     try {
+      // 1. Remover da fila de ligações ANTES de deletar o lead
+      const { error: queueError } = await (supabase as any)
+        .from('call_queue')
+        .delete()
+        .eq('lead_id', leadId);
+
+      // Não falhar se não houver item na fila (pode não existir)
+      if (queueError && !queueError.message?.includes('No rows')) {
+        console.warn('Aviso ao remover da fila:', queueError);
+      }
+
+      // 2. Deletar o lead (soft delete)
       const { error } = await (supabase as any)
         .from('leads')
         .update({ deleted_at: new Date().toISOString() })
@@ -486,7 +498,7 @@ export function useLeads() {
 
       toast({
         title: "Contato excluído",
-        description: "O contato foi removido do funil.",
+        description: "O contato foi removido do funil e da fila de ligações.",
       });
 
       // Forçar refresh automático após exclusão

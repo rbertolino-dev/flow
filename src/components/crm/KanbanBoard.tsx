@@ -11,7 +11,7 @@ import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, P
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
-import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3, Send, List, Tag } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3, Send, List, Tag, CheckCircle2, Ban } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { normalizePhone } from "@/lib/phoneUtils";
@@ -41,12 +41,30 @@ interface KanbanBoardProps {
   filterInCallQueue?: boolean;
   filterTags?: string[];
   callQueue?: CallQueueItem[];
+  selectedLeadIds?: Set<string>;
+  onToggleSelection?: (leadId: string) => void;
+  onToggleAllInStage?: (stageId: string, leadIds: string[]) => void;
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [], selectedLeadIds: externalSelectedLeadIds, onToggleSelection: externalOnToggleSelection, onToggleAllInStage: externalOnToggleAllInStage }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [internalSelectedLeadIds, setInternalSelectedLeadIds] = useState<Set<string>>(new Set());
+  
+  // Usar seleção externa se fornecida, senão usar interna
+  const selectedLeadIds = externalSelectedLeadIds ?? internalSelectedLeadIds;
+  const setSelectedLeadIds = externalSelectedLeadIds ? (() => {}) : setInternalSelectedLeadIds;
+  const onToggleSelection = externalOnToggleSelection ?? ((leadId: string) => {
+    setSelectedLeadIds(prev => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  });
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [leadsInCallQueue, setLeadsInCallQueue] = useState<Set<string>>(new Set());
   const [reportsOpen, setReportsOpen] = useState(false);
@@ -270,36 +288,37 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   };
 
   const toggleLeadSelection = (leadId: string) => {
-    setSelectedLeadIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(leadId)) {
-        newSet.delete(leadId);
-      } else {
-        newSet.add(leadId);
-      }
-      return newSet;
-    });
+    onToggleSelection(leadId);
   };
 
   const toggleAllInStage = (stageId: string, leadIds: string[]) => {
-    setSelectedLeadIds(prev => {
-      const newSet = new Set(prev);
-      const allSelected = leadIds.every(id => newSet.has(id));
-      
-      if (allSelected) {
-        // Desmarcar todos da etapa
-        leadIds.forEach(id => newSet.delete(id));
-      } else {
-        // Marcar todos da etapa
-        leadIds.forEach(id => newSet.add(id));
-      }
-      
-      return newSet;
-    });
+    if (externalOnToggleAllInStage) {
+      externalOnToggleAllInStage(stageId, leadIds);
+    } else {
+      setSelectedLeadIds(prev => {
+        const newSet = new Set(prev);
+        const allSelected = leadIds.every(id => newSet.has(id));
+        
+        if (allSelected) {
+          // Desmarcar todos da etapa
+          leadIds.forEach(id => newSet.delete(id));
+        } else {
+          // Marcar todos da etapa
+          leadIds.forEach(id => newSet.add(id));
+        }
+        
+        return newSet;
+      });
+    }
   };
 
   const clearSelection = () => {
-    setSelectedLeadIds(new Set());
+    if (externalSelectedLeadIds) {
+      // Se seleção externa, limpar todos
+      selectedLeadIds.forEach(id => onToggleSelection(id));
+    } else {
+      setSelectedLeadIds(new Set());
+    }
   };
 
   const handleMoveToNextStage = async () => {
@@ -427,6 +446,39 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     clearSelection();
     onRefetch();
+  };
+
+  const handleBulkStatusChange = async (newStatus: 'concluído' | 'pendente') => {
+    const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
+    
+    if (selectedLeads.length === 0) {
+      toast({
+        title: "Nenhum lead selecionado",
+        description: "Selecione pelo menos um lead",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      for (const lead of selectedLeads) {
+        await onLeadUpdate(lead.id, newStatus);
+      }
+
+      toast({
+        title: "Status atualizado",
+        description: `${selectedLeads.length} lead(s) marcado(s) como ${newStatus}`,
+      });
+
+      clearSelection();
+      onRefetch();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAddToDisparoList = async () => {
@@ -815,6 +867,26 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             >
               <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Fila</span>
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handleBulkStatusChange('concluído')}
+              className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap bg-success hover:bg-success/90 text-white"
+            >
+              <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Concluído</span>
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handleBulkStatusChange('pendente')}
+              className="gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap"
+            >
+              <Ban className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Pendente</span>
             </Button>
             
             <Button
