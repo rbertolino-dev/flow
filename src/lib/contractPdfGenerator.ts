@@ -34,7 +34,68 @@ import { jsPDF } from 'jspdf';
 // Função auxiliar para carregar imagem com tratamento de CORS
 async function loadImage(url: string): Promise<string | null> {
   try {
-    // Tentar carregar diretamente primeiro
+    // Se for imagem do Google Cloud Storage, tentar com no-cors primeiro
+    if (url.includes('storage.googleapis.com')) {
+      try {
+        // Tentar com no-cors (não verifica CORS, mas pode não funcionar)
+        const response = await fetch(url, {
+          mode: 'no-cors',
+          credentials: 'omit',
+        });
+        
+        // Com no-cors, response.ok sempre é false, mas podemos tentar mesmo assim
+        const blob = await response.blob();
+        if (blob && blob.size > 0) {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => {
+              console.warn('⚠️ Erro ao converter imagem do Google Storage para base64. Pulando...');
+              resolve(null);
+            };
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch (noCorsError) {
+        // Se no-cors falhar, tentar com cors
+      }
+      
+      // Tentar com CORS normal
+      try {
+        const response = await fetch(url, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-cache',
+        });
+        
+        if (!response.ok) {
+          console.warn('⚠️ Imagem do Google Cloud Storage não acessível (HTTP):', response.statusText);
+          return null;
+        }
+        
+        const blob = await response.blob();
+        if (!blob || blob.size === 0) {
+          console.warn('⚠️ Imagem do Google Cloud Storage vazia ou inválida. Pulando...');
+          return null;
+        }
+        
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => {
+            console.warn('⚠️ Erro ao converter imagem do Google Storage para base64. Pulando...');
+            resolve(null);
+          };
+          reader.readAsDataURL(blob);
+        });
+      } catch (corsError: any) {
+        // Erro de CORS - apenas logar e continuar sem a imagem
+        console.warn('⚠️ Erro de CORS ao carregar imagem do Google Cloud Storage. A imagem será pulada:', url);
+        return null;
+      }
+    }
+    
+    // Para outras URLs, tentar normalmente
     const response = await fetch(url, {
       mode: 'cors',
       credentials: 'omit',
@@ -42,31 +103,34 @@ async function loadImage(url: string): Promise<string | null> {
     
     if (!response.ok) {
       console.warn('⚠️ Erro ao carregar imagem (HTTP):', response.statusText);
-      // Tentar usar proxy do Supabase se disponível
-      if (url.includes('storage.googleapis.com')) {
-        console.warn('⚠️ Imagem do Google Cloud Storage não acessível via CORS. Pulando...');
-        return null;
-      }
       return null;
     }
     
     const blob = await response.blob();
-    return new Promise((resolve, reject) => {
+    if (!blob || blob.size === 0) {
+      console.warn('⚠️ Imagem vazia ou inválida. Pulando...');
+      return null;
+    }
+    
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = () => {
-        console.error('❌ Erro ao converter imagem para base64');
+        console.warn('⚠️ Erro ao converter imagem para base64. Pulando...');
         resolve(null);
       };
       reader.readAsDataURL(blob);
     });
   } catch (error: any) {
-    // Se for erro de CORS, apenas logar e continuar sem a imagem
-    if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
-      console.warn('⚠️ Erro de CORS ao carregar imagem. A imagem será pulada:', url);
+    // Tratar todos os tipos de erro (CORS, network, etc.)
+    if (error.message?.includes('CORS') || 
+        error.message?.includes('Failed to fetch') ||
+        error.message?.includes('ERR_FAILED') ||
+        error.name === 'TypeError') {
+      console.warn('⚠️ Erro ao carregar imagem (CORS/Network). A imagem será pulada:', url);
       return null;
     }
-    console.error('❌ Erro ao carregar imagem:', error);
+    console.warn('⚠️ Erro ao carregar imagem. A imagem será pulada:', error.message || error);
     return null;
   }
 }

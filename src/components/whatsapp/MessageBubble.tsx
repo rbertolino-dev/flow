@@ -34,7 +34,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               src={message.mediaUrl} 
               alt="Imagem" 
               className="max-w-full rounded-t-lg object-cover" 
+              onError={(e) => {
+                // Tratar erro de CORS ou carregamento de imagem
+                console.warn('⚠️ Erro ao carregar imagem. Exibindo placeholder:', message.mediaUrl);
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                // Substituir por placeholder se necessário
+                const placeholder = target.parentElement?.querySelector('.image-placeholder');
+                if (placeholder) {
+                  (placeholder as HTMLElement).style.display = 'block';
+                }
+              }}
             />
+            <div className="image-placeholder hidden flex items-center gap-2 p-2 bg-muted/50 rounded">
+              <ImageIcon className="h-5 w-5" />
+              <span className="text-sm text-muted-foreground">Imagem não disponível</span>
+            </div>
             {message.caption && (
               <p className="text-sm whitespace-pre-wrap break-words px-3 py-2">
                 {message.caption}

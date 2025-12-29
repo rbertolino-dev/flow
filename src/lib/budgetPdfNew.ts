@@ -10,25 +10,79 @@ import { jsPDF } from 'jspdf';
 // Função auxiliar para carregar imagem (mesma do contractPdfGenerator)
 async function loadImage(url: string): Promise<string | null> {
   try {
+    // Se for imagem do Google Cloud Storage, tratar CORS especial
+    if (url.includes('storage.googleapis.com')) {
+      try {
+        // Tentar com CORS primeiro
+        const response = await fetch(url, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-cache',
+        });
+        
+        if (!response.ok) {
+          console.warn('⚠️ Imagem do Google Cloud Storage não acessível (HTTP):', response.statusText);
+          return null;
+        }
+        
+        const blob = await response.blob();
+        if (!blob || blob.size === 0) {
+          console.warn('⚠️ Imagem do Google Cloud Storage vazia ou inválida. Pulando...');
+          return null;
+        }
+        
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => {
+            console.warn('⚠️ Erro ao converter imagem do Google Storage para base64. Pulando...');
+            resolve(null);
+          };
+          reader.readAsDataURL(blob);
+        });
+      } catch (corsError: any) {
+        // Erro de CORS - apenas logar e continuar sem a imagem
+        console.warn('⚠️ Erro de CORS ao carregar imagem do Google Cloud Storage. A imagem será pulada:', url);
+        return null;
+      }
+    }
+    
+    // Para outras URLs, tentar normalmente
     const response = await fetch(url, {
       mode: 'cors',
       credentials: 'omit',
     });
     
     if (!response.ok) {
-      console.warn('Erro ao carregar imagem:', response.statusText);
+      console.warn('⚠️ Erro ao carregar imagem (HTTP):', response.statusText);
       return null;
     }
     
     const blob = await response.blob();
-    return new Promise((resolve, reject) => {
+    if (!blob || blob.size === 0) {
+      console.warn('⚠️ Imagem vazia ou inválida. Pulando...');
+      return null;
+    }
+    
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
+      reader.onerror = () => {
+        console.warn('⚠️ Erro ao converter imagem para base64. Pulando...');
+        resolve(null);
+      };
       reader.readAsDataURL(blob);
     });
-  } catch (error) {
-    console.error('Erro ao carregar imagem:', error);
+  } catch (error: any) {
+    // Tratar todos os tipos de erro (CORS, network, etc.)
+    if (error.message?.includes('CORS') || 
+        error.message?.includes('Failed to fetch') ||
+        error.message?.includes('ERR_FAILED') ||
+        error.name === 'TypeError') {
+      console.warn('⚠️ Erro ao carregar imagem (CORS/Network). A imagem será pulada:', url);
+      return null;
+    }
+    console.warn('⚠️ Erro ao carregar imagem. A imagem será pulada:', error.message || error);
     return null;
   }
 }
