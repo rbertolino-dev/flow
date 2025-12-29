@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useTags } from "@/hooks/useTags";
+import { CreateTagDialog } from "@/components/shared/CreateTagDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCallQueue } from "@/hooks/useCallQueue";
@@ -97,6 +98,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [currentLead, setCurrentLead] = useState<Lead>(lead);
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
+  const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
   
   // Estados para edição de informações do lead
   const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -581,7 +583,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   };
 
   const handleUpdateReturnDate = async () => {
-    if (!returnDate) {
+    // Validar se returnDate está preenchido
+    if (!returnDate || returnDate.trim() === '') {
       toast({
         title: "Data não informada",
         description: "Selecione uma data de retorno",
@@ -591,11 +594,44 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     }
 
     try {
+      // Validar formato de data (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(returnDate)) {
+        toast({
+          title: "Formato de data inválido",
+          description: "A data deve estar no formato YYYY-MM-DD",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Usar timezone fixo de São Paulo
       const TIMEZONE = 'America/Sao_Paulo';
       const [y, m, d] = returnDate.split('-').map(Number);
+      
+      // Validar se os valores são números válidos
+      if (isNaN(y) || isNaN(m) || isNaN(d) || m < 1 || m > 12 || d < 1 || d > 31) {
+        toast({
+          title: "Data inválida",
+          description: "Verifique se a data está correta",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Criar data no timezone de São Paulo às 12:00
-      const dateInSaoPaulo = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+      const dateInSaoPaulo = new Date(y, m - 1, d, 12, 0, 0);
+      
+      // Validar se a data criada é válida
+      if (isNaN(dateInSaoPaulo.getTime())) {
+        toast({
+          title: "Data inválida",
+          description: "A data informada não é válida",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const zonedDate = fromZonedTime(dateInSaoPaulo, TIMEZONE);
       
       // Usar cliente Supabase corretamente (sem as any)
@@ -639,9 +675,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       onUpdated?.();
     } catch (error: any) {
       console.error('❌ Erro ao salvar data de retorno:', error);
+      
+      // Mensagem de erro mais clara
+      const errorMessage = error?.message || 'Erro desconhecido ao salvar data de retorno';
+      
       toast({
-        title: "Erro ao salvar",
-        description: error.message || "Não foi possível salvar a data de retorno",
+        title: "Erro ao salvar data de retorno",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -1180,6 +1220,15 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                           </SelectContent>
                         </Select>
                         <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setCreateTagDialogOpen(true)}
+                          title="Criar nova etiqueta"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button
                           size="sm"
                           onClick={handleAddTagTemp}
                           disabled={!selectedTagId}
@@ -1529,6 +1578,16 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
         onOpenChange={setTransferToPostSaleDialogOpen}
         onTransferred={() => {
           onUpdated?.();
+        }}
+      />
+
+      {/* Dialog de Criar Etiqueta */}
+      <CreateTagDialog
+        open={createTagDialogOpen}
+        onOpenChange={setCreateTagDialogOpen}
+        onTagCreated={async () => {
+          // Refetch tags para garantir que a lista está atualizada
+          await refetchTags();
         }}
       />
     </Dialog>

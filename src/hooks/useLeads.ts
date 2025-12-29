@@ -87,7 +87,14 @@ export function useLeads() {
               status: (updated.status as LeadStatus) ?? oldLead.status,
               assignedTo: updated.assigned_to || oldLead.assignedTo || 'Não atribuído',
               lastContact: updated.last_contact ? new Date(updated.last_contact) : (updated.updated_at ? new Date(updated.updated_at) : oldLead.lastContact),
-              returnDate: updated.return_date ? new Date(updated.return_date) : oldLead.returnDate,
+              returnDate: updated.return_date ? (() => {
+                try {
+                  const date = new Date(updated.return_date);
+                  return isNaN(date.getTime()) ? oldLead.returnDate : date;
+                } catch {
+                  return oldLead.returnDate;
+                }
+              })() : oldLead.returnDate,
               notes: updated.notes ?? oldLead.notes,
               stageId: updated.stage_id ?? oldLead.stageId,
             };
@@ -283,7 +290,14 @@ export function useLeads() {
           assignedTo: lead.assigned_to || 'Não atribuído',
           lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
           createdAt: new Date(lead.created_at!),
-          returnDate: lead.return_date ? new Date(lead.return_date) : undefined,
+          returnDate: lead.return_date ? (() => {
+            try {
+              const date = new Date(lead.return_date);
+              return isNaN(date.getTime()) ? undefined : date;
+            } catch {
+              return undefined;
+            }
+          })() : undefined,
           sourceInstanceId: lead.source_instance_id || undefined,
           notes: lead.notes || undefined,
           stageId: lead.stage_id || undefined,

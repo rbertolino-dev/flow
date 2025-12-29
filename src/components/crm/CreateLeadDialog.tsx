@@ -13,7 +13,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
+import { CreateTagDialog } from "@/components/shared/CreateTagDialog";
+import { useTags } from "@/hooks/useTags";
 import { Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface CreateLeadDialogProps {
   open: boolean;
@@ -25,9 +28,12 @@ interface CreateLeadDialogProps {
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
   const { getActiveProducts, refetch: refetchProducts } = useProducts();
+  const { tags, refetch: refetchTags, addTagToLead } = useTags();
   const [loading, setLoading] = useState(false);
   const [addToQueue, setAddToQueue] = useState(true);
   const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
+  const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -52,6 +58,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         stageId: stages[0]?.id || "",
         notes: "",
       });
+      setSelectedTagIds([]);
       setAddToQueue(true);
       setLoading(false);
     }
@@ -135,6 +142,13 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           });
       }
 
+      // Adicionar tags selecionadas ao lead
+      if (selectedTagIds.length > 0 && leadId) {
+        await Promise.all(
+          selectedTagIds.map(tagId => addTagToLead(leadId as string, tagId))
+        );
+      }
+
       // Opcionalmente adicionar à fila de ligações
       if (addToQueue && leadId) {
         const { error: queueError } = await supabase.rpc('add_to_call_queue_secure', {
@@ -185,6 +199,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         stageId: stages[0]?.id || "",
         notes: "",
       });
+      setSelectedTagIds([]);
       setAddToQueue(true);
 
       // Aguardar um pouco para garantir que o lead foi criado antes de chamar callback
@@ -354,6 +369,82 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           </div>
 
           <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="tags">Etiquetas</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreateTagDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Criar Nova
+              </Button>
+            </div>
+            <Select 
+              value="" 
+              onValueChange={(value) => {
+                if (value && !selectedTagIds.includes(value)) {
+                  setSelectedTagIds([...selectedTagIds, value]);
+                }
+              }}
+            >
+              <SelectTrigger id="tags">
+                <SelectValue placeholder="Selecione etiquetas (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {tags
+                  .filter(tag => !selectedTagIds.includes(tag.id))
+                  .map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        {tag.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                {tags.filter(tag => !selectedTagIds.includes(tag.id)).length === 0 && (
+                  <SelectItem value="no-tags" disabled>
+                    Nenhuma etiqueta disponível
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {selectedTagIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedTagIds.map((tagId) => {
+                  const tag = tags.find(t => t.id === tagId);
+                  if (!tag) return null;
+                  return (
+                    <Badge
+                      key={tagId}
+                      variant="outline"
+                      style={{ 
+                        backgroundColor: `${tag.color}20`, 
+                        borderColor: tag.color,
+                        color: tag.color 
+                      }}
+                      className="gap-1"
+                    >
+                      {tag.name}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTagIds(selectedTagIds.filter(id => id !== tagId))}
+                        className="ml-1 hover:opacity-70"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>
             <Textarea
               id="notes"
@@ -395,6 +486,16 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
                 productId: product.id,
                 value: product.price.toString()
               }));
+        }}
+      />
+
+      {/* Dialog de Criar Etiqueta */}
+      <CreateTagDialog
+        open={createTagDialogOpen}
+        onOpenChange={setCreateTagDialogOpen}
+        onTagCreated={async () => {
+          // Refetch tags para garantir que a lista está atualizada
+          await refetchTags();
         }}
       />
     </Dialog>

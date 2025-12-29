@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lead } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -59,6 +59,23 @@ export function LeadsListView({
   const handlePhoneClick = (phone: string) => {
     window.location.href = `tel:${phone}`;
   };
+
+  // Escutar evento data-refresh para atualizar lista em tempo real
+  useEffect(() => {
+    const handleDataRefresh = (event: CustomEvent) => {
+      // Verificar se o evento é relacionado a leads
+      if (event.detail?.entity === 'lead') {
+        // Atualizar lista quando um lead for atualizado
+        onRefetch();
+      }
+    };
+
+    window.addEventListener('data-refresh', handleDataRefresh as EventListener);
+
+    return () => {
+      window.removeEventListener('data-refresh', handleDataRefresh as EventListener);
+    };
+  }, [onRefetch]);
 
   // Agrupar leads por etapa e ordenar por data de criação
   const leadsByStage = stages.map(stage => ({
