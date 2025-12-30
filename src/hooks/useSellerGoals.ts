@@ -95,8 +95,29 @@ export function useSellerGoals() {
           yearly: 'anual'
         }[goalData.period_type] || goalData.period_type;
 
+        // Buscar todas as metas do vendedor para mostrar na mensagem
+        const { data: allUserGoals } = await supabase
+          .from("seller_goals")
+          .select("id, period_type, period_start, period_end")
+          .eq("organization_id", activeOrgId)
+          .eq("user_id", goalData.user_id)
+          .order("period_start", { ascending: false });
+
+        const existingGoalsList = (allUserGoals || [])
+          .map(g => {
+            const typeLabel = {
+              monthly: 'Mensal',
+              weekly: 'Semanal',
+              quarterly: 'Trimestral',
+              yearly: 'Anual'
+            }[g.period_type as string] || g.period_type;
+            return `- ${typeLabel}: ${new Date(g.period_start).toLocaleDateString('pt-BR')} até ${new Date(g.period_end).toLocaleDateString('pt-BR')}`;
+          })
+          .join('\n');
+
         throw new Error(
-          `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${new Date(goalData.period_start).toLocaleDateString('pt-BR')}. ` +
+          `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${new Date(goalData.period_start).toLocaleDateString('pt-BR')}.\n\n` +
+          `Metas existentes:\n${existingGoalsList}\n\n` +
           `Por favor, edite a meta existente ou escolha um período diferente.`
         );
       }
@@ -126,8 +147,29 @@ export function useSellerGoals() {
             yearly: 'anual'
           }[goalData.period_type] || goalData.period_type;
 
+          // Buscar todas as metas do vendedor para mostrar na mensagem
+          const { data: allUserGoals } = await supabase
+            .from("seller_goals")
+            .select("id, period_type, period_start, period_end")
+            .eq("organization_id", activeOrgId)
+            .eq("user_id", goalData.user_id)
+            .order("period_start", { ascending: false });
+
+          const existingGoalsList = (allUserGoals || [])
+            .map(g => {
+              const typeLabel = {
+                monthly: 'Mensal',
+                weekly: 'Semanal',
+                quarterly: 'Trimestral',
+                yearly: 'Anual'
+              }[g.period_type as string] || g.period_type;
+              return `- ${typeLabel}: ${new Date(g.period_start).toLocaleDateString('pt-BR')} até ${new Date(g.period_end).toLocaleDateString('pt-BR')}`;
+            })
+            .join('\n');
+
           throw new Error(
-            `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${new Date(goalData.period_start).toLocaleDateString('pt-BR')}. ` +
+            `Já existe uma meta ${periodTypeLabel} para este vendedor com início em ${new Date(goalData.period_start).toLocaleDateString('pt-BR')}.\n\n` +
+            `Metas existentes:\n${existingGoalsList}\n\n` +
             `Por favor, edite a meta existente ou escolha um período diferente.`
           );
         }

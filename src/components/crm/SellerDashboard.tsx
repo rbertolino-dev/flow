@@ -20,6 +20,8 @@ import {
   Award,
   BarChart3,
   AlertCircle,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +75,9 @@ export function SellerDashboard() {
 
   const currentMetric = metrics.find((m) => m.sellerId === currentUserId) || metrics[0];
   const currentGoal = currentMetric?.currentGoal;
+  
+  // Filtrar metas do vendedor atual
+  const userGoals = goals.filter(goal => goal.user_id === currentUserId);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -100,10 +105,22 @@ export function SellerDashboard() {
     }
   };
 
-  const handleEditGoal = () => {
-    if (currentGoal) {
-      setEditingGoal(currentGoal);
+  const handleEditGoal = (goal?: any) => {
+    const goalToEdit = goal || currentGoal;
+    if (goalToEdit) {
+      setEditingGoal(goalToEdit);
       setGoalDialogOpen(true);
+    }
+  };
+
+  const handleDeleteGoal = async (goalId: string) => {
+    if (confirm("Tem certeza que deseja excluir esta meta?")) {
+      try {
+        await deleteGoal(goalId);
+        await refetchGoals();
+      } catch (error) {
+        // Erro já tratado no hook
+      }
     }
   };
 
@@ -440,6 +457,102 @@ export function SellerDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Lista de Todas as Metas */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Minhas Metas</CardTitle>
+              <CardDescription>
+                Todas as metas criadas para você ({userGoals.length} {userGoals.length === 1 ? 'meta' : 'metas'})
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {userGoals.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Você ainda não possui metas criadas.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {userGoals.map((goal) => {
+                const isCurrent = currentGoal?.id === goal.id;
+                const periodTypeLabel = {
+                  monthly: 'Mensal',
+                  weekly: 'Semanal',
+                  quarterly: 'Trimestral',
+                  yearly: 'Anual'
+                }[goal.period_type] || goal.period_type;
+
+                return (
+                  <div
+                    key={goal.id}
+                    className={`border rounded-lg p-4 ${
+                      isCurrent ? 'border-primary bg-primary/5' : 'border-border'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-semibold">
+                            Meta {periodTypeLabel}
+                            {isCurrent && (
+                              <Badge variant="default" className="ml-2">
+                                Atual
+                              </Badge>
+                            )}
+                          </h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {format(new Date(goal.period_start), "dd/MM/yyyy", { locale: ptBR })} até{" "}
+                          {format(new Date(goal.period_end), "dd/MM/yyyy", { locale: ptBR })}
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Meta de Leads</Label>
+                            <div className="text-lg font-semibold">{goal.target_leads}</div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Meta de Valor</Label>
+                            <div className="text-lg font-semibold">
+                              {formatCurrency(goal.target_value)}
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Meta de Comissão</Label>
+                            <div className="text-lg font-semibold text-primary">
+                              {formatCurrency(goal.target_commission)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditGoal(goal)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteGoal(goal.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
