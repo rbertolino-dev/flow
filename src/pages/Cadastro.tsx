@@ -76,15 +76,16 @@ export default function Cadastro() {
         throw new Error('Por favor, insira um email válido');
       }
 
-      // Fazer signup
-      const { data, error } = await supabase.auth.signUp({
+      // Fazer signup (sem confirmação de email - login automático)
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/onboarding`,
           data: {
             full_name: fullName,
-          }
+          },
+          // Desabilitar confirmação de email - login automático
         },
       });
 
@@ -92,99 +93,63 @@ export default function Cadastro() {
       supabase.functions.invoke('log-auth-attempt', {
         body: {
           email,
-          success: !error,
-          error: error?.message || null,
+          success: !signUpError,
+          error: signUpError?.message || null,
           ip: null,
           userAgent: navigator.userAgent,
           method: 'signup',
-          userId: data?.user?.id || null,
+          userId: signUpData?.user?.id || null,
         },
       }).catch(() => {
         // Ignorar silenciosamente - não é crítico
       });
 
-      if (error) throw error;
-      if (!data?.user) throw new Error('Falha ao criar usuário');
+      if (signUpError) throw signUpError;
+      if (!signUpData?.user) throw new Error('Falha ao criar usuário');
 
-      // Verificar se já há sessão após signup (pode acontecer se confirmação estiver desabilitada)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      let { data: { session } } = await supabase.auth.getSession();
+      // Se já houver sessão (confirmação desabilitada), usar ela
+      let session = signUpData.session;
       
-      // Se não houver sessão, tentar fazer login
+      // Se não houver sessão, fazer login automático imediatamente
       if (!session) {
+        // Aguardar um pouco para garantir que usuário foi criado
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
           password,
         });
 
-        // Log auto signin attempt (não crítico se falhar)
-        supabase.functions.invoke('log-auth-attempt', {
-          body: {
-            email,
-            success: !signInError,
-            error: signInError?.message || null,
-            ip: null,
-            userAgent: navigator.userAgent,
-            method: 'auto-signin',
-            userId: signInData?.user?.id || null,
-          },
-        }).catch(() => {
-          // Ignorar silenciosamente - não é crítico
-        });
-
         if (signInError) {
-          const lowerError = signInError.message?.toLowerCase() || '';
-          // Se o erro for email não confirmado, aguardar mais e verificar novamente
-          if (lowerError.includes('email not confirmed') || lowerError.includes('email not verified')) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const { data: { session: retrySession } } = await supabase.auth.getSession();
-            if (retrySession) {
-              session = retrySession;
-            } else {
-              // Se ainda não houver sessão, mostrar mensagem mas não bloquear
-              toast({
-                title: "Conta criada!",
-                description: "Aguarde alguns segundos e tente fazer login manualmente.",
-                duration: 5000,
-              });
-              setLoading(false);
-              return;
-            }
-          } else {
-            throw signInError;
+          // Se falhar, tentar mais uma vez após 2 segundos
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const { data: retrySignIn, error: retryError } = await supabase.auth.signInWithPassword({
+            email: email.trim().toLowerCase(),
+            password,
+          });
+          
+          if (retryError) {
+            throw new Error('Conta criada, mas não foi possível fazer login automaticamente. Tente fazer login manualmente.');
           }
-        } else if (signInData?.session) {
+          
+          session = retrySignIn.session;
+        } else {
           session = signInData.session;
         }
       }
 
-      // Verificar sessão uma última vez antes de redirecionar
+      // Verificar sessão final
       if (!session) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const { data: { session: finalSession } } = await supabase.auth.getSession();
-        if (finalSession) {
-          session = finalSession;
-        } else {
-          throw new Error('Não foi possível criar sessão. Tente fazer login manualmente.');
-        }
+        throw new Error('Não foi possível criar sessão. Tente fazer login manualmente.');
       }
 
       // Login bem-sucedido - mostrar mensagem e redirecionar
       toast({
-        title: "Conta criada com sucesso!",
-        description: "Vamos configurar sua organização.",
+        title: "✅ Conta criada com sucesso!",
+        description: "Redirecionando para configuração...",
       });
 
-      // Aguardar um pouco para garantir que a sessão está salva
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Verificar sessão uma última vez antes de redirecionar
-      const { data: { session: finalCheck } } = await supabase.auth.getSession();
-      if (!finalCheck) {
-        throw new Error('Sessão não foi estabelecida corretamente');
-      }
-      
-      // Usar window.location.href para garantir redirecionamento (mais confiável)
+      // Redirecionar imediatamente
       window.location.href = '/onboarding';
     } catch (error: any) {
       console.error('Signup error:', error);

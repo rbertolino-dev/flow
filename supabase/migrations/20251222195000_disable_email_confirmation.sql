@@ -1,0 +1,28 @@
+-- ============================================
+-- Desabilitar Confirmação de Email no Supabase
+-- ============================================
+-- NOTA: Esta migration não pode ser executada via SQL direto
+-- Você precisa desabilitar manualmente no Dashboard do Supabase
+--
+-- INSTRUÇÕES:
+-- 1. Acesse: https://supabase.com/dashboard/project/ogeljmbhqxpfjbpnbwog/auth/providers
+-- 2. Vá em "Email" provider
+-- 3. Desabilite "Confirm email" (toggle OFF)
+-- 4. Salve as alterações
+--
+-- OU via API (se tiver acesso):
+-- PATCH /rest/v1/auth/v1/settings
+-- Body: { "mail": { "enable_signup": true, "double_confirm_changes": false, "enable_confirmations": false } }
+--
+-- ============================================
+-- Verificar configuração atual
+-- ============================================
+-- Execute este SQL para verificar se confirmação está habilitada:
+-- SELECT * FROM auth.config WHERE key = 'MAILER_ENABLE_SIGNUP' OR key = 'MAILER_ENABLE_CONFIRMATIONS';
+--
+-- NOTA: A configuração de email confirmation é gerenciada pelo Supabase Dashboard
+-- e não pode ser alterada via SQL direto por questões de segurança.
+
+-- Este arquivo serve apenas como documentação
+-- A alteração deve ser feita manualmente no Dashboard
+
