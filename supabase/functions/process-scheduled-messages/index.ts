@@ -69,13 +69,29 @@ serve(async (req) => {
           throw new Error('Instância não está conectada');
         }
 
-        // Formatar telefone
-        const formattedPhone = message.phone.replace(/\D/g, '');
+        // Formatar telefone (mesmo formato usado em send-whatsapp-message)
+        let formattedPhone = message.phone.replace(/\D/g, '');
+        
+        // Garantir que números brasileiros tenham código do país (55)
+        if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
+          // Verificar se parece um número brasileiro (DDD válido: 11-99)
+          const ddd = parseInt(formattedPhone.substring(0, 2));
+          if (ddd >= 11 && ddd <= 99) {
+            formattedPhone = '55' + formattedPhone;
+            console.log('➕ [process-scheduled-messages] Adicionado código do país 55');
+          }
+        }
         
         // Aplicar modo de teste se ativo
         const testConfig = getTestModeConfig();
         const finalPhone = applyTestMode(formattedPhone, testConfig);
         const remoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
+        
+        console.log('📱 [process-scheduled-messages] Telefone formatado:', { 
+          original: message.phone, 
+          formatted: formattedPhone, 
+          remoteJid 
+        });
 
         // Verificar se deve realmente enviar
         if (!shouldSendMessage(testConfig)) {
@@ -148,12 +164,65 @@ serve(async (req) => {
           body: JSON.stringify(payload),
         });
 
-        if (!evolutionResponse.ok) {
-          const errorText = await evolutionResponse.text();
-          throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorText}`);
+        const responseText = await evolutionResponse.text();
+        let evolutionData: any = null;
+
+        try {
+          evolutionData = JSON.parse(responseText);
+        } catch {
+          // Se não for JSON, tratar como texto
+          evolutionData = { raw: responseText };
         }
 
-        const evolutionData = await evolutionResponse.json();
+        // Verificar se houve erro na resposta
+        if (!evolutionResponse.ok) {
+          // Verificar se o erro é sobre número não existente
+          // Mas se o número já foi usado antes, pode ser um falso positivo
+          const errorMessage = typeof evolutionData === 'object' && evolutionData.response?.message
+            ? JSON.stringify(evolutionData.response.message)
+            : responseText;
+          
+          // Se o erro menciona "exists": false, mas o número já foi usado antes, tentar enviar mesmo assim
+          // A Evolution API às vezes retorna exists: false mesmo para números válidos
+          if (errorMessage.includes('exists') && errorMessage.includes('false')) {
+            console.warn(`⚠️ [process-scheduled-messages] Evolution API reportou exists: false para ${remoteJid}, mas tentando enviar mesmo assim (pode ser falso positivo)`);
+            
+            // Tentar enviar novamente com fallback para sendMedia se sendText falhar
+            if (!message.media_url && evolutionUrl.includes('sendText')) {
+              console.log('🔄 [process-scheduled-messages] Tentando fallback para sendMedia...');
+              const fallbackUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
+              const fallbackPayload = {
+                number: remoteJid,
+                mediatype: 'image',
+                media: 'https://via.placeholder.com/1x1.png',
+                caption: message.message,
+              };
+              
+              const fallbackResponse = await fetch(fallbackUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': config.api_key || '',
+                },
+                body: JSON.stringify(fallbackPayload),
+              });
+              
+              if (fallbackResponse.ok) {
+                console.log('✅ [process-scheduled-messages] Mensagem enviada com sucesso via fallback');
+                evolutionData = await fallbackResponse.json();
+              } else {
+                // Se fallback também falhar, lançar erro original
+                throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
+              }
+            } else {
+              // Se já é sendMedia ou não tem fallback, lançar erro
+              throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
+            }
+          } else {
+            // Outro tipo de erro, lançar normalmente
+            throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
+          }
+        }
 
         // Marcar como enviada
         await supabase

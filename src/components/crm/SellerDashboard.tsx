@@ -46,7 +46,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 export function SellerDashboard() {
   const { leads } = useLeads();
   const { products } = useProducts();
-  const { goals, loading: goalsLoading, createGoal, updateGoal, deleteGoal, getCurrentGoal } = useSellerGoals();
+  const { goals, loading: goalsLoading, createGoal, updateGoal, deleteGoal, getCurrentGoal, refetch: refetchGoals } = useSellerGoals();
   const { toast } = useToast();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [periodType, setPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>('monthly');
@@ -91,6 +91,8 @@ export function SellerDashboard() {
           user_id: currentUserId!,
         });
       }
+      // Refetch para garantir que a lista está atualizada
+      await refetchGoals();
       setGoalDialogOpen(false);
       setEditingGoal(null);
     } catch (error) {
@@ -519,9 +521,9 @@ function GoalForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="period_type">Período da Meta</Label>
+        <Label>Período da Meta</Label>
         <Select value={selectedPeriodType} onValueChange={(v: any) => setSelectedPeriodType(v)}>
-          <SelectTrigger>
+          <SelectTrigger id="period_type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

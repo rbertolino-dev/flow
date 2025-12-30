@@ -4,18 +4,21 @@ import { CRMLayout } from "@/components/crm/CRMLayout";
 import { PostSaleKanbanBoard } from "@/components/crm/PostSaleKanbanBoard";
 import { usePostSaleLeads } from "@/hooks/usePostSaleLeads";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, CheckCircle2, Circle } from "lucide-react";
+import { Search, Loader2, CheckCircle2, Circle, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FollowUpTemplateManager } from "@/components/crm/FollowUpTemplateManager";
 import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { BulkImportPostSaleLeadsDialog } from "@/components/crm/BulkImportPostSaleLeadsDialog";
 
 export default function PostSale() {
   const { leads, loading, updateLead, refetch } = usePostSaleLeads();
   const { templates, loading: templatesLoading } = useFollowUpTemplates();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("kanban");
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const handleLeadUpdate = async (leadId: string, newStageId: string) => {
     await updateLead(leadId, { stageId: newStageId });
@@ -49,15 +52,25 @@ export default function PostSale() {
             <TabsContent value="kanban" className="flex-1 flex flex-col overflow-hidden m-0">
               {/* Search Bar */}
               <div className="p-4 border-b bg-background">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar clientes por nome, telefone, email ou empresa..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar clientes por nome, telefone, email ou empresa..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setBulkImportOpen(true)}
+                    className="gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Importar em Massa
+                  </Button>
                 </div>
               </div>
 

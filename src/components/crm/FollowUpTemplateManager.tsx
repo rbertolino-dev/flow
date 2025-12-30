@@ -53,6 +53,8 @@ export function FollowUpTemplateManager() {
       setTemplateName("");
       setTemplateDescription("");
       setEditingTemplate(null);
+      // Forçar refetch imediato para aparecer em tempo real
+      await refetch();
     }
   };
 
@@ -351,7 +353,8 @@ export function FollowUpTemplateManager() {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm font-medium">Etapas do Template</Label>
-                          {!editingStep && (
+                          {/* Só mostra botão "Adicionar Etapa" se não estiver editando nenhuma etapa deste template */}
+                          {(!editingStep || editingStep.templateId !== template.id) && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -414,20 +417,25 @@ export function FollowUpTemplateManager() {
                                     </div>
                                   </div>
                                   <div className="flex gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleEditStep(step)}
-                                    >
-                                      <Edit2 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setDeletingStepId(step.id)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {/* Só mostra botão de editar se não estiver editando nenhuma etapa deste template */}
+                                    {(!editingStep || editingStep.templateId !== template.id) && (
+                                      <>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleEditStep(step)}
+                                        >
+                                          <Edit2 className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => setDeletingStepId(step.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                                  {/* Componente de automações expandido */}
