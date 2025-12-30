@@ -224,7 +224,7 @@ export function ProductsStep({ onComplete, onSkip, businessType }: ProductsStepP
                   <div>
                     <p className="font-medium">{product.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {product.category} • R$ {product.price.toFixed(2)}
+                      {product.category} • R$ {typeof product.price === 'number' ? product.price.toFixed(2) : parseFloat(String(product.price || 0)).toFixed(2)}
                     </p>
                   </div>
                 </div>

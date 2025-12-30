@@ -189,6 +189,14 @@ export function useOnboarding() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // Garantir que profile existe antes de inserir
+      try {
+        await supabase.rpc('ensure_user_profile', { _user_id: user.id });
+      } catch (profileError) {
+        console.warn('Erro ao garantir profile (não crítico):', profileError);
+        // Continuar mesmo se falhar - pode ser que profile já exista
+      }
+
       const { error } = await supabase
         .from('organization_onboarding_progress' as any)
         .upsert({

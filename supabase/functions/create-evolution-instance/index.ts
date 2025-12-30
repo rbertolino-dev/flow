@@ -241,7 +241,7 @@ serve(async (req) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
         
-        const qrResponse = await fetch(`${normalizedUrl}/instance/qrcode/${instanceName}`, {
+        const qrResponse = await fetch(`${normalizedUrl}/instance/connect/${instanceName}`, {
           headers: { 'apikey': apiKey },
           signal: controller.signal,
         });
