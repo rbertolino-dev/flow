@@ -49,8 +49,14 @@ export function CreateContractDialog({
   useEffect(() => {
     if (open) {
       // Refetch templates e categorias quando abrir o dialog para pegar os mais recentes
-      refetchTemplates();
-      fetchCategories();
+      // Aguardar refetch para garantir que dados estejam atualizados
+      const refreshData = async () => {
+        await Promise.all([
+          refetchTemplates(),
+          fetchCategories(),
+        ]);
+      };
+      refreshData();
       
       if (defaultLeadId) {
         setSelectedLeadId(defaultLeadId);
@@ -246,7 +252,13 @@ export function CreateContractDialog({
     }
   };
 
-  const validTemplates = templates.filter((t) => t.is_active && t.id && t.id.trim() !== '');
+  // Filtrar templates válidos: is_active pode ser true, null ou undefined (tratar null/undefined como true)
+  const validTemplates = templates.filter((t) => {
+    if (!t.id || t.id.trim() === '') return false;
+    // Se is_active é null ou undefined, considerar como ativo (compatibilidade)
+    if (t.is_active === null || t.is_active === undefined) return true;
+    return t.is_active === true;
+  });
   const validLeads = leads.filter((l) => l.id && l.id.trim() !== '');
   const validCategories = (categories || []).filter((c) => c.id && c.id.trim() !== '');
 

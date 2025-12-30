@@ -353,8 +353,10 @@ export function useServices() {
       return [];
     })();
     
-    // Categorias dos serviços existentes
-    const categoriesFromServices = Array.from(new Set(services.map(s => s.category).filter(Boolean) as string[]));
+    // Categorias dos serviços existentes (garantir que services é array)
+    const categoriesFromServices = Array.from(
+      new Set((services || []).map(s => s.category).filter(Boolean) as string[])
+    );
     
     // Combinar e ordenar
     const allCategories = Array.from(new Set([...categoriesFromServices, ...serviceCategoriesFromStorage])).sort();
@@ -364,7 +366,7 @@ export function useServices() {
     if (allCategories.length > 0) {
       localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(allCategories));
     }
-  }, [activeOrgId, services.map(s => s.category).join(',')]);
+  }, [activeOrgId, services]);
   
   // Escutar eventos de criação de categoria
   useEffect(() => {

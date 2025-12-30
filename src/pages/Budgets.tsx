@@ -121,10 +121,15 @@ export default function Budgets() {
 
   // Filtros e handlers para serviços - memoizado para melhor performance
   const filteredServices = useMemo(() => {
+    // Garantir que services é um array válido
+    if (!services || !Array.isArray(services)) {
+      return [];
+    }
+    
     return services.filter((service) => {
       // Filtro de busca
       const matchesSearch = 
-        service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
+        service.name?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
         (service.description?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ?? false) ||
         (service.category?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ?? false);
       
@@ -250,17 +255,27 @@ export default function Budgets() {
   };
 
   const handleUpdateServiceCategory = async (serviceId: string, category: string) => {
-    const service = services.find(s => s.id === serviceId);
+    if (!services || !Array.isArray(services)) return;
+    
+    const service = services.find(s => s && s.id === serviceId);
     if (!service) return;
     
-    await updateService.mutateAsync({
-      id: serviceId,
-      name: service.name,
-      description: service.description,
-      price: service.price,
-      category: category || undefined,
-      is_active: service.is_active,
-    });
+    try {
+      await updateService.mutateAsync({
+        id: serviceId,
+        name: service.name || '',
+        description: service.description,
+        price: service.price || 0,
+        category: category || undefined,
+        is_active: service.is_active !== undefined ? service.is_active : true,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao atualizar categoria',
+        description: error.message || 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleBulkImport = async (servicesData: Array<{
@@ -608,15 +623,17 @@ export default function Budgets() {
                     </div>
                     <div className="flex items-center gap-2">
                       <ServiceCategoriesManager
-                        categories={categories}
-                        services={services}
+                        categories={categories || []}
+                        services={services || []}
                         onCategoryUpdate={handleUpdateServiceCategory}
                         onCategoryDelete={(category) => {
                           // Remover categoria de todos os serviços que a usam
-                          services
-                            .filter(s => s.category === category)
+                          (services || [])
+                            .filter(s => s && s.category === category)
                             .forEach(service => {
-                              handleUpdateServiceCategory(service.id, '');
+                              if (service && service.id) {
+                                handleUpdateServiceCategory(service.id, '');
+                              }
                             });
                         }}
                       />
@@ -640,7 +657,7 @@ export default function Budgets() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Todas as categorias</SelectItem>
-                          {categories.map((category) => (
+                          {(categories || []).map((category) => (
                             <SelectItem key={category} value={category}>
                               {category}
                             </SelectItem>
