@@ -1264,23 +1264,71 @@ export default function BroadcastCampaigns() {
         ? newCampaign.instanceId 
         : null;
 
-      const { data: campaign, error: campaignError } = await supabase
+      // Preparar dados da campanha
+      const campaignData: any = {
+        user_id: user.id,
+        organization_id: activeOrgId,
+        name: newCampaign.name,
+        instance_id: instanceIdForCampaign,
+        message_template_id: newCampaign.templateId || null,
+        custom_message: newCampaign.customMessage || null,
+        min_delay_seconds: newCampaign.minDelay,
+        max_delay_seconds: newCampaign.maxDelay,
+        total_contacts: contacts.length,
+        status: "draft",
+      };
+
+      // Tentar inserir com sending_method primeiro
+      campaignData.sending_method = newCampaign.sendingMethod || "single";
+      
+      let { data: campaign, error: campaignError } = await supabase
         .from("broadcast_campaigns")
-        .insert({
-          user_id: user.id,
-          organization_id: activeOrgId,
-          name: newCampaign.name,
-          instance_id: instanceIdForCampaign,
-          sending_method: newCampaign.sendingMethod || "single",
-          message_template_id: newCampaign.templateId || null,
-          custom_message: newCampaign.customMessage || null,
-          min_delay_seconds: newCampaign.minDelay,
-          max_delay_seconds: newCampaign.maxDelay,
-          total_contacts: contacts.length,
-          status: "draft",
-        })
+        .insert(campaignData)
         .select()
         .single();
+
+      // Se erro for sobre coluna sending_method não encontrada, tentar sem ela e aplicar migration
+      if (campaignError && (campaignError.message?.includes('sending_method') || campaignError.code === '42703' || campaignError.message?.includes("Could not find the 'sending_method' column"))) {
+        console.warn("Coluna sending_method não existe, aplicando migration e tentando novamente...");
+        
+        // Aplicar migration automaticamente
+        try {
+          const { data: migrationResult, error: migrationError } = await supabase.rpc('apply_broadcast_migration');
+          if (migrationError) {
+            console.warn("Não foi possível aplicar migration via RPC:", migrationError);
+            // Se RPC não existir, tentar criar campanha sem sending_method
+            delete campaignData.sending_method;
+          } else {
+            console.log("Migration aplicada:", migrationResult);
+            // Tentar novamente com sending_method após migration
+          }
+        } catch (migrationError) {
+          console.warn("Erro ao aplicar migration:", migrationError);
+          // Continuar sem sending_method
+          delete campaignData.sending_method;
+        }
+
+        // Tentar inserir novamente (com ou sem sending_method dependendo do resultado da migration)
+        const retryData = { ...campaignData };
+        if (!campaignData.sending_method) {
+          delete retryData.sending_method;
+        }
+        
+        const retryResult = await supabase
+          .from("broadcast_campaigns")
+          .insert(retryData)
+          .select()
+          .single();
+
+        if (retryResult.error) throw retryResult.error;
+        if (!retryResult.data) throw new Error("Falha ao criar campanha");
+        
+        campaign = retryResult.data;
+        campaignError = null;
+      }
+
+      if (campaignError) throw campaignError;
+      if (!campaign) throw new Error("Falha ao criar campanha");
 
       if (campaignError) throw campaignError;
 

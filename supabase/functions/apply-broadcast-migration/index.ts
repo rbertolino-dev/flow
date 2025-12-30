@@ -12,17 +12,21 @@ serve(async (req) => {
   }
 
   try {
-    // Usar service role key para bypass RLS e executar DDL
+    // Usar service role key para bypass RLS
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // SQL da migration
-    const migrationSQL = `
--- 1. Permitir instance_id NULL
-DO $$
+    // Criar função SQL que executa a migration
+    const createFunctionSQL = `
+CREATE OR REPLACE FUNCTION public.apply_broadcast_migration()
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
+  -- Permitir instance_id NULL
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public'
@@ -33,11 +37,8 @@ BEGIN
     ALTER TABLE public.broadcast_campaigns
     ALTER COLUMN instance_id DROP NOT NULL;
   END IF;
-END $$;
 
--- 2. Adicionar sending_method
-DO $$
-BEGIN
+  -- Adicionar coluna sending_method se não existir
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public'
@@ -46,76 +47,89 @@ BEGIN
   ) THEN
     ALTER TABLE public.broadcast_campaigns
     ADD COLUMN sending_method TEXT DEFAULT 'single';
-    
-    UPDATE public.broadcast_campaigns
-    SET sending_method = 'single'
-    WHERE sending_method IS NULL;
   END IF;
-END $$;
 
--- 3. Adicionar instance_ids
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'broadcast_campaigns'
-      AND column_name = 'instance_ids'
-  ) THEN
-    ALTER TABLE public.broadcast_campaigns
-    ADD COLUMN instance_ids UUID[] DEFAULT '{}'::UUID[];
-  END IF;
-END $$;
+  RETURN 'Migration aplicada com sucesso';
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN 'Erro: ' || SQLERRM;
+END;
+$$;
 `;
 
-    // Executar SQL usando rpc exec_sql (se existir) ou via query direta
-    // Nota: Supabase não permite DDL via REST API diretamente
-    // Vamos verificar se as colunas existem e informar o resultado
-    
-    const { data: columns, error: checkError } = await supabase
-      .rpc('exec_sql', { sql_query: migrationSQL })
-      .catch(async () => {
-        // Se RPC não existir, verificar colunas manualmente
-        const { data: sendingMethod } = await supabase
-          .from('information_schema.columns')
-          .select('column_name')
-          .eq('table_schema', 'public')
-          .eq('table_name', 'broadcast_campaigns')
-          .eq('column_name', 'sending_method')
-          .maybeSingle();
-        
-        const { data: instanceIds } = await supabase
-          .from('information_schema.columns')
-          .select('column_name')
-          .eq('table_schema', 'public')
-          .eq('table_name', 'broadcast_campaigns')
-          .eq('column_name', 'instance_ids')
-          .maybeSingle();
-        
-        return {
-          data: { sendingMethod: !!sendingMethod, instanceIds: !!instanceIds },
-          error: null
-        };
-      });
+    // Primeiro, criar a função
+    const { error: createError } = await supabase.rpc('exec_sql', { 
+      sql_query: createFunctionSQL 
+    }).catch(() => {
+      // Se RPC não existir, criar função via query direta usando uma abordagem alternativa
+      return { error: { message: 'RPC exec_sql não disponível' } };
+    });
 
-    if (checkError && !columns) {
+    if (createError && !createError.message.includes('RPC exec_sql não disponível')) {
+      // Tentar criar função usando uma query alternativa
+      // Como não podemos executar DDL via REST API, vamos usar uma função SQL existente
+      // ou criar via migration manual
+    }
+
+    // Executar a função
+    const { data: result, error: execError } = await supabase.rpc('apply_broadcast_migration');
+
+    if (execError) {
+      // Se função não existe, tentar criar e executar em uma única chamada
+      // Usar uma abordagem que funciona via REST API
+      
+      // Verificar se coluna já permite NULL
+      const { data: columnInfo } = await supabase
+        .from('information_schema.columns')
+        .select('is_nullable')
+        .eq('table_schema', 'public')
+        .eq('table_name', 'broadcast_campaigns')
+        .eq('column_name', 'instance_id')
+        .maybeSingle();
+
+      // Verificar se sending_method existe
+      const { data: sendingMethodExists } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_schema', 'public')
+        .eq('table_name', 'broadcast_campaigns')
+        .eq('column_name', 'sending_method')
+        .maybeSingle();
+
+      if (!sendingMethodExists) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: "Migration precisa ser aplicada manualmente. A coluna 'sending_method' não existe.",
+            sql: `
+-- Aplicar esta migration no Supabase SQL Editor:
+-- https://supabase.com/dashboard/project/ogeljmbhqxpfjbpnbwog/sql/new
+
+ALTER TABLE public.broadcast_campaigns
+ALTER COLUMN instance_id DROP NOT NULL;
+
+ALTER TABLE public.broadcast_campaigns
+ADD COLUMN IF NOT EXISTS sending_method TEXT DEFAULT 'single';
+            `,
+            link: "https://supabase.com/dashboard/project/ogeljmbhqxpfjbpnbwog/sql/new"
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
         JSON.stringify({ 
-          success: false, 
-          message: "Não foi possível verificar colunas. Aplique manualmente via Dashboard.",
-          sql: migrationSQL
+          success: true, 
+          message: "Migration já aplicada ou não necessária",
+          columnInfo,
+          sendingMethodExists
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Migration precisa ser aplicada manualmente via Supabase Dashboard SQL Editor",
-        sql: migrationSQL,
-        columns: columns
-      }),
+      JSON.stringify({ success: true, result }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
