@@ -1893,8 +1893,21 @@ export default function BroadcastCampaigns() {
     try {
       setLoading(true);
       
-      // PASSO 1: Cancelar TODOS os itens pendentes/agendados da fila PRIMEIRO
-      // Isso garante que mesmo se houver processamento em andamento, os itens serão cancelados
+      // PASSO 1: Atualizar status da campanha PRIMEIRO para bloquear novos processamentos
+      // Isso garante que o process-broadcast-queue não pegará novos itens
+      const { error: campaignError } = await supabase
+        .from("broadcast_campaigns")
+        .update({ 
+          status: "cancelled",
+          completed_at: new Date().toISOString()
+        })
+        .eq("id", campaignId);
+
+      if (campaignError) throw campaignError;
+
+      // PASSO 2: Cancelar TODOS os itens da fila (independente do status)
+      // Isso inclui: pending, scheduled, processing, e qualquer outro status
+      // IMPORTANTE: Não usar .in() com lista limitada - cancelar TODOS os status exceto já cancelados/completos
       const { data: cancelledItems, error: queueError } = await supabase
         .from("broadcast_queue")
         .update({ 
@@ -1902,25 +1915,14 @@ export default function BroadcastCampaigns() {
           error_message: "Campanha cancelada pelo usuário"
         })
         .eq("campaign_id", campaignId)
-        .in("status", ["pending", "scheduled"])
+        .not("status", "eq", "cancelled") // Não atualizar os que já estão cancelados
+        .not("status", "eq", "sent") // Não atualizar os que já foram enviados
+        .not("status", "eq", "failed") // Não atualizar os que já falharam
         .select("id");
 
-      if (queueError) throw queueError;
-
-      // PASSO 2: Atualizar status da campanha para bloquear novos envios
-      // Usar transação para garantir atomicidade
-      const { error: campaignError } = await supabase
-        .from("broadcast_campaigns")
-        .update({ 
-          status: "cancelled",
-          completed_at: new Date().toISOString()
-        })
-        .eq("id", campaignId)
-        .eq("status", "running"); // Só atualizar se ainda estiver rodando (evita race condition)
-
-      if (campaignError) {
-        // Se erro, pode ser que já foi cancelada - não é crítico
-        console.warn("Aviso ao atualizar status da campanha:", campaignError);
+      if (queueError) {
+        console.warn("Aviso ao cancelar itens da fila:", queueError);
+        // Não falhar se houver erro - campanha já foi cancelada
       }
 
       const cancelledCount = cancelledItems?.length || 0;

@@ -147,6 +147,21 @@ serve(async (req) => {
           .eq("id", campaign.id)
           .single();
         
+        // Se campanha foi cancelada ou pausada, pular este item
+        if (!statusError && currentCampaign && (currentCampaign.status === 'cancelled' || currentCampaign.status === 'paused')) {
+          console.log(`🚫 [process-broadcast-queue] Item ${item.id} de campanha ${currentCampaign.status.toUpperCase()} - BLOQUEADO`);
+          // Marcar como cancelado imediatamente
+          await supabase
+            .from("broadcast_queue")
+            .update({ 
+              status: "cancelled",
+              error_message: `Campanha foi ${currentCampaign.status}`
+            })
+            .eq("id", item.id);
+          blocked++;
+          continue; // Pular para próximo item
+        }
+        
         if (statusError) {
           console.error(`Erro ao verificar status da campanha ${campaign.id}:`, statusError);
           throw statusError;
