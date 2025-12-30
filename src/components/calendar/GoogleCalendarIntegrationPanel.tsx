@@ -46,15 +46,17 @@ export function GoogleCalendarIntegrationPanel() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'GOOGLE_CALENDAR_OAUTH_SUCCESS') {
         const { configId } = event.data;
-        console.log('OAuth sucesso, sincronizando eventos...', configId);
-        // Sincronizar eventos automaticamente após conexão
+        console.log('✅ OAuth sucesso, atualizando em tempo real...', configId);
+        
         if (configId) {
+          // Invalidar queries IMEDIATAMENTE para atualização em tempo real
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
+          queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+          
+          // Sincronizar eventos após um pequeno delay para garantir que a conta foi criada
           setTimeout(() => {
             sync({ google_calendar_config_id: configId });
-            // Invalidar queries para atualizar em tempo real
-            queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
-            queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
-          }, 1000);
+          }, 500);
         }
       }
     };

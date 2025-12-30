@@ -132,12 +132,17 @@ export function useCalendarEvents(options: UseCalendarEventsOptions = {}) {
             }
           } else if (eventType === 'UPDATE') {
             const updatedEvent = payload.new as CalendarEvent;
+            console.log('🔄 Atualizando evento via realtime:', updatedEvent.id, updatedEvent.summary);
             setEvents((prev) => {
               const existingIndex = prev.findIndex(e => e.id === updatedEvent.id);
               
               // Se evento existe e ainda está no range, atualizar
               if (existingIndex >= 0 && shouldIncludeEvent(updatedEvent)) {
-                return prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+                const updated = prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+                // Reordenar após atualização
+                return updated.sort((a, b) => 
+                  new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+                );
               }
               // Se evento existe mas saiu do range, remover
               if (existingIndex >= 0 && !shouldIncludeEvent(updatedEvent)) {

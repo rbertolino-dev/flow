@@ -29,6 +29,7 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { parseSaoPauloDateTime, formatSaoPauloTime } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
+import { DateTimePicker } from "./DateTimePicker";
 
 interface EditEventDialogProps {
   open: boolean;
@@ -234,28 +235,26 @@ export function EditEventDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start-date">Data *</Label>
-              <Input
-                id="start-date"
-                type="date"
-                min={today}
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="start-time">Horário *</Label>
-              <Input
-                id="start-time"
-                type="time"
-                value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-              />
-            </div>
-          </div>
+          <DateTimePicker
+            date={formData.startDate ? new Date(formData.startDate + "T" + (formData.startTime || "00:00")) : undefined}
+            onDateChange={(date) => {
+              if (date) {
+                setFormData({
+                  ...formData,
+                  startDate: format(date, "yyyy-MM-dd"),
+                  startTime: format(date, "HH:mm"),
+                });
+              }
+            }}
+            time={formData.startTime || "09:00"}
+            onTimeChange={(time) => {
+              setFormData({ ...formData, startTime: time });
+            }}
+            label="Data e Horário do Evento"
+            required
+            minDate={new Date()}
+            className="col-span-2"
+          />
 
           <div className="space-y-2">
             <Label htmlFor="duration">Duração (minutos)</Label>

@@ -45,8 +45,8 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
       <CardContent className="p-4">
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm line-clamp-2">{event.summary || "Sem título"}</h3>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm line-clamp-2 break-words">{event.summary || "Sem título"}</h3>
               {isCompleted && (
                 <Badge variant="outline" className="mt-1 text-xs bg-green-100 text-green-800 border-green-300">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -54,19 +54,19 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 </Badge>
               )}
             </div>
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1 flex-wrap flex-shrink-0">
               {onEdit && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2 text-xs"
+                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm flex items-center gap-1.5 hover:bg-accent"
                   onClick={(e) => {
                     e.stopPropagation();
                     onEdit();
                   }}
                   title="Editar evento"
                 >
-                  <Edit className="h-3 w-3 mr-1" />
+                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Editar</span>
                 </Button>
               )}
@@ -74,57 +74,60 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-100 border-green-300"
+                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm flex items-center gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-100 border-green-300 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/30"
                   onClick={(e) => {
                     e.stopPropagation();
                     onMarkCompleted();
                   }}
                   title="Marcar como realizada"
                 >
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Concluir</span>
                 </Button>
               )}
               {onScheduleMessage && (
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 sm:w-auto sm:px-2 flex items-center justify-center gap-1.5 hover:bg-accent"
                   onClick={(e) => {
                     e.stopPropagation();
                     onScheduleMessage();
                   }}
                   title="Agendar mensagem"
                 >
-                  <MessageSquare className="h-3 w-3" />
+                  <MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline text-xs">Mensagem</span>
                 </Button>
               )}
               {onDelete && (
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 sm:w-auto sm:px-2 flex items-center justify-center gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
                   title="Excluir evento"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline text-xs">Excluir</span>
                 </Button>
               )}
               {event.html_link && (
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 sm:w-auto sm:px-2 flex items-center justify-center gap-1.5 hover:bg-accent"
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(event.html_link || "", "_blank");
                   }}
                   title="Abrir no Google Calendar"
                 >
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline text-xs">Abrir</span>
                 </Button>
               )}
             </div>

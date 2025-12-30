@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { useEffect, useState } from "react";
 
 export interface GoogleCalendarConfig {
   id: string;
@@ -30,8 +31,9 @@ export function useGoogleCalendarConfigs() {
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const queryClient = useQueryClient();
+  const [configs, setConfigs] = useState<GoogleCalendarConfig[]>([]);
 
-  const { data: configs, isLoading, error } = useQuery({
+  const { data: initialConfigs, isLoading, error, refetch } = useQuery({
     queryKey: ["google-calendar-configs", activeOrgId],
     queryFn: async () => {
       if (!activeOrgId) return [];
@@ -56,6 +58,81 @@ export function useGoogleCalendarConfigs() {
     },
     enabled: !!activeOrgId,
   });
+
+  // Atualizar estado local quando dados iniciais mudarem
+  useEffect(() => {
+    if (initialConfigs) {
+      setConfigs(initialConfigs);
+    }
+  }, [initialConfigs]);
+
+  // Configurar realtime subscription para atualizações automáticas
+  useEffect(() => {
+    if (!activeOrgId) return;
+
+    console.log('🔌 Configurando realtime para google_calendar_configs...');
+
+    const channel = supabase
+      .channel(`google-calendar-configs-${activeOrgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'google_calendar_configs',
+          filter: `organization_id=eq.${activeOrgId}`,
+        },
+        (payload: any) => {
+          console.log('📅 Configuração do Google Calendar atualizada (realtime):', payload);
+          
+          const eventType = payload.eventType || payload.type;
+          
+          if (eventType === 'INSERT') {
+            const newConfig = payload.new as GoogleCalendarConfig;
+            setConfigs((prev) => {
+              if (prev.find(c => c.id === newConfig.id)) return prev;
+              return [newConfig, ...prev].sort((a, b) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
+            });
+            // Invalidar queries relacionadas
+            queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
+            queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+          } else if (eventType === 'UPDATE') {
+            const updatedConfig = payload.new as GoogleCalendarConfig;
+            setConfigs((prev) => 
+              prev.map((c) => (c.id === updatedConfig.id ? updatedConfig : c))
+            );
+            // Invalidar queries relacionadas
+            queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
+            queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+          } else if (eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setConfigs((prev) => prev.filter((c) => c.id !== deletedId));
+              // Invalidar queries relacionadas
+              queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
+              queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Status do canal realtime de google_calendar_configs:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Canal realtime de google_calendar_configs conectado!');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('⚠️ Erro no canal realtime de google_calendar_configs:', status);
+          // Refetch como fallback
+          refetch();
+        }
+      });
+
+    return () => {
+      console.log('🔌 Desconectando realtime de google_calendar_configs');
+      supabase.removeChannel(channel);
+    };
+  }, [activeOrgId, refetch, queryClient]);
 
   const createMutation = useMutation({
     mutationFn: async (input: CreateGoogleCalendarConfigInput) => {
