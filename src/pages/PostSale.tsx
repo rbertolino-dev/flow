@@ -11,6 +11,7 @@ import { FollowUpTemplateManager } from "@/components/crm/FollowUpTemplateManage
 import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
 import { Badge } from "@/components/ui/badge";
 import { BulkImportPostSaleLeadsDialog } from "@/components/crm/BulkImportPostSaleLeadsDialog";
+import { PostSaleDuplicateManager } from "@/components/crm/PostSaleDuplicateManager";
 
 export default function PostSale() {
   const { leads, loading, updateLead, refetch } = usePostSaleLeads();
@@ -86,6 +87,9 @@ export default function PostSale() {
             <TabsContent value="followup" className="flex-1 flex flex-col overflow-hidden m-0">
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
+                  {/* Gerenciador de Duplicados */}
+                  <PostSaleDuplicateManager />
+
                   {/* Listagem de Templates Ativos */}
                   <Card>
                   <CardHeader>

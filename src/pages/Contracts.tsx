@@ -43,10 +43,11 @@ const ContractPdfBuilder = React.lazy(() =>
 );
 import { ContractFilters } from '@/components/contracts/ContractFilters';
 import { ContractCategories } from '@/components/contracts/ContractCategories';
+import { DeletedContractsList } from '@/components/contracts/DeletedContractsList';
 import { useContracts } from '@/hooks/useContracts';
 import { useContractTemplates } from '@/hooks/useContractTemplates';
 import { Contract, ContractStatus, ContractTemplate } from '@/types/contract';
-import { Plus, FileText, Search, Filter, X, Lock, Loader2, Tag } from 'lucide-react';
+import { Plus, FileText, Search, Filter, X, Lock, Loader2, Tag, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
 import { supabase } from '@/integrations/supabase/client';
@@ -81,6 +82,7 @@ export default function Contracts() {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
+  const [showDeletedContracts, setShowDeletedContracts] = useState(false);
   const [monthStats, setMonthStats] = useState<{ current: number; previous: number } | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -467,6 +469,13 @@ export default function Contracts() {
               <Tag className="w-4 h-4 mr-2" />
               Categorias
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeletedContracts(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Excluídos
+            </Button>
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Contrato
@@ -544,6 +553,7 @@ export default function Contracts() {
               onEditMessage={handleEditMessage}
               onEditTemplate={handleEditTemplate}
               onConfigureSignatures={handleConfigureSignatures}
+              onDelete={handleDelete}
             />
           </div>
         ) : (
@@ -613,6 +623,18 @@ export default function Contracts() {
               </DialogDescription>
             </DialogHeader>
             <ContractCategories />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showDeletedContracts} onOpenChange={setShowDeletedContracts}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Contratos Excluídos</DialogTitle>
+              <DialogDescription>
+                Histórico de contratos excluídos com informações de quem excluiu e quando
+              </DialogDescription>
+            </DialogHeader>
+            <DeletedContractsList />
           </DialogContent>
         </Dialog>
 

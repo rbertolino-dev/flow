@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,9 +13,12 @@ import { useToast } from "@/hooks/use-toast";
 import { usePostSaleLeads } from "@/hooks/usePostSaleLeads";
 import { usePostSaleStages } from "@/hooks/usePostSaleStages";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface BulkImportPostSaleLeadsDialogProps {
   onImported?: () => void;
@@ -28,6 +31,9 @@ interface ParsedLead {
   phone: string;
   lineNumber: number;
   errors?: string[];
+  isDuplicate?: boolean;
+  duplicateWith?: string[];
+  normalizedPhone?: string;
 }
 
 export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImportPostSaleLeadsDialogProps) {
@@ -37,9 +43,23 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
   const [isImporting, setIsImporting] = useState(false);
   const [parsedLeads, setParsedLeads] = useState<ParsedLead[]>([]);
   const [importResults, setImportResults] = useState<{ success: number; errors: number } | null>(null);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [duplicatesFound, setDuplicatesFound] = useState(false);
+  const [selectedDuplicates, setSelectedDuplicates] = useState<Set<number>>(new Set());
+  const [existingLeads, setExistingLeads] = useState<any[]>([]);
   const { toast } = useToast();
   const { createLead, refetch } = usePostSaleLeads();
   const { stages, loading: stagesLoading } = usePostSaleStages();
+
+  // Normalizar telefone para comparação
+  const normalizePhone = (phone: string): string => {
+    const digits = phone.replace(/\D/g, '');
+    // Remover código do país se presente
+    if (digits.startsWith('55') && digits.length >= 12) {
+      return digits.substring(2);
+    }
+    return digits;
+  };
 
   const parseText = (input: string): ParsedLead[] => {
     const lines = input.split('\n').filter(line => line.trim());
@@ -78,11 +98,14 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
         errors.push("Telefone inválido (mínimo 10 dígitos)");
       }
 
+      const normalizedPhone = normalizePhone(phone || '');
+
       parsed.push({
         company: company || "",
         name: name || "",
         phone: phone || "",
         lineNumber,
+        normalizedPhone,
         errors: errors.length > 0 ? errors : undefined,
       });
     });
@@ -90,7 +113,89 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
     return parsed;
   };
 
-  const handlePreview = () => {
+  // Verificar duplicados antes de importar
+  const checkDuplicates = async () => {
+    if (parsedLeads.length === 0) return;
+
+    setCheckingDuplicates(true);
+    try {
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        toast({
+          title: "Erro",
+          description: "Organização não encontrada",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Buscar todos os leads existentes
+      const { data: existing, error } = await supabase
+        .from('post_sale_leads')
+        .select('id, name, phone, company, email')
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null);
+
+      if (error) throw error;
+
+      setExistingLeads(existing || []);
+
+      // Verificar duplicados
+      const updatedLeads = parsedLeads.map(lead => {
+        if (lead.errors || !lead.normalizedPhone) return lead;
+
+        const duplicates: string[] = [];
+        const leadNormalizedPhone = lead.normalizedPhone;
+
+        existing?.forEach((existingLead: any) => {
+          const existingNormalizedPhone = normalizePhone(existingLead.phone);
+          
+          // Verificar por telefone
+          if (leadNormalizedPhone.length >= 10 && 
+              existingNormalizedPhone.length >= 10 &&
+              leadNormalizedPhone === existingNormalizedPhone) {
+            duplicates.push(`${existingLead.name}${existingLead.company ? ` (${existingLead.company})` : ''} - ${existingLead.phone}`);
+          }
+        });
+
+        return {
+          ...lead,
+          isDuplicate: duplicates.length > 0,
+          duplicateWith: duplicates,
+        };
+      });
+
+      setParsedLeads(updatedLeads);
+      const hasDuplicates = updatedLeads.some(l => l.isDuplicate);
+      setDuplicatesFound(hasDuplicates);
+      
+      // Selecionar todos os duplicados por padrão para descartar
+      const duplicateIndices = updatedLeads
+        .map((l, i) => l.isDuplicate ? i : -1)
+        .filter(i => i !== -1);
+      setSelectedDuplicates(new Set(duplicateIndices));
+
+      const duplicateCount = updatedLeads.filter(l => l.isDuplicate).length;
+      if (duplicateCount > 0) {
+        toast({
+          title: "Duplicados encontrados",
+          description: `${duplicateCount} cliente(s) já existem no sistema`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao verificar duplicados:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao verificar duplicados",
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  };
+
+  const handlePreview = async () => {
     if (!text.trim()) {
       toast({
         title: "Texto vazio",
@@ -118,6 +223,11 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
         description: `${validCount} cliente(s) pronto(s) para importar`,
       });
     }
+
+    // Verificar duplicados automaticamente após preview
+    if (validCount > 0) {
+      await checkDuplicates();
+    }
   };
 
   const handleImport = async () => {
@@ -139,11 +249,18 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
       return;
     }
 
-    const validLeads = parsedLeads.filter(p => !p.errors);
+    // Filtrar leads válidos e não duplicados (ou duplicados selecionados para importar)
+    const validLeads = parsedLeads.filter((p, index) => {
+      if (p.errors) return false;
+      // Se é duplicado e não está selecionado, descartar
+      if (p.isDuplicate && !selectedDuplicates.has(index)) return false;
+      return true;
+    });
+
     if (validLeads.length === 0) {
       toast({
-        title: "Nenhum cliente válido",
-        description: "Corrija os erros antes de importar",
+        title: "Nenhum cliente para importar",
+        description: "Todos os clientes foram descartados ou têm erros",
         variant: "destructive",
       });
       return;
@@ -212,6 +329,9 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
     setSelectedStageId("");
     setParsedLeads([]);
     setImportResults(null);
+    setDuplicatesFound(false);
+    setSelectedDuplicates(new Set());
+    setExistingLeads([]);
   };
 
   return (
@@ -293,44 +413,124 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
           {parsedLeads.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Pré-visualização</CardTitle>
-                <CardDescription>
-                  {parsedLeads.filter(p => !p.errors).length} cliente(s) válido(s) de {parsedLeads.length} total
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm">Pré-visualização</CardTitle>
+                    <CardDescription>
+                      {parsedLeads.filter((p, i) => !p.errors && (!p.isDuplicate || selectedDuplicates.has(i))).length} cliente(s) válido(s) de {parsedLeads.filter(p => !p.errors).length} total
+                      {duplicatesFound && (
+                        <span className="text-yellow-600 ml-2">
+                          • {parsedLeads.filter(p => p.isDuplicate).length} duplicado(s) encontrado(s)
+                        </span>
+                      )}
+                    </CardDescription>
+                  </div>
+                  {parsedLeads.filter(p => !p.errors).length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={checkDuplicates}
+                      disabled={checkingDuplicates}
+                    >
+                      {checkingDuplicates ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Verificando...
+                        </>
+                      ) : (
+                        <>
+                          Verificar Duplicados
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
+                {duplicatesFound && (
+                  <Alert className="mb-4 border-yellow-500 bg-yellow-50">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-800">
+                      <strong>Duplicados encontrados!</strong> Desmarque os clientes duplicados que deseja descartar.
+                      Clientes marcados serão importados mesmo sendo duplicados.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {parsedLeads.map((lead, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 rounded-md border ${
-                        lead.errors
-                          ? 'bg-destructive/10 border-destructive'
-                          : 'bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        {lead.errors ? (
-                          <XCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium">
-                            {lead.company || <span className="text-muted-foreground">[Sem empresa]</span>}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {lead.name || <span className="text-muted-foreground">[Sem nome]</span>} • {lead.phone || <span className="text-muted-foreground">[Sem telefone]</span>}
-                          </div>
-                          {lead.errors && (
-                            <div className="mt-1 text-xs text-destructive">
-                              {lead.errors.join(', ')}
-                            </div>
+                  {parsedLeads.map((lead, index) => {
+                    const isSelected = selectedDuplicates.has(index);
+                    const willImport = !lead.errors && (!lead.isDuplicate || isSelected);
+                    
+                    return (
+                      <div
+                        key={index}
+                        className={`p-3 rounded-md border ${
+                          lead.errors
+                            ? 'bg-destructive/10 border-destructive'
+                            : lead.isDuplicate && !isSelected
+                            ? 'bg-yellow-50 border-yellow-300 opacity-60'
+                            : lead.isDuplicate
+                            ? 'bg-yellow-50 border-yellow-500'
+                            : 'bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {lead.isDuplicate && !lead.errors && (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                const newSelected = new Set(selectedDuplicates);
+                                if (checked) {
+                                  newSelected.add(index);
+                                } else {
+                                  newSelected.delete(index);
+                                }
+                                setSelectedDuplicates(newSelected);
+                              }}
+                              className="mt-0.5"
+                            />
                           )}
+                          {lead.errors ? (
+                            <XCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                          ) : lead.isDuplicate ? (
+                            <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium">
+                                {lead.company || <span className="text-muted-foreground">[Sem empresa]</span>}
+                              </div>
+                              {lead.isDuplicate && (
+                                <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-300">
+                                  Duplicado
+                                </Badge>
+                              )}
+                              {!willImport && !lead.errors && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Será descartado
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {lead.name || <span className="text-muted-foreground">[Sem nome]</span>} • {lead.phone || <span className="text-muted-foreground">[Sem telefone]</span>}
+                            </div>
+                            {lead.errors && (
+                              <div className="mt-1 text-xs text-destructive">
+                                {lead.errors.join(', ')}
+                              </div>
+                            )}
+                            {lead.isDuplicate && lead.duplicateWith && lead.duplicateWith.length > 0 && (
+                              <div className="mt-1 text-xs text-yellow-700">
+                                <strong>Já existe:</strong> {lead.duplicateWith.join(', ')}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -365,7 +565,7 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
             </Button>
             <Button
               onClick={handleImport}
-              disabled={isImporting || parsedLeads.filter(p => !p.errors).length === 0 || !selectedStageId}
+              disabled={isImporting || parsedLeads.filter((p, i) => !p.errors && (!p.isDuplicate || selectedDuplicates.has(i))).length === 0 || !selectedStageId}
             >
               {isImporting ? (
                 <>
@@ -375,7 +575,7 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
               ) : (
                 <>
                   <Upload className="h-4 w-4 mr-2" />
-                  Importar {parsedLeads.filter(p => !p.errors).length} Cliente(s)
+                  Importar {parsedLeads.filter((p, i) => !p.errors && (!p.isDuplicate || selectedDuplicates.has(i))).length} Cliente(s)
                 </>
               )}
             </Button>
