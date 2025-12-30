@@ -331,13 +331,24 @@ export function CreateContractDialog({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
               >
-                <option value="">{templatesLoading ? 'Carregando...' : 'Selecione um template'}</option>
+                <option value="">
+                  {templatesLoading 
+                    ? 'Carregando templates...' 
+                    : validTemplates.length === 0 
+                      ? 'Nenhum template disponível' 
+                      : 'Selecione um template'}
+                </option>
                 {validTemplates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.name}
                   </option>
                 ))}
               </select>
+              {!templatesLoading && validTemplates.length === 0 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Nenhum template encontrado. Crie um template primeiro.
+                </p>
+              )}
             </div>
           )}
 
