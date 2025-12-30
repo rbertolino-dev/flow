@@ -590,7 +590,7 @@ export function PostSaleDuplicateManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
