@@ -1,10 +1,17 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, X, Save, MousePointer2, Move, Maximize2, Trash2, Edit2 } from 'lucide-react';
+import { 
+  Loader2, Upload, X, Save, MousePointer2, Move, Maximize2, Trash2, Edit2, 
+  ZoomIn, ZoomOut, Grid, RotateCcw, RotateCw, Copy, Eye, EyeOff, 
+  ChevronLeft, ChevronRight, Minus, Plus, Image as ImageIcon
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 // Import dinâmico do react-pdf para evitar erros de inicialização
@@ -79,6 +86,7 @@ interface SignaturePosition {
   y: number;
   width: number;
   height: number;
+  rotation?: number; // Rotação em graus (0-360)
 }
 
 interface ContractPdfBuilderProps {
@@ -115,6 +123,19 @@ export function ContractPdfBuilder({
   const [previewPosition, setPreviewPosition] = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const positionsRef = useRef<SignaturePosition[]>([]);
   const rafIdRef = useRef<number | null>(null);
+  
+  // Novos estados para melhorias
+  const [showGrid, setShowGrid] = useState(false);
+  const [gridSize, setGridSize] = useState(16);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [history, setHistory] = useState<SignaturePosition[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [showThumbnails, setShowThumbnails] = useState(true);
+  const [showPropertyPanel, setShowPropertyPanel] = useState(true);
+  const [pageThumbnails, setPageThumbnails] = useState<Map<number, string>>(new Map());
+  const thumbnailRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
 
   // Carregar react-pdf quando o componente abrir
   useEffect(() => {
@@ -237,7 +258,7 @@ export function ContractPdfBuilder({
 
   const handlePageClick = (event: React.MouseEvent<HTMLDivElement>) => {
     // Não adicionar nova posição se estiver arrastando ou redimensionando
-    if (isDragging || isResizing) return;
+    if (isDragging || isResizing || previewMode) return;
     
     // Não adicionar se clicou em uma posição existente
     if ((event.target as HTMLElement).closest('.signature-position')) return;
@@ -245,8 +266,12 @@ export function ContractPdfBuilder({
     if (!containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    let x = (event.clientX - rect.left) / zoomLevel;
+    let y = (event.clientY - rect.top) / zoomLevel;
+
+    // Aplicar snap to grid
+    x = snapToGridValue(x);
+    y = snapToGridValue(y);
 
     const newPosition: SignaturePosition = {
       id: `pos-${Date.now()}`,
@@ -256,27 +281,128 @@ export function ContractPdfBuilder({
       y,
       width: 120,
       height: 50,
+      rotation: 0,
     };
 
-    setPositions([...positions, newPosition]);
+    const newPositions = [...positions, newPosition];
+    setPositions(newPositions);
     setSelectedPositionId(newPosition.id);
+    saveToHistory(newPositions);
   };
 
-  const removePosition = (id: string) => {
-    setPositions(positions.filter(p => p.id !== id));
+  const removePosition = useCallback((id: string) => {
+    const newPositions = positions.filter(p => p.id !== id);
+    setPositions(newPositions);
     if (selectedPositionId === id) {
       setSelectedPositionId(null);
     }
-  };
+    saveToHistory(newPositions);
+  }, [positions, selectedPositionId, saveToHistory]);
 
   // Atualizar referência quando positions mudar
   useEffect(() => {
     positionsRef.current = positions;
   }, [positions]);
 
-  const updatePosition = useCallback((id: string, updates: Partial<SignaturePosition>) => {
-    setPositions(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  // Funções helper para grid e snap
+  const snapToGridValue = useCallback((value: number): number => {
+    if (!snapToGrid) return value;
+    return Math.round(value / gridSize) * gridSize;
+  }, [snapToGrid, gridSize]);
+
+  const calculateDistance = useCallback((pos1: SignaturePosition, pos2: SignaturePosition): number => {
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    return Math.sqrt(dx * dx + dy * dy);
   }, []);
+
+  // Funções de histórico (undo/redo)
+  const saveToHistory = useCallback((newPositions: SignaturePosition[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push([...newPositions]);
+      // Limitar histórico a 50 ações
+      if (newHistory.length > 50) {
+        newHistory.shift();
+        setHistoryIndex(49);
+      } else {
+        setHistoryIndex(newHistory.length - 1);
+      }
+      return newHistory;
+    });
+  }, [historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setPositions([...history[newIndex]]);
+    }
+  }, [history, historyIndex]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setPositions([...history[newIndex]]);
+    }
+  }, [history, historyIndex]);
+
+  // Função para duplicar posição
+  const duplicatePosition = useCallback((positionId: string, targetPages: number[]) => {
+    const pos = positions.find(p => p.id === positionId);
+    if (!pos) return;
+
+    const newPositions: SignaturePosition[] = [];
+    targetPages.forEach(pageNum => {
+      newPositions.push({
+        ...pos,
+        id: `pos-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        pageNumber: pageNum,
+      });
+    });
+
+    setPositions([...positions, ...newPositions]);
+    saveToHistory([...positions, ...newPositions]);
+  }, [positions, saveToHistory]);
+
+  // Funções de zoom
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    setZoomLevel(1);
+  }, []);
+
+  const handleZoomFit = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      // Ajustar zoom para caber na largura disponível
+      setZoomLevel(rect.width / 800); // Assumindo largura padrão de 800px
+    }
+  }, []);
+
+  const updatePosition = useCallback((id: string, updates: Partial<SignaturePosition>) => {
+    setPositions(prev => {
+      const newPositions = prev.map(p => {
+        if (p.id === id) {
+          const updated = { ...p, ...updates };
+          // Aplicar snap to grid se necessário
+          if (updates.x !== undefined) updated.x = snapToGridValue(updated.x);
+          if (updates.y !== undefined) updated.y = snapToGridValue(updated.y);
+          return updated;
+        }
+        return p;
+      });
+      saveToHistory(newPositions);
+      return newPositions;
+    });
+  }, [snapToGridValue, saveToHistory]);
 
   const handlePositionMouseDown = (e: React.MouseEvent, positionId: string) => {
     e.stopPropagation();
@@ -326,20 +452,34 @@ export function ContractPdfBuilder({
         if (!pos) return;
 
         if (isDragging) {
-          const deltaX = e.clientX - dragStart.x;
-          const deltaY = e.clientY - dragStart.y;
+          const deltaX = (e.clientX - dragStart.x) / zoomLevel;
+          const deltaY = (e.clientY - dragStart.y) / zoomLevel;
 
-          const newX = Math.max(0, Math.min(pos.x + deltaX, rect.width - pos.width));
-          const newY = Math.max(0, Math.min(pos.y + deltaY, rect.height - pos.height));
+          let newX = Math.max(0, Math.min(pos.x + deltaX, rect.width / zoomLevel - pos.width));
+          let newY = Math.max(0, Math.min(pos.y + deltaY, rect.height / zoomLevel - pos.height));
+
+          // Aplicar snap to grid
+          newX = snapToGridValue(newX);
+          newY = snapToGridValue(newY);
+
+          // Verificar snap entre posições (se próximo de outra posição, alinhar)
+          const otherPositions = positionsRef.current.filter(p => p.id !== selectedPositionId && p.pageNumber === currentPage);
+          const snapThreshold = 10;
+          for (const otherPos of otherPositions) {
+            if (Math.abs(newX - otherPos.x) < snapThreshold) newX = otherPos.x;
+            if (Math.abs(newY - otherPos.y) < snapThreshold) newY = otherPos.y;
+            if (Math.abs(newX + pos.width - (otherPos.x + otherPos.width)) < snapThreshold) newX = otherPos.x + otherPos.width - pos.width;
+            if (Math.abs(newY + pos.height - (otherPos.y + otherPos.height)) < snapThreshold) newY = otherPos.y + otherPos.height - pos.height;
+          }
 
           // Atualizar apenas preview durante drag (evita re-renders)
           setPreviewPosition({ id: selectedPositionId, x: newX, y: newY, width: pos.width, height: pos.height });
         } else if (isResizing) {
-          const deltaX = e.clientX - resizeStart.x;
-          const deltaY = e.clientY - resizeStart.y;
+          const deltaX = (e.clientX - resizeStart.x) / zoomLevel;
+          const deltaY = (e.clientY - resizeStart.y) / zoomLevel;
 
-          const newWidth = Math.max(60, resizeStart.width + deltaX);
-          const newHeight = Math.max(30, resizeStart.height + deltaY);
+          let newWidth = Math.max(60, snapToGridValue(resizeStart.width + deltaX));
+          let newHeight = Math.max(30, snapToGridValue(resizeStart.height + deltaY));
 
           // Atualizar apenas preview durante resize (evita re-renders)
           setPreviewPosition({ id: selectedPositionId, x: pos.x, y: pos.y, width: newWidth, height: newHeight });
@@ -382,7 +522,7 @@ export function ContractPdfBuilder({
         rafIdRef.current = null;
       }
     };
-  }, [isDragging, isResizing, selectedPositionId, dragStart, resizeStart, previewPosition, updatePosition]);
+  }, [isDragging, isResizing, selectedPositionId, dragStart, resizeStart, previewPosition, updatePosition, zoomLevel, snapToGridValue, currentPage]);
 
   const handleSave = async () => {
     if (positions.length === 0) {
@@ -505,9 +645,81 @@ export function ContractPdfBuilder({
     }
   }, [open, contractId, loadExistingPositions, loadContractPdf]);
 
+  // Inicializar histórico quando positions mudar (após carregar)
+  useEffect(() => {
+    if (positions.length > 0 && history.length === 0 && open) {
+      setHistory([[...positions]]);
+      setHistoryIndex(0);
+    }
+  }, [positions, history.length, open]);
+
+  // Atalhos de teclado (undo/redo, delete)
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z para undo
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      // Ctrl+Shift+Z ou Ctrl+Y para redo
+      if ((e.ctrlKey && e.shiftKey && e.key === 'z') || (e.ctrlKey && e.key === 'y')) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      // Delete para remover posição selecionada
+      if (e.key === 'Delete' && selectedPositionId) {
+        e.preventDefault();
+        removePosition(selectedPositionId);
+        return;
+      }
+      // Arrow keys para mover posição selecionada (com Shift para mover mais rápido)
+      if (selectedPositionId && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const step = e.shiftKey ? gridSize * 2 : gridSize;
+        const pos = positions.find(p => p.id === selectedPositionId);
+        if (pos) {
+          let newX = pos.x;
+          let newY = pos.y;
+          if (e.key === 'ArrowLeft') newX = Math.max(0, pos.x - step);
+          if (e.key === 'ArrowRight') newX = pos.x + step;
+          if (e.key === 'ArrowUp') newY = Math.max(0, pos.y - step);
+          if (e.key === 'ArrowDown') newY = pos.y + step;
+          updatePosition(selectedPositionId, { x: newX, y: newY });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, selectedPositionId, positions, undo, redo, removePosition, updatePosition, gridSize]);
+
+  // Zoom com mouse wheel (Ctrl + scroll)
+  useEffect(() => {
+    if (!open || !containerRef.current) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          handleZoomIn();
+        } else {
+          handleZoomOut();
+        }
+      }
+    };
+
+    const container = containerRef.current;
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [open, handleZoomIn, handleZoomOut]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Configurar Posições de Assinatura no PDF</DialogTitle>
           <DialogDescription>
@@ -553,20 +765,123 @@ export function ContractPdfBuilder({
           {/* Visualizador de PDF */}
           {pdfUrl && (
             <div className="space-y-4">
-              {/* Controles */}
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div className="flex items-center gap-4">
-                  <Label>Tipo de Assinatura:</Label>
+              {/* Toolbar Principal */}
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg flex-wrap gap-4">
+                {/* Tipo de Assinatura */}
+                <div className="flex items-center gap-2">
+                  <Label>Tipo:</Label>
                   <select
                     value={selectedSignerType}
                     onChange={(e) => setSelectedSignerType(e.target.value as 'user' | 'client' | 'rubric')}
-                    className="px-3 py-1 border rounded"
+                    className="px-3 py-1 border rounded text-sm"
+                    disabled={previewMode}
                   >
                     <option value="user">Usuário</option>
                     <option value="client">Cliente</option>
                     <option value="rubric">Rubrica</option>
                   </select>
                 </div>
+
+                <Separator orientation="vertical" className="h-6" />
+
+                {/* Controles de Zoom */}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={zoomLevel <= 0.5}>
+                    <ZoomOut className="w-4 h-4" />
+                  </Button>
+                  <div className="flex items-center gap-2 min-w-[120px]">
+                    <Slider
+                      value={[zoomLevel]}
+                      onValueChange={([value]) => setZoomLevel(value)}
+                      min={0.5}
+                      max={3}
+                      step={0.1}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-muted-foreground min-w-[40px]">{Math.round(zoomLevel * 100)}%</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={zoomLevel >= 3}>
+                    <ZoomIn className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleZoomReset} title="Reset Zoom">
+                    100%
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleZoomFit} title="Fit to Width">
+                    <Maximize2 className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <Separator orientation="vertical" className="h-6" />
+
+                {/* Grid e Snap */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={showGrid ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowGrid(!showGrid)}
+                    title="Mostrar/Ocultar Grid"
+                  >
+                    <Grid className="w-4 h-4" />
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Checkbox
+                      id="snap-to-grid"
+                      checked={snapToGrid}
+                      onCheckedChange={(checked) => setSnapToGrid(checked === true)}
+                    />
+                    <Label htmlFor="snap-to-grid" className="text-xs cursor-pointer">Snap</Label>
+                  </div>
+                  <select
+                    value={gridSize}
+                    onChange={(e) => setGridSize(Number(e.target.value))}
+                    className="px-2 py-1 border rounded text-xs"
+                  >
+                    <option value="8">8px</option>
+                    <option value="16">16px</option>
+                    <option value="32">32px</option>
+                  </select>
+                </div>
+
+                <Separator orientation="vertical" className="h-6" />
+
+                {/* Undo/Redo */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={undo}
+                    disabled={historyIndex <= 0}
+                    title="Desfazer (Ctrl+Z)"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={redo}
+                    disabled={historyIndex >= history.length - 1}
+                    title="Refazer (Ctrl+Shift+Z)"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <Separator orientation="vertical" className="h-6" />
+
+                {/* Preview Mode */}
+                <Button
+                  variant={previewMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPreviewMode(!previewMode)}
+                  title="Modo Preview"
+                >
+                  {previewMode ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                  Preview
+                </Button>
+
+                <Separator orientation="vertical" className="h-6" />
+
+                {/* Navegação de Páginas */}
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -574,9 +889,9 @@ export function ContractPdfBuilder({
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                   >
-                    ← Anterior
+                    <ChevronLeft className="w-4 h-4" />
                   </Button>
-                  <span className="text-sm">
+                  <span className="text-sm min-w-[80px] text-center">
                     Página {currentPage} de {numPages}
                   </span>
                   <Button
@@ -585,18 +900,106 @@ export function ContractPdfBuilder({
                     onClick={() => setCurrentPage(Math.min(numPages, currentPage + 1))}
                     disabled={currentPage === numPages}
                   >
-                    Próxima →
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
 
-              {/* PDF Viewer */}
-              <div
-                ref={containerRef}
-                className="relative border rounded-lg overflow-auto bg-gray-100"
-                style={{ maxHeight: '600px' }}
-                onClick={handlePageClick}
-              >
+              {/* Container Principal com Layout Flex */}
+              <div className="flex gap-4">
+                {/* Sidebar de Miniaturas */}
+                {showThumbnails && numPages > 0 && (
+                  <div className="w-48 border rounded-lg p-2 bg-muted/50 overflow-y-auto" style={{ maxHeight: '600px' }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs font-semibold">Páginas</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowThumbnails(false)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
+                        const pagePositions = positions.filter(p => p.pageNumber === pageNum);
+                        const isCurrentPage = pageNum === currentPage;
+                        return (
+                          <div
+                            key={pageNum}
+                            className={`border rounded p-2 cursor-pointer transition-all ${
+                              isCurrentPage ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                            }`}
+                            onClick={() => setCurrentPage(pageNum)}
+                          >
+                            <div className="text-xs font-medium mb-1">Página {pageNum}</div>
+                            <div className="w-full h-24 bg-white border rounded flex items-center justify-center text-xs text-muted-foreground relative overflow-hidden">
+                              {pagePositions.length > 0 && (
+                                <div className="absolute inset-0">
+                                  {pagePositions.map((pos) => {
+                                    const colors = pos.signerType === 'user' ? 'bg-blue-500/30' : pos.signerType === 'client' ? 'bg-green-500/30' : 'bg-purple-500/30';
+                                    return (
+                                      <div
+                                        key={pos.id}
+                                        className={`absolute border border-current ${colors}`}
+                                        style={{
+                                          left: `${(pos.x / 800) * 100}%`,
+                                          top: `${(pos.y / 1000) * 100}%`,
+                                          width: `${(pos.width / 800) * 100}%`,
+                                          height: `${(pos.height / 1000) * 100}%`,
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {pagePositions.length === 0 && 'Sem assinaturas'}
+                              {pagePositions.length > 0 && (
+                                <span className="absolute bottom-0 right-0 bg-primary text-primary-foreground text-xs px-1 rounded-tl">
+                                  {pagePositions.length}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Área Principal do PDF */}
+                <div className="flex-1 flex gap-4">
+                  {/* PDF Viewer */}
+                  <div
+                    ref={containerRef}
+                    className="relative border rounded-lg overflow-auto bg-gray-100 flex-1"
+                    style={{ maxHeight: '600px' }}
+                    onClick={handlePageClick}
+                  >
+                    {/* Grid Overlay */}
+                    {showGrid && !previewMode && (
+                      <div
+                        className="absolute inset-0 pointer-events-none opacity-20"
+                        style={{
+                          backgroundImage: `
+                            linear-gradient(to right, rgba(0,0,0,0.1) 1px, transparent 1px),
+                            linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px)
+                          `,
+                          backgroundSize: `${gridSize * zoomLevel}px ${gridSize * zoomLevel}px`,
+                        }}
+                      />
+                    )}
+
+                    {/* Container com Zoom */}
+                    <div
+                      style={{
+                        transform: `scale(${zoomLevel})`,
+                        transformOrigin: 'top left',
+                        width: `${100 / zoomLevel}%`,
+                        height: `${100 / zoomLevel}%`,
+                      }}
+                    >
                 {!reactPdfLoaded ? (
                   <div className="flex items-center justify-center p-8">
                     <Loader2 className="w-8 h-8 animate-spin" />
@@ -699,10 +1102,10 @@ export function ContractPdfBuilder({
                   </div>
                 )}
 
-                {/* Marcadores de posição */}
-                {positions
-                  .filter(p => p.pageNumber === currentPage)
-                  .map((pos) => {
+                    {/* Marcadores de posição */}
+                    {!previewMode && positions
+                      .filter(p => p.pageNumber === currentPage)
+                      .map((pos) => {
                     const isSelected = selectedPositionId === pos.id;
                     const isPreview = previewPosition?.id === pos.id;
                     
@@ -800,25 +1203,198 @@ export function ContractPdfBuilder({
                       </div>
                     );
                   })}
-              </div>
 
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
-                <div className="flex items-start gap-3">
-                  <MousePointer2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-blue-900">
-                      Como usar o Builder de Assinaturas:
-                    </p>
-                    <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
-                      <li><strong>Adicionar:</strong> Selecione o tipo (Usuário/Cliente/Rubrica) e clique no PDF</li>
-                      <li><strong>Mover:</strong> Clique e arraste a posição selecionada</li>
-                      <li><strong>Redimensionar:</strong> Arraste o canto inferior direito da posição</li>
-                      <li><strong>Excluir:</strong> Selecione a posição e clique no X vermelho</li>
-                      <li><strong>Editar:</strong> Clique na posição na lista abaixo para navegar até ela</li>
-                    </ul>
+                    {/* Preview Mode - Renderizar assinaturas sobre o PDF */}
+                    {previewMode && positions
+                      .filter(p => p.pageNumber === currentPage)
+                      .map((pos) => {
+                        const signerTypeLabel = pos.signerType === 'user' ? 'Usuário' : pos.signerType === 'client' ? 'Cliente' : 'Rubrica';
+                        return (
+                          <div
+                            key={pos.id}
+                            className="absolute border-2 border-dashed border-gray-400 bg-white/90 rounded flex items-center justify-center text-xs text-gray-600"
+                            style={{
+                              left: `${pos.x}px`,
+                              top: `${pos.y}px`,
+                              width: `${pos.width}px`,
+                              height: `${pos.height}px`,
+                              transform: pos.rotation ? `rotate(${pos.rotation}deg)` : undefined,
+                            }}
+                          >
+                            {signerTypeLabel}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  {/* Painel Lateral de Propriedades */}
+                  {showPropertyPanel && selectedPositionId && (
+                    <div className="w-64 border rounded-lg p-4 bg-muted/50 overflow-y-auto" style={{ maxHeight: '600px' }}>
+                      <div className="flex items-center justify-between mb-4">
+                        <Label className="text-sm font-semibold">Propriedades</Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowPropertyPanel(false)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      {(() => {
+                        const pos = positions.find(p => p.id === selectedPositionId);
+                        if (!pos) return null;
+                        return (
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-xs">Tipo</Label>
+                              <select
+                                value={pos.signerType}
+                                onChange={(e) => updatePosition(pos.id, { signerType: e.target.value as 'user' | 'client' | 'rubric' })}
+                                className="w-full px-2 py-1 border rounded text-sm mt-1"
+                              >
+                                <option value="user">Usuário</option>
+                                <option value="client">Cliente</option>
+                                <option value="rubric">Rubrica</option>
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">X</Label>
+                                <Input
+                                  type="number"
+                                  value={Math.round(pos.x)}
+                                  onChange={(e) => updatePosition(pos.id, { x: Math.max(0, Number(e.target.value)) })}
+                                  className="text-sm mt-1"
+                                  min="0"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Y</Label>
+                                <Input
+                                  type="number"
+                                  value={Math.round(pos.y)}
+                                  onChange={(e) => updatePosition(pos.id, { y: Math.max(0, Number(e.target.value)) })}
+                                  className="text-sm mt-1"
+                                  min="0"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Largura</Label>
+                                <Input
+                                  type="number"
+                                  value={Math.round(pos.width)}
+                                  onChange={(e) => updatePosition(pos.id, { width: Math.max(60, Number(e.target.value)) })}
+                                  className="text-sm mt-1"
+                                  min="60"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Altura</Label>
+                                <Input
+                                  type="number"
+                                  value={Math.round(pos.height)}
+                                  onChange={(e) => updatePosition(pos.id, { height: Math.max(30, Number(e.target.value)) })}
+                                  className="text-sm mt-1"
+                                  min="30"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Rotação (graus)</Label>
+                              <Input
+                                type="number"
+                                value={pos.rotation || 0}
+                                onChange={(e) => updatePosition(pos.id, { rotation: Number(e.target.value) % 360 })}
+                                className="text-sm mt-1"
+                                min="0"
+                                max="360"
+                              />
+                            </div>
+                            <Separator />
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => {
+                                  const targetPages = Array.from({ length: numPages }, (_, i) => i + 1).filter(p => p !== pos.pageNumber);
+                                  if (targetPages.length > 0) {
+                                    duplicatePosition(pos.id, targetPages);
+                                    toast({
+                                      title: 'Posição duplicada',
+                                      description: `Duplicada para ${targetPages.length} página(s)`,
+                                    });
+                                  }
+                                }}
+                              >
+                                <Copy className="w-4 h-4 mr-1" />
+                                Duplicar
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => removePosition(pos.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Botões para mostrar/ocultar painéis */}
+              <div className="flex gap-2 justify-center">
+                {!showThumbnails && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowThumbnails(true)}
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Mostrar Miniaturas
+                  </Button>
+                )}
+                {!showPropertyPanel && selectedPositionId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPropertyPanel(true)}
+                  >
+                    <Edit2 className="w-4 h-4 mr-2" />
+                    Mostrar Propriedades
+                  </Button>
+                )}
+              </div>
+
+              {!previewMode && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <MousePointer2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-blue-900">
+                        Como usar o Builder de Assinaturas:
+                      </p>
+                      <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                        <li><strong>Adicionar:</strong> Selecione o tipo e clique no PDF</li>
+                        <li><strong>Mover:</strong> Arraste a posição ou use setas (Shift para mover mais rápido)</li>
+                        <li><strong>Redimensionar:</strong> Arraste o canto inferior direito</li>
+                        <li><strong>Editar:</strong> Use o painel lateral para editar propriedades numéricas</li>
+                        <li><strong>Duplicar:</strong> Use o botão Duplicar no painel de propriedades</li>
+                        <li><strong>Atalhos:</strong> Ctrl+Z (undo), Ctrl+Shift+Z (redo), Delete (excluir)</li>
+                        <li><strong>Zoom:</strong> Ctrl + Scroll do mouse ou use os controles</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Lista de posições */}
               {positions.length > 0 && (
