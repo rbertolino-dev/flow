@@ -137,6 +137,128 @@ export function ContractPdfBuilder({
   const [pageThumbnails, setPageThumbnails] = useState<Map<number, string>>(new Map());
   const thumbnailRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
 
+  // Atualizar referência quando positions mudar
+  useEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
+
+  // ============================================
+  // FUNÇÕES HELPER - Definir ANTES de usar
+  // ============================================
+
+  // Funções helper para grid e snap
+  const snapToGridValue = useCallback((value: number): number => {
+    if (!snapToGrid) return value;
+    return Math.round(value / gridSize) * gridSize;
+  }, [snapToGrid, gridSize]);
+
+  const calculateDistance = useCallback((pos1: SignaturePosition, pos2: SignaturePosition): number => {
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }, []);
+
+  // Funções de histórico (undo/redo)
+  const saveToHistory = useCallback((newPositions: SignaturePosition[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push([...newPositions]);
+      // Limitar histórico a 50 ações
+      if (newHistory.length > 50) {
+        newHistory.shift();
+        setHistoryIndex(49);
+      } else {
+        setHistoryIndex(newHistory.length - 1);
+      }
+      return newHistory;
+    });
+  }, [historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setPositions([...history[newIndex]]);
+    }
+  }, [history, historyIndex]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setPositions([...history[newIndex]]);
+    }
+  }, [history, historyIndex]);
+
+  // Funções de zoom
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    setZoomLevel(1);
+  }, []);
+
+  const handleZoomFit = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      // Ajustar zoom para caber na largura disponível
+      setZoomLevel(rect.width / 800); // Assumindo largura padrão de 800px
+    }
+  }, []);
+
+  // Função para duplicar posição
+  const duplicatePosition = useCallback((positionId: string, targetPages: number[]) => {
+    const pos = positions.find(p => p.id === positionId);
+    if (!pos) return;
+
+    const newPositions: SignaturePosition[] = [];
+    targetPages.forEach(pageNum => {
+      newPositions.push({
+        ...pos,
+        id: `pos-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        pageNumber: pageNum,
+      });
+    });
+
+    setPositions([...positions, ...newPositions]);
+    saveToHistory([...positions, ...newPositions]);
+  }, [positions, saveToHistory]);
+
+  const updatePosition = useCallback((id: string, updates: Partial<SignaturePosition>) => {
+    setPositions(prev => {
+      const newPositions = prev.map(p => {
+        if (p.id === id) {
+          const updated = { ...p, ...updates };
+          // Aplicar snap to grid se necessário
+          if (updates.x !== undefined) updated.x = snapToGridValue(updated.x);
+          if (updates.y !== undefined) updated.y = snapToGridValue(updated.y);
+          return updated;
+        }
+        return p;
+      });
+      saveToHistory(newPositions);
+      return newPositions;
+    });
+  }, [snapToGridValue, saveToHistory]);
+
+  const removePosition = useCallback((id: string) => {
+    const newPositions = positions.filter(p => p.id !== id);
+    setPositions(newPositions);
+    if (selectedPositionId === id) {
+      setSelectedPositionId(null);
+    }
+    saveToHistory(newPositions);
+  }, [positions, selectedPositionId, saveToHistory]);
+
+  // ============================================
+  // HANDLERS DE EVENTOS
+  // ============================================
+
   // Carregar react-pdf quando o componente abrir
   useEffect(() => {
     if (open && !reactPdfLoaded && !reactPdfError) {
@@ -256,7 +378,7 @@ export function ContractPdfBuilder({
     setNumPages(numPages);
   }, []);
 
-  const handlePageClick = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handlePageClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     // Não adicionar nova posição se estiver arrastando ou redimensionando
     if (isDragging || isResizing || previewMode) return;
     
@@ -288,121 +410,8 @@ export function ContractPdfBuilder({
     setPositions(newPositions);
     setSelectedPositionId(newPosition.id);
     saveToHistory(newPositions);
-  };
+  }, [isDragging, isResizing, previewMode, zoomLevel, snapToGridValue, selectedSignerType, currentPage, positions, saveToHistory]);
 
-  const removePosition = useCallback((id: string) => {
-    const newPositions = positions.filter(p => p.id !== id);
-    setPositions(newPositions);
-    if (selectedPositionId === id) {
-      setSelectedPositionId(null);
-    }
-    saveToHistory(newPositions);
-  }, [positions, selectedPositionId, saveToHistory]);
-
-  // Atualizar referência quando positions mudar
-  useEffect(() => {
-    positionsRef.current = positions;
-  }, [positions]);
-
-  // Funções helper para grid e snap
-  const snapToGridValue = useCallback((value: number): number => {
-    if (!snapToGrid) return value;
-    return Math.round(value / gridSize) * gridSize;
-  }, [snapToGrid, gridSize]);
-
-  const calculateDistance = useCallback((pos1: SignaturePosition, pos2: SignaturePosition): number => {
-    const dx = pos1.x - pos2.x;
-    const dy = pos1.y - pos2.y;
-    return Math.sqrt(dx * dx + dy * dy);
-  }, []);
-
-  // Funções de histórico (undo/redo)
-  const saveToHistory = useCallback((newPositions: SignaturePosition[]) => {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push([...newPositions]);
-      // Limitar histórico a 50 ações
-      if (newHistory.length > 50) {
-        newHistory.shift();
-        setHistoryIndex(49);
-      } else {
-        setHistoryIndex(newHistory.length - 1);
-      }
-      return newHistory;
-    });
-  }, [historyIndex]);
-
-  const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      setPositions([...history[newIndex]]);
-    }
-  }, [history, historyIndex]);
-
-  const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setPositions([...history[newIndex]]);
-    }
-  }, [history, historyIndex]);
-
-  // Função para duplicar posição
-  const duplicatePosition = useCallback((positionId: string, targetPages: number[]) => {
-    const pos = positions.find(p => p.id === positionId);
-    if (!pos) return;
-
-    const newPositions: SignaturePosition[] = [];
-    targetPages.forEach(pageNum => {
-      newPositions.push({
-        ...pos,
-        id: `pos-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-        pageNumber: pageNum,
-      });
-    });
-
-    setPositions([...positions, ...newPositions]);
-    saveToHistory([...positions, ...newPositions]);
-  }, [positions, saveToHistory]);
-
-  // Funções de zoom
-  const handleZoomIn = useCallback(() => {
-    setZoomLevel(prev => Math.min(prev + 0.25, 3));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
-  }, []);
-
-  const handleZoomReset = useCallback(() => {
-    setZoomLevel(1);
-  }, []);
-
-  const handleZoomFit = useCallback(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      // Ajustar zoom para caber na largura disponível
-      setZoomLevel(rect.width / 800); // Assumindo largura padrão de 800px
-    }
-  }, []);
-
-  const updatePosition = useCallback((id: string, updates: Partial<SignaturePosition>) => {
-    setPositions(prev => {
-      const newPositions = prev.map(p => {
-        if (p.id === id) {
-          const updated = { ...p, ...updates };
-          // Aplicar snap to grid se necessário
-          if (updates.x !== undefined) updated.x = snapToGridValue(updated.x);
-          if (updates.y !== undefined) updated.y = snapToGridValue(updated.y);
-          return updated;
-        }
-        return p;
-      });
-      saveToHistory(newPositions);
-      return newPositions;
-    });
-  }, [snapToGridValue, saveToHistory]);
 
   const handlePositionMouseDown = (e: React.MouseEvent, positionId: string) => {
     e.stopPropagation();
