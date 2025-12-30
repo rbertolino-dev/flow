@@ -144,21 +144,26 @@ serve(async (req) => {
       );
     }
 
-    // Salvar log de envio
-    const { error: logError } = await supabase
-      .from('contract_send_logs')
-      .insert({
-        contract_id,
-        sent_via: send_method,
-        recipient_phone: send_method === 'whatsapp' ? recipient_phone : null,
-        recipient_email: send_method === 'email' ? recipient_email : null,
-        download_link,
-        sent_by: user.id,
-      });
+    // Salvar log de envio (não falhar se tabela não existir ou houver erro)
+    try {
+      const { error: logError } = await supabase
+        .from('contract_send_logs')
+        .insert({
+          contract_id,
+          sent_via: send_method,
+          recipient_phone: send_method === 'whatsapp' ? recipient_phone : null,
+          recipient_email: send_method === 'email' ? recipient_email : null,
+          download_link,
+          sent_by: user.id,
+        });
 
-    if (logError) {
-      console.error('Erro ao salvar log de envio:', logError);
-      // Não falhar se log não for salvo
+      if (logError) {
+        console.error('Erro ao salvar log de envio (não crítico):', logError);
+        // Não falhar se log não for salvo - é apenas para auditoria
+      }
+    } catch (logErr: any) {
+      console.error('Erro ao salvar log de envio (não crítico):', logErr);
+      // Não falhar se log não for salvo - é apenas para auditoria
     }
 
     return new Response(
@@ -171,8 +176,19 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error('Erro ao enviar contrato:', error);
+    console.error('Stack trace:', error.stack);
+    
+    // Retornar erro mais detalhado para debug
+    const errorMessage = error.message || 'Erro interno do servidor';
+    const errorDetails = process.env.DENO_ENV === 'development' 
+      ? { stack: error.stack, name: error.name }
+      : {};
+    
     return new Response(
-      JSON.stringify({ error: error.message || 'Erro interno do servidor' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        ...errorDetails
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -115,11 +115,22 @@ export function SendContractDialog({
             recipient_email: sendMethod === 'email' ? contract.lead?.email : null,
           }),
         }
-      );
+      ).catch((fetchError) => {
+        // Tratar erro de rede (ERR_FAILED, CORS, etc.)
+        console.error('Erro de rede ao chamar Edge Function:', fetchError);
+        throw new Error(`Erro de conexão: ${fetchError.message || 'Não foi possível conectar ao servidor'}`);
+      });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(errorData.error || 'Erro ao enviar contrato');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          // Se não conseguir parsear JSON, usar texto da resposta
+          const text = await response.text().catch(() => 'Erro desconhecido');
+          errorData = { error: text || `Erro HTTP ${response.status}` };
+        }
+        throw new Error(errorData.error || `Erro ao enviar contrato (${response.status})`);
       }
 
       const result = await response.json();
