@@ -141,20 +141,27 @@ export function usePostSaleLeads() {
       const organizationId = await getUserOrganizationId();
       if (!organizationId) throw new Error('Organização não encontrada');
 
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user?.id) throw new Error('Usuário não autenticado');
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        throw new Error('Usuário não autenticado. Faça login novamente.');
+      }
+
+      const userId = userData.user.id;
+      if (!userId) {
+        throw new Error('ID do usuário não encontrado. Faça login novamente.');
+      }
 
       const { data: profileData } = await supabase
         .from('profiles')
         .select('email')
-        .eq('id', userData.user.id)
-        .single();
+        .eq('id', userId)
+        .maybeSingle();
 
       const { error } = await supabase
         .from('post_sale_leads')
         .insert({
           organization_id: organizationId,
-          user_id: userData.user.id,
+          user_id: userId, // Garantir que user_id sempre seja preenchido
           name: leadData.name,
           phone: leadData.phone,
           email: leadData.email || null,
@@ -165,8 +172,8 @@ export function usePostSaleLeads() {
           source: 'manual',
           status: 'new',
           assigned_to: profileData?.email || 'Sistema',
-          created_by: userData.user.id,
-          updated_by: userData.user.id,
+          created_by: userId,
+          updated_by: userId,
         })
         .select()
         .single();

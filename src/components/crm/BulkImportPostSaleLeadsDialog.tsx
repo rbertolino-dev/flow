@@ -1,387 +1,387 @@
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
-import { getUserOrganizationId } from "@/lib/organizationUtils";
-import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, AlertCircle, Info } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { usePostSaleLeads } from "@/hooks/usePostSaleLeads";
 import { usePostSaleStages } from "@/hooks/usePostSaleStages";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface BulkImportPostSaleLeadsDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onLeadsImported: () => void;
+  onImported?: () => void;
+  onSuccess?: () => void;
 }
 
-interface ParsedContact {
+interface ParsedLead {
   company: string;
   name: string;
   phone: string;
-  row: number;
+  lineNumber: number;
+  errors?: string[];
 }
 
-interface ImportResult {
-  success: number;
-  failed: number;
-  errors: Array<{ row: number; error: string }>;
-}
-
-export function BulkImportPostSaleLeadsDialog({ 
-  open, 
-  onOpenChange, 
-  onLeadsImported 
-}: BulkImportPostSaleLeadsDialogProps) {
+export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImportPostSaleLeadsDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [selectedStageId, setSelectedStageId] = useState<string>("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [parsedLeads, setParsedLeads] = useState<ParsedLead[]>([]);
+  const [importResults, setImportResults] = useState<{ success: number; errors: number } | null>(null);
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [pasteText, setPasteText] = useState("");
-  const [parsedContacts, setParsedContacts] = useState<ParsedContact[]>([]);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const { stages } = usePostSaleStages();
+  const { createLead, refetch } = usePostSaleLeads();
+  const { stages, loading: stagesLoading } = usePostSaleStages();
 
-  useEffect(() => {
-    if (open) {
-      setPasteText("");
-      setParsedContacts([]);
-      setImportProgress(0);
-      setImportResult(null);
-    }
-  }, [open]);
-
-  const parseContacts = (text: string): ParsedContact[] => {
-    const lines = text.split('\n').filter(line => line.trim());
-    const contacts: ParsedContact[] = [];
+  const parseText = (input: string): ParsedLead[] => {
+    const lines = input.split('\n').filter(line => line.trim());
+    const parsed: ParsedLead[] = [];
 
     lines.forEach((line, index) => {
+      const lineNumber = index + 1;
       const trimmed = line.trim();
+      
       if (!trimmed) return;
 
-      // Formato: empresa, responsável, telefone (separados por vírgula)
+      // Separar por vírgula
       const parts = trimmed.split(',').map(p => p.trim()).filter(p => p);
       
       if (parts.length < 3) {
-        contacts.push({
-          company: parts[0] || '',
-          name: parts[1] || '',
-          phone: parts[2] || '',
-          row: index + 1,
+        parsed.push({
+          company: "",
+          name: "",
+          phone: "",
+          lineNumber,
+          errors: [`Linha ${lineNumber}: Formato inválido. Use: Nome da Empresa, Nome do Responsável, Telefone`],
         });
-      } else {
-        contacts.push({
-          company: parts[0] || '',
-          name: parts[1] || '',
-          phone: parts[2] || '',
-          row: index + 1,
-        });
+        return;
       }
+
+      const [company, name, phone] = parts;
+      const errors: string[] = [];
+
+      if (!company) errors.push("Nome da empresa é obrigatório");
+      if (!name) errors.push("Nome do responsável é obrigatório");
+      if (!phone) errors.push("Telefone é obrigatório");
+
+      // Validar telefone (deve ter pelo menos 10 dígitos)
+      const phoneDigits = phone?.replace(/\D/g, '') || '';
+      if (phoneDigits.length < 10) {
+        errors.push("Telefone inválido (mínimo 10 dígitos)");
+      }
+
+      parsed.push({
+        company: company || "",
+        name: name || "",
+        phone: phone || "",
+        lineNumber,
+        errors: errors.length > 0 ? errors : undefined,
+      });
     });
 
-    return contacts;
+    return parsed;
   };
 
-  const handleParse = () => {
-    if (!pasteText.trim()) {
+  const handlePreview = () => {
+    if (!text.trim()) {
       toast({
         title: "Texto vazio",
-        description: "Cole os dados dos clientes no formato: empresa, responsável, telefone",
+        description: "Digite os dados dos clientes para visualizar",
         variant: "destructive",
       });
       return;
     }
 
-    const contacts = parseContacts(pasteText);
+    const parsed = parseText(text);
+    setParsedLeads(parsed);
     
-    // Validar contatos
-    const valid: ParsedContact[] = [];
-    const errors: Array<{ row: number; error: string }> = [];
+    const validCount = parsed.filter(p => !p.errors).length;
+    const errorCount = parsed.filter(p => p.errors).length;
 
-    contacts.forEach((contact) => {
-      if (!contact.company || !contact.name || !contact.phone) {
-        errors.push({
-          row: contact.row,
-          error: "Dados incompletos (empresa, responsável e telefone são obrigatórios)",
-        });
-        return;
-      }
-
-      const normalizedPhone = normalizePhone(contact.phone);
-      if (!isValidBrazilianPhone(normalizedPhone)) {
-        errors.push({
-          row: contact.row,
-          error: "Telefone inválido",
-        });
-        return;
-      }
-
-      valid.push({
-        ...contact,
-        phone: normalizedPhone,
-      });
-    });
-
-    setParsedContacts(valid);
-    
-    if (errors.length > 0) {
+    if (errorCount > 0) {
       toast({
-        title: "Alguns contatos têm erros",
-        description: `${valid.length} válidos, ${errors.length} com erros`,
-        variant: errors.length === contacts.length ? "destructive" : "default",
+        title: "Erros encontrados",
+        description: `${errorCount} linha(s) com erro. ${validCount} linha(s) válida(s).`,
+        variant: "destructive",
       });
     } else {
       toast({
-        title: "Contatos parseados",
-        description: `${valid.length} contatos prontos para importar`,
+        title: "Pré-visualização",
+        description: `${validCount} cliente(s) pronto(s) para importar`,
       });
     }
   };
 
   const handleImport = async () => {
-    if (parsedContacts.length === 0) {
+    if (parsedLeads.length === 0) {
       toast({
-        title: "Nenhum contato para importar",
-        description: "Parse os contatos primeiro",
+        title: "Nenhum cliente para importar",
+        description: "Faça a pré-visualização primeiro",
         variant: "destructive",
       });
       return;
     }
 
-    setLoading(true);
-    setImportProgress(0);
-    setImportResult(null);
-
-    try {
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
-        throw new Error("Organização não encontrada");
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("Usuário não autenticado");
-      }
-
-      // Pegar primeira etapa disponível
-      const defaultStageId = stages.length > 0 ? stages[0].id : null;
-
-      const result: ImportResult = {
-        success: 0,
-        failed: 0,
-        errors: [],
-      };
-
-      // Processar em lotes de 10
-      const batchSize = 10;
-      const totalBatches = Math.ceil(parsedContacts.length / batchSize);
-
-      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        const batchStart = batchIndex * batchSize;
-        const batchEnd = Math.min(batchStart + batchSize, parsedContacts.length);
-        const batch = parsedContacts.slice(batchStart, batchEnd);
-
-        const batchPromises = batch.map(async (contact) => {
-          try {
-            // Verificar se já existe (por telefone)
-            const { data: existing } = await supabase
-              .from('post_sale_leads')
-              .select('id')
-              .eq('organization_id', organizationId)
-              .eq('phone', contact.phone)
-              .is('deleted_at', null)
-              .maybeSingle();
-
-            if (existing) {
-              result.failed++;
-              result.errors.push({
-                row: contact.row,
-                error: "Cliente já existe (mesmo telefone)",
-              });
-              return;
-            }
-
-            // Criar novo lead de pós-venda
-            const { error: createError } = await supabase
-              .from('post_sale_leads')
-              .insert({
-                organization_id: organizationId,
-                name: contact.name,
-                phone: contact.phone,
-                company: contact.company,
-                stage_id: defaultStageId,
-                source: 'import',
-                status: 'new',
-              });
-
-            if (createError) throw createError;
-
-            result.success++;
-          } catch (error: any) {
-            result.failed++;
-            result.errors.push({
-              row: contact.row,
-              error: error.message || "Erro ao criar cliente",
-            });
-          }
-        });
-
-        await Promise.all(batchPromises);
-        setImportProgress(Math.round(((batchIndex + 1) / totalBatches) * 100));
-      }
-
-      setImportResult(result);
-
-      if (result.success > 0) {
-        toast({
-          title: "Importação concluída",
-          description: `${result.success} clientes importados com sucesso${result.failed > 0 ? `, ${result.failed} falharam` : ''}`,
-        });
-        onLeadsImported();
-      } else {
-        toast({
-          title: "Importação falhou",
-          description: "Nenhum cliente foi importado",
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      console.error('Erro na importação:', error);
+    if (!selectedStageId) {
       toast({
-        title: "Erro na importação",
-        description: error.message,
+        title: "Etapa não selecionada",
+        description: "Selecione uma etapa do pós-venda antes de importar",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    const validLeads = parsedLeads.filter(p => !p.errors);
+    if (validLeads.length === 0) {
+      toast({
+        title: "Nenhum cliente válido",
+        description: "Corrija os erros antes de importar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResults(null);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const lead of validLeads) {
+      try {
+        // Normalizar telefone (remover caracteres não numéricos)
+        const phoneDigits = lead.phone.replace(/\D/g, '');
+        
+        // Se não começar com código do país, adicionar 55 (Brasil)
+        const normalizedPhone = phoneDigits.length === 11 && phoneDigits.startsWith('0')
+          ? '55' + phoneDigits.substring(1)
+          : phoneDigits.length === 10
+          ? '55' + phoneDigits
+          : phoneDigits.startsWith('55')
+          ? phoneDigits
+          : '55' + phoneDigits;
+
+        await createLead({
+          name: lead.name,
+          phone: normalizedPhone,
+          company: lead.company,
+          stageId: selectedStageId,
+          source: 'manual',
+        });
+
+        successCount++;
+      } catch (error: any) {
+        console.error(`Erro ao importar linha ${lead.lineNumber}:`, error);
+        errorCount++;
+      }
+    }
+
+    setImportResults({ success: successCount, errors: errorCount });
+    
+    if (successCount > 0) {
+      await refetch();
+      onImported?.();
+      onSuccess?.();
+      
+      toast({
+        title: "Importação concluída",
+        description: `${successCount} cliente(s) importado(s) com sucesso${errorCount > 0 ? `. ${errorCount} erro(s).` : '.'}`,
+      });
+    } else {
+      toast({
+        title: "Erro na importação",
+        description: `Nenhum cliente foi importado. ${errorCount} erro(s).`,
+        variant: "destructive",
+      });
+    }
+
+    setIsImporting(false);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setText("");
+    setSelectedStageId("");
+    setParsedLeads([]);
+    setImportResults(null);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Upload className="h-4 w-4" />
+          Importar em Massa
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Importar Clientes em Massa - Pós-Venda</DialogTitle>
+          <DialogTitle>Importar Clientes em Massa</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Formato:</strong> Uma linha por cliente, separado por vírgula:<br />
-              <code className="text-xs">Nome da Empresa, Nome do Responsável, Telefone</code><br />
-              <br />
-              <strong>Exemplo:</strong><br />
-              <code className="text-xs">
-                Empresa ABC, João Silva, (21) 98765-4321<br />
-                Empresa XYZ, Maria Santos, 11987654321
-              </code>
-            </AlertDescription>
-          </Alert>
+          {/* Instruções */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Formato de Importação</CardTitle>
+              <CardDescription>
+                Digite os dados dos clientes, um por linha, no formato:
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-muted p-3 rounded-md font-mono text-sm">
+                Nome da Empresa, Nome do Responsável, Telefone
+              </div>
+              <div className="mt-3 text-sm text-muted-foreground space-y-1">
+                <p><strong>Exemplo:</strong></p>
+                <p className="font-mono">Empresa ABC, João Silva, (21) 98765-4321</p>
+                <p className="font-mono">Tech Solutions, Maria Santos, 11987654321</p>
+                <p className="font-mono">Consultoria XYZ, Pedro Costa, 21 99876-5432</p>
+              </div>
+            </CardContent>
+          </Card>
 
+          {/* Seleção de Etapa */}
           <div className="space-y-2">
-            <Label htmlFor="paste-text">Cole os dados dos clientes:</Label>
-            <Textarea
-              id="paste-text"
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              placeholder="Empresa ABC, João Silva, (21) 98765-4321&#10;Empresa XYZ, Maria Santos, 11987654321"
-              rows={10}
-              className="font-mono text-sm"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button onClick={handleParse} disabled={!pasteText.trim() || loading}>
-              Parsear Contatos
-            </Button>
-            {parsedContacts.length > 0 && (
-              <Button onClick={handleImport} disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importando...
-                  </>
-                ) : (
-                  `Importar ${parsedContacts.length} Cliente(s)`
-                )}
-              </Button>
+            <Label htmlFor="stage-select">Etapa do Pós-Venda *</Label>
+            <Select value={selectedStageId} onValueChange={setSelectedStageId} disabled={stagesLoading}>
+              <SelectTrigger id="stage-select">
+                <SelectValue placeholder={stagesLoading ? "Carregando etapas..." : "Selecione uma etapa"} />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {stages.length === 0 && !stagesLoading && (
+              <p className="text-xs text-muted-foreground">
+                Nenhuma etapa encontrada. Crie uma etapa primeiro.
+              </p>
             )}
           </div>
 
-          {loading && (
-            <div className="space-y-2">
-              <Progress value={importProgress} />
-              <p className="text-sm text-muted-foreground text-center">
-                {importProgress}% concluído
-              </p>
+          {/* Área de texto */}
+          <div className="space-y-2">
+            <Label htmlFor="import-text">Dados dos Clientes</Label>
+            <Textarea
+              id="import-text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Empresa ABC, João Silva, (21) 98765-4321&#10;Tech Solutions, Maria Santos, 11987654321&#10;Consultoria XYZ, Pedro Costa, 21 99876-5432"
+              rows={10}
+              className="font-mono text-sm"
+            />
+            <div className="flex gap-2">
+              <Button onClick={handlePreview} variant="outline" disabled={!text.trim()}>
+                Pré-visualizar
+              </Button>
             </div>
-          )}
+          </div>
 
-          {parsedContacts.length > 0 && !loading && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                {parsedContacts.length} contato(s) pronto(s) para importar
-              </p>
-              <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
-                {parsedContacts.slice(0, 10).map((contact, index) => (
-                  <div key={index} className="text-xs text-muted-foreground">
-                    {contact.company} - {contact.name} - {contact.phone}
-                  </div>
-                ))}
-                {parsedContacts.length > 10 && (
-                  <div className="text-xs text-muted-foreground">
-                    ... e mais {parsedContacts.length - 10} contato(s)
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {importResult && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                {importResult.success > 0 && (
-                  <div className="flex items-center gap-1 text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span className="text-sm font-medium">{importResult.success} importado(s)</span>
-                  </div>
-                )}
-                {importResult.failed > 0 && (
-                  <div className="flex items-center gap-1 text-red-600">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm font-medium">{importResult.failed} falhou(ram)</span>
-                  </div>
-                )}
-              </div>
-
-              {importResult.errors.length > 0 && (
-                <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
-                  {importResult.errors.slice(0, 10).map((error, index) => (
-                    <div key={index} className="text-xs text-red-600">
-                      Linha {error.row}: {error.error}
+          {/* Pré-visualização */}
+          {parsedLeads.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Pré-visualização</CardTitle>
+                <CardDescription>
+                  {parsedLeads.filter(p => !p.errors).length} cliente(s) válido(s) de {parsedLeads.length} total
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {parsedLeads.map((lead, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-md border ${
+                        lead.errors
+                          ? 'bg-destructive/10 border-destructive'
+                          : 'bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {lead.errors ? (
+                          <XCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium">
+                            {lead.company || <span className="text-muted-foreground">[Sem empresa]</span>}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {lead.name || <span className="text-muted-foreground">[Sem nome]</span>} • {lead.phone || <span className="text-muted-foreground">[Sem telefone]</span>}
+                          </div>
+                          {lead.errors && (
+                            <div className="mt-1 text-xs text-destructive">
+                              {lead.errors.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
-                  {importResult.errors.length > 10 && (
-                    <div className="text-xs text-muted-foreground">
-                      ... e mais {importResult.errors.length - 10} erro(s)
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Resultados da importação */}
+          {importResults && (
+            <Alert>
+              <AlertDescription>
+                <div className="flex items-center gap-2">
+                  {importResults.success > 0 && (
+                    <div className="flex items-center gap-1 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>{importResults.success} importado(s) com sucesso</span>
+                    </div>
+                  )}
+                  {importResults.errors > 0 && (
+                    <div className="flex items-center gap-1 text-destructive">
+                      <XCircle className="h-4 w-4" />
+                      <span>{importResults.errors} erro(s)</span>
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-        </DialogFooter>
+          {/* Botões de ação */}
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={handleClose} disabled={isImporting}>
+              Fechar
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={isImporting || parsedLeads.filter(p => !p.errors).length === 0 || !selectedStageId}
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar {parsedLeads.filter(p => !p.errors).length} Cliente(s)
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
-

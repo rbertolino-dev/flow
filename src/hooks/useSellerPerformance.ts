@@ -41,7 +41,7 @@ interface UseSellerPerformanceProps {
   leads: Lead[];
   startDate?: Date;
   endDate?: Date;
-  sellerId?: string; // Filtrar por vendedor específico
+  sellerId?: string | string[]; // Filtrar por vendedor específico ou múltiplos vendedores
 }
 
 export function useSellerPerformance({
@@ -114,9 +114,14 @@ export function useSellerPerformance({
       seller.leads.push(lead);
     });
 
-    // Filtrar por vendedor específico se fornecido
+    // Filtrar por vendedor específico ou múltiplos vendedores se fornecido
     const sellersToProcess = sellerId
-      ? Array.from(sellerMap.values()).filter((s) => s.id === sellerId)
+      ? Array.from(sellerMap.values()).filter((s) => {
+          if (Array.isArray(sellerId)) {
+            return sellerId.includes(s.id);
+          }
+          return s.id === sellerId;
+        })
       : Array.from(sellerMap.values());
 
     // Calcular métricas para cada vendedor

@@ -4,13 +4,12 @@ import { CRMLayout } from "@/components/crm/CRMLayout";
 import { PostSaleKanbanBoard } from "@/components/crm/PostSaleKanbanBoard";
 import { usePostSaleLeads } from "@/hooks/usePostSaleLeads";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, CheckCircle2, Circle, Upload } from "lucide-react";
+import { Search, Loader2, CheckCircle2, Circle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FollowUpTemplateManager } from "@/components/crm/FollowUpTemplateManager";
 import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { BulkImportPostSaleLeadsDialog } from "@/components/crm/BulkImportPostSaleLeadsDialog";
 
 export default function PostSale() {
@@ -18,7 +17,6 @@ export default function PostSale() {
   const { templates, loading: templatesLoading } = useFollowUpTemplates();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("kanban");
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const handleLeadUpdate = async (leadId: string, newStageId: string) => {
     await updateLead(leadId, { stageId: newStageId });
@@ -63,14 +61,7 @@ export default function PostSale() {
                       className="pl-9"
                     />
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setBulkImportOpen(true)}
-                    className="gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Importar em Massa
-                  </Button>
+                  <BulkImportPostSaleLeadsDialog onImported={refetch} />
                 </div>
               </div>
 
@@ -175,16 +166,11 @@ export default function PostSale() {
               </div>
             </TabsContent>
           </Tabs>
-
-          {/* Dialog de Importação em Massa */}
-          <BulkImportPostSaleLeadsDialog
-            open={bulkImportOpen}
-            onOpenChange={setBulkImportOpen}
-            onLeadsImported={refetch}
-          />
         </div>
       </CRMLayout>
     </AuthGuard>
   );
 }
+
+
 
