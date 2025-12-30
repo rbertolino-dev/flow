@@ -76,7 +76,7 @@ export default function Cadastro() {
         throw new Error('Por favor, insira um email válido');
       }
 
-      // Fazer signup (sem confirmação de email - login automático)
+      // Fazer signup (se confirmação de email estiver desabilitada, já cria sessão)
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -85,7 +85,6 @@ export default function Cadastro() {
           data: {
             full_name: fullName,
           },
-          // Desabilitar confirmação de email - login automático
         },
       });
 
@@ -143,7 +142,7 @@ export default function Cadastro() {
         throw new Error('Não foi possível criar sessão. Tente fazer login manualmente.');
       }
 
-      // Login bem-sucedido - mostrar mensagem e redirecionar
+      // Login bem-sucedido - redirecionar
       toast({
         title: "✅ Conta criada com sucesso!",
         description: "Redirecionando para configuração...",
