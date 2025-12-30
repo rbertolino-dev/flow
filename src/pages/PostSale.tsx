@@ -175,6 +175,13 @@ export default function PostSale() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Dialog de Importação em Massa */}
+          <BulkImportPostSaleLeadsDialog
+            open={bulkImportOpen}
+            onOpenChange={setBulkImportOpen}
+            onLeadsImported={refetch}
+          />
         </div>
       </CRMLayout>
     </AuthGuard>

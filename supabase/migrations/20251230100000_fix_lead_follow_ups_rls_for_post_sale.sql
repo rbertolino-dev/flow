@@ -126,4 +126,3 @@ CREATE POLICY "Users can delete step completions from their follow-ups"
       AND public.user_belongs_to_org(auth.uid(), psl.organization_id)
     )
   );
-

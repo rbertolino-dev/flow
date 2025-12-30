@@ -176,20 +176,27 @@ serve(async (req) => {
 
         // Verificar se houve erro na resposta
         if (!evolutionResponse.ok) {
-          // Verificar se o erro é sobre número não existente
-          // Mas se o número já foi usado antes, pode ser um falso positivo
+          // Verificar se o erro é sobre número não existente (exists: false)
+          // A Evolution API às vezes retorna exists: false mesmo para números válidos
+          // Se o erro menciona "exists": false, tentar enviar mesmo assim (pode ser falso positivo)
           const errorMessage = typeof evolutionData === 'object' && evolutionData.response?.message
             ? JSON.stringify(evolutionData.response.message)
             : responseText;
           
-          // Se o erro menciona "exists": false, mas o número já foi usado antes, tentar enviar mesmo assim
-          // A Evolution API às vezes retorna exists: false mesmo para números válidos
-          if (errorMessage.includes('exists') && errorMessage.includes('false')) {
-            console.warn(`⚠️ [process-scheduled-messages] Evolution API reportou exists: false para ${remoteJid}, mas tentando enviar mesmo assim (pode ser falso positivo)`);
+          const isExistsFalseError = errorMessage.includes('exists') && 
+                                   (errorMessage.includes('false') || 
+                                    (typeof evolutionData === 'object' && 
+                                     Array.isArray(evolutionData.response?.message) &&
+                                     evolutionData.response.message.some((m: any) => m.exists === false)));
+          
+          if (isExistsFalseError) {
+            console.warn(`⚠️ [process-scheduled-messages] Evolution API reportou exists: false para ${remoteJid}`);
+            console.warn(`⚠️ [process-scheduled-messages] Mas o número pode ser válido (falso positivo comum). Tentando enviar mesmo assim...`);
             
             // Tentar enviar novamente com fallback para sendMedia se sendText falhar
+            // sendMedia às vezes funciona mesmo quando sendText falha com exists: false
             if (!message.media_url && evolutionUrl.includes('sendText')) {
-              console.log('🔄 [process-scheduled-messages] Tentando fallback para sendMedia...');
+              console.log('🔄 [process-scheduled-messages] Tentando fallback para sendMedia (sendText falhou com exists: false)...');
               const fallbackUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
               const fallbackPayload = {
                 number: remoteJid,
@@ -207,15 +214,24 @@ serve(async (req) => {
                 body: JSON.stringify(fallbackPayload),
               });
               
+              const fallbackText = await fallbackResponse.text();
+              let fallbackData: any = null;
+              try {
+                fallbackData = JSON.parse(fallbackText);
+              } catch {
+                fallbackData = { raw: fallbackText };
+              }
+              
               if (fallbackResponse.ok) {
-                console.log('✅ [process-scheduled-messages] Mensagem enviada com sucesso via fallback');
-                evolutionData = await fallbackResponse.json();
+                console.log('✅ [process-scheduled-messages] Mensagem enviada com sucesso via fallback (sendMedia)');
+                evolutionData = fallbackData;
               } else {
-                // Se fallback também falhar, lançar erro original
-                throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
+                // Se fallback também falhar, lançar erro
+                console.error(`❌ [process-scheduled-messages] Fallback também falhou: ${fallbackText}`);
+                throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}. Fallback também falhou: ${fallbackText}`);
               }
             } else {
-              // Se já é sendMedia ou não tem fallback, lançar erro
+              // Se já é sendMedia e falhou, lançar erro normalmente
               throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
             }
           } else {
