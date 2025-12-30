@@ -50,15 +50,21 @@ export function CreateContractDialog({
     if (open) {
       // Refetch templates e categorias quando abrir o dialog para pegar os mais recentes
       // Aguardar refetch para garantir que dados estejam atualizados
+      let isMounted = true;
+      
       const refreshData = async () => {
         try {
           await Promise.all([
             refetchTemplates(),
             fetchCategories(),
           ]);
-          console.log('[CreateContractDialog] Templates e categorias atualizados após refetch');
+          if (isMounted) {
+            console.log('[CreateContractDialog] Templates e categorias atualizados após refetch');
+          }
         } catch (error) {
-          console.error('[CreateContractDialog] Erro ao atualizar templates/categorias:', error);
+          if (isMounted) {
+            console.error('[CreateContractDialog] Erro ao atualizar templates/categorias:', error);
+          }
         }
       };
       refreshData();
@@ -74,8 +80,12 @@ export function CreateContractDialog({
       setContractNumber('');
       setExpiresAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
       setPdfFile(null);
+      
+      return () => {
+        isMounted = false;
+      };
     }
-  }, [open, defaultLeadId, refetchTemplates, fetchCategories]);
+  }, [open, defaultLeadId]); // Removido refetchTemplates e fetchCategories das dependências para evitar loops
 
   if (!open) return null;
 
