@@ -53,16 +53,34 @@ serve(async (req) => {
     for (const message of messages) {
       try {
         console.log(`📤 Processando mensagem ${message.id} para ${message.phone}`);
+        
+        // LOG: Identificar organização da mensagem
+        console.log(`🏢 [process-scheduled-messages] Organização da mensagem: ${message.organization_id || 'N/A'}`);
+        console.log(`🔗 [process-scheduled-messages] Instance ID: ${message.instance_id}`);
 
         // Buscar configuração da instância
         const { data: config, error: configError } = await supabase
           .from('evolution_config')
-          .select('api_url, api_key, instance_name, is_connected')
+          .select('api_url, api_key, instance_name, is_connected, organization_id')
           .eq('id', message.instance_id)
           .maybeSingle();
 
         if (configError || !config) {
           throw new Error('Instância não encontrada');
+        }
+
+        // LOG: Detalhes da instância
+        console.log(`⚙️ [process-scheduled-messages] Configuração da instância:`, {
+          instance_name: config.instance_name,
+          api_url: config.api_url,
+          organization_id: config.organization_id,
+          is_connected: config.is_connected,
+          message_org_id: message.organization_id
+        });
+
+        // Verificar se a organização da mensagem corresponde à organização da instância
+        if (message.organization_id && config.organization_id && message.organization_id !== config.organization_id) {
+          console.warn(`⚠️ [process-scheduled-messages] ATENÇÃO: Mensagem da org ${message.organization_id} está usando instância da org ${config.organization_id}`);
         }
 
         if (!config.is_connected) {
@@ -187,6 +205,9 @@ serve(async (req) => {
           
           if (isExistsFalseError) {
             console.warn(`⚠️ [process-scheduled-messages] Evolution API retornou exists: false para ${remoteJid}`);
+            console.warn(`⚠️ [process-scheduled-messages] Organização: ${message.organization_id || 'N/A'}`);
+            console.warn(`⚠️ [process-scheduled-messages] Instância: ${config.instance_name} (${config.api_url})`);
+            console.warn(`⚠️ [process-scheduled-messages] Telefone original: ${message.phone}, formatado: ${formattedPhone}, remoteJid: ${remoteJid}`);
             console.warn(`⚠️ [process-scheduled-messages] Tentando fallback com sendMedia (às vezes é falso positivo)...`);
             
             // Tentar fallback: usar sendMedia mesmo para mensagens de texto

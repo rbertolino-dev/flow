@@ -83,32 +83,58 @@ export function SurveyBuilder({
   const [editingField, setEditingField] = useState<FormField | null>(null);
 
   // Atualizar campos quando initialFields mudar (ao editar)
+  // Mas não resetar se estamos criando uma nova pesquisa (initialFields vazio e já temos campos)
   useEffect(() => {
-    const normalized = initialFields.map((f, idx) => ({ ...f, order: f.order !== undefined ? f.order : idx }));
-    setFields(normalized);
+    // Se estamos criando nova pesquisa (initialFields vazio E já temos campos), não resetar
+    if (initialFields.length === 0 && fields.length > 0) {
+      // Estamos criando nova pesquisa, não resetar campos que o usuário adicionou
+      return;
+    }
+    
+    // Se initialFields tem itens (editando), normalizar e atualizar apenas se mudou
+    if (initialFields.length > 0) {
+      const normalized = initialFields.map((f, idx) => ({ ...f, order: f.order !== undefined ? f.order : idx }));
+      setFields((currentFields) => {
+        // Só atualizar se realmente mudou (comparar IDs)
+        const currentIds = currentFields.map(f => f.id).sort().join(',');
+        const newIds = normalized.map(f => f.id).sort().join(',');
+        if (currentIds !== newIds) {
+          return normalized;
+        }
+        return currentFields;
+      });
+    } else if (initialFields.length === 0 && fields.length === 0) {
+      // Inicialização: ambos vazios, tudo ok
+      return;
+    }
   }, [initialFields]);
 
   const addField = (type: FieldType) => {
-    const newField: FormField = {
-      id: `field-${Date.now()}`,
-      type,
-      label: `Pergunta ${fields.length + 1}`,
-      name: `field_${fields.length + 1}`,
-      placeholder: "",
-      required: false,
-      order: fields.length,
-    };
+    // Usar função de atualização para garantir que temos o estado mais recente
+    setFields((currentFields) => {
+      const newField: FormField = {
+        id: `field-${Date.now()}-${Math.random()}`,
+        type,
+        label: `Pergunta ${currentFields.length + 1}`,
+        name: `field_${currentFields.length + 1}`,
+        placeholder: "",
+        required: false,
+        order: currentFields.length,
+      };
 
-    if (type === "select" || type === "radio") {
-      newField.options = ["Opção 1", "Opção 2"];
-    }
+      if (type === "select" || type === "radio") {
+        newField.options = ["Opção 1", "Opção 2"];
+      }
 
-    const updatedFields = [...fields, newField];
-    setFields(updatedFields);
-    // Abrir editor automaticamente para nova pergunta
-    setTimeout(() => {
-      setEditingField(newField);
-    }, 100);
+      const updatedFields = [...currentFields, newField];
+      
+      // Abrir editor automaticamente para nova pergunta
+      setTimeout(() => {
+        setEditingField(newField);
+      }, 100);
+      
+      return updatedFields;
+    });
   };
 
   const updateField = (updatedField: FormField) => {
