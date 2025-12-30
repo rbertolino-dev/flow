@@ -116,16 +116,19 @@ export function SurveysList({ onEdit, onCreateNew }: SurveysListProps) {
                   <Badge variant={survey.type === "quick" ? "secondary" : "default"}>
                     {survey.type === "quick" ? "Rápida" : "Padrão"}
                   </Badge>
-                  <Badge variant={survey.is_closed ? "destructive" : (survey.is_active ? "default" : "outline")}>
+                  <Badge 
+                    variant={survey.is_closed ? "destructive" : (survey.is_active ? "default" : "outline")}
+                    className={survey.is_closed ? "bg-red-500" : ""}
+                  >
                     {survey.is_closed ? "Encerrada" : (survey.is_active ? "Ativa" : "Inativa")}
                   </Badge>
                 </div>
-                <CardDescription>
-                  {survey.description || "Sem descrição"}
+                <CardDescription className="flex items-center gap-2 flex-wrap">
+                  <span>{survey.description || "Sem descrição"}</span>
                   {responseCounts && responseCounts[survey.id] !== undefined && (
-                    <span className="ml-2 font-semibold text-blue-600">
-                      • {responseCounts[survey.id]} resposta(s)
-                    </span>
+                    <Badge variant="secondary" className="font-semibold">
+                      📊 {responseCounts[survey.id]} {responseCounts[survey.id] === 1 ? 'resposta' : 'respostas'}
+                    </Badge>
                   )}
                 </CardDescription>
                 <div className="mt-2 text-sm text-gray-500">

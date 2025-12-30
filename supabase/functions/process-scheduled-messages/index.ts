@@ -181,31 +181,92 @@ serve(async (req) => {
             : responseText;
           
           // Verificar se o erro é sobre número não existente (exists: false)
-          // Se exists: false, o número REALMENTE não existe no WhatsApp - não tentar enviar
           const isExistsFalseError = typeof evolutionData === 'object' && 
                                    Array.isArray(evolutionData.response?.message) &&
                                    evolutionData.response.message.some((m: any) => m.exists === false);
           
           if (isExistsFalseError) {
-            const invalidNumber = evolutionData.response.message.find((m: any) => m.exists === false);
-            console.error(`❌ [process-scheduled-messages] Número não existe no WhatsApp: ${invalidNumber?.jid || remoteJid}`);
-            console.error(`❌ [process-scheduled-messages] Evolution API confirmou: exists: false - Número inválido`);
+            console.warn(`⚠️ [process-scheduled-messages] Evolution API retornou exists: false para ${remoteJid}`);
+            console.warn(`⚠️ [process-scheduled-messages] Tentando fallback com sendMedia (às vezes é falso positivo)...`);
             
-            // Marcar como falha imediatamente - não tentar fallback
-            await supabase
-              .from('scheduled_messages')
-              .update({
-                status: 'failed',
-                error_message: `Número não existe no WhatsApp: ${invalidNumber?.jid || remoteJid}. O número não está registrado no WhatsApp.`,
-              })
-              .eq('id', message.id);
+            // Tentar fallback: usar sendMedia mesmo para mensagens de texto
+            // Algumas instâncias da Evolution API retornam exists: false incorretamente
+            try {
+              const fallbackUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
+              const fallbackPayload = {
+                number: remoteJid,
+                mediatype: 'text',
+                media: '',
+                caption: message.message,
+              };
+              
+              console.log('🔄 [process-scheduled-messages] Tentando fallback sendMedia...');
+              const fallbackResponse = await fetch(fallbackUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': config.api_key || '',
+                },
+                body: JSON.stringify(fallbackPayload),
+              });
+              
+              const fallbackText = await fallbackResponse.text();
+              let fallbackData: any = null;
+              
+              try {
+                fallbackData = JSON.parse(fallbackText);
+              } catch {
+                fallbackData = { raw: fallbackText };
+              }
+              
+              if (fallbackResponse.ok) {
+                console.log('✅ [process-scheduled-messages] Fallback sendMedia funcionou!');
+                // Continuar com o fluxo normal de sucesso
+                evolutionData = fallbackData;
+              } else {
+                // Fallback também falhou, verificar se ainda é exists: false
+                const fallbackExistsFalse = typeof fallbackData === 'object' && 
+                                          Array.isArray(fallbackData.response?.message) &&
+                                          fallbackData.response.message.some((m: any) => m.exists === false);
+                
+                if (fallbackExistsFalse) {
+                  // Realmente não existe, marcar como falha
+                  const invalidNumber = fallbackData.response.message.find((m: any) => m.exists === false);
+                  console.error(`❌ [process-scheduled-messages] Número realmente não existe no WhatsApp após fallback: ${invalidNumber?.jid || remoteJid}`);
+                  
+                  await supabase
+                    .from('scheduled_messages')
+                    .update({
+                      status: 'failed',
+                      error_message: `Número não existe no WhatsApp: ${invalidNumber?.jid || remoteJid}. O número não está registrado no WhatsApp.`,
+                    })
+                    .eq('id', message.id);
 
-            failureCount++;
-            continue; // Pular para próxima mensagem
+                  failureCount++;
+                  continue;
+                } else {
+                  // Outro erro no fallback, lançar
+                  throw new Error(`Evolution API erro no fallback ${fallbackResponse.status}: ${fallbackText}`);
+                }
+              }
+            } catch (fallbackError: any) {
+              console.error(`❌ [process-scheduled-messages] Erro no fallback:`, fallbackError.message);
+              // Se fallback falhar, marcar como erro
+              await supabase
+                .from('scheduled_messages')
+                .update({
+                  status: 'failed',
+                  error_message: `Erro ao enviar mensagem: ${fallbackError.message}`,
+                })
+                .eq('id', message.id);
+
+              failureCount++;
+              continue;
+            }
+          } else {
+            // Outro tipo de erro (não é exists: false), lançar normalmente
+            throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
           }
-          
-          // Outro tipo de erro (não é exists: false), lançar normalmente
-          throw new Error(`Evolution API erro ${evolutionResponse.status}: ${errorMessage}`);
         }
 
         // Marcar como enviada

@@ -103,8 +103,12 @@ export function SurveyBuilder({
       newField.options = ["Opção 1", "Opção 2"];
     }
 
-    setFields([...fields, newField]);
-    setEditingField(newField);
+    const updatedFields = [...fields, newField];
+    setFields(updatedFields);
+    // Abrir editor automaticamente para nova pergunta
+    setTimeout(() => {
+      setEditingField(newField);
+    }, 100);
   };
 
   const updateField = (updatedField: FormField) => {
@@ -149,6 +153,16 @@ export function SurveyBuilder({
   };
 
   const handleSave = () => {
+    // Validar nome apenas se não tiver initialName (criação nova)
+    if (!initialName && !name?.trim()) {
+      toast({
+        title: "Erro",
+        description: "O nome da pesquisa é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (fields.length === 0) {
       toast({
         title: "Erro",
@@ -226,8 +240,13 @@ export function SurveyBuilder({
                 {(['text', 'email', 'phone', 'textarea', 'select', 'checkbox', 'radio', 'number', 'date'] as FieldType[]).map((type) => (
                   <Button
                     key={type}
+                    type="button"
                     variant="outline"
-                    onClick={() => addField(type)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      addField(type);
+                    }}
                     className="capitalize"
                   >
                     <Plus className="h-4 w-4 mr-2" />
