@@ -48,9 +48,9 @@ export default function PostSale() {
               </TabsList>
             </div>
 
-            <TabsContent value="kanban" className="flex-1 flex flex-col overflow-hidden m-0">
+            <TabsContent value="kanban" className="flex-1 flex flex-col m-0 p-0">
               {/* Search Bar */}
-              <div className="p-4 border-b bg-background">
+              <div className="p-4 border-b bg-background flex-shrink-0">
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -70,7 +70,7 @@ export default function PostSale() {
               </div>
 
               {/* Kanban Board */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0">
                 <PostSaleKanbanBoard
                   leads={leads}
                   onLeadUpdate={handleLeadUpdate}

@@ -131,9 +131,9 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
   const sortedStages = [...stages].sort((a, b) => a.position - b.position);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-background">
+      <div className="flex items-center justify-between p-4 border-b bg-background flex-shrink-0">
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-semibold">Funil de Pós-Venda</h2>
           <Badge variant="secondary">{filteredLeads.length} clientes</Badge>
@@ -148,14 +148,14 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 min-h-0 relative">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="h-full overflow-x-auto" ref={scrollContainerRef}>
+          <div className="h-full overflow-x-auto overflow-y-hidden" ref={scrollContainerRef}>
             <div className="flex gap-4 p-4 h-full min-w-max">
               {sortedStages.map((stage) => (
                 <PostSaleKanbanColumn
