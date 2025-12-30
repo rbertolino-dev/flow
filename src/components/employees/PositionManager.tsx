@@ -105,7 +105,17 @@ export function PositionManager() {
       return;
     }
 
-    const salary = parseFloat(formData.base_salary);
+    // Validar salário base (obrigatório na criação, opcional na edição)
+    if (!editingPosition && (!formData.base_salary || formData.base_salary.trim() === '')) {
+      toast({
+        title: "Erro",
+        description: "Salário base é obrigatório",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const salary = formData.base_salary ? parseFloat(formData.base_salary) : 0;
     if (isNaN(salary) || salary < 0) {
       toast({
         title: "Erro",

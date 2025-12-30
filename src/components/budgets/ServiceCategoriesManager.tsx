@@ -20,6 +20,7 @@ export function ServiceCategoriesManager({
   onCategoryUpdate,
   onCategoryDelete,
 }: ServiceCategoriesManagerProps) {
+  const { activeOrgId } = useActiveOrganization();
   const [showDialog, setShowDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -86,15 +87,31 @@ export function ServiceCategoriesManager({
         });
       }
     } else if (!editingCategory) {
-      // Criar nova categoria - apenas informar que pode ser usada ao criar/editar serviços
+      // Criar nova categoria - salvar no localStorage para aparecer na lista
+      if (activeOrgId) {
+        try {
+          const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
+          const existingCategories = stored ? JSON.parse(stored) as string[] : [];
+          if (!existingCategories.includes(categoryName)) {
+            existingCategories.push(categoryName);
+            localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(existingCategories));
+          }
+        } catch (e) {
+          // Ignorar erros
+        }
+      }
+      
       toast({
         title: 'Categoria criada',
-        description: 'A categoria foi criada. Você pode usá-la ao criar ou editar serviços.',
+        description: 'A categoria foi criada e já está disponível para uso.',
       });
       
       setShowDialog(false);
       setEditingCategory(null);
       setNewCategoryName('');
+      
+      // Forçar atualização da lista de categorias
+      window.dispatchEvent(new CustomEvent('service-category-created', { detail: categoryName }));
     }
   };
 

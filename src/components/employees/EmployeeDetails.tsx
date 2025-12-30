@@ -18,6 +18,8 @@ export function EmployeeDetails({ open, onOpenChange, employee: initialEmployee 
   const { getEmployee } = useEmployees();
   const [employee, setEmployee] = useState<Employee | null>(initialEmployee);
   const [loading, setLoading] = useState(false);
+  const [employeeTeams, setEmployeeTeams] = useState<any[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(false);
 
   useEffect(() => {
     if (open && initialEmployee) {
@@ -26,10 +28,83 @@ export function EmployeeDetails({ open, onOpenChange, employee: initialEmployee 
         setEmployee(emp);
         setLoading(false);
       });
+
+      // Buscar equipes do funcionário
+      setLoadingTeams(true);
+      fetchEmployeeTeams(initialEmployee.id).then((teams) => {
+        setEmployeeTeams(teams);
+        setLoadingTeams(false);
+      }).catch(() => {
+        setEmployeeTeams([]);
+        setLoadingTeams(false);
+      });
     } else {
       setEmployee(initialEmployee);
+      setEmployeeTeams([]);
     }
   }, [open, initialEmployee, getEmployee]);
+
+  const fetchEmployeeTeams = async (employeeId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return [];
+
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      
+      // Buscar todas as equipes
+      const teamsResponse = await fetch(
+        `${SUPABASE_URL}/functions/v1/teams`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!teamsResponse.ok) return [];
+
+      const teamsData = await teamsResponse.json();
+      const allTeams = teamsData.data || [];
+
+      // Para cada equipe, verificar se o funcionário é membro
+      const employeeTeamsList = [];
+      for (const team of allTeams) {
+        const membersResponse = await fetch(
+          `${SUPABASE_URL}/functions/v1/teams?action=members&team_id=${team.id}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (membersResponse.ok) {
+          const membersData = await membersResponse.json();
+          const members = membersData.data || [];
+          const isMember = members.some((m: any) => m.employee_id === employeeId);
+          
+          if (isMember) {
+            const memberInfo = members.find((m: any) => m.employee_id === employeeId);
+            employeeTeamsList.push({
+              ...team,
+              joined_at: memberInfo?.joined_at,
+              left_at: memberInfo?.left_at,
+              is_active: memberInfo?.is_active,
+            });
+          }
+        }
+      }
+
+      return employeeTeamsList;
+    } catch (error) {
+      console.error("Erro ao buscar equipes do funcionário:", error);
+      return [];
+    }
+  };
 
   if (!employee) return null;
 
@@ -230,9 +305,52 @@ export function EmployeeDetails({ open, onOpenChange, employee: initialEmployee 
             </TabsContent>
 
             <TabsContent value="teams">
-              <div className="text-center py-8 text-muted-foreground">
-                Funcionalidade de equipes em desenvolvimento
-              </div>
+              {loadingTeams ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : employeeTeams.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Funcionário não participa de nenhuma equipe
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Equipe</TableHead>
+                        <TableHead>Gerente</TableHead>
+                        <TableHead>Data de Entrada</TableHead>
+                        <TableHead>Data de Saída</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employeeTeams.map((team) => (
+                        <TableRow key={team.id}>
+                          <TableCell className="font-medium">{team.name}</TableCell>
+                          <TableCell>{team.manager_name || "-"}</TableCell>
+                          <TableCell>
+                            {team.joined_at 
+                              ? new Date(team.joined_at).toLocaleDateString("pt-BR")
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {team.left_at 
+                              ? new Date(team.left_at).toLocaleDateString("pt-BR")
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={team.is_active ? "default" : "secondary"}>
+                              {team.is_active ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}

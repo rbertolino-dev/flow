@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload, Download, FileSpreadsheet, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Service } from '@/types/budget-module';
+import { findColumnValue } from '@/utils/normalizeExcelColumn';
 
 interface ServiceBulkImportProps {
   onImport: (services: Array<{
@@ -112,24 +113,24 @@ export function ServiceBulkImport({ onImport, isImporting = false }: ServiceBulk
           const rowNum = index + 2; // +2 porque começa na linha 2 (linha 1 é cabeçalho)
           const rowErrors: string[] = [];
 
-          // Validar nome (obrigatório)
-          const name = String(row['Nome'] || row['nome'] || '').trim();
+          // Validar nome (obrigatório) - usando função de normalização
+          const name = findColumnValue(row, ['Nome', 'nome', 'Name', 'name', 'NOME', 'SERVICO', 'Servico', 'servico']);
           if (!name) {
             rowErrors.push('Nome é obrigatório');
           }
 
-          // Validar preço (obrigatório)
-          const priceStr = String(row['Preço'] || row['preço'] || row['Preco'] || row['preco'] || '0').trim();
-          const price = parseFloat(priceStr.replace(',', '.'));
+          // Validar preço (obrigatório) - usando função de normalização
+          const priceStr = findColumnValue(row, ['Preço', 'preço', 'Preco', 'preco', 'PRECO', 'Price', 'price', 'PRICE', 'Valor', 'valor', 'VALOR']);
+          const price = priceStr ? parseFloat(priceStr.replace(',', '.').replace(/[^\d.,-]/g, '')) : 0;
           if (isNaN(price) || price < 0) {
             rowErrors.push('Preço deve ser um número válido maior ou igual a zero');
           }
 
-          // Processar outros campos
-          const description = String(row['Descrição'] || row['descrição'] || row['Descricao'] || row['descricao'] || '').trim() || undefined;
-          const category = String(row['Categoria'] || row['categoria'] || '').trim() || undefined;
-          const activeStr = String(row['Ativo'] || row['ativo'] || 'SIM').trim().toUpperCase();
-          const is_active = activeStr === 'SIM' || activeStr === 'S' || activeStr === 'YES' || activeStr === 'Y' || activeStr === 'TRUE' || activeStr === '1';
+          // Processar outros campos - usando função de normalização
+          const description = findColumnValue(row, ['Descrição', 'descrição', 'Descricao', 'descricao', 'DESCRICAO', 'Description', 'description', 'DESCRIPTION']) || undefined;
+          const category = findColumnValue(row, ['Categoria', 'categoria', 'CATEGORIA', 'Category', 'category', 'CATEGORY']) || undefined;
+          const activeStr = findColumnValue(row, ['Ativo', 'ativo', 'ATIVO', 'Active', 'active', 'ACTIVE', 'Status', 'status', 'STATUS']) || 'SIM';
+          const is_active = activeStr.toUpperCase() === 'SIM' || activeStr.toUpperCase() === 'S' || activeStr.toUpperCase() === 'YES' || activeStr.toUpperCase() === 'Y' || activeStr.toUpperCase() === 'TRUE' || activeStr === '1';
 
           if (rowErrors.length > 0) {
             errors.push({ row: rowNum, error: rowErrors.join('; ') });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -119,25 +119,27 @@ export default function Budgets() {
 
   const connectedInstances = evolutionConfigs.filter((config) => config.is_connected);
 
-  // Filtros e handlers para serviços
-  const filteredServices = services.filter((service) => {
-    // Filtro de busca
-    const matchesSearch = 
-      service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
-      (service.description?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ?? false) ||
-      (service.category?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ?? false);
-    
-    // Filtro de categoria
-    const matchesCategory = serviceCategoryFilter === 'all' || service.category === serviceCategoryFilter;
-    
-    // Filtro de status
-    const matchesStatus = 
-      serviceStatusFilter === 'all' ||
-      (serviceStatusFilter === 'active' && service.is_active) ||
-      (serviceStatusFilter === 'inactive' && !service.is_active);
-    
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  // Filtros e handlers para serviços - memoizado para melhor performance
+  const filteredServices = useMemo(() => {
+    return services.filter((service) => {
+      // Filtro de busca
+      const matchesSearch = 
+        service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
+        (service.description?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ?? false) ||
+        (service.category?.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ?? false);
+      
+      // Filtro de categoria
+      const matchesCategory = serviceCategoryFilter === 'all' || service.category === serviceCategoryFilter;
+      
+      // Filtro de status
+      const matchesStatus = 
+        serviceStatusFilter === 'all' ||
+        (serviceStatusFilter === 'active' && service.is_active) ||
+        (serviceStatusFilter === 'inactive' && !service.is_active);
+      
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [services, serviceSearchQuery, serviceCategoryFilter, serviceStatusFilter]);
 
   const handleOpenServiceDialog = (service?: Service) => {
     if (service) {

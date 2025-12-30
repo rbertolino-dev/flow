@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Service } from "@/types/budget-module";
@@ -71,12 +72,12 @@ export function useServices() {
       return validServices as Service[];
     },
     enabled: !!activeOrgId,
-    // Refetch quando a janela ganha foco para garantir dados atualizados
-    refetchOnWindowFocus: true,
-    // Cache por 30 segundos apenas (reduzido para garantir atualizações mais frequentes)
-    staleTime: 30 * 1000,
-    // Refetch a cada 1 minuto em background
-    refetchInterval: 60 * 1000,
+    // Refetch quando a janela ganha foco (desabilitado para melhorar performance)
+    refetchOnWindowFocus: false,
+    // Cache por 2 minutos (aumentado para reduzir queries)
+    staleTime: 2 * 60 * 1000,
+    // Refetch a cada 3 minutos em background (reduzido de 1 minuto)
+    refetchInterval: 3 * 60 * 1000,
   });
 
   // Criar serviço
@@ -330,7 +331,58 @@ export function useServices() {
   const activeServices = services.filter(s => s.is_active);
 
   // Obter categorias únicas dos serviços
-  const categories = Array.from(new Set(services.map(s => s.category).filter(Boolean) as string[])).sort();
+  // IMPORTANTE: Incluir categorias que foram criadas mas ainda não estão em uso
+  const [categories, setCategories] = useState<string[]>([]);
+  
+  useEffect(() => {
+    if (!activeOrgId) {
+      setCategories([]);
+      return;
+    }
+    
+    // Buscar categorias do localStorage (onde ServiceCategoriesManager salva)
+    const serviceCategoriesFromStorage = (() => {
+      try {
+        const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
+        if (stored) {
+          return JSON.parse(stored) as string[];
+        }
+      } catch (e) {
+        // Ignorar erros de parse
+      }
+      return [];
+    })();
+    
+    // Categorias dos serviços existentes
+    const categoriesFromServices = Array.from(new Set(services.map(s => s.category).filter(Boolean) as string[]));
+    
+    // Combinar e ordenar
+    const allCategories = Array.from(new Set([...categoriesFromServices, ...serviceCategoriesFromStorage])).sort();
+    setCategories(allCategories);
+    
+    // Salvar no localStorage para persistência
+    if (allCategories.length > 0) {
+      localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(allCategories));
+    }
+  }, [activeOrgId, services.map(s => s.category).join(',')]);
+  
+  // Escutar eventos de criação de categoria
+  useEffect(() => {
+    const handleCategoryCreated = (event: CustomEvent) => {
+      const newCategory = event.detail as string;
+      setCategories((prev) => {
+        if (!prev.includes(newCategory)) {
+          return [...prev, newCategory].sort();
+        }
+        return prev;
+      });
+    };
+    
+    window.addEventListener('service-category-created', handleCategoryCreated as EventListener);
+    return () => {
+      window.removeEventListener('service-category-created', handleCategoryCreated as EventListener);
+    };
+  }, []);
 
   return {
     services,

@@ -103,11 +103,16 @@ export function TeamManager() {
       return;
     }
 
+    // Converter "none" ou string vazia para undefined
+    const managerId = formData.manager_id && formData.manager_id !== 'none' && formData.manager_id !== '' 
+      ? formData.manager_id 
+      : undefined;
+
     const result = await createOrUpdateTeam({
       id: editingTeam?.id,
       name: formData.name,
       description: formData.description || undefined,
-      manager_id: formData.manager_id || undefined,
+      manager_id: managerId,
     });
 
     if (result) {

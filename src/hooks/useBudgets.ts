@@ -27,6 +27,58 @@ export function useBudgets(filters?: BudgetFilters) {
   useEffect(() => {
     if (activeOrgId) {
       fetchBudgets();
+      
+      // Configurar subscription realtime para atualizações automáticas
+      const channel = supabase
+        .channel(`budgets-${activeOrgId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'budgets',
+            filter: `organization_id=eq.${activeOrgId}`,
+          },
+          (payload) => {
+            console.log('📡 Realtime: Mudança detectada em orçamentos', payload);
+            // Atualizar lista imediatamente baseado no evento
+            if (payload.eventType === 'INSERT' && payload.new) {
+              // Novo orçamento criado - adicionar à lista
+              setBudgets((prev) => {
+                const newBudget = payload.new as Budget;
+                const exists = prev.some(b => b.id === newBudget.id);
+                if (exists) return prev;
+                return [newBudget, ...prev];
+              });
+            } else if (payload.eventType === 'UPDATE' && payload.new) {
+              // Orçamento atualizado - atualizar na lista
+              setBudgets((prev) => {
+                return prev.map(b => b.id === payload.new.id ? (payload.new as Budget) : b);
+              });
+            } else if (payload.eventType === 'DELETE' && payload.old) {
+              // Orçamento deletado - remover da lista
+              setBudgets((prev) => {
+                return prev.filter(b => b.id !== payload.old.id);
+              });
+            } else {
+              // Refetch completo se não conseguir determinar o tipo de mudança
+              if (!loading) {
+                fetchBudgets();
+              }
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Realtime: Inscrito em mudanças de orçamentos');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Realtime: Erro ao se inscrever em orçamentos');
+          }
+        });
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     } else {
       setBudgets([]);
       setLoading(false);
@@ -200,7 +252,16 @@ export function useBudgets(filters?: BudgetFilters) {
 
       if (updateError) throw updateError;
 
-      await fetchBudgets();
+      // Atualizar lista imediatamente (realtime também vai atualizar, mas isso garante resposta rápida)
+      setBudgets((prev) => {
+        const newBudget = { ...data, pdf_url: pdfUrl } as Budget;
+        // Verificar se já existe (evitar duplicatas)
+        const exists = prev.some(b => b.id === newBudget.id);
+        if (exists) {
+          return prev.map(b => b.id === newBudget.id ? newBudget : b);
+        }
+        return [newBudget, ...prev];
+      });
 
       toast({
         title: 'Orçamento criado',

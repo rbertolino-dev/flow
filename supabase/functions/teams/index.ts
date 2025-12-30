@@ -143,63 +143,6 @@ serve(async (req) => {
       const url = new URL(req.url);
       const action = url.searchParams.get('action');
 
-      if (req.method === 'DELETE') {
-        const canWrite = await validatePermissions(supabase, user.id, organizationId);
-        if (!canWrite) {
-          return new Response(
-            JSON.stringify({ error: 'Sem permissão para excluir equipes' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const teamId = url.searchParams.get('id');
-        if (!teamId) {
-          return new Response(
-            JSON.stringify({ error: 'ID da equipe é obrigatório' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Verificar se há membros ativos na equipe
-        const checkMembersQuery = `
-          SELECT COUNT(*)::int as count
-          FROM employee_teams
-          WHERE team_id = $1 AND is_active = true
-        `;
-        const checkResult = await client.queryObject<{ count: number }>(
-          checkMembersQuery,
-          [teamId]
-        );
-
-        if (checkResult.rows[0]?.count > 0) {
-          return new Response(
-            JSON.stringify({ error: 'Não é possível excluir equipe que possui membros ativos. Remova os membros primeiro.' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Excluir equipe
-        const deleteQuery = `
-          DELETE FROM teams
-          WHERE id = $1 AND organization_id = $2
-          RETURNING id
-        `;
-
-        const result = await client.queryObject<{ id: string }>(deleteQuery, [teamId, organizationId]);
-
-        if (result.rows.length === 0) {
-          return new Response(
-            JSON.stringify({ error: 'Equipe não encontrada' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ data: { id: teamId } }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
       if (req.method === 'GET') {
         if (action === 'members') {
           // Listar membros de uma equipe
@@ -392,16 +335,16 @@ serve(async (req) => {
             );
           }
 
-          const updateQuery = `
-            UPDATE employee_teams
-            SET left_at = $1, is_active = false
-            WHERE employee_id = $2 AND team_id = $3
+          // Deletar relacionamento ao invés de inativar
+          const deleteQuery = `
+            DELETE FROM employee_teams
+            WHERE employee_id = $1 AND team_id = $2
             RETURNING *
           `;
 
           const result = await client.queryObject<EmployeeTeam>(
-            updateQuery,
-            [left_at || new Date().toISOString().split('T')[0], employee_id, team_id]
+            deleteQuery,
+            [employee_id, team_id]
           );
 
           if (result.rows.length === 0) {
@@ -427,6 +370,9 @@ serve(async (req) => {
             );
           }
 
+          // Tratar manager_id: se for "none", string vazia ou undefined, usar null
+          const finalManagerId = (manager_id && manager_id !== 'none' && manager_id !== '') ? manager_id : null;
+
           if (id) {
             // Atualizar equipe existente
             const updateQuery = `
@@ -442,7 +388,7 @@ serve(async (req) => {
 
             const result = await client.queryObject<Team>(
               updateQuery,
-              [name, description || null, manager_id || null, id, organizationId]
+              [name, description || null, finalManagerId, id, organizationId]
             );
 
             if (result.rows.length === 0) {
@@ -466,7 +412,7 @@ serve(async (req) => {
 
             const result = await client.queryObject<Team>(
               insertQuery,
-              [organizationId, name, description || null, manager_id || null]
+              [organizationId, name, description || null, finalManagerId]
             );
 
             return new Response(

@@ -280,6 +280,14 @@ serve(async (req) => {
           );
         }
 
+        // Validar base_salary na criação (não na atualização)
+        if (!id && (base_salary === undefined || base_salary === null || base_salary < 0)) {
+          return new Response(
+            JSON.stringify({ error: 'Salário base é obrigatório e deve ser maior ou igual a zero' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         if (id) {
           // Atualizar cargo existente
           const updateQuery = `
