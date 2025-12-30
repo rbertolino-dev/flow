@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from './useActiveOrganization';
 import { ContractTemplate } from '@/types/contract';
@@ -10,16 +10,7 @@ export function useContractTemplates() {
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (activeOrgId) {
-      fetchTemplates();
-    } else {
-      setTemplates([]);
-      setLoading(false);
-    }
-  }, [activeOrgId]);
-
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     if (!activeOrgId) return;
 
     try {
@@ -42,7 +33,16 @@ export function useContractTemplates() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeOrgId, toast]);
+
+  useEffect(() => {
+    if (activeOrgId) {
+      fetchTemplates();
+    } else {
+      setTemplates([]);
+      setLoading(false);
+    }
+  }, [activeOrgId, fetchTemplates]);
 
   const createTemplate = async (template: Omit<ContractTemplate, 'id' | 'created_at' | 'updated_at'>) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
