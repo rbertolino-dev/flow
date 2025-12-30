@@ -46,21 +46,8 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se tem ambas assinaturas
-    const { data: signatures } = await supabase
-      .from('contract_signatures')
-      .select('signer_type')
-      .eq('contract_id', contract_id);
-
-    const hasUser = signatures?.some(s => s.signer_type === 'user') || false;
-    const hasClient = signatures?.some(s => s.signer_type === 'client') || false;
-
-    if (!hasUser || !hasClient) {
-      return new Response(
-        JSON.stringify({ error: 'Contrato não está completamente assinado. Ambas as partes precisam assinar.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Removido: não exigir assinaturas antes de enviar
+    // O contrato pode ser enviado para o cliente assinar
 
     // Obter usuário que está enviando
     const authHeader = req.headers.get('Authorization');
@@ -93,9 +80,9 @@ serve(async (req) => {
         );
       }
 
-      // Buscar configuração da instância
+      // Buscar configuração da instância (tabela correta: evolution_configs)
       const { data: config, error: configError } = await supabase
-        .from('evolution_config')
+        .from('evolution_configs')
         .select('api_url, api_key, instance_name')
         .eq('id', instance_id)
         .single();

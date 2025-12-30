@@ -79,6 +79,7 @@ export function useContracts(filters?: ContractFilters) {
           lead:leads(id, name, phone, email, company)
         `)
         .eq('organization_id', activeOrgId)
+        .is('deleted_at', null) // Apenas contratos não deletados (soft delete)
         .order('created_at', { ascending: false });
       
       // Garantir que whatsapp_message_template seja sempre selecionado
@@ -356,21 +357,38 @@ export function useContracts(filters?: ContractFilters) {
         .eq('id', id)
         .single();
 
+      if (!oldContract) {
+        throw new Error('Contrato não encontrado');
+      }
+
+      // Obter usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // Soft delete: atualizar deleted_at e deleted_by ao invés de deletar
       const { error } = await supabase
         .from('contracts')
-        .delete()
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user.id,
+        })
         .eq('id', id);
 
       if (error) throw error;
 
-      // Criar log de auditoria
+      // Criar log de auditoria com informações completas
       await createAuditLog(id, 'deleted', {
         contract_number: oldContract?.contract_number,
+        deleted_by: user.id,
+        deleted_at: new Date().toISOString(),
+        organization_id: oldContract?.organization_id,
       }, oldContract || undefined);
 
       toast({
-        title: 'Contrato deletado',
-        description: 'Contrato deletado com sucesso',
+        title: 'Contrato excluído',
+        description: 'Contrato excluído com sucesso. Você pode visualizar o histórico de exclusões.',
       });
 
       await fetchContracts();

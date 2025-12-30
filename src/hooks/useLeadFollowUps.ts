@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LeadFollowUp, LeadFollowUpStep } from "@/types/followUp";
 import { executeFollowUpAutomation } from "@/lib/followUpAutomationExecutor";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 export function useLeadFollowUps(leadId: string) {
   const [followUps, setFollowUps] = useState<LeadFollowUp[]>([]);
@@ -146,38 +147,111 @@ export function useLeadFollowUps(leadId: string) {
       if (!user) {
         toast({
           title: "Erro",
-          description: "Usuário não autenticado",
+          description: "Usuário não autenticado. Faça login novamente.",
           variant: "destructive",
         });
         return false;
       }
 
-      // Verificar se lead_id existe em leads ou post_sale_leads
+      // Verificar se lead_id existe em leads
       const { data: leadCheck } = await (supabase as any)
         .from('leads')
         .select('id')
         .eq('id', leadId)
         .maybeSingle();
 
-      const { data: postSaleLeadCheck } = await (supabase as any)
-        .from('post_sale_leads')
-        .select('id')
-        .eq('id', leadId)
-        .maybeSingle();
+      let finalLeadId = leadId;
 
-      if (!leadCheck && !postSaleLeadCheck) {
-        toast({
-          title: "Erro",
-          description: "Lead não encontrado. Verifique se o lead existe.",
-          variant: "destructive",
-        });
-        return false;
+      // Se não existe em leads, verificar se é um post_sale_lead
+      if (!leadCheck) {
+        const { data: postSaleLeadCheck } = await (supabase as any)
+          .from('post_sale_leads')
+          .select('id, name, phone, email, company, organization_id, original_lead_id')
+          .eq('id', leadId)
+          .maybeSingle();
+
+        if (!postSaleLeadCheck) {
+          toast({
+            title: "Erro",
+            description: "Cliente não encontrado. Verifique se o cliente existe.",
+            variant: "destructive",
+          });
+          return false;
+        }
+
+        // Se tem original_lead_id, usar ele
+        if (postSaleLeadCheck.original_lead_id) {
+          finalLeadId = postSaleLeadCheck.original_lead_id;
+          
+          // Verificar se o original_lead_id existe em leads
+          const { data: originalLeadCheck } = await (supabase as any)
+            .from('leads')
+            .select('id')
+            .eq('id', finalLeadId)
+            .maybeSingle();
+
+          if (!originalLeadCheck) {
+            toast({
+              title: "Erro",
+              description: "Lead original não encontrado. Não é possível aplicar o template.",
+              variant: "destructive",
+            });
+            return false;
+          }
+        } else {
+          // Criar lead correspondente na tabela leads
+          const organizationId = await getUserOrganizationId();
+          if (!organizationId) {
+            toast({
+              title: "Erro",
+              description: "Organização não encontrada.",
+              variant: "destructive",
+            });
+            return false;
+          }
+
+          const { data: newLead, error: createLeadError } = await (supabase as any)
+            .from('leads')
+            .insert({
+              organization_id: organizationId,
+              user_id: user.id,
+              name: postSaleLeadCheck.name,
+              phone: postSaleLeadCheck.phone,
+              email: postSaleLeadCheck.email || null,
+              company: postSaleLeadCheck.company || null,
+              source: 'post_sale',
+              status: 'new',
+              created_by: user.id,
+              updated_by: user.id,
+            })
+            .select()
+            .single();
+
+          if (createLeadError) {
+            console.error('[useLeadFollowUps] Erro ao criar lead correspondente:', createLeadError);
+            toast({
+              title: "Erro ao aplicar template",
+              description: "Não foi possível criar o registro necessário. Tente novamente.",
+              variant: "destructive",
+            });
+            return false;
+          }
+
+          finalLeadId = newLead.id;
+
+          // Atualizar post_sale_lead com original_lead_id
+          await (supabase as any)
+            .from('post_sale_leads')
+            .update({ original_lead_id: finalLeadId })
+            .eq('id', leadId);
+        }
       }
 
+      // Aplicar template usando o finalLeadId
       const { data, error } = await (supabase as any)
         .from('lead_follow_ups')
         .insert({
-          lead_id: leadId,
+          lead_id: finalLeadId,
           template_id: templateId,
           created_by: user.id,
         })
@@ -187,27 +261,29 @@ export function useLeadFollowUps(leadId: string) {
       if (error) {
         console.error('[useLeadFollowUps] Erro ao aplicar template:', error);
         
-        // Se erro de RLS, pode ser que migration não foi aplicada
-        if (error.message?.includes('policy') || error.message?.includes('security') || error.code === '42501') {
-          toast({
-            title: "Erro de permissão",
-            description: "Erro ao aplicar template. Verifique se a migration de RLS foi aplicada no Supabase. Erro: " + error.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Erro ao aplicar template",
-            description: error.message || "Não foi possível aplicar o template de follow-up.",
-            variant: "destructive",
-          });
+        // Mensagem de erro mais clara
+        let errorMessage = "Não foi possível aplicar o template de follow-up.";
+        
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          errorMessage = "Erro: O cliente não está vinculado corretamente. Tente novamente ou entre em contato com o suporte.";
+        } else if (error.message?.includes('policy') || error.message?.includes('security') || error.code === '42501') {
+          errorMessage = "Erro de permissão. Verifique se você tem permissão para aplicar templates a este cliente.";
+        } else if (error.message) {
+          errorMessage = error.message;
         }
+        
+        toast({
+          title: "Erro ao aplicar template",
+          description: errorMessage,
+          variant: "destructive",
+        });
         return false;
       }
 
       await fetchFollowUps();
       toast({
         title: "Template aplicado",
-        description: "Template de follow-up aplicado ao lead com sucesso",
+        description: "Template de follow-up aplicado ao cliente com sucesso",
       });
 
       return true;
@@ -215,7 +291,7 @@ export function useLeadFollowUps(leadId: string) {
       console.error('[useLeadFollowUps] Erro inesperado ao aplicar template:', error);
       toast({
         title: "Erro ao aplicar template",
-        description: error.message || "Não foi possível aplicar o template de follow-up.",
+        description: error.message || "Não foi possível aplicar o template de follow-up. Tente novamente.",
         variant: "destructive",
       });
       return false;

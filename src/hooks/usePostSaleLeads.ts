@@ -107,24 +107,289 @@ export function usePostSaleLeads() {
   useEffect(() => {
     fetchLeads();
 
-    // Subscribe to changes
+    // Subscribe to changes com atualizações granulares e otimistas
     const channel = supabase
       .channel('post_sale_leads_changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'post_sale_leads',
         },
-        () => {
-          fetchLeads();
+        async (payload) => {
+          // Atualização otimista: adicionar novo lead imediatamente
+          const newLead = payload.new as any;
+          const organizationId = await getUserOrganizationId();
+          
+          if (newLead.organization_id === organizationId && !newLead.deleted_at) {
+            setLeads((prev) => {
+              // Verificar se já existe para evitar duplicatas
+              if (prev.some(l => l.id === newLead.id)) return prev;
+              
+              const mappedLead: PostSaleLead = {
+                id: newLead.id,
+                name: newLead.name,
+                phone: newLead.phone,
+                email: newLead.email || undefined,
+                company: newLead.company || undefined,
+                value: newLead.value || undefined,
+                status: newLead.status || 'new',
+                source: newLead.source || 'manual',
+                assignedTo: newLead.assigned_to || 'Não atribuído',
+                lastContact: newLead.last_contact ? new Date(newLead.last_contact) : new Date(),
+                createdAt: new Date(newLead.created_at!),
+                notes: newLead.notes || undefined,
+                stageId: newLead.stage_id || undefined,
+                originalLeadId: newLead.original_lead_id || undefined,
+                transferredAt: newLead.transferred_at ? new Date(newLead.transferred_at) : undefined,
+                transferredBy: newLead.transferred_by || undefined,
+                activities: [],
+                tags: [],
+              };
+              
+              return [mappedLead, ...prev];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'post_sale_leads',
+        },
+        async (payload) => {
+          // Atualização otimista: atualizar lead existente imediatamente
+          const updatedLead = payload.new as any;
+          const organizationId = await getUserOrganizationId();
+          
+          if (updatedLead.organization_id === organizationId) {
+            setLeads((prev) => {
+              if (updatedLead.deleted_at) {
+                // Remover se foi deletado
+                return prev.filter(l => l.id !== updatedLead.id);
+              }
+              
+              // Atualizar lead existente
+              return prev.map((lead) => {
+                if (lead.id === updatedLead.id) {
+                  return {
+                    ...lead,
+                    name: updatedLead.name,
+                    phone: updatedLead.phone,
+                    email: updatedLead.email || undefined,
+                    company: updatedLead.company || undefined,
+                    value: updatedLead.value || undefined,
+                    notes: updatedLead.notes || undefined,
+                    stageId: updatedLead.stage_id || undefined,
+                    status: updatedLead.status || lead.status,
+                    lastContact: updatedLead.last_contact ? new Date(updatedLead.last_contact) : lead.lastContact,
+                  };
+                }
+                return lead;
+              });
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'post_sale_leads',
+        },
+        (payload) => {
+          // Remover lead imediatamente
+          setLeads((prev) => prev.filter(l => l.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    // Subscribe to activities changes
+    const activitiesChannel = supabase
+      .channel('post_sale_activities_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'post_sale_activities',
+        },
+        async (payload) => {
+          // Atualização otimista: adicionar/atualizar atividade imediatamente
+          const activity = payload.new || payload.old;
+          if (activity?.post_sale_lead_id) {
+            const organizationId = await getUserOrganizationId();
+            if (!organizationId) return;
+            
+            // Verificar se a atividade pertence à organização
+            if (activity.organization_id !== organizationId) return;
+            
+            const eventType = (payload as any).eventType || (payload as any).type;
+            
+            if (eventType === 'INSERT' && payload.new) {
+              // Adicionar nova atividade
+              const newActivity: PostSaleActivity = {
+                id: payload.new.id,
+                type: payload.new.type as PostSaleActivity['type'],
+                content: payload.new.content,
+                timestamp: new Date(payload.new.created_at),
+                user: payload.new.user_name || 'Sistema',
+                direction: payload.new.direction as 'incoming' | 'outgoing' | undefined,
+                user_name: payload.new.user_name || null,
+              };
+              
+              setLeads((prev) => prev.map((lead) => {
+                if (lead.id === activity.post_sale_lead_id) {
+                  // Verificar se já existe para evitar duplicatas
+                  if (lead.activities.some(a => a.id === newActivity.id)) {
+                    return lead;
+                  }
+                  return {
+                    ...lead,
+                    activities: [newActivity, ...lead.activities],
+                  };
+                }
+                return lead;
+              }));
+            } else if (eventType === 'DELETE' && payload.old) {
+              // Remover atividade
+              setLeads((prev) => prev.map((lead) => {
+                if (lead.id === activity.post_sale_lead_id) {
+                  return {
+                    ...lead,
+                    activities: lead.activities.filter(a => a.id !== payload.old.id),
+                  };
+                }
+                return lead;
+              }));
+            } else {
+              // UPDATE: recarregar todas as atividades do lead
+              const { data: activitiesData } = await supabase
+                .from('post_sale_activities')
+                .select('*')
+                .eq('post_sale_lead_id', activity.post_sale_lead_id)
+                .order('created_at', { ascending: false });
+              
+              if (activitiesData) {
+                setLeads((prev) => prev.map((lead) => {
+                  if (lead.id === activity.post_sale_lead_id) {
+                    return {
+                      ...lead,
+                      activities: activitiesData.map((a) => ({
+                        id: a.id,
+                        type: a.type as PostSaleActivity['type'],
+                        content: a.content,
+                        timestamp: new Date(a.created_at!),
+                        user: a.user_name || 'Sistema',
+                        direction: a.direction as 'incoming' | 'outgoing' | undefined,
+                        user_name: a.user_name || null,
+                      })),
+                    };
+                  }
+                  return lead;
+                }));
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to tags changes
+    const tagsChannel = supabase
+      .channel('post_sale_lead_tags_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'post_sale_lead_tags',
+        },
+        async (payload) => {
+          // Atualização otimista: atualizar tags imediatamente
+          const tagRelation = payload.new || payload.old;
+          if (tagRelation?.post_sale_lead_id) {
+            // Verificar se o lead pertence à organização antes de atualizar
+            const organizationId = await getUserOrganizationId();
+            if (!organizationId) return;
+            
+            const { data: leadData } = await supabase
+              .from('post_sale_leads')
+              .select('organization_id')
+              .eq('id', tagRelation.post_sale_lead_id)
+              .single();
+            
+            if (!leadData || leadData.organization_id !== organizationId) return;
+            
+            // Atualização otimista baseada no evento
+            const eventType = (payload as any).eventType || (payload as any).type;
+            
+            if (eventType === 'INSERT' && payload.new) {
+              // Buscar tag adicionada
+              const { data: tagData } = await supabase
+                .from('tags')
+                .select('id, name, color')
+                .eq('id', payload.new.tag_id)
+                .single();
+              
+              if (tagData) {
+                setLeads((prev) => prev.map((l) => {
+                  if (l.id === tagRelation.post_sale_lead_id) {
+                    // Verificar se tag já existe
+                    if (l.tags.some(t => t.id === tagData.id)) {
+                      return l;
+                    }
+                    return {
+                      ...l,
+                      tags: [...l.tags, tagData],
+                    };
+                  }
+                  return l;
+                }));
+              }
+            } else if (eventType === 'DELETE' && payload.old) {
+              // Remover tag
+              setLeads((prev) => prev.map((l) => {
+                if (l.id === tagRelation.post_sale_lead_id) {
+                  return {
+                    ...l,
+                    tags: l.tags.filter(t => t.id !== payload.old.tag_id),
+                  };
+                }
+                return l;
+              }));
+            } else {
+              // UPDATE: recarregar todas as tags
+              const { data: leadTagsData } = await supabase
+                .from('post_sale_lead_tags')
+                .select('post_sale_lead_id, tag_id, tags(id, name, color)')
+                .eq('post_sale_lead_id', tagRelation.post_sale_lead_id);
+              
+              if (leadTagsData) {
+                setLeads((prev) => prev.map((l) => {
+                  if (l.id === tagRelation.post_sale_lead_id) {
+                    return {
+                      ...l,
+                      tags: (leadTagsData || []).map((lt: any) => lt.tags).filter(Boolean),
+                    };
+                  }
+                  return l;
+                }));
+              }
+            }
+          }
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(activitiesChannel);
+      supabase.removeChannel(tagsChannel);
     };
   }, []);
 
@@ -180,12 +445,18 @@ export function usePostSaleLeads() {
 
       if (error) throw error;
 
+      // A subscription realtime vai adicionar o lead automaticamente
+      // Mas garantimos que está atualizado
       toast({
         title: "Lead criado",
         description: "O lead de pós-venda foi criado com sucesso.",
       });
 
-      await fetchLeads();
+      // Pequeno delay para garantir que a subscription processou
+      setTimeout(() => {
+        fetchLeads();
+      }, 500);
+      
       return true;
     } catch (error: any) {
       toast({
@@ -297,6 +568,19 @@ export function usePostSaleLeads() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user?.id) throw new Error('Usuário não autenticado');
 
+      // Atualização otimista: atualizar UI imediatamente
+      setLeads((prev) => prev.map((lead) => {
+        if (lead.id === leadId) {
+          const updated = { ...lead, ...updates };
+          // Se mudou de etapa, atualizar lastContact também
+          if (updates.stageId !== undefined && updates.stageId !== lead.stageId) {
+            updated.lastContact = new Date();
+          }
+          return updated;
+        }
+        return lead;
+      }));
+
       const updateData: any = {
         updated_by: userData.user.id,
         updated_at: new Date().toISOString(),
@@ -318,9 +602,13 @@ export function usePostSaleLeads() {
         .update(updateData)
         .eq('id', leadId);
 
-      if (error) throw error;
+      if (error) {
+        // Reverter atualização otimista em caso de erro
+        await fetchLeads();
+        throw error;
+      }
 
-      await fetchLeads();
+      // A subscription realtime vai atualizar automaticamente, mas garantimos aqui também
       return true;
     } catch (error: any) {
       toast({

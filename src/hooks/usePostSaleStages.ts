@@ -64,18 +64,74 @@ export function usePostSaleStages() {
   useEffect(() => {
     fetchStages();
 
-    // Subscribe to changes
+    // Subscribe to changes com atualizações otimistas
     const channel = supabase
       .channel('post_sale_stages_changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'post_sale_stages',
         },
-        () => {
-          fetchStages();
+        async (payload) => {
+          // Adicionar nova etapa imediatamente
+          const newStage = payload.new as any;
+          const organizationId = await getUserOrganizationId();
+          
+          if (newStage.organization_id === organizationId) {
+            setStages((prev) => {
+              if (prev.some(s => s.id === newStage.id)) return prev;
+              
+              const mappedStage: PostSaleStage = {
+                id: newStage.id,
+                name: newStage.name,
+                color: newStage.color,
+                position: newStage.position,
+              };
+              
+              return [...prev, mappedStage].sort((a, b) => a.position - b.position);
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'post_sale_stages',
+        },
+        async (payload) => {
+          // Atualizar etapa imediatamente
+          const updatedStage = payload.new as any;
+          const organizationId = await getUserOrganizationId();
+          
+          if (updatedStage.organization_id === organizationId) {
+            setStages((prev) => prev.map((stage) => {
+              if (stage.id === updatedStage.id) {
+                return {
+                  id: updatedStage.id,
+                  name: updatedStage.name,
+                  color: updatedStage.color,
+                  position: updatedStage.position,
+                };
+              }
+              return stage;
+            }).sort((a, b) => a.position - b.position));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'post_sale_stages',
+        },
+        (payload) => {
+          // Remover etapa imediatamente
+          setStages((prev) => prev.filter(s => s.id !== payload.old.id));
         }
       )
       .subscribe();
@@ -116,7 +172,12 @@ export function usePostSaleStages() {
         description: "A etapa foi criada com sucesso.",
       });
 
-      await fetchStages();
+      // A subscription realtime vai adicionar automaticamente
+      // Pequeno delay para garantir sincronização
+      setTimeout(() => {
+        fetchStages();
+      }, 300);
+      
       return true;
     } catch (error: any) {
       toast({
@@ -133,19 +194,30 @@ export function usePostSaleStages() {
       const currentStage = stages.find(s => s.id === id);
       if (!currentStage) throw new Error('Etapa não encontrada');
 
+      // Atualização otimista
+      setStages((prev) => prev.map((stage) => {
+        if (stage.id === id) {
+          return { ...stage, name, color };
+        }
+        return stage;
+      }));
+
       const { error } = await supabase
         .from('post_sale_stages')
         .update({ name, color })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        // Reverter em caso de erro
+        await fetchStages();
+        throw error;
+      }
 
       toast({
         title: "Etapa atualizada",
         description: "A etapa foi atualizada com sucesso.",
       });
 
-      await fetchStages();
       return true;
     } catch (error: any) {
       toast({
@@ -218,6 +290,9 @@ export function usePostSaleStages() {
 
   const reorderStages = async (reorderedStages: PostSaleStage[]) => {
     try {
+      // Atualização otimista: reordenar imediatamente
+      setStages(reorderedStages);
+
       const updates = reorderedStages.map((stage, index) => 
         supabase
           .from('post_sale_stages')
@@ -226,9 +301,12 @@ export function usePostSaleStages() {
       );
 
       await Promise.all(updates);
-      await fetchStages();
+      
+      // A subscription realtime vai sincronizar automaticamente
       return true;
     } catch (error: any) {
+      // Reverter em caso de erro
+      await fetchStages();
       toast({
         title: "Erro ao reordenar etapas",
         description: error.message,

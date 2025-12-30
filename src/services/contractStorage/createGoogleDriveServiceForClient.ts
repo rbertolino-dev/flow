@@ -10,6 +10,17 @@ export async function createGoogleDriveServiceForClient(
   organizationId: string
 ): Promise<GoogleDriveStorageService | null> {
   try {
+    // Verificar se leadId é válido antes de fazer query
+    if (!leadId || leadId.trim() === '' || leadId === '0' || leadId === 'null' || leadId === 'undefined') {
+      console.warn('Lead ID inválido para Google Drive:', leadId);
+      return null;
+    }
+
+    if (!organizationId || organizationId.trim() === '') {
+      console.warn('Organization ID inválido para Google Drive:', organizationId);
+      return null;
+    }
+
     // Buscar configuração do Google Drive do cliente
     const { data: config, error } = await supabase
       .from('client_google_drive_configs')

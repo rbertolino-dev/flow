@@ -30,7 +30,8 @@ export function GoogleDriveBackupButton({ contract, onSuccess }: GoogleDriveBack
   });
 
   const checkGoogleDriveConfig = async () => {
-    if (!contract.lead_id || !activeOrgId) {
+    // Verificar se lead_id é válido
+    if (!contract.lead_id || contract.lead_id.trim() === '' || contract.lead_id === '0' || contract.lead_id === 'null' || contract.lead_id === 'undefined' || !activeOrgId) {
       setHasGoogleDrive(false);
       setChecking(false);
       return;

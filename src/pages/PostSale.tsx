@@ -19,8 +19,9 @@ export default function PostSale() {
   const [activeTab, setActiveTab] = useState("kanban");
 
   const handleLeadUpdate = async (leadId: string, newStageId: string) => {
+    // Atualização otimista - real-time vai sincronizar automaticamente
     await updateLead(leadId, { stageId: newStageId });
-    await refetch();
+    // Não precisa de refetch - real-time atualiza automaticamente
   };
 
   if (loading && activeTab === "kanban") {
@@ -61,7 +62,10 @@ export default function PostSale() {
                       className="pl-9"
                     />
                   </div>
-                  <BulkImportPostSaleLeadsDialog onImported={refetch} />
+                  <BulkImportPostSaleLeadsDialog onImported={() => {
+                    // Real-time vai atualizar automaticamente, mas garantimos aqui também
+                    setTimeout(() => refetch(), 500);
+                  }} />
                 </div>
               </div>
 
@@ -71,15 +75,19 @@ export default function PostSale() {
                   leads={leads}
                   onLeadUpdate={handleLeadUpdate}
                   searchQuery={searchQuery}
-                  onRefetch={refetch}
+                  onRefetch={() => {
+                    // Real-time atualiza automaticamente, mas mantemos para casos especiais
+                    refetch();
+                  }}
                 />
               </div>
             </TabsContent>
 
-            <TabsContent value="followup" className="flex-1 overflow-y-auto m-0 p-6">
-              <div className="space-y-6">
-                {/* Listagem de Templates Ativos */}
-                <Card>
+            <TabsContent value="followup" className="flex-1 flex flex-col overflow-hidden m-0">
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                  {/* Listagem de Templates Ativos */}
+                  <Card>
                   <CardHeader>
                     <CardTitle>Templates Disponíveis</CardTitle>
                     <CardDescription>
@@ -163,6 +171,7 @@ export default function PostSale() {
                     <FollowUpTemplateManager />
                   </CardContent>
                 </Card>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

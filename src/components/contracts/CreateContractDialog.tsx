@@ -27,10 +27,10 @@ export function CreateContractDialog({
   onSuccess,
   defaultLeadId,
 }: CreateContractDialogProps) {
-  const { templates, loading: templatesLoading } = useContractTemplates();
+  const { templates, loading: templatesLoading, refetch: refetchTemplates } = useContractTemplates();
   const { createContract } = useContracts();
   const { leads, loading: leadsLoading } = useLeads();
-  const { categories } = useContractCategories();
+  const { categories, fetchCategories } = useContractCategories();
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
 
@@ -48,6 +48,10 @@ export function CreateContractDialog({
 
   useEffect(() => {
     if (open) {
+      // Refetch templates e categorias quando abrir o dialog para pegar os mais recentes
+      refetchTemplates();
+      fetchCategories();
+      
       if (defaultLeadId) {
         setSelectedLeadId(defaultLeadId);
       } else {
@@ -60,7 +64,7 @@ export function CreateContractDialog({
       setExpiresAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
       setPdfFile(null);
     }
-  }, [open, defaultLeadId]);
+  }, [open, defaultLeadId, refetchTemplates, fetchCategories]);
 
   if (!open) return null;
 

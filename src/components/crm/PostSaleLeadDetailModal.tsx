@@ -1,4 +1,4 @@
-import { PostSaleLead } from "@/types/postSaleLead";
+import { PostSaleLead, PostSaleActivity } from "@/types/postSaleLead";
 import { useEffect, useState } from "react";
 import {
   Dialog,
@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, Tag as TagIcon, ListChecks } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, Tag as TagIcon, ListChecks, FileText, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { usePostSaleStages } from "@/hooks/usePostSaleStages";
 import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
 import { useLeadFollowUps } from "@/hooks/useLeadFollowUps";
+import { supabase } from "@/integrations/supabase/client";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 
 interface PostSaleLeadDetailModalProps {
   lead: PostSaleLead;
@@ -34,18 +36,31 @@ interface PostSaleLeadDetailModalProps {
 
 export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: PostSaleLeadDetailModalProps) {
   const { tags } = useTags();
-  const { updateLead, deleteLead } = usePostSaleLeads();
+  const { updateLead, deleteLead, leads } = usePostSaleLeads();
   const { stages } = usePostSaleStages();
   const { toast } = useToast();
   const [notes, setNotes] = useState(lead.notes || "");
   const [value, setValue] = useState(lead.value?.toString() || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [currentLead, setCurrentLead] = useState<PostSaleLead>(lead);
+  const [newActivity, setNewActivity] = useState("");
+  const [isAddingActivity, setIsAddingActivity] = useState(false);
   
-  // Atualizar valores quando lead mudar
+  // Atualizar lead local quando lead prop mudar (real-time)
   useEffect(() => {
-    setNotes(lead.notes || "");
-    setValue(lead.value?.toString() || "");
-  }, [lead.id, lead.notes, lead.value]);
+    // Buscar lead atualizado da lista (pode ter mudado via real-time)
+    const updatedLead = leads.find(l => l.id === lead.id);
+    if (updatedLead) {
+      setCurrentLead(updatedLead);
+      setNotes(updatedLead.notes || "");
+      setValue(updatedLead.value?.toString() || "");
+    } else {
+      // Se não encontrou na lista, usar o lead prop (pode ser novo)
+      setCurrentLead(lead);
+      setNotes(lead.notes || "");
+      setValue(lead.value?.toString() || "");
+    }
+  }, [lead.id, lead.notes, lead.value, lead.activities, leads]);
   
   // Follow-up hooks
   const { templates, loading: templatesLoading } = useFollowUpTemplates();
@@ -61,6 +76,9 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   const handleSaveNotes = async () => {
     setIsSaving(true);
     try {
+      // Atualização otimista
+      setCurrentLead(prev => ({ ...prev, notes }));
+      
       await updateLead(lead.id, { notes });
       toast({
         title: "Observações salvas",
@@ -68,6 +86,8 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
       });
       onUpdated?.();
     } catch (error: any) {
+      // Reverter em caso de erro
+      setCurrentLead(lead);
       toast({
         title: "Erro ao salvar",
         description: error.message,
@@ -78,9 +98,68 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
     }
   };
 
+  const handleAddActivity = async () => {
+    if (!newActivity.trim()) return;
+    
+    setIsAddingActivity(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const organizationId = await getUserOrganizationId();
+      
+      if (!organizationId) throw new Error('Organização não encontrada');
+      
+      // Criar atividade
+      const { error: activityError } = await supabase
+        .from('post_sale_activities')
+        .insert({
+          post_sale_lead_id: currentLead.id,
+          organization_id: organizationId,
+          type: 'note',
+          content: newActivity.trim(),
+          user_name: user?.email || 'Usuário',
+          direction: 'internal',
+        });
+      
+      if (activityError) throw activityError;
+      
+      // Atualização otimista: adicionar atividade imediatamente
+      const newActivityObj: PostSaleActivity = {
+        id: crypto.randomUUID(), // ID temporário
+        type: 'note',
+        content: newActivity.trim(),
+        timestamp: new Date(),
+        user: user?.email || 'Usuário',
+        user_name: user?.email || null,
+        direction: 'internal',
+      };
+      
+      setCurrentLead(prev => ({
+        ...prev,
+        activities: [newActivityObj, ...(prev.activities || [])],
+      }));
+      
+      setNewActivity("");
+      toast({
+        title: "Atividade adicionada",
+        description: "A atividade foi registrada com sucesso.",
+      });
+      
+      // A subscription realtime vai atualizar automaticamente
+      onUpdated?.();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao adicionar atividade",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingActivity(false);
+    }
+  };
+
   const handleDelete = async () => {
-    if (confirm(`Tem certeza que deseja excluir ${lead.name}?`)) {
-      const success = await deleteLead(lead.id);
+    if (confirm(`Tem certeza que deseja excluir ${currentLead.name}?`)) {
+      const success = await deleteLead(currentLead.id);
       if (success) {
         onClose();
         onUpdated?.();
@@ -89,7 +168,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   };
 
   const handleWhatsAppClick = () => {
-    const formatted = buildCopyNumber(lead.phone);
+    const formatted = buildCopyNumber(currentLead.phone);
     window.open(`https://wa.me/${formatted}`, '_blank');
   };
 
@@ -107,11 +186,56 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
     // Se falhar, o toast de erro já é mostrado pelo hook useLeadFollowUps
   };
 
+  // Subscription real-time para atividades deste lead específico
+  useEffect(() => {
+    if (!open || !lead.id) return;
+
+    const channel = supabase
+      .channel(`post_sale_lead_${lead.id}_activities`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'post_sale_activities',
+          filter: `post_sale_lead_id=eq.${lead.id}`,
+        },
+        async () => {
+          // Recarregar atividades deste lead
+          const { data: activitiesData } = await supabase
+            .from('post_sale_activities')
+            .select('*')
+            .eq('post_sale_lead_id', lead.id)
+            .order('created_at', { ascending: false });
+          
+          if (activitiesData) {
+            setCurrentLead(prev => ({
+              ...prev,
+              activities: activitiesData.map((a) => ({
+                id: a.id,
+                type: a.type as PostSaleActivity['type'],
+                content: a.content,
+                timestamp: new Date(a.created_at!),
+                user: a.user_name || 'Sistema',
+                direction: a.direction as 'incoming' | 'outgoing' | undefined,
+                user_name: a.user_name || null,
+              })),
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, lead.id]);
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl sm:text-2xl truncate">{lead.name}</DialogTitle>
+          <DialogTitle className="text-xl sm:text-2xl truncate">{currentLead.name}</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
@@ -123,7 +247,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Telefone:</span>
-                  <span className="font-medium">{formatBrazilianPhone(lead.phone)}</span>
+                  <span className="font-medium">{formatBrazilianPhone(currentLead.phone)}</span>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -134,18 +258,18 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                     WhatsApp
                   </Button>
                 </div>
-                {lead.email && (
+                {currentLead.email && (
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Email:</span>
-                    <span className="font-medium">{lead.email}</span>
+                    <span className="font-medium">{currentLead.email}</span>
                   </div>
                 )}
-                {lead.company && (
+                {currentLead.company && (
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Empresa:</span>
-                    <span className="font-medium">{lead.company}</span>
+                    <span className="font-medium">{currentLead.company}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -174,13 +298,21 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                         onClick={async () => {
                           setIsSaving(true);
                           try {
-                            await updateLead(lead.id, { value: value ? parseFloat(value) : undefined });
+                            // Atualização otimista
+                            setCurrentLead(prev => ({ 
+                              ...prev, 
+                              value: value ? parseFloat(value) : undefined 
+                            }));
+                            
+                            await updateLead(currentLead.id, { value: value ? parseFloat(value) : undefined });
                             toast({
                               title: "Valor atualizado",
                               description: "O valor foi atualizado com sucesso.",
                             });
                             onUpdated?.();
                           } catch (error: any) {
+                            // Reverter em caso de erro
+                            setCurrentLead(lead);
                             toast({
                               title: "Erro ao atualizar valor",
                               description: error.message,
@@ -243,7 +375,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
             )}
 
             {/* Etiquetas */}
-            {lead.tags && lead.tags.length > 0 && (
+            {currentLead.tags && currentLead.tags.length > 0 && (
               <>
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -251,7 +383,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                     Etiquetas
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {lead.tags.map((tag) => (
+                    {currentLead.tags.map((tag) => (
                       <Badge
                         key={tag.id}
                         variant="outline"
@@ -288,6 +420,73 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
 
             <Separator />
 
+            {/* Atividades/Histórico */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Histórico de Atividades
+              </h3>
+              
+              {/* Adicionar nova atividade */}
+              <div className="space-y-2">
+                <Textarea
+                  value={newActivity}
+                  onChange={(e) => setNewActivity(e.target.value)}
+                  placeholder="Adicione uma nota ou comentário..."
+                  rows={2}
+                />
+                <Button 
+                  onClick={handleAddActivity} 
+                  disabled={isAddingActivity || !newActivity.trim()} 
+                  size="sm"
+                >
+                  {isAddingActivity ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adicionando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Atividade
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Lista de atividades */}
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {currentLead.activities && currentLead.activities.length > 0 ? (
+                  currentLead.activities.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="p-3 bg-muted/50 rounded-md border-l-2 border-l-primary"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm">{activity.content}</p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                            <span>{activity.user}</span>
+                            <span>•</span>
+                            <span>{format(activity.timestamp, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {activity.type === 'note' ? 'Nota' : activity.type}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhuma atividade registrada ainda.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Informações Adicionais */}
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Informações Adicionais</h3>
@@ -295,21 +494,21 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Criado em:</span>
                   <span className="font-medium">
-                    {format(lead.createdAt, "dd/MM/yyyy", { locale: ptBR })}
+                    {format(currentLead.createdAt, "dd/MM/yyyy", { locale: ptBR })}
                   </span>
                 </div>
-                {lead.transferredAt && (
+                {currentLead.transferredAt && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Transferido em:</span>
                     <span className="font-medium">
-                      {format(lead.transferredAt, "dd/MM/yyyy", { locale: ptBR })}
+                      {format(currentLead.transferredAt, "dd/MM/yyyy", { locale: ptBR })}
                     </span>
                   </div>
                 )}
-                {lead.source && (
+                {currentLead.source && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Origem:</span>
-                    <span className="font-medium">{lead.source === 'transferido' ? 'Transferido do Funil de Vendas' : 'Manual'}</span>
+                    <span className="font-medium">{currentLead.source === 'transferido' ? 'Transferido do Funil de Vendas' : 'Manual'}</span>
                   </div>
                 )}
               </div>

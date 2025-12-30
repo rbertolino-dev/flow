@@ -241,8 +241,16 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
           open={!!selectedLead}
           onClose={() => setSelectedLead(null)}
           onUpdated={() => {
-            onRefetch();
-            setSelectedLead(null);
+            // Real-time atualiza automaticamente
+            // Atualizar lead selecionado se necessário
+            const updatedLead = leads.find(l => l.id === selectedLead.id);
+            if (updatedLead) {
+              setSelectedLead(updatedLead);
+            }
+            // Pequeno delay para garantir sincronização
+            setTimeout(() => {
+              onRefetch?.();
+            }, 300);
           }}
         />
       )}
@@ -251,7 +259,11 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
         open={createLeadOpen}
         onOpenChange={setCreateLeadOpen}
         onCreated={() => {
-          onRefetch();
+          // Real-time vai adicionar o lead automaticamente
+          // Pequeno delay para garantir sincronização
+          setTimeout(() => {
+            onRefetch?.();
+          }, 300);
           setCreateLeadOpen(false);
         }}
       />

@@ -40,32 +40,20 @@ export function SendContractDialog({
   const checkSignatures = async () => {
     setCheckingSignatures(true);
     try {
-      const { data: signatures } = await supabase
-        .from('contract_signatures')
-        .select('signer_type')
-        .eq('contract_id', contract.id);
-
-      const hasUser = signatures?.some(s => s.signer_type === 'user') || false;
-      const hasClient = signatures?.some(s => s.signer_type === 'client') || false;
-
-      setHasBothSignatures(hasUser && hasClient);
+      // Não verificar assinaturas - permitir envio mesmo sem assinaturas
+      // O contrato pode ser enviado para o cliente assinar
+      setHasBothSignatures(true);
     } catch (error) {
       console.error('Erro ao verificar assinaturas:', error);
-      setHasBothSignatures(false);
+      setHasBothSignatures(true); // Permitir envio mesmo com erro
     } finally {
       setCheckingSignatures(false);
     }
   };
 
   const handleSend = async () => {
-    if (!hasBothSignatures) {
-      toast({
-        title: 'Contrato não assinado',
-        description: 'O contrato precisa estar assinado por ambas as partes antes de ser enviado.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Removido: não exigir assinaturas antes de enviar
+    // O contrato pode ser enviado para o cliente assinar
 
     if (sendMethod === 'whatsapp' && !selectedInstanceId) {
       toast({
@@ -171,30 +159,16 @@ export function SendContractDialog({
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : !hasBothSignatures ? (
-          <div className="space-y-4 py-4">
-            <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-yellow-900">
-                  Contrato não está completamente assinado
-                </p>
-                <p className="text-sm text-yellow-700 mt-1">
-                  O contrato precisa estar assinado por ambas as partes (usuário e cliente) antes de ser enviado.
-                </p>
-              </div>
-            </div>
-          </div>
         ) : (
           <div className="space-y-4 py-4">
-            <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-green-900">
-                  Contrato completamente assinado
+                <p className="text-sm font-medium text-blue-900">
+                  Pronto para enviar
                 </p>
-                <p className="text-sm text-green-700 mt-1">
-                  Ambas as partes assinaram o contrato. Você pode enviá-lo ao cliente.
+                <p className="text-sm text-blue-700 mt-1">
+                  O contrato será enviado ao cliente para assinatura.
                 </p>
               </div>
             </div>
@@ -269,7 +243,7 @@ export function SendContractDialog({
           <Button
             type="button"
             onClick={handleSend}
-            disabled={sending || !hasBothSignatures || (sendMethod === 'whatsapp' && !selectedInstanceId) || (sendMethod === 'email' && !contract.lead?.email)}
+            disabled={sending || (sendMethod === 'whatsapp' && !selectedInstanceId) || (sendMethod === 'email' && !contract.lead?.email)}
           >
             {sending ? (
               <>
