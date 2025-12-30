@@ -136,14 +136,12 @@ export function DateTimePicker({
                 <SelectValue placeholder="Selecione a hora" />
               </div>
             </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              <ScrollArea className="h-[300px]">
-                {timeOptions.map((timeOption) => (
-                  <SelectItem key={timeOption} value={timeOption}>
-                    {timeOption}
-                  </SelectItem>
-                ))}
-              </ScrollArea>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {timeOptions.map((timeOption) => (
+                <SelectItem key={timeOption} value={timeOption}>
+                  {timeOption}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
