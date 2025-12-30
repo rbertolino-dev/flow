@@ -507,7 +507,11 @@ export function CreateEventDialog({
           </div>
 
           <DateTimePicker
-            date={formData.startDate ? new Date(formData.startDate + "T" + (formData.startTime || "00:00")) : undefined}
+            date={formData.startDate && formData.startTime 
+              ? parseSaoPauloDateTime(formData.startDate, formData.startTime)
+              : formData.startDate 
+                ? new Date(formData.startDate + "T09:00")
+                : undefined}
             onDateChange={(date) => {
               if (date) {
                 setFormData({
@@ -515,11 +519,26 @@ export function CreateEventDialog({
                   startDate: format(date, "yyyy-MM-dd"),
                   startTime: format(date, "HH:mm"),
                 });
+              } else {
+                setFormData({
+                  ...formData,
+                  startDate: "",
+                  startTime: "",
+                });
               }
             }}
             time={formData.startTime || "09:00"}
             onTimeChange={(time) => {
               setFormData({ ...formData, startTime: time });
+              // Atualizar data se já tiver uma data selecionada
+              if (formData.startDate) {
+                const [hours, minutes] = time.split(":").map(Number);
+                const date = new Date(formData.startDate + "T" + time);
+                setFormData(prev => ({
+                  ...prev,
+                  startTime: time,
+                }));
+              }
             }}
             label="Data e Horário do Evento"
             required

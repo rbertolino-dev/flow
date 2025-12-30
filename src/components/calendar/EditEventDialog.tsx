@@ -236,13 +236,23 @@ export function EditEventDialog({
           </div>
 
           <DateTimePicker
-            date={formData.startDate ? new Date(formData.startDate + "T" + (formData.startTime || "00:00")) : undefined}
+            date={formData.startDate && formData.startTime 
+              ? parseSaoPauloDateTime(formData.startDate, formData.startTime)
+              : formData.startDate 
+                ? new Date(formData.startDate + "T09:00")
+                : undefined}
             onDateChange={(date) => {
               if (date) {
                 setFormData({
                   ...formData,
                   startDate: format(date, "yyyy-MM-dd"),
                   startTime: format(date, "HH:mm"),
+                });
+              } else {
+                setFormData({
+                  ...formData,
+                  startDate: "",
+                  startTime: "",
                 });
               }
             }}
