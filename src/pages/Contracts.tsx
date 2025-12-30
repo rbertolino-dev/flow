@@ -272,6 +272,26 @@ export default function Contracts() {
     }
   };
 
+  const handleDelete = async (contract: Contract) => {
+    if (!confirm('Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita.')) return;
+
+    try {
+      await deleteContract(contract.id);
+      await refetch(); // Atualizar lista
+      setSelectedContract(null); // Fechar visualização
+      toast({
+        title: 'Contrato excluído',
+        description: 'Contrato excluído com sucesso. Você pode visualizar o histórico de exclusões.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao excluir contrato',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleDownload = (contract: Contract) => {
     const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
     if (pdfUrl) {

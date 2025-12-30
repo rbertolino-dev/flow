@@ -13,3 +13,4 @@ CREATE INDEX IF NOT EXISTS idx_contracts_deleted_at ON public.contracts(deleted_
 COMMENT ON COLUMN public.contracts.deleted_at IS 'Data e hora da exclusão (soft delete). NULL = não deletado';
 COMMENT ON COLUMN public.contracts.deleted_by IS 'ID do usuário que deletou o contrato';
 
+

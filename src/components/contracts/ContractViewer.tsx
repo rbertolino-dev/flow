@@ -22,6 +22,7 @@ interface ContractViewerProps {
   onEditMessage?: (contract: Contract) => void;
   onEditTemplate?: (template: ContractTemplate) => void;
   onConfigureSignatures?: (contract: Contract) => void;
+  onDelete?: (contract: Contract) => void;
 }
 
 export function ContractViewer({
@@ -33,6 +34,7 @@ export function ContractViewer({
   onEditMessage,
   onEditTemplate,
   onConfigureSignatures,
+  onDelete,
 }: ContractViewerProps) {
   const { signatures, loading: signaturesLoading } = useContractSignatures(contract.id);
   const [expandedSignatures, setExpandedSignatures] = useState<Set<string>>(new Set());
@@ -200,6 +202,12 @@ export function ContractViewer({
               <Button variant="destructive" onClick={() => onCancel(contract)}>
                 <X className="w-4 h-4 mr-2" />
                 Cancelar
+              </Button>
+            )}
+            {onDelete && (
+              <Button variant="destructive" onClick={() => onDelete(contract)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
               </Button>
             )}
           </div>
