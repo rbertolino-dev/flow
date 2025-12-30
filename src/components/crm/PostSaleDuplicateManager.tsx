@@ -375,7 +375,8 @@ export function PostSaleDuplicateManager() {
   };
 
   return (
-    <Card>
+    <>
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -589,7 +590,7 @@ export function PostSaleDuplicateManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
