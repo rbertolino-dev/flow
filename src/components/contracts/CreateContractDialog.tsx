@@ -51,10 +51,15 @@ export function CreateContractDialog({
       // Refetch templates e categorias quando abrir o dialog para pegar os mais recentes
       // Aguardar refetch para garantir que dados estejam atualizados
       const refreshData = async () => {
-        await Promise.all([
-          refetchTemplates(),
-          fetchCategories(),
-        ]);
+        try {
+          await Promise.all([
+            refetchTemplates(),
+            fetchCategories(),
+          ]);
+          console.log('[CreateContractDialog] Templates e categorias atualizados após refetch');
+        } catch (error) {
+          console.error('[CreateContractDialog] Erro ao atualizar templates/categorias:', error);
+        }
       };
       refreshData();
       
@@ -253,11 +258,12 @@ export function CreateContractDialog({
   };
 
   // Filtrar templates válidos: is_active pode ser true, null ou undefined (tratar null/undefined como true)
+  // Isso garante que templates recém-criados apareçam mesmo se is_active não estiver definido
   const validTemplates = templates.filter((t) => {
     if (!t.id || t.id.trim() === '') return false;
-    // Se is_active é null ou undefined, considerar como ativo (compatibilidade)
-    if (t.is_active === null || t.is_active === undefined) return true;
-    return t.is_active === true;
+    // Se is_active é null, undefined ou true, considerar como ativo
+    // Apenas filtrar se is_active for explicitamente false
+    return t.is_active !== false;
   });
   const validLeads = leads.filter((l) => l.id && l.id.trim() !== '');
   const validCategories = (categories || []).filter((c) => c.id && c.id.trim() !== '');

@@ -238,8 +238,12 @@ export default function Budgets() {
         category: service.category,
         is_active: !service.is_active,
       });
-    } catch (error) {
-      console.error('Erro ao atualizar status do serviço:', error);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao alterar status',
+        description: error.message || 'Erro desconhecido',
+        variant: 'destructive',
+      });
     }
   };
 
