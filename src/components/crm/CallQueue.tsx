@@ -2,7 +2,7 @@ import { CallQueueItem } from "@/types/lead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2, MessageCircle, ArrowRightCircle } from "lucide-react";
+import { Phone, Clock, CheckCircle2, RotateCcw, AlertCircle, Copy, Search, MessageSquare, PhoneCall, User, Filter, CalendarIcon, Tag as TagIcon, Upload, TrendingUp, History, Trash2, MessageCircle, ArrowRightCircle, X, CheckSquare, Square } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,6 +28,17 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTags } from "@/hooks/useTags";
 import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CallQueueProps {
   callQueue: CallQueueItem[];
@@ -37,6 +48,9 @@ interface CallQueueProps {
   onRemoveTag: (callQueueId: string, tagId: string) => void;
   onAssignToUser: (callQueueId: string, userId: string | null) => void;
   onUpdateStatus?: (callQueueId: string, status: 'pending' | 'completed' | 'rescheduled') => void;
+  onDeleteCall?: (callQueueId: string) => Promise<void>;
+  onBulkUpdateStatus?: (callQueueIds: string[], status: 'pending' | 'completed' | 'rescheduled') => Promise<void>;
+  onBulkDelete?: (callQueueIds: string[]) => Promise<void>;
   onRefetch: () => void;
 }
 
@@ -52,7 +66,7 @@ const priorityLabels = {
   low: "Baixa",
 };
 
-export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onAssignToUser, onUpdateStatus, onRefetch }: CallQueueProps) {
+export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTag, onRemoveTag, onAssignToUser, onUpdateStatus, onDeleteCall, onBulkUpdateStatus, onBulkDelete, onRefetch }: CallQueueProps) {
   const { toast } = useToast();
   const { tags: allTags } = useTags();
   const { users: organizationUsers } = useOrganizationUsers();
@@ -75,6 +89,12 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
     open: false,
     callItem: null,
   });
+  
+  // Seleção múltipla
+  const [selectedCallIds, setSelectedCallIds] = useState<Set<string>>(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<'pending' | 'completed' | 'rescheduled' | ''>('');
   
   // Filtros
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
@@ -661,14 +681,113 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           )}
         </div>
 
+      {/* Barra de ações em lote */}
+      {selectedCallIds.size > 0 && (
+        <Card className="p-4 mb-4 bg-primary/5 border-primary/20">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm">
+                {selectedCallIds.size} selecionado(s)
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedCallIds(new Set());
+                  setShowBulkActions(false);
+                }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Limpar seleção
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {onBulkUpdateStatus && (
+                <>
+                  <Select
+                    value={bulkStatus}
+                    onValueChange={(value) => {
+                      setBulkStatus(value as 'pending' | 'completed' | 'rescheduled');
+                    }}
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Alterar status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="completed">Concluída</SelectItem>
+                      <SelectItem value="rescheduled">Reagendada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (bulkStatus && onBulkUpdateStatus) {
+                        await onBulkUpdateStatus(Array.from(selectedCallIds), bulkStatus);
+                        setSelectedCallIds(new Set());
+                        setBulkStatus('');
+                        setShowBulkActions(false);
+                      }
+                    }}
+                    disabled={!bulkStatus}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Aplicar Status
+                  </Button>
+                </>
+              )}
+              {onBulkDelete && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir ({selectedCallIds.size})
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       <ScrollArea className="flex-1">
         <div className="p-3 md:p-6 space-y-6">
           {/* Pending Calls - Foco principal */}
           <div>
-            <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2 sticky top-0 bg-background z-10 py-2">
-              <AlertCircle className="h-5 w-5 text-warning" />
-              Pendentes ({pendingCalls.length})
-            </h2>
+            <div className="flex items-center justify-between mb-4 sticky top-0 bg-background z-10 py-2">
+              <h2 className="text-xl md:text-2xl font-semibold flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-warning" />
+                Pendentes ({pendingCalls.length})
+              </h2>
+              {pendingCalls.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedCallIds.size === pendingCalls.length) {
+                        setSelectedCallIds(new Set());
+                      } else {
+                        setSelectedCallIds(new Set(pendingCalls.map(c => c.id)));
+                      }
+                    }}
+                  >
+                    {selectedCallIds.size === pendingCalls.length ? (
+                      <>
+                        <Square className="h-4 w-4 mr-2" />
+                        Desmarcar todos
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="h-4 w-4 mr-2" />
+                        Selecionar todos
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
             <div className="space-y-3">
               {pendingCalls.length === 0 ? (
                 <Card className="p-8 text-center text-muted-foreground">
@@ -676,8 +795,24 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                 </Card>
               ) : (
                 pendingCalls.map((call) => (
-                  <Card key={call.id} className="p-3 sm:p-4">
+                  <Card key={call.id} className={cn("p-3 sm:p-4", selectedCallIds.has(call.id) && "ring-2 ring-primary")}>
                     <div className="flex flex-col lg:flex-row items-start gap-4">
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          checked={selectedCallIds.has(call.id)}
+                          onCheckedChange={(checked) => {
+                            const newSet = new Set(selectedCallIds);
+                            if (checked) {
+                              newSet.add(call.id);
+                            } else {
+                              newSet.delete(call.id);
+                            }
+                            setSelectedCallIds(newSet);
+                            setShowBulkActions(newSet.size > 0);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
                       <div className="flex-1 space-y-2 w-full">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-lg">{call.leadName}</h3>
@@ -755,9 +890,20 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
                                     borderColor: tag.color,
                                     color: tag.color,
                                   }}
-                                  className="text-xs font-semibold"
+                                  className="text-xs font-semibold flex items-center gap-1 pr-1"
                                 >
                                   {tag.name}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-4 w-4 p-0 hover:bg-transparent"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onRemoveTag(call.id, tag.id);
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
                                 </Badge>
                               ))}
                             </div>
@@ -1210,6 +1356,34 @@ export function CallQueue({ callQueue, onCallComplete, onCallReschedule, onAddTa
           });
         }}
       />
+
+      {/* Dialog de confirmação de exclusão em lote */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir {selectedCallIds.size} ligação(ões)? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (onBulkDelete) {
+                  await onBulkDelete(Array.from(selectedCallIds));
+                  setSelectedCallIds(new Set());
+                  setShowDeleteDialog(false);
+                  setShowBulkActions(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

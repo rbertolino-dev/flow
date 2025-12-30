@@ -77,28 +77,38 @@ export function useCallQueue() {
       let queueData: any[] = data || [];
       
       // ✅ CORREÇÃO: Filtrar leads deletados permanentemente (deleted_at não nulo)
+      // Coletar IDs de itens que precisam ser removidos
+      const itemsToRemove: string[] = [];
+      
       queueData = queueData.filter((item: any) => {
         // Se o lead não existe ou foi deletado (deleted_at não é null), excluir da fila
         if (!item.leads || item.leads.deleted_at) {
-          // Se o lead foi deletado, remover da fila automaticamente
+          // Se o lead foi deletado, marcar para remoção
           if (item.leads?.deleted_at) {
-            console.log('🗑️ Lead deletado encontrado na fila, removendo automaticamente:', item.lead_id);
-            // Remover da fila em background (não bloquear a UI)
-            (supabase as any)
-              .from('call_queue')
-              .delete()
-              .eq('id', item.id)
-              .then(() => {
-                console.log('✅ Item removido da fila automaticamente');
-              })
-              .catch((err: any) => {
-                console.error('❌ Erro ao remover item deletado da fila:', err);
-              });
+            console.log('🗑️ Lead deletado encontrado na fila, será removido automaticamente:', item.lead_id);
+            itemsToRemove.push(item.id);
           }
           return false;
         }
         return true;
       });
+      
+      // Remover itens deletados da fila em batch (mais eficiente)
+      if (itemsToRemove.length > 0) {
+        console.log(`🗑️ Removendo ${itemsToRemove.length} item(ns) da fila (leads deletados)`);
+        (supabase as any)
+          .from('call_queue')
+          .delete()
+          .in('id', itemsToRemove)
+          .then(() => {
+            console.log('✅ Itens removidos da fila automaticamente');
+            // Recarregar a fila após remoção
+            setTimeout(() => fetchCallQueue(), 500);
+          })
+          .catch((err: any) => {
+            console.error('❌ Erro ao remover itens deletados da fila:', err);
+          });
+      }
       
       console.log('📞 Call queue data encontrada:', queueData.length, 'itens (após filtrar deletados)');
 
@@ -617,6 +627,84 @@ export function useCallQueue() {
     }
   };
 
+  const bulkUpdateStatus = async (callQueueIds: string[], newStatus: 'pending' | 'completed' | 'rescheduled') => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .update({ status: newStatus })
+        .in('id', callQueueIds);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status atualizado",
+        description: `${callQueueIds.length} ligação(ões) atualizada(s) para ${newStatus === 'pending' ? 'Pendente' : newStatus === 'completed' ? 'Concluída' : 'Reagendada'}`,
+      });
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const bulkDeleteCalls = async (callQueueIds: string[]) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .delete()
+        .in('id', callQueueIds);
+
+      if (error) throw error;
+
+      toast({
+        title: "Ligações excluídas",
+        description: `${callQueueIds.length} ligação(ões) excluída(s) com sucesso`,
+      });
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir ligações",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const deleteCall = async (callQueueId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('call_queue')
+        .delete()
+        .eq('id', callQueueId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Ligação excluída",
+        description: "Ligação excluída com sucesso",
+      });
+
+      await fetchCallQueue();
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir ligação",
+        description: error.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   return { 
     callQueue, 
     loading, 
@@ -627,6 +715,9 @@ export function useCallQueue() {
     addCallQueueTag,
     removeCallQueueTag,
     assignToUser,
-    updateCallStatus
+    updateCallStatus,
+    bulkUpdateStatus,
+    bulkDeleteCalls,
+    deleteCall
   };
 }
