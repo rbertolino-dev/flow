@@ -6,7 +6,7 @@ import { Contract, ContractSignature } from '@/types/contract';
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
-import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings } from 'lucide-react';
+import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2 } from 'lucide-react';
 import { GoogleDriveBackupButton } from './GoogleDriveBackupButton';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
