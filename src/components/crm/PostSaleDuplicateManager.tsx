@@ -375,8 +375,7 @@ export function PostSaleDuplicateManager() {
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

@@ -84,9 +84,9 @@ export default function PostSale() {
               </div>
             </TabsContent>
 
-            <TabsContent value="followup" className="flex-1 flex flex-col overflow-hidden m-0">
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-6">
+            <TabsContent value="followup" className="flex-1 flex flex-col overflow-hidden m-0 p-0">
+              <div className="flex-1 overflow-y-auto">
+                <div className="space-y-4 p-4">
                   {/* Gerenciador de Duplicados */}
                   <PostSaleDuplicateManager />
 
