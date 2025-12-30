@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { Tag, Plus, Edit, Trash2, X } from 'lucide-react';
 
 interface ServiceCategoriesManagerProps {
