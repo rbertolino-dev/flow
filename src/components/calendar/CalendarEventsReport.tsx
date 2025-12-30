@@ -16,7 +16,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, BarChart3, TrendingUp, Calendar as CalendarIcon2, Filter } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -38,8 +38,8 @@ export function CalendarEventsReport() {
   const [showStartCalendar, setShowStartCalendar] = useState(false);
   const [showEndCalendar, setShowEndCalendar] = useState(false);
 
-  // Calcular datas baseado no modo
-  const getDateRange = () => {
+  // Calcular datas baseado no modo (usando useMemo para evitar recálculos desnecessários)
+  const dateRange = useMemo(() => {
     const now = new Date();
     switch (dateFilterMode) {
       case 'thisMonth':
@@ -49,18 +49,18 @@ export function CalendarEventsReport() {
         };
       case 'last30Days':
         return {
-          start: subDays(now, 30),
-          end: now,
+          start: startOfDay(subDays(now, 30)),
+          end: endOfDay(now),
         };
       case 'last90Days':
         return {
-          start: subDays(now, 90),
-          end: now,
+          start: startOfDay(subDays(now, 90)),
+          end: endOfDay(now),
         };
       case 'custom':
         return {
-          start: startDate || subDays(now, 30),
-          end: endDate || now,
+          start: startDate ? startOfDay(startDate) : startOfDay(subDays(now, 30)),
+          end: endDate ? endOfDay(endDate) : endOfDay(now),
         };
       default:
         return {
@@ -68,9 +68,7 @@ export function CalendarEventsReport() {
           end: endOfMonth(now),
         };
     }
-  };
-
-  const dateRange = getDateRange();
+  }, [dateFilterMode, startDate, endDate]);
   
   const { events, isLoading } = useCalendarEvents({
     startDate: dateRange.start,

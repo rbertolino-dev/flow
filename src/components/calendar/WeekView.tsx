@@ -78,12 +78,14 @@ export function WeekView({
             return (
               <div
                 key={dateKey}
-                className={`border rounded-lg p-3 min-h-[300px] transition-colors cursor-pointer hover:bg-accent/50 ${
+                className={`border rounded-lg p-3 min-h-[300px] transition-colors ${
                   isCurrentDay ? "bg-primary/10 border-primary border-2" : "bg-muted/30"
                 }`}
-                onClick={() => onDateClick?.(day)}
               >
-                <div className="flex flex-col items-center mb-2">
+                <div 
+                  className="flex flex-col items-center mb-2 cursor-pointer hover:bg-accent/50 rounded p-1 -m-1"
+                  onClick={() => onDateClick?.(day)}
+                >
                   <p className={`text-xs font-medium ${isCurrentDay ? "text-primary" : "text-muted-foreground"}`}>
                     {format(day, "EEE", { locale: ptBR })}
                   </p>
@@ -99,14 +101,15 @@ export function WeekView({
                 <ScrollArea className="h-[220px]">
                   <div className="space-y-2">
                     {dayEvents.slice(0, 5).map((event) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        onEdit={onEdit ? () => onEdit(event) : undefined}
-                        onDelete={onDelete ? () => onDelete(event) : undefined}
-                        onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(event) : undefined}
-                        onScheduleMessage={onScheduleMessage ? () => onScheduleMessage(event) : undefined}
-                      />
+                      <div key={event.id} className="relative group">
+                        <EventCard
+                          event={event}
+                          onEdit={onEdit ? () => onEdit(event) : undefined}
+                          onDelete={onDelete ? () => onDelete(event) : undefined}
+                          onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(event) : undefined}
+                          onScheduleMessage={onScheduleMessage ? () => onScheduleMessage(event) : undefined}
+                        />
+                      </div>
                     ))}
                     {dayEvents.length > 5 && (
                       <p className="text-xs text-muted-foreground text-center pt-1 font-medium">

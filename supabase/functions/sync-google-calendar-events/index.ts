@@ -54,6 +54,19 @@ serve(async (req) => {
       );
     }
 
+    // Validar credenciais obrigatórias
+    if (!config.client_id || !config.client_secret || !config.refresh_token) {
+      console.error('Credenciais incompletas:', {
+        has_client_id: !!config.client_id,
+        has_client_secret: !!config.client_secret,
+        has_refresh_token: !!config.refresh_token,
+      });
+      return new Response(
+        JSON.stringify({ error: 'Configuração do Google Calendar está incompleta. Client ID, Client Secret e Refresh Token são obrigatórios.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Obter access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',

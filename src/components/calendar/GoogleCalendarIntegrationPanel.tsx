@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGoogleCalendarConfigs } from "@/hooks/useGoogleCalendarConfigs";
 import { useSyncGoogleCalendar } from "@/hooks/useSyncGoogleCalendar";
 import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { SyncCalendarDialog } from "./SyncCalendarDialog";
 import { Calendar, Plus, RefreshCw, Trash2, Loader2, ExternalLink, LogIn } from "lucide-react";
 import { format } from "date-fns";
@@ -24,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
 export function GoogleCalendarIntegrationPanel() {
+  const queryClient = useQueryClient();
   const { configs, isLoading, createConfig, updateConfig, deleteConfig, isCreating, isDeleting } =
     useGoogleCalendarConfigs();
   const { sync, isSyncing } = useSyncGoogleCalendar();
@@ -49,6 +51,9 @@ export function GoogleCalendarIntegrationPanel() {
         if (configId) {
           setTimeout(() => {
             sync({ google_calendar_config_id: configId });
+            // Invalidar queries para atualizar em tempo real
+            queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+            queryClient.invalidateQueries({ queryKey: ["google-calendar-configs"] });
           }, 1000);
         }
       }
@@ -56,7 +61,7 @@ export function GoogleCalendarIntegrationPanel() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sync]);
+  }, [sync, queryClient]);
 
   // Fechar dialog quando criação for bem-sucedida
   useEffect(() => {
@@ -80,6 +85,27 @@ export function GoogleCalendarIntegrationPanel() {
   }, [isCreating, configs, showAddDialog, formData.account_name]);
 
   const handleAdd = () => {
+    // Validar campos obrigatórios
+    if (!formData.account_name.trim()) {
+      alert("Nome da conta é obrigatório");
+      return;
+    }
+    
+    if (!formData.client_id.trim()) {
+      alert("Client ID é obrigatório para criar eventos no Google Calendar");
+      return;
+    }
+    
+    if (!formData.client_secret.trim()) {
+      alert("Client Secret é obrigatório para criar eventos no Google Calendar");
+      return;
+    }
+    
+    if (!formData.refresh_token.trim()) {
+      alert("Refresh Token é obrigatório para criar eventos no Google Calendar");
+      return;
+    }
+    
     createConfig(formData);
   };
 
@@ -296,33 +322,45 @@ export function GoogleCalendarIntegrationPanel() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="client_id">Client ID</Label>
+              <Label htmlFor="client_id">Client ID <span className="text-destructive">*</span></Label>
               <Input
                 id="client_id"
                 placeholder="Seu Client ID do Google"
                 value={formData.client_id}
                 onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                Obrigatório para criar eventos no Google Calendar
+              </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="client_secret">Client Secret</Label>
+              <Label htmlFor="client_secret">Client Secret <span className="text-destructive">*</span></Label>
               <Input
                 id="client_secret"
                 type="password"
                 placeholder="Seu Client Secret do Google"
                 value={formData.client_secret}
                 onChange={(e) => setFormData({ ...formData, client_secret: e.target.value })}
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                Obrigatório para criar eventos no Google Calendar
+              </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="refresh_token">Refresh Token</Label>
+              <Label htmlFor="refresh_token">Refresh Token <span className="text-destructive">*</span></Label>
               <Textarea
                 id="refresh_token"
                 placeholder="Refresh Token do OAuth Playground"
                 value={formData.refresh_token}
                 onChange={(e) => setFormData({ ...formData, refresh_token: e.target.value })}
                 rows={3}
+                required
               />
+              <p className="text-xs text-muted-foreground">
+                Obrigatório para criar eventos no Google Calendar
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="calendar_id">ID do Calendário</Label>

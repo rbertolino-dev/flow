@@ -54,26 +54,42 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 </Badge>
               )}
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
+              {onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  title="Editar evento"
+                >
+                  <Edit className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Editar</span>
+                </Button>
+              )}
               {!isCompleted && isPast && onMarkCompleted && (
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-100"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-100 border-green-300"
                   onClick={(e) => {
                     e.stopPropagation();
                     onMarkCompleted();
                   }}
                   title="Marcar como realizada"
                 >
-                  <CheckCircle2 className="h-3 w-3" />
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Concluir</span>
                 </Button>
               )}
               {onScheduleMessage && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     onScheduleMessage();
@@ -83,28 +99,16 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                   <MessageSquare className="h-3 w-3" />
                 </Button>
               )}
-              {onEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit();
-                  }}
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-              )}
               {onDelete && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-destructive"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
+                  title="Excluir evento"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -113,11 +117,12 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(event.html_link || "", "_blank");
                   }}
+                  title="Abrir no Google Calendar"
                 >
                   <ExternalLink className="h-3 w-3" />
                 </Button>
@@ -164,6 +169,18 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 <span className="text-xs text-muted-foreground">
                   {event.attendees.length} convidado{event.attendees.length !== 1 ? 's' : ''}
                 </span>
+              </div>
+            )}
+
+            {isCompleted && event.completion_notes && (
+              <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-3 w-3 mt-0.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-green-800 dark:text-green-200 mb-1">Observações da Reunião:</p>
+                    <p className="text-xs text-green-700 dark:text-green-300 whitespace-pre-wrap">{event.completion_notes}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
