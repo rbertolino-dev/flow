@@ -7,6 +7,13 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Log inicial para debug
+  console.log('📥 Recebida requisição para send-contract-signed:', {
+    method: req.method,
+    url: req.url,
+    hasAuth: !!req.headers.get('Authorization'),
+  });
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -14,7 +21,28 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('❌ Variáveis de ambiente não configuradas');
+      return new Response(
+        JSON.stringify({ error: 'Configuração do servidor inválida' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Parse do body com tratamento de erro
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (parseError) {
+      console.error('❌ Erro ao parsear JSON:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Body da requisição inválido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const {
       contract_id,
@@ -23,7 +51,16 @@ serve(async (req) => {
       instance_id,
       recipient_phone,
       recipient_email,
-    } = await req.json();
+    } = requestData;
+
+    console.log('📋 Dados recebidos:', {
+      contract_id,
+      send_method,
+      has_download_link: !!download_link,
+      instance_id,
+      recipient_phone,
+      recipient_email,
+    });
 
     if (!contract_id || !send_method || !download_link) {
       return new Response(
@@ -102,25 +139,45 @@ serve(async (req) => {
 
       // Enviar via Evolution API
       const evolutionUrl = `${config.api_url}/message/sendMedia/${config.instance_name}`;
-      const response = await fetch(evolutionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': config.api_key || '',
-        },
-        body: JSON.stringify({
-          number: normalizedPhone,
-          mediatype: 'document',
-          media: download_link,
-          caption: message,
-        }),
+      
+      console.log('📤 Enviando para Evolution API:', {
+        url: evolutionUrl,
+        number: normalizedPhone,
+        has_media: !!download_link,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        errorMessage = `Erro ao enviar via WhatsApp: ${errorText}`;
-      } else {
-        sent = true;
+      try {
+        const response = await fetch(evolutionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': config.api_key || '',
+          },
+          body: JSON.stringify({
+            number: normalizedPhone,
+            mediatype: 'document',
+            media: download_link,
+            caption: message,
+          }),
+        });
+
+        console.log('📥 Resposta Evolution API:', {
+          status: response.status,
+          ok: response.ok,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Erro da Evolution API:', errorText);
+          errorMessage = `Erro ao enviar via WhatsApp: ${errorText}`;
+        } else {
+          const responseData = await response.json().catch(() => ({}));
+          console.log('✅ Mensagem enviada com sucesso:', responseData);
+          sent = true;
+        }
+      } catch (evolutionError: any) {
+        console.error('❌ Erro ao chamar Evolution API:', evolutionError);
+        errorMessage = `Erro ao conectar com Evolution API: ${evolutionError.message || 'Erro desconhecido'}`;
       }
     } else if (send_method === 'email') {
       if (!recipient_email) {

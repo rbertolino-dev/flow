@@ -98,6 +98,23 @@ export function SendContractDialog({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
+      const requestBody = {
+        contract_id: contract.id,
+        send_method: sendMethod,
+        download_link: downloadLink,
+        instance_id: sendMethod === 'whatsapp' ? selectedInstanceId : null,
+        recipient_phone: sendMethod === 'whatsapp' ? contract.lead?.phone : null,
+        recipient_email: sendMethod === 'email' ? contract.lead?.email : null,
+      };
+
+      console.log('📤 Enviando contrato via WhatsApp:', {
+        url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract-signed`,
+        method: sendMethod,
+        contract_id: contract.id,
+        instance_id: selectedInstanceId,
+        has_phone: !!contract.lead?.phone,
+      });
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract-signed`,
         {
@@ -106,19 +123,31 @@ export function SendContractDialog({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            contract_id: contract.id,
-            send_method: sendMethod,
-            download_link: downloadLink,
-            instance_id: sendMethod === 'whatsapp' ? selectedInstanceId : null,
-            recipient_phone: sendMethod === 'whatsapp' ? contract.lead?.phone : null,
-            recipient_email: sendMethod === 'email' ? contract.lead?.email : null,
-          }),
+          body: JSON.stringify(requestBody),
         }
       ).catch((fetchError) => {
         // Tratar erro de rede (ERR_FAILED, CORS, etc.)
-        console.error('Erro de rede ao chamar Edge Function:', fetchError);
-        throw new Error(`Erro de conexão: ${fetchError.message || 'Não foi possível conectar ao servidor'}`);
+        console.error('❌ Erro de rede ao chamar Edge Function:', {
+          error: fetchError,
+          message: fetchError.message,
+          name: fetchError.name,
+          stack: fetchError.stack,
+          url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract-signed`,
+        });
+        
+        // Mensagem mais específica baseada no tipo de erro
+        let errorMsg = 'Erro de conexão';
+        if (fetchError.message?.includes('Failed to fetch')) {
+          errorMsg = 'Não foi possível conectar ao servidor. Verifique sua conexão ou se a Edge Function está deployada.';
+        } else if (fetchError.message?.includes('CORS')) {
+          errorMsg = 'Erro de CORS. Verifique configuração da Edge Function.';
+        } else if (fetchError.message?.includes('timeout')) {
+          errorMsg = 'Tempo limite excedido. Tente novamente.';
+        } else {
+          errorMsg = `Erro de conexão: ${fetchError.message || 'Não foi possível conectar ao servidor'}`;
+        }
+        
+        throw new Error(errorMsg);
       });
 
       if (!response.ok) {
