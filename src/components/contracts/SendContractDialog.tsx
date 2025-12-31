@@ -107,23 +107,45 @@ export function SendContractDialog({
         recipient_email: sendMethod === 'email' ? contract.lead?.email : null,
       };
 
-      console.log('📤 Enviando contrato via WhatsApp:', {
-        url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract-signed`,
+      // Usar função diferente baseado no método
+      // send-contract-whatsapp já existe e está deployada
+      // send-contract-signed não existe (limite de funções atingido)
+      if (sendMethod === 'email') {
+        toast({
+          title: 'Email não disponível',
+          description: 'Envio por email ainda não está implementado. Use WhatsApp.',
+          variant: 'destructive',
+        });
+        setSaving(false);
+        return;
+      }
+      
+      const functionName = 'send-contract-whatsapp';
+      
+      // Para WhatsApp, usar formato da função existente
+      const requestBodyForFunction = {
+        contract_id: contract.id,
+        instance_id: selectedInstanceId,
+      };
+
+      console.log('📤 Enviando contrato:', {
+        url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`,
         method: sendMethod,
+        function: functionName,
         contract_id: contract.id,
         instance_id: selectedInstanceId,
         has_phone: !!contract.lead?.phone,
       });
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contract-signed`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify(requestBodyForFunction),
         }
       ).catch((fetchError) => {
         // Tratar erro de rede (ERR_FAILED, CORS, etc.)
