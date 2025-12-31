@@ -123,6 +123,8 @@ export function ContractPdfBuilder({
   const [previewPosition, setPreviewPosition] = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const positionsRef = useRef<SignaturePosition[]>([]);
   const rafIdRef = useRef<number | null>(null);
+  const historyRef = useRef<SignaturePosition[][]>([]);
+  const historyIndexRef = useRef<number>(-1);
   
   // Novos estados para melhorias
   const [showGrid, setShowGrid] = useState(false);
@@ -137,10 +139,18 @@ export function ContractPdfBuilder({
   const [pageThumbnails, setPageThumbnails] = useState<Map<number, string>>(new Map());
   const thumbnailRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
 
-  // Atualizar referência quando positions mudar
+  // Atualizar referências quando estados mudarem
   useEffect(() => {
     positionsRef.current = positions;
   }, [positions]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  useEffect(() => {
+    historyIndexRef.current = historyIndex;
+  }, [historyIndex]);
 
   // ============================================
   // FUNÇÕES HELPER - Definir ANTES de usar
@@ -160,35 +170,48 @@ export function ContractPdfBuilder({
 
   // Funções de histórico (undo/redo)
   const saveToHistory = useCallback((newPositions: SignaturePosition[]) => {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push([...newPositions]);
-      // Limitar histórico a 50 ações
-      if (newHistory.length > 50) {
-        newHistory.shift();
-        setHistoryIndex(49);
-      } else {
-        setHistoryIndex(newHistory.length - 1);
-      }
-      return newHistory;
-    });
-  }, [historyIndex]);
+    const currentHistory = historyRef.current;
+    const currentIndex = historyIndexRef.current;
+    
+    const newHistory = currentHistory.slice(0, currentIndex + 1);
+    newHistory.push([...newPositions]);
+    
+    // Limitar histórico a 50 ações
+    let finalHistory = newHistory;
+    let finalIndex = newHistory.length - 1;
+    if (newHistory.length > 50) {
+      finalHistory = newHistory.slice(-50);
+      finalIndex = 49;
+    }
+    
+    // Atualizar refs e estados
+    historyRef.current = finalHistory;
+    historyIndexRef.current = finalIndex;
+    setHistory(finalHistory);
+    setHistoryIndex(finalIndex);
+  }, []);
 
   const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
+    const currentIndex = historyIndexRef.current;
+    const currentHistory = historyRef.current;
+    if (currentIndex > 0) {
+      const newIndex = currentIndex - 1;
+      historyIndexRef.current = newIndex;
       setHistoryIndex(newIndex);
-      setPositions([...history[newIndex]]);
+      setPositions([...currentHistory[newIndex]]);
     }
-  }, [history, historyIndex]);
+  }, []);
 
   const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
+    const currentIndex = historyIndexRef.current;
+    const currentHistory = historyRef.current;
+    if (currentIndex < currentHistory.length - 1) {
+      const newIndex = currentIndex + 1;
+      historyIndexRef.current = newIndex;
       setHistoryIndex(newIndex);
-      setPositions([...history[newIndex]]);
+      setPositions([...currentHistory[newIndex]]);
     }
-  }, [history, historyIndex]);
+  }, []);
 
   // Funções de zoom
   const handleZoomIn = useCallback(() => {
@@ -657,7 +680,10 @@ export function ContractPdfBuilder({
   // Inicializar histórico quando positions mudar (após carregar)
   useEffect(() => {
     if (positions.length > 0 && history.length === 0 && open) {
-      setHistory([[...positions]]);
+      const initialHistory = [[...positions]];
+      historyRef.current = initialHistory;
+      historyIndexRef.current = 0;
+      setHistory(initialHistory);
       setHistoryIndex(0);
     }
   }, [positions, history.length, open]);
