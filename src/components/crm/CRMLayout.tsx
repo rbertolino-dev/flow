@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import agilizeLogo from "@/assets/agilizeflow-logo.svg";
+const agilizeLogo = "https://ogeljmbhqxpfjbpnbwog.supabase.co/storage/v1/object/public/whatsapp-workflow-media/logos/agilizeflow-logo.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";

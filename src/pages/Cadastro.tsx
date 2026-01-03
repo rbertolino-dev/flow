@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight } from "lucide-react";
 
-import agilizeLogo from "@/assets/agilizeflow-logo.svg";
+const agilizeLogo = "https://ogeljmbhqxpfjbpnbwog.supabase.co/storage/v1/object/public/whatsapp-workflow-media/logos/agilizeflow-logo.png";
 
 export default function Cadastro() {
   const [email, setEmail] = useState("");
