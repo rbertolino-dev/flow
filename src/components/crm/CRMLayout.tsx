@@ -250,7 +250,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           </Button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 overflow-hidden">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto overflow-x-hidden sidebar-scroll">
           {menuItems.map((item) => {
             const handleClick = () => {
               if (item.id === 'crm') {
@@ -407,7 +407,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                     </button>
                   </div>
                   
-                  <nav className="flex-1 p-3 space-y-1 overflow-hidden">
+                  <nav className="flex-1 p-3 space-y-1 overflow-y-auto overflow-x-hidden sidebar-scroll">
                     {menuItems.map((item) => {
                       const handleClick = () => {
                         if (item.id === 'crm') {

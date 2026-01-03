@@ -47,7 +47,7 @@ import { DeletedContractsList } from '@/components/contracts/DeletedContractsLis
 import { useContracts } from '@/hooks/useContracts';
 import { useContractTemplates } from '@/hooks/useContractTemplates';
 import { Contract, ContractStatus, ContractTemplate } from '@/types/contract';
-import { Plus, FileText, Search, Filter, X, Lock, Loader2, Tag, Trash2 } from 'lucide-react';
+import { Plus, FileText, Search, Filter, X, Lock, Loader2, Tag, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
 import { supabase } from '@/integrations/supabase/client';
