@@ -302,8 +302,8 @@ export function SuperAdminDashboard() {
     <div className="h-full bg-background overflow-y-auto">
       {/* Header com gradiente */}
       <div className="border-b border-border bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col gap-6">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-yellow-500/10">
@@ -315,78 +315,87 @@ export function SuperAdminDashboard() {
                 Gerenciamento completo de organizações e usuários
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
+            
+            {/* Grid de botões responsivo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
               <Button 
                 onClick={() => navigate('/superadmin/costs')} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Painel de Custos
+                <TrendingUp className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Painel de Custos</span>
               </Button>
               <Button 
                 onClick={() => navigate('/superadmin/versions')} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <GitBranch className="h-4 w-4 mr-2" />
-                Versões e Deploy
+                <GitBranch className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Versões e Deploy</span>
               </Button>
               <Button 
                 onClick={() => setShowPlansManagement(!showPlansManagement)} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <Package className="h-4 w-4 mr-2" />
-                Gerenciar Planos
+                <Package className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Gerenciar Planos</span>
               </Button>
               <Button 
                 onClick={() => setShowAssistantConfig(!showAssistantConfig)} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <Sparkles className="h-4 w-4 mr-2" />
-                Configurar Assistente
+                <Sparkles className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Configurar Assistente</span>
               </Button>
               <Button 
                 onClick={() => setShowEvolutionProviders(!showEvolutionProviders)} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Providers Evolution
+                <MessageSquare className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Providers Evolution</span>
               </Button>
               <Button 
                 onClick={() => setShowContractStorage(!showContractStorage)} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <Database className="h-4 w-4 mr-2" />
-                Storage Contratos
+                <Database className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Storage Contratos</span>
               </Button>
               <Button 
                 onClick={() => setShowLogoUploader(!showLogoUploader)} 
                 variant="secondary" 
-                className="w-full sm:w-auto"
+                className="w-full justify-start"
               >
-                <Image className="h-4 w-4 mr-2" />
-                Upload Logo
+                <Image className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Upload Logo</span>
               </Button>
-              <Button onClick={() => setCreateUserOpen(true)} variant="outline" className="w-full sm:w-auto">
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Usuário
+              <Button 
+                onClick={() => setCreateUserOpen(true)} 
+                variant="outline" 
+                className="w-full justify-start"
+              >
+                <Plus className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Novo Usuário</span>
               </Button>
-              <Button onClick={() => setCreateOrgOpen(true)} className="w-full sm:w-auto">
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Organização
+              <Button 
+                onClick={() => setCreateOrgOpen(true)} 
+                className="w-full justify-start"
+              >
+                <Plus className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Nova Organização</span>
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content com max-width e padding responsivo */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+      {/* Content com padding responsivo - sem max-width para usar toda largura */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Stats Cards */}
         <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Card className="hover:shadow-lg transition-shadow">
