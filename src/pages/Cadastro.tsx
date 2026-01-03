@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight } from "lucide-react";
 
-import agilizeLogo from "@/assets/agilize-logo.png";
+import agilizeLogo from "@/assets/agilizeflow-logo.svg";
 
 export default function Cadastro() {
   const [email, setEmail] = useState("");

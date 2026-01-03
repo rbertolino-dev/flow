@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
-import agilizeLogo from "@/assets/agilize-logo.png";
+import agilizeLogo from "@/assets/agilizeflow-logo.svg";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -193,9 +193,9 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
-            <img src={agilizeLogo} alt="CRM Agilize" className="h-16 w-auto" />
+            <img src={agilizeLogo} alt="AgilizeFLOW" className="h-16 w-auto max-w-full object-contain" />
           </div>
-          <CardTitle className="text-2xl font-bold text-center">CRM Agilize</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">AgilizeFLOW</CardTitle>
           <CardDescription className="text-center">
             Gerencie seus leads e vendas de forma inteligente
           </CardDescription>

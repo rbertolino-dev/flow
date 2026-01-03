@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import agilizeLogo from "@/assets/agilize-logo.png";
+import agilizeLogo from "@/assets/agilizeflow-logo.svg";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
@@ -226,13 +226,16 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         )}>
           <button
             onClick={() => navigate('/')}
-            className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0"
+            className={cn(
+              "flex items-center hover:opacity-80 transition-opacity flex-shrink-0",
+              sidebarOpen ? "flex-1 min-w-0" : "w-full"
+            )}
           >
             {sidebarOpen ? (
-              <img src={agilizeLogo} alt="CRM Agilize" className="h-10 w-auto cursor-pointer" />
+              <img src={agilizeLogo} alt="AgilizeFLOW" className="h-10 w-auto cursor-pointer max-w-full object-contain" />
             ) : (
               <div className="w-8 h-8 flex items-center justify-center">
-                <img src={agilizeLogo} alt="CRM" className="h-8 w-8 object-contain cursor-pointer" />
+                <img src={agilizeLogo} alt="AgilizeFLOW" className="h-8 w-8 object-contain cursor-pointer" />
               </div>
             )}
           </button>
@@ -242,7 +245,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={cn(
               "text-sidebar-foreground hover:bg-sidebar-accent flex-shrink-0",
-              !sidebarOpen && "w-full"
+              !sidebarOpen && "w-full mt-2"
             )}
             title={sidebarOpen ? "Recolher menu" : "Expandir menu"}
           >
@@ -403,7 +406,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                       }}
                       className="hover:opacity-80 transition-opacity"
                     >
-                      <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto cursor-pointer" />
+                      <img src={agilizeLogo} alt="AgilizeFLOW" className="h-8 w-auto cursor-pointer max-w-full object-contain" />
                     </button>
                   </div>
                   

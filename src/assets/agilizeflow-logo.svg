@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 120" width="500" height="120">
+  <defs>
+    <!-- Gradient for W -->
+    <linearGradient id="wGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#14b8a6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#22d3ee;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Agilize text - Dark blue -->
+  <text x="0" y="75" font-family="'Segoe UI', 'Arial', sans-serif" font-size="52" font-weight="700" fill="#1e3a8a" letter-spacing="-1">
+    Agilize
+  </text>
+  
+  <!-- FL text - Dark blue -->
+  <text x="200" y="75" font-family="'Segoe UI', 'Arial', sans-serif" font-size="52" font-weight="700" fill="#1e3a8a" letter-spacing="-1">
+    FL
+  </text>
+  
+  <!-- Stylized O - Dark blue circle with light blue horizontal line and arrows -->
+  <g transform="translate(280, 50)">
+    <!-- Circle -->
+    <circle cx="0" cy="0" r="28" fill="none" stroke="#1e3a8a" stroke-width="4.5"/>
+    <!-- Horizontal line through center -->
+    <line x1="-28" y1="0" x2="28" y2="0" stroke="#60a5fa" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- Arrow 1 pointing right -->
+    <path d="M -12 -6 L -6 0 L -12 6" fill="#60a5fa" stroke="none"/>
+    <!-- Arrow 2 pointing right -->
+    <path d="M 6 -6 L 12 0 L 6 6" fill="#60a5fa" stroke="none"/>
+  </g>
+  
+  <!-- W with teal/light blue gradient -->
+  <text x="340" y="75" font-family="'Segoe UI', 'Arial', sans-serif" font-size="52" font-weight="700" fill="url(#wGradient)" letter-spacing="-1">
+    W
+  </text>
+</svg>
