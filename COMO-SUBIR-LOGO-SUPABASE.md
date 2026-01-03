@@ -127,3 +127,4 @@ const LOGO_URL = import.meta.env.VITE_LOGO_URL || "https://[PROJECT_ID].supabase
 - Dashboard Supabase: https://supabase.com/dashboard
 - Documentação Storage: https://supabase.com/docs/guides/storage
 
+
