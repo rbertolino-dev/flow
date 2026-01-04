@@ -428,11 +428,7 @@ export default function Settings() {
             </TabsContent>
           )} */}
 
-          {hasFacebookAccess && (
-            <TabsContent value="facebook" className="space-y-6">
-              <FacebookConfigPanel />
-            </TabsContent>
-          )}
+          {/* REMOVIDO: Facebook/Instagram não está mais disponível */}
 
           <TabsContent value="pipeline" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">

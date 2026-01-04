@@ -20,6 +20,7 @@ LIMIT 10;
 -- 3. OU teste com a primeira organização encontrada automaticamente:
 SELECT 
   o.id as organization_id,
+  
   o.name as organization_name,
   r.*
 FROM organizations o
@@ -36,5 +37,6 @@ SELECT
 FROM information_schema.routines
 WHERE routine_schema = 'public'
   AND routine_name = 'get_organization_limits';
+
 
 
