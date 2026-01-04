@@ -10,7 +10,6 @@ import { PipelineStageManager } from "@/components/crm/PipelineStageManager";
 import { TagManager } from "@/components/crm/TagManager";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
-import { ImportPipelineDialog } from "@/components/crm/ImportPipelineDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -23,6 +22,7 @@ import { useFlowTriggers } from "@/hooks/useFlowTriggers";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload } from "lucide-react";
 import Settings from "./Settings";
+import { startFlowScheduler } from "@/lib/flowScheduler";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,7 +51,6 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
-  const [importPipelineOpen, setImportPipelineOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
   const [filterCreatedDateStart, setFilterCreatedDateStart] = useState<string>("");
   const [filterCreatedDateEnd, setFilterCreatedDateEnd] = useState<string>("");
@@ -85,11 +84,8 @@ const Index = () => {
 
   // Iniciar scheduler de execuções agendadas
   useEffect(() => {
-    let stopScheduler: (() => void) | null = null;
-    
-    import('@/lib/flowScheduler').then(({ startFlowScheduler }) => {
-      stopScheduler = startFlowScheduler(1); // Verificar a cada 1 minuto
-    });
+    // Import estático - RESOLVIDO (não usa mais import dinâmico que causava 404)
+    const stopScheduler = startFlowScheduler(1); // Verificar a cada 1 minuto
     
     return () => {
       if (stopScheduler) {
@@ -222,10 +218,6 @@ const Index = () => {
                 <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="flex-1 sm:flex-none">
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="sm:inline">Importar</span>
-                </Button>
-                <Button onClick={() => setImportPipelineOpen(true)} size="sm" variant="outline" className="flex-1 sm:flex-none">
-                  <Upload className="h-4 w-4 mr-2" />
-                  <span className="sm:inline">Importar Pipeline</span>
                 </Button>
                 <PipelineStageManager />
                 <TagManager />
@@ -524,11 +516,6 @@ const Index = () => {
         onLeadsImported={refetchLeads}
         stages={stages}
         tags={tags}
-      />
-      <ImportPipelineDialog
-        open={importPipelineOpen}
-        onOpenChange={setImportPipelineOpen}
-        onPipelineImported={refetchLeads}
       />
       </CRMLayout>
     </AuthGuard>

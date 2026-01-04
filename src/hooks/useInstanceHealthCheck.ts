@@ -150,8 +150,14 @@ export function useInstanceHealthCheck({
                 .eq('id', instance.id);
             }
           }
-        } catch (error) {
-          console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, error);
+        } catch (error: any) {
+          // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
+          console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, {
+            message: error?.message,
+            name: error?.name,
+            stack: error?.stack,
+            url: `${base}/instance/connectionState/${instance.instance_name}`
+          });
           
           // Resetar e marcar como desconectado em caso de erro
           health.consecutiveSuccesses = 0;

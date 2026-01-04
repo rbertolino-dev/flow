@@ -26,13 +26,15 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 // DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
 // import { ChatwootConfigPanel } from "@/components/crm/ChatwootConfigPanel";
-import { FacebookConfigPanel } from "@/components/crm/FacebookConfigPanel";
+// REMOVIDO: Facebook/Instagram não está mais disponível
+// import { FacebookConfigPanel } from "@/components/crm/FacebookConfigPanel";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { MercadoPagoIntegrationPanel } from "@/components/mercado-pago/MercadoPagoIntegrationPanel";
 import { AsaasIntegrationPanel } from "@/components/crm/AsaasIntegrationPanel";
 import { GmailIntegrationPanel } from "@/components/crm/GmailIntegrationPanel";
-import { BubbleIntegrationPanel } from "@/components/crm/BubbleIntegrationPanel";
-import { BubbleLeadsSyncPanel } from "@/components/crm/BubbleLeadsSyncPanel";
+// REMOVIDO: Bubble.io não está mais disponível
+// import { BubbleIntegrationPanel } from "@/components/crm/BubbleIntegrationPanel";
+// import { BubbleLeadsSyncPanel } from "@/components/crm/BubbleLeadsSyncPanel";
 import { HubSpotIntegrationPanel } from "@/components/crm/HubSpotIntegrationPanel";
 import { HubSpotListsImportPanel } from "@/components/crm/HubSpotListsImportPanel";
 import { UsersPanel } from "@/components/users/UsersPanel";
@@ -66,7 +68,8 @@ export default function Settings() {
   // Verificar acesso às integrações para controlar visibilidade das tabs
   const hasEvolutionAccess = useIntegrationAccess('evolution');
   const hasChatwootAccess = useIntegrationAccess('chatwoot');
-  const hasFacebookAccess = useIntegrationAccess('facebook');
+  // REMOVIDO: Facebook/Instagram não está mais disponível
+  // const hasFacebookAccess = useIntegrationAccess('facebook');
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<EvolutionConfig | null>(null);
@@ -190,67 +193,65 @@ export default function Settings() {
     <AuthGuard>
       <CRMLayout activeView="settings" onViewChange={handleViewChange}>
         <div className="h-full bg-background overflow-y-auto">
-          <div className="p-3 sm:p-4 lg:p-6 border-b border-border">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Configurações</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Gerencie suas integrações e configurações do sistema
-            </p>
+          <div className="sticky top-0 z-10 bg-background border-b border-border">
+            <div className="p-3 sm:p-4 lg:p-6">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Configurações</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
+                Gerencie suas integrações e configurações do sistema
+              </p>
+            </div>
+
+            {/* Alertas de desconexão */}
+            <div className="px-3 sm:px-4 lg:px-6 pb-3 sm:pb-4 lg:pb-6">
+              <InstanceDisconnectionAlerts instances={configs} enabled={true} />
+            </div>
           </div>
 
-          {/* Alertas de desconexão */}
-          <div className="p-3 sm:p-4 lg:p-6">
-            <InstanceDisconnectionAlerts instances={configs} enabled={true} />
-          </div>
-
-      <div className="p-3 sm:p-4 lg:p-6 max-w-6xl space-y-4 sm:space-y-6">
+      <div className="p-3 sm:p-4 lg:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-10 gap-1 overflow-x-auto">
-            <TabsTrigger value="integrations" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Integrações</span>
-              <span className="sm:hidden">Integrações</span>
+          <div className="sticky top-[calc(var(--header-height,0px)+1px)] z-10 bg-background border-b border-border mb-4 sm:mb-6">
+            <TabsList className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 p-1 sm:p-1.5 overflow-x-auto scrollbar-hide">
+            <TabsTrigger value="integrations" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              Integrações
             </TabsTrigger>
             {hasEvolutionAccess && (
-              <TabsTrigger value="evolution" className="text-xs sm:text-sm">
-                <span className="hidden sm:inline">WhatsApp</span>
-                <span className="sm:hidden">WhatsApp</span>
+              <TabsTrigger value="evolution" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+                WhatsApp
               </TabsTrigger>
             )}
             {/* DESATIVADO: Funcionalidade não disponibilizada para clientes ainda */}
             {/* {hasChatwootAccess && (
-              <TabsTrigger value="chatwoot" className="text-xs sm:text-sm">
+              <TabsTrigger value="chatwoot" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
                 <span className="hidden sm:inline">Chatwoot</span>
                 <span className="sm:hidden">Chat</span>
               </TabsTrigger>
             )} */}
-            {hasFacebookAccess && (
-              <TabsTrigger value="facebook" className="text-xs sm:text-sm">
-                <span className="hidden sm:inline">Facebook/Instagram</span>
-                <span className="sm:hidden">FB/IG</span>
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="pipeline" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Funil & Etiquetas</span>
-              <span className="sm:hidden">Funil</span>
+            {/* REMOVIDO: Facebook/Instagram não está mais disponível */}
+            <TabsTrigger value="pipeline" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <span className="hidden md:inline">Funil & Etiquetas</span>
+              <span className="md:hidden">Funil</span>
             </TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs sm:text-sm">
-              <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+            <TabsTrigger value="templates" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
               <span className="hidden sm:inline">Templates</span>
+              <span className="sm:hidden">Templates</span>
             </TabsTrigger>
-            <TabsTrigger value="archived" className="text-xs sm:text-sm">
-              <Archive className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+            <TabsTrigger value="archived" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <Archive className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
               <span className="hidden sm:inline">Arquivados</span>
               <span className="sm:hidden">Arquivo</span>
             </TabsTrigger>
-            <TabsTrigger value="users" className="text-xs sm:text-sm">
-              <UserCog className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+            <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <UserCog className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
               <span className="hidden sm:inline">Usuários</span>
               <span className="sm:hidden">Usuários</span>
             </TabsTrigger>
-            <TabsTrigger value="profile" className="text-xs sm:text-sm">
-              <User className="h-3 w-3 sm:h-4 sm:w-4 mr-0 sm:mr-2" />
+            <TabsTrigger value="profile" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
               <span className="hidden sm:inline">Perfil</span>
               <span className="sm:hidden">Perfil</span>
             </TabsTrigger>
+            </div>
           </TabsList>
 
           <TabsContent value="integrations" className="space-y-6 mt-6">
@@ -285,11 +286,8 @@ export default function Settings() {
                   <AsaasIntegrationPanel />
                 </ConditionalIntegration>
 
-                {/* Bubble.io */}
-                <ConditionalIntegration integrationId="bubble">
-                  <BubbleIntegrationPanel />
-                </ConditionalIntegration>
-
+                {/* REMOVIDO: Bubble.io não está mais disponível */}
+                
                 {/* HubSpot */}
                 <ConditionalIntegration integrationId="hubspot">
                   <HubSpotIntegrationPanel />
@@ -299,10 +297,7 @@ export default function Settings() {
               <div className="mt-6">
                 <h3 className="text-lg font-semibold mb-4">Sincronização de Dados</h3>
                 <div className="grid gap-6 md:grid-cols-1">
-                  {/* Sincronização de Leads do Bubble */}
-                  <ConditionalIntegration integrationId="bubble">
-                    <BubbleLeadsSyncPanel />
-                  </ConditionalIntegration>
+                  {/* REMOVIDO: Sincronização de Leads do Bubble não está mais disponível */}
                   
                   {/* Importação de Listas do HubSpot */}
                   <ConditionalIntegration integrationId="hubspot">

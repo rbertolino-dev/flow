@@ -375,9 +375,18 @@ export function useEvolutionConfigs() {
       await fetchConfigs();
       return { success: true, httpStatus: status, details: data, isConnected };
     } catch (error: any) {
+      // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
+      console.error('❌ Erro ao testar conexão Evolution API:', {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack,
+        instance: config.instance_name,
+        url: `${normalizeApiUrl(config.api_url)}/instance/connectionState/${config.instance_name}`
+      });
+      
       toast({
         title: '❌ Erro ao testar conexão',
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao conectar com Evolution API',
         variant: 'destructive',
       });
       return { success: false, httpStatus: null, details: error.message, isConnected: false };

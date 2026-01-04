@@ -232,7 +232,13 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         }
       }
       
-      console.error(`Erro ao verificar ${instance.instance_name}:`, error);
+      // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
+      console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack,
+        url: `${baseUrl}/instance/connectionState/${instance.instance_name}`
+      });
     } finally {
       checkingRef.current.delete(instance.id);
     }

@@ -23,7 +23,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error);
+          // ERR_NETWORK_IO_SUSPENDED é comportamento normal (aba em background) - pode ignorar
+          // Mas outros erros de rede devem ser logados
+          const isNetworkSuspended = error?.message?.includes('ERR_NETWORK_IO_SUSPENDED');
+          
+          if (!isNetworkSuspended) {
+            console.error('❌ Erro ao obter sessão:', {
+              message: error?.message,
+              name: error?.name,
+              code: error?.code,
+              attempt: attempts + 1
+            });
+          }
+          
           // Não quebrar imediatamente, tentar mais vezes
           if (attempts < maxAttempts - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
