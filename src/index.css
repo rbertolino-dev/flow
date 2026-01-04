@@ -147,4 +147,13 @@ All colors MUST be HSL.
       scrollbar-color: hsl(var(--sidebar-accent) / 0.6) transparent;
     }
   }
+
+  /* Ocultar scrollbar mas manter funcionalidade de scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
 }

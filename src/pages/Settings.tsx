@@ -209,7 +209,7 @@ export default function Settings() {
 
       <div className="p-3 sm:p-4 lg:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="sticky top-[calc(var(--header-height,0px)+1px)] z-10 bg-background border-b border-border mb-4 sm:mb-6">
+          <div className="sticky top-0 z-10 bg-background border-b border-border mb-4 sm:mb-6 -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6">
             <TabsList className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 p-1 sm:p-1.5 overflow-x-auto scrollbar-hide">
             <TabsTrigger value="integrations" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
               Integrações
@@ -251,10 +251,10 @@ export default function Settings() {
               <span className="hidden sm:inline">Perfil</span>
               <span className="sm:hidden">Perfil</span>
             </TabsTrigger>
-            </div>
           </TabsList>
+          </div>
 
-          <TabsContent value="integrations" className="space-y-6 mt-6">
+          <TabsContent value="integrations" className="space-y-6 mt-4 sm:mt-6">
             <div className="space-y-6">
               <IntegrationsOnboarding onTabChange={setActiveTab} />
               
@@ -316,7 +316,7 @@ export default function Settings() {
           </TabsContent>
 
           {hasEvolutionAccess && (
-            <TabsContent value="evolution" className="space-y-4 sm:space-y-6">
+            <TabsContent value="evolution" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
               <EvolutionApiDiagnostics />
               
               <WhatsAppNumberValidator configs={configs} />
@@ -628,19 +628,19 @@ export default function Settings() {
             </div>
               </TabsContent>
 
-              <TabsContent value="templates" className="space-y-4">
+              <TabsContent value="templates" className="space-y-4 mt-4 sm:mt-6">
                 <MessageTemplateManager />
               </TabsContent>
 
-              <TabsContent value="archived" className="space-y-6">
+              <TabsContent value="archived" className="space-y-6 mt-4 sm:mt-6">
                 <ArchivedLeadsPanel />
               </TabsContent>
 
-              <TabsContent value="users" className="space-y-6">
+              <TabsContent value="users" className="space-y-6 mt-4 sm:mt-6">
                 <UsersPanel />
               </TabsContent>
 
-              <TabsContent value="profile" className="space-y-6">
+              <TabsContent value="profile" className="space-y-6 mt-4 sm:mt-6">
                 <UserProfilePanel />
               </TabsContent>
         </Tabs>
