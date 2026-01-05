@@ -100,6 +100,30 @@ export function OrganizationLimitsPanel({
       }
 
       if (limitsData) {
+        // Helper para converter JSONB para array de forma segura
+        const jsonbToArray = (value: any): string[] => {
+          if (!value) return [];
+          if (Array.isArray(value)) return value as string[];
+          if (typeof value === 'string') {
+            try {
+              const parsed = JSON.parse(value);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          }
+          if (typeof value === 'object') {
+            // Se for objeto JSONB, tentar converter para array
+            try {
+              const values = Object.values(value);
+              return values.filter(v => typeof v === 'string') as string[];
+            } catch {
+              return [];
+            }
+          }
+          return [];
+        };
+
         setLimits({
           id: limitsData.id,
           organization_id: limitsData.organization_id,
@@ -113,10 +137,10 @@ export function OrganizationLimitsPanel({
           current_leads_count: limitsData.current_leads_count || 0,
           current_instances_count: limitsData.current_instances_count || 0,
           current_users_count: limitsData.current_users_count || 0,
-          enabled_features: (limitsData as any).enabled_features || [],
-          disabled_features: (limitsData as any).disabled_features || [],
-          trial_ends_at: (limitsData as any).trial_ends_at,
-          features_override_mode: (limitsData as any).features_override_mode || 'inherit',
+          enabled_features: jsonbToArray(limitsData.enabled_features),
+          disabled_features: jsonbToArray(limitsData.disabled_features),
+          trial_ends_at: limitsData.trial_ends_at || null,
+          features_override_mode: limitsData.features_override_mode || 'inherit',
         });
         
         setCurrentCounts({
@@ -230,6 +254,28 @@ export function OrganizationLimitsPanel({
     try {
       setSaving(true);
 
+      // Validar que enabled_features e disabled_features são arrays
+      const enabledFeatures = Array.isArray(limits.enabled_features) 
+        ? limits.enabled_features 
+        : [];
+      const disabledFeatures = Array.isArray(limits.disabled_features)
+        ? limits.disabled_features
+        : [];
+
+      // Garantir que não há features duplicadas entre enabled e disabled
+      const enabledSet = new Set(enabledFeatures);
+      const disabledSet = new Set(disabledFeatures);
+      const intersection = enabledFeatures.filter(f => disabledSet.has(f));
+      
+      if (intersection.length > 0) {
+        toast({
+          title: "Erro de validação",
+          description: `As seguintes funcionalidades não podem estar habilitadas e desabilitadas ao mesmo tempo: ${intersection.join(', ')}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const limitsToSave = {
         organization_id: organizationId,
         max_leads: limits.max_leads,
@@ -238,10 +284,10 @@ export function OrganizationLimitsPanel({
         max_broadcasts_per_month: limits.max_broadcasts_per_month,
         max_scheduled_messages_per_month: limits.max_scheduled_messages_per_month,
         max_storage_gb: limits.max_storage_gb,
-        enabled_features: limits.enabled_features || [],
-        disabled_features: limits.disabled_features || [],
-        trial_ends_at: limits.trial_ends_at,
-        features_override_mode: limits.features_override_mode,
+        enabled_features: enabledFeatures,
+        disabled_features: disabledFeatures,
+        trial_ends_at: limits.trial_ends_at || null,
+        features_override_mode: limits.features_override_mode || 'inherit',
         // Remover evolution_provider_id daqui - agora usamos tabela separada
         evolution_provider_id: null,
       };
