@@ -278,15 +278,39 @@ export function useEvolutionConfigs() {
 
   const configureWebhook = async (config: EvolutionConfig) => {
     try {
-      const functionsBase = (import.meta as any).env?.VITE_SUPABASE_URL || window.location.origin;
-      const secret = config.webhook_secret || config.api_key || '';
-      const webhookUrl = `${functionsBase}/functions/v1/evolution-webhook?secret=${encodeURIComponent(secret)}`;
+      // Validar dados antes de enviar
+      if (!config.api_url || !config.instance_name) {
+        throw new Error('URL da API e nome da instância são obrigatórios');
+      }
 
-      const response = await fetch(`${normalizeApiUrl(config.api_url)}/webhook/set/${config.instance_name}`, {
+      if (!config.api_key) {
+        throw new Error('API Key é obrigatória para configurar webhook');
+      }
+
+      // Obter URL base do Supabase corretamente
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('VITE_SUPABASE_URL não está configurado. Verifique as variáveis de ambiente.');
+      }
+
+      const secret = config.webhook_secret || config.api_key || '';
+      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?secret=${encodeURIComponent(secret)}`;
+
+      const apiUrl = normalizeApiUrl(config.api_url);
+      const endpoint = `${apiUrl}/webhook/set/${config.instance_name}`;
+
+      console.log('🔧 Configurando webhook:', {
+        endpoint,
+        webhookUrl: webhookUrl.substring(0, 100) + '...',
+        instanceName: config.instance_name,
+        hasApiKey: !!config.api_key,
+      });
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': config.api_key || '',
+          'apikey': config.api_key,
         },
         body: JSON.stringify({
           url: webhookUrl,
@@ -300,20 +324,47 @@ export function useEvolutionConfigs() {
         }),
       });
 
+      // Capturar resposta de erro completa
       if (!response.ok) {
-        throw new Error('Erro ao configurar webhook');
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.text();
+          if (errorData) {
+            try {
+              const parsed = JSON.parse(errorData);
+              errorMessage = parsed.message || parsed.error || errorMessage;
+            } catch {
+              errorMessage = errorData.length > 200 ? errorData.substring(0, 200) + '...' : errorData;
+            }
+          }
+        } catch (e) {
+          // Se não conseguir ler o erro, usar mensagem padrão
+        }
+        
+        console.error('❌ Erro ao configurar webhook:', {
+          status: response.status,
+          statusText: response.statusText,
+          message: errorMessage,
+          endpoint,
+        });
+
+        throw new Error(`Erro ao configurar webhook: ${errorMessage}`);
       }
 
+      const responseData = await response.json().catch(() => ({}));
+      console.log('✅ Webhook configurado com sucesso:', responseData);
+
       toast({
-        title: "Webhook configurado",
+        title: "✅ Webhook configurado",
         description: `Webhook configurado para instância ${config.instance_name}.`,
       });
 
       return true;
     } catch (error: any) {
+      console.error('❌ Erro completo ao configurar webhook:', error);
       toast({
-        title: "Erro ao configurar webhook",
-        description: error.message,
+        title: "❌ Erro ao configurar webhook",
+        description: error.message || 'Erro desconhecido ao configurar webhook',
         variant: "destructive",
       });
       return false;
