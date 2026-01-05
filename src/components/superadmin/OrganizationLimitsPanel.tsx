@@ -74,7 +74,7 @@ export function OrganizationLimitsPanel({
   const [planName, setPlanName] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<string[]>([]);
   const [evolutionProviders, setEvolutionProviders] = useState<Array<{ id: string; name: string; api_url: string }>>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
   const [loadingProviders, setLoadingProviders] = useState(false);
   const { toast } = useToast();
 
@@ -196,16 +196,33 @@ export function OrganizationLimitsPanel({
 
   const fetchOrganizationProvider = async () => {
     try {
+      // Buscar providers da nova tabela organization_evolution_providers
       const { data, error } = await supabase
-        .from('organization_limits')
+        .from('organization_evolution_providers')
         .select('evolution_provider_id')
-        .eq('organization_id', organizationId)
-        .maybeSingle();
+        .eq('organization_id', organizationId);
 
       if (error && error.code !== 'PGRST116') throw error;
-      setSelectedProviderId(data?.evolution_provider_id || null);
+      
+      if (data && data.length > 0) {
+        setSelectedProviderIds(data.map(item => item.evolution_provider_id));
+      } else {
+        // Fallback: buscar da estrutura antiga (organization_limits)
+        const { data: limitsData } = await supabase
+          .from('organization_limits')
+          .select('evolution_provider_id')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        
+        if (limitsData?.evolution_provider_id) {
+          setSelectedProviderIds([limitsData.evolution_provider_id]);
+        } else {
+          setSelectedProviderIds([]);
+        }
+      }
     } catch (error: any) {
-      console.error('Erro ao carregar provider da organização:', error);
+      console.error('Erro ao carregar providers da organização:', error);
+      setSelectedProviderIds([]);
     }
   };
 
@@ -225,7 +242,8 @@ export function OrganizationLimitsPanel({
         disabled_features: limits.disabled_features || [],
         trial_ends_at: limits.trial_ends_at,
         features_override_mode: limits.features_override_mode,
-        evolution_provider_id: selectedProviderId || null,
+        // Remover evolution_provider_id daqui - agora usamos tabela separada
+        evolution_provider_id: null,
       };
 
       const { error: limitsError } = await supabase
@@ -236,7 +254,30 @@ export function OrganizationLimitsPanel({
 
       if (limitsError) throw limitsError;
 
-      // O evolution_provider_id já foi salvo no limitsToSave acima
+      // Salvar múltiplos providers na tabela organization_evolution_providers
+      // Primeiro, remover todos os providers atuais da organização
+      const { error: deleteError } = await supabase
+        .from('organization_evolution_providers')
+        .delete()
+        .eq('organization_id', organizationId);
+
+      if (deleteError) throw deleteError;
+
+      // Depois, inserir os providers selecionados
+      if (selectedProviderIds.length > 0) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const providersToInsert = selectedProviderIds.map(providerId => ({
+          organization_id: organizationId,
+          evolution_provider_id: providerId,
+          created_by: user?.id || null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('organization_evolution_providers')
+          .insert(providersToInsert);
+
+        if (insertError) throw insertError;
+      }
 
       toast({
         title: "Sucesso!",
@@ -406,45 +447,79 @@ export function OrganizationLimitsPanel({
         <CardHeader>
           <div className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            <CardTitle>Provider Evolution (WhatsApp)</CardTitle>
+            <CardTitle>Providers Evolution (WhatsApp)</CardTitle>
           </div>
           <CardDescription>
-            Selecione qual Evolution esta organização poderá usar para criar instâncias WhatsApp. 
-            O usuário só precisará informar o nome da instância, o link e API key serão preenchidos automaticamente.
+            Selecione quais Evolution providers esta organização poderá usar para criar instâncias WhatsApp. 
+            O usuário poderá escolher entre os providers cadastrados ao criar uma instância. 
+            O link e API key serão preenchidos automaticamente.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="evolution_provider">Provider Evolution</Label>
-            <Select
-              value={selectedProviderId || 'none'}
-              onValueChange={(value) => setSelectedProviderId(value === 'none' ? null : value)}
-              disabled={loadingProviders || saving}
-            >
-              <SelectTrigger id="evolution_provider">
-                <SelectValue placeholder="Selecione um provider" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum (usuário informa manualmente)</SelectItem>
-                {evolutionProviders.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.name} ({provider.api_url})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedProviderId && (
-              <p className="text-xs text-muted-foreground">
-                Ao criar uma instância, o usuário verá automaticamente o link e API key deste provider.
-              </p>
-            )}
-            {evolutionProviders.length === 0 && (
+          <div className="space-y-3">
+            <Label>Providers Evolution Disponíveis</Label>
+            
+            {evolutionProviders.length === 0 ? (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   Nenhum provider Evolution ativo encontrado. Crie providers no painel de administração.
                 </AlertDescription>
               </Alert>
+            ) : (
+              <div className="space-y-2 border rounded-lg p-4">
+                {evolutionProviders.map((provider) => {
+                  const isSelected = selectedProviderIds.includes(provider.id);
+                  return (
+                    <div key={provider.id} className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                      <Checkbox
+                        id={`provider-${provider.id}`}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedProviderIds([...selectedProviderIds, provider.id]);
+                          } else {
+                            setSelectedProviderIds(selectedProviderIds.filter(id => id !== provider.id));
+                          }
+                        }}
+                        disabled={loadingProviders || saving}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label 
+                          htmlFor={`provider-${provider.id}`}
+                          className="font-medium cursor-pointer"
+                        >
+                          {provider.name}
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1 break-all">
+                          {provider.api_url}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <Badge variant="secondary" className="shrink-0">
+                          Selecionado
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            {selectedProviderIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {selectedProviderIds.length === 1 
+                  ? 'Ao criar uma instância, o usuário verá automaticamente o link e API key deste provider.'
+                  : `Ao criar uma instância, o usuário poderá escolher entre ${selectedProviderIds.length} providers cadastrados.`
+                }
+              </p>
+            )}
+            
+            {selectedProviderIds.length === 0 && evolutionProviders.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Nenhum provider selecionado. O usuário precisará informar manualmente o link e API key ao criar instâncias.
+              </p>
             )}
           </div>
         </CardContent>

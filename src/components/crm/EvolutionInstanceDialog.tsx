@@ -15,6 +15,13 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EvolutionInstanceDialogProps {
   open: boolean;
@@ -42,7 +49,8 @@ export function EvolutionInstanceDialog({
   const [createWithQR, setCreateWithQR] = useState(true); // QR code ativado por padrão
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [createdInstance, setCreatedInstance] = useState<EvolutionConfig | null>(null);
-  const [organizationProvider, setOrganizationProvider] = useState<{ api_url: string; api_key: string; provider_name: string } | null>(null);
+  const [organizationProviders, setOrganizationProviders] = useState<Array<{ provider_id: string; provider_name: string; api_url: string; api_key: string }>>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [loadingProvider, setLoadingProvider] = useState(false);
   const { toast } = useToast();
 
@@ -83,37 +91,56 @@ export function EvolutionInstanceDialog({
       if (error && error.code !== 'PGRST116') {
         // Se for erro de permissão, apenas não definir provider
         if (error.message?.includes('não pertence') || error.message?.includes('autenticado')) {
-          setOrganizationProvider(null);
+          setOrganizationProviders([]);
+          setSelectedProviderId(null);
           return;
         }
         throw error;
       }
 
       if (data && data.length > 0) {
-        const provider = data[0];
-        setOrganizationProvider({
-          api_url: provider.api_url,
-          api_key: provider.api_key,
-          provider_name: provider.provider_name,
-        });
-        // Preencher automaticamente os campos apenas se não estiver editando
-        if (!editingConfig) {
-          setFormData(prev => ({
-            ...prev,
-            api_url: provider.api_url,
-            api_key: provider.api_key,
-          }));
+        setOrganizationProviders(data);
+        
+        // Se houver apenas um provider, selecionar automaticamente
+        if (data.length === 1) {
+          setSelectedProviderId(data[0].provider_id);
+          if (!editingConfig) {
+            setFormData(prev => ({
+              ...prev,
+              api_url: data[0].api_url,
+              api_key: data[0].api_key,
+            }));
+          }
+        } else if (data.length > 1 && !editingConfig) {
+          // Se houver múltiplos, não preencher automaticamente - usuário escolhe
+          setSelectedProviderId(null);
         }
       } else {
-        setOrganizationProvider(null);
+        setOrganizationProviders([]);
+        setSelectedProviderId(null);
       }
     } catch (error: any) {
-      console.error('Erro ao buscar provider:', error);
-      setOrganizationProvider(null);
+      console.error('Erro ao buscar providers:', error);
+      setOrganizationProviders([]);
+      setSelectedProviderId(null);
     } finally {
       setLoadingProvider(false);
     }
   };
+  
+  // Atualizar formData quando provider selecionado mudar
+  useEffect(() => {
+    if (selectedProviderId && organizationProviders.length > 0 && !editingConfig) {
+      const provider = organizationProviders.find(p => p.provider_id === selectedProviderId);
+      if (provider) {
+        setFormData(prev => ({
+          ...prev,
+          api_url: provider.api_url,
+          api_key: provider.api_key,
+        }));
+      }
+    }
+  }, [selectedProviderId, organizationProviders, editingConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,8 +153,8 @@ export function EvolutionInstanceDialog({
           instance_name: formData.instance_name,
         };
         
-        // Só permitir atualizar URL/API key se NÃO houver provider configurado
-        if (!organizationProvider) {
+        // Só permitir atualizar URL/API key se NÃO houver providers configurados
+        if (organizationProviders.length === 0) {
           updateData.api_url = formData.api_url;
           updateData.api_key = formData.api_key;
         }
@@ -145,11 +172,17 @@ export function EvolutionInstanceDialog({
         const orgId = await getUserOrganizationId();
         if (!orgId) throw new Error("Organização não encontrada");
 
-        // Usar provider se disponível, senão usar formData
-        const apiUrl = organizationProvider?.api_url || formData.api_url;
-        const apiKey = organizationProvider?.api_key || formData.api_key;
+        // Usar provider selecionado se disponível, senão usar formData
+        const selectedProvider = selectedProviderId 
+          ? organizationProviders.find(p => p.provider_id === selectedProviderId)
+          : null;
+        const apiUrl = selectedProvider?.api_url || formData.api_url;
+        const apiKey = selectedProvider?.api_key || formData.api_key;
 
         if (!apiUrl || !apiKey) {
+          if (organizationProviders.length > 0 && !selectedProviderId) {
+            throw new Error("Selecione um provider ou informe URL e API Key manualmente");
+          }
           throw new Error("URL e API Key são obrigatórios");
         }
 
@@ -199,7 +232,8 @@ export function EvolutionInstanceDialog({
     setQrCode(null);
     setCreatedInstance(null);
     setCreateWithQR(false);
-    setOrganizationProvider(null);
+    setOrganizationProviders([]);
+    setSelectedProviderId(null);
   };
 
   return (
@@ -251,20 +285,38 @@ export function EvolutionInstanceDialog({
               </div>
             )}
 
-            {organizationProvider && !editingConfig && (
-              <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                  Provider pré-configurado: {organizationProvider.provider_name}
-                </p>
-                <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                  O link e API key foram configurados automaticamente pela administração. 
-                  Você só precisa informar o nome da instância.
-                </p>
+            {organizationProviders.length > 0 && !editingConfig && (
+              <div className="space-y-2">
+                <Label htmlFor="provider-select">Selecione o Provider Evolution</Label>
+                <Select
+                  value={selectedProviderId || ''}
+                  onValueChange={(value) => setSelectedProviderId(value || null)}
+                  disabled={loadingProvider}
+                >
+                  <SelectTrigger id="provider-select">
+                    <SelectValue placeholder="Selecione um provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizationProviders.map((provider) => (
+                      <SelectItem key={provider.provider_id} value={provider.provider_id}>
+                        {provider.provider_name} ({provider.api_url})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedProviderId && (
+                  <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-xs text-green-700 dark:text-green-300">
+                      O link e API key foram configurados automaticamente pela administração. 
+                      Você só precisa informar o nome da instância.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Esconder campos de URL e API Key quando há provider configurado (não permitir edição) */}
-            {!organizationProvider && (
+            {/* Mostrar campos de URL e API Key quando não há provider selecionado ou quando não há providers configurados */}
+            {(!selectedProviderId || organizationProviders.length === 0) && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="api_url">URL da API</Label>
@@ -273,7 +325,8 @@ export function EvolutionInstanceDialog({
                     placeholder="https://api.evolution.com"
                     value={formData.api_url}
                     onChange={(e) => setFormData({ ...formData, api_url: e.target.value })}
-                    required
+                    required={!selectedProviderId}
+                    disabled={!!selectedProviderId}
                   />
                 </div>
 
@@ -285,13 +338,23 @@ export function EvolutionInstanceDialog({
                     placeholder="Sua API Key"
                     value={formData.api_key}
                     onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                    required
+                    required={!selectedProviderId}
+                    disabled={!!selectedProviderId}
                   />
                 </div>
               </>
             )}
+            
+            {/* Mostrar aviso se há providers mas nenhum selecionado */}
+            {organizationProviders.length > 0 && !selectedProviderId && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Você pode selecionar um provider acima ou informar manualmente a URL e API Key abaixo.
+                </p>
+              </div>
+            )}
 
-            {organizationProvider && editingConfig && (
+            {organizationProviders.length > 0 && editingConfig && (
               <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                 <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
                   Provider gerenciado pela administração
