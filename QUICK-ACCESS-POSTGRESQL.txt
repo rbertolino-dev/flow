@@ -1,0 +1,54 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║          🔐 ACESSO RÁPIDO AO POSTGRESQL - CREDENCIAIS                  ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+📊 BANCO 1: PostgreSQL do Servidor (Hetzner)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Host:     95.217.2.116
+Porta:     5432
+Database: budget_services
+Usuário:   budget_user
+Senha:     XdgoSA4ABHSRWdTXA5cKDfJJs
+
+🔗 String de Conexão:
+postgresql://budget_user:XdgoSA4ABHSRWdTXA5cKDfJJs@95.217.2.116:5432/budget_services
+
+💻 Conectar via psql:
+psql "postgresql://budget_user:XdgoSA4ABHSRWdTXA5cKDfJJs@95.217.2.116:5432/budget_services"
+
+
+📊 BANCO 2: Supabase PostgreSQL (CRM Principal)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Host:     db.ogeljmbhqxpfjbpnbwog.supabase.co
+Porta:    5432
+Database: postgres
+Usuário:  viewer_user
+Senha:    viewer_2025_secure_pass_kanban_buzz
+
+🔗 String de Conexão:
+postgresql://viewer_user:viewer_2025_secure_pass_kanban_buzz@db.ogeljmbhqxpfjbpnbwog.supabase.co:5432/postgres?sslmode=require
+
+💻 Conectar via psql:
+psql "postgresql://viewer_user:viewer_2025_secure_pass_kanban_buzz@db.ogeljmbhqxpfjbpnbwog.supabase.co:5432/postgres?sslmode=require"
+
+🌐 Link Dashboard Supabase:
+https://supabase.com/dashboard/project/ogeljmbhqxpfjbpnbwog/sql/new
+
+
+🛠️ TESTAR CONEXÃO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+./scripts/testar-conexao-postgresql.sh
+
+
+📚 DOCUMENTAÇÃO COMPLETA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACESSO-POSTGRESQL-COMPLETO.md
+
+
+⚠️  SEGURANÇA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Nunca compartilhe estas credenciais publicamente
+- Use conexões SSL quando possível (Supabase requer SSL)
+- Banco Supabase: Read-Only (apenas visualização)
+- Banco Servidor: Permissões completas (use com cuidado)
+

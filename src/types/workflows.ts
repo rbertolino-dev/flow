@@ -189,6 +189,16 @@ export interface WorkflowFormValues {
   boleto_valor?: number; // Valor do boleto
   boleto_vencimento?: string; // Data de vencimento (yyyy-MM-dd)
   boleto_descricao?: string; // Descrição do boleto
+  // Configuração de boletos por provedor
+  asaas_boleto_enabled?: boolean;
+  asaas_boleto_valor?: string;
+  asaas_boleto_vencimento?: string;
+  asaas_boleto_descricao?: string;
+  mercado_pago_boleto_enabled?: boolean;
+  mercado_pago_boleto_valor?: string;
+  mercado_pago_boleto_vencimento?: string;
+  mercado_pago_boleto_descricao?: string;
+  mercado_pago_tipo?: "link" | "boleto"; // Tipo de cobrança Mercado Pago
 }
 
 export interface LeadOption {

@@ -32,6 +32,12 @@ import { WorkflowGroupSelector } from "./WorkflowGroupSelector";
 import { AsaasBoletoForm } from "./AsaasBoletoForm";
 import { BoletosList } from "./BoletosList";
 import { MessagePreviewDialog } from "./MessagePreviewDialog";
+import { WorkflowTypeSelector, WorkflowType } from "./WorkflowTypeSelector";
+import { WorkflowFormSteps, WorkflowStep } from "./WorkflowFormSteps";
+import { WorkflowBoletoConfig } from "./WorkflowBoletoConfig";
+import { WorkflowStepDestinatarios } from "./WorkflowStepDestinatarios";
+import { WorkflowStepMensagem } from "./WorkflowStepMensagem";
+import { WorkflowStepAgendamento } from "./WorkflowStepAgendamento";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -151,7 +157,27 @@ export function WorkflowFormDrawer({
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Estados para geração de boleto
+  // Estados para novo sistema de etapas
+  const [currentStep, setCurrentStep] = useState<WorkflowStep>("type");
+  const [selectedWorkflowType, setSelectedWorkflowType] = useState<WorkflowType | null>(null);
+  const [completedSteps, setCompletedSteps] = useState<WorkflowStep[]>([]);
+  
+  // Estados para geração de boleto (novo sistema)
+  const [asaasBoletoConfig, setAsaasBoletoConfig] = useState({
+    enabled: false,
+    valor: "",
+    vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    descricao: "",
+  });
+  const [mercadoPagoBoletoConfig, setMercadoPagoBoletoConfig] = useState({
+    enabled: false,
+    valor: "",
+    vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    descricao: "",
+    tipo: "link" as "link" | "boleto",
+  });
+  
+  // Estados legados para geração de boleto (manter para compatibilidade)
   const [gerarBoleto, setGerarBoleto] = useState(false);
   const [boletoValor, setBoletoValor] = useState("");
   const [boletoVencimento, setBoletoVencimento] = useState("");
@@ -178,6 +204,10 @@ export function WorkflowFormDrawer({
         setBoletoValor("");
         setBoletoVencimento("");
         setBoletoDescricao("");
+        // Definir tipo e etapa inicial
+        setSelectedWorkflowType(workflow.workflow_type as WorkflowType);
+        setCurrentStep("destinatarios");
+        setCompletedSteps(["type"]);
       } else {
         setValues({
           ...DEFAULT_FORM,
@@ -190,9 +220,79 @@ export function WorkflowFormDrawer({
         setBoletoValor("");
         setBoletoVencimento(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
         setBoletoDescricao("");
+        // Resetar novo sistema
+        setSelectedWorkflowType(null);
+        setCurrentStep("type");
+        setCompletedSteps([]);
+        setAsaasBoletoConfig({
+          enabled: false,
+          valor: "",
+          vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          descricao: "",
+        });
+        setMercadoPagoBoletoConfig({
+          enabled: false,
+          valor: "",
+          vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          descricao: "",
+          tipo: "link",
+        });
       }
     }
   }, [open, workflow, lists]);
+  
+  // Sincronizar tipo selecionado com valores do formulário
+  useEffect(() => {
+    if (selectedWorkflowType) {
+      handleChange("workflow_type", selectedWorkflowType);
+    }
+  }, [selectedWorkflowType]);
+  
+  // Função para avançar para próxima etapa
+  const goToNextStep = () => {
+    const steps: WorkflowStep[] = ["type", "destinatarios", "mensagem", "agendamento", "boletos", "configuracoes"];
+    const currentIndex = steps.indexOf(currentStep);
+    if (currentIndex < steps.length - 1) {
+      const nextStep = steps[currentIndex + 1];
+      // Pular etapa de boletos se não for cobrança
+      if (nextStep === "boletos" && selectedWorkflowType !== "cobranca") {
+        if (currentIndex + 2 < steps.length) {
+          setCurrentStep(steps[currentIndex + 2]);
+        } else {
+          setCurrentStep("configuracoes");
+        }
+      } else {
+        setCurrentStep(nextStep);
+      }
+      setCompletedSteps((prev) => [...prev, currentStep]);
+    }
+  };
+  
+  // Função para voltar para etapa anterior
+  const goToPreviousStep = () => {
+    const steps: WorkflowStep[] = ["type", "destinatarios", "mensagem", "agendamento", "boletos", "configuracoes"];
+    const currentIndex = steps.indexOf(currentStep);
+    if (currentIndex > 0) {
+      const prevStep = steps[currentIndex - 1];
+      // Pular etapa de boletos se não for cobrança
+      if (prevStep === "boletos" && selectedWorkflowType !== "cobranca") {
+        if (currentIndex - 2 >= 0) {
+          setCurrentStep(steps[currentIndex - 2]);
+        } else {
+          setCurrentStep("type");
+        }
+      } else {
+        setCurrentStep(prevStep);
+      }
+    }
+  };
+  
+  // Função para selecionar tipo de workflow
+  const handleSelectWorkflowType = (type: WorkflowType) => {
+    setSelectedWorkflowType(type);
+    handleChange("workflow_type", type);
+    goToNextStep();
+  };
 
   const handleChange = <K extends keyof WorkflowFormValues>(
     key: K,
@@ -261,11 +361,21 @@ export function WorkflowFormDrawer({
           contact_attachments: contactFiles,
           contact_attachments_metadata: contactMetadata,
           monthly_attachments: monthlyAttachments,
-          // Passar dados do boleto para criação automática
+          // Passar dados do boleto para criação automática (sistema legado)
           gerar_boleto: gerarBoleto,
           boleto_valor: gerarBoleto ? parseFloat(boletoValor) : undefined,
           boleto_vencimento: gerarBoleto ? boletoVencimento : undefined,
           boleto_descricao: gerarBoleto ? boletoDescricao : undefined,
+          // Passar dados do novo sistema de boletos
+          asaas_boleto_enabled: asaasBoletoConfig.enabled,
+          asaas_boleto_valor: asaasBoletoConfig.enabled ? asaasBoletoConfig.valor : undefined,
+          asaas_boleto_vencimento: asaasBoletoConfig.enabled ? asaasBoletoConfig.vencimento : undefined,
+          asaas_boleto_descricao: asaasBoletoConfig.enabled ? asaasBoletoConfig.descricao : undefined,
+          mercado_pago_boleto_enabled: mercadoPagoBoletoConfig.enabled,
+          mercado_pago_boleto_valor: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.valor : undefined,
+          mercado_pago_boleto_vencimento: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.vencimento : undefined,
+          mercado_pago_boleto_descricao: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.descricao : undefined,
+          mercado_pago_tipo: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.tipo : undefined,
         },
         {
           attachmentsToUpload: pendingFiles,
@@ -477,11 +587,21 @@ export function WorkflowFormDrawer({
           contact_attachments: contactFiles,
           contact_attachments_metadata: contactMetadata,
           monthly_attachments: monthlyAttachments,
-          // Passar dados do boleto para criação automática
+          // Passar dados do boleto para criação automática (sistema legado)
           gerar_boleto: gerarBoleto,
           boleto_valor: gerarBoleto ? parseFloat(boletoValor) : undefined,
           boleto_vencimento: gerarBoleto ? boletoVencimento : undefined,
           boleto_descricao: gerarBoleto ? boletoDescricao : undefined,
+          // Passar dados do novo sistema de boletos
+          asaas_boleto_enabled: asaasBoletoConfig.enabled,
+          asaas_boleto_valor: asaasBoletoConfig.enabled ? asaasBoletoConfig.valor : undefined,
+          asaas_boleto_vencimento: asaasBoletoConfig.enabled ? asaasBoletoConfig.vencimento : undefined,
+          asaas_boleto_descricao: asaasBoletoConfig.enabled ? asaasBoletoConfig.descricao : undefined,
+          mercado_pago_boleto_enabled: mercadoPagoBoletoConfig.enabled,
+          mercado_pago_boleto_valor: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.valor : undefined,
+          mercado_pago_boleto_vencimento: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.vencimento : undefined,
+          mercado_pago_boleto_descricao: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.descricao : undefined,
+          mercado_pago_tipo: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.tipo : undefined,
         },
         {
           attachmentsToUpload: pendingFiles,
@@ -505,6 +625,38 @@ export function WorkflowFormDrawer({
   };
 
   const formTitle = workflow ? "Editar workflow" : "Novo workflow";
+  
+  // Calcular informações de destinatários para WorkflowBoletoConfig
+  const getRecipientInfo = () => {
+    if (values.recipientMode === "single" && selectedLead) {
+      return {
+        mode: "single" as const,
+        count: 1,
+        name: selectedLead.name,
+      };
+    }
+    if (values.recipientMode === "list" && selectedList) {
+      return {
+        mode: "list" as const,
+        count: selectedList.contacts.length,
+        name: selectedList.name,
+      };
+    }
+    if (values.recipientMode === "group") {
+      return {
+        mode: "group" as const,
+        count: 0, // Será calculado pelo grupo
+        name: undefined,
+      };
+    }
+    return {
+      mode: "list" as const,
+      count: 0,
+      name: undefined,
+    };
+  };
+  
+  const recipientInfo = getRecipientInfo();
 
   return (
     <>
@@ -513,11 +665,343 @@ export function WorkflowFormDrawer({
           <SheetHeader className="mb-4">
             <SheetTitle>{formTitle}</SheetTitle>
             <p className="text-sm text-muted-foreground">
-              Configure o envio periódico. Fuso horário fixo em São Paulo.
+              {!selectedWorkflowType
+                ? "Escolha o tipo de workflow para começar"
+                : "Configure o envio periódico. Fuso horário fixo em São Paulo."}
             </p>
           </SheetHeader>
 
           <div className="space-y-6 pb-10">
+            {/* Tela de seleção de tipo */}
+            {!selectedWorkflowType && currentStep === "type" && (
+              <WorkflowTypeSelector
+                selectedType={null}
+                onSelectType={handleSelectWorkflowType}
+              />
+            )}
+
+            {/* Formulário com etapas */}
+            {selectedWorkflowType && (
+              <>
+                {/* Barra de progresso */}
+                <div className="mb-6">
+                  <WorkflowFormSteps
+                    currentStep={currentStep}
+                    workflowType={selectedWorkflowType}
+                    completedSteps={completedSteps}
+                    onStepClick={(step) => {
+                      // Permitir clicar apenas em etapas já completadas ou a atual
+                      if (completedSteps.includes(step) || step === currentStep) {
+                        setCurrentStep(step);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Nome do workflow (sempre visível) */}
+                <div className="space-y-3 border-b pb-4">
+                  <Label>Nome do workflow</Label>
+                  <Input
+                    placeholder="Ex: Cobrança mensal - Janeiro 2025"
+                    value={values.name}
+                    onChange={(event) => handleChange("name", event.target.value)}
+                  />
+                </div>
+
+                {/* Etapa: Destinatários */}
+                {currentStep === "destinatarios" && (
+                  <div className="space-y-4">
+                    <WorkflowStepDestinatarios
+                      recipientMode={values.recipientMode}
+                      workflowListId={values.workflow_list_id}
+                      singleLeadId={values.single_lead_id}
+                      groupId={values.group_id}
+                      defaultInstanceId={values.default_instance_id}
+                      lists={lists}
+                      leadOptions={leadOptions}
+                      instances={instances}
+                      onRecipientModeChange={(mode) => {
+                        handleChange("recipientMode", mode);
+                        if (mode !== "list") handleChange("workflow_list_id", undefined);
+                        if (mode !== "single") handleChange("single_lead_id", undefined);
+                        if (mode !== "group") handleChange("group_id", undefined);
+                      }}
+                      onWorkflowListChange={(listId) => handleChange("workflow_list_id", listId)}
+                      onSingleLeadChange={(leadId) => handleChange("single_lead_id", leadId)}
+                      onGroupChange={(groupId) => handleChange("group_id", groupId)}
+                      onInstanceChange={(instanceId) => handleChange("default_instance_id", instanceId)}
+                      onOpenListManager={() => setListManagerOpen(true)}
+                    />
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                        Voltar
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={goToNextStep}
+                        disabled={
+                          !values.default_instance_id ||
+                          (values.recipientMode === "list" && !values.workflow_list_id) ||
+                          (values.recipientMode === "single" && !values.single_lead_id) ||
+                          (values.recipientMode === "group" && !values.group_id)
+                        }
+                      >
+                        Próximo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etapa: Mensagem */}
+                {currentStep === "mensagem" && (
+                  <div className="space-y-4">
+                    <WorkflowStepMensagem
+                      templateMode={values.template_mode}
+                      messageTemplateId={values.message_template_id}
+                      messageBody={values.message_body || ""}
+                      templates={templates}
+                      onTemplateModeChange={(mode) => handleChange("template_mode", mode)}
+                      onTemplateChange={(templateId) => handleChange("message_template_id", templateId)}
+                      onMessageBodyChange={(body) => handleChange("message_body", body)}
+                      onOpenTemplateManager={() => setTemplateManagerOpen(true)}
+                      recipientName={selectedLead?.name || selectedList?.name}
+                    />
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                        Voltar
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={goToNextStep}
+                        disabled={
+                          (values.template_mode === "existing" && !values.message_template_id) ||
+                          (values.template_mode === "custom" && !values.message_body?.trim())
+                        }
+                      >
+                        Próximo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etapa: Agendamento */}
+                {currentStep === "agendamento" && (
+                  <div className="space-y-4">
+                    <WorkflowStepAgendamento
+                      periodicity={values.periodicity}
+                      daysOfWeek={values.days_of_week}
+                      dayOfMonth={values.day_of_month}
+                      customIntervalValue={values.custom_interval_value}
+                      customIntervalUnit={values.custom_interval_unit}
+                      sendTime={values.send_time}
+                      timezone={values.timezone}
+                      startDate={values.start_date}
+                      endDate={values.end_date}
+                      triggerType={values.trigger_type}
+                      triggerOffsetDays={values.trigger_offset_days}
+                      onPeriodicityChange={(periodicity) => handleChange("periodicity", periodicity)}
+                      onDaysOfWeekChange={(days) => handleChange("days_of_week", days)}
+                      onDayOfMonthChange={(day) => handleChange("day_of_month", day)}
+                      onCustomIntervalChange={(value, unit) => {
+                        handleChange("custom_interval_value", value);
+                        handleChange("custom_interval_unit", unit);
+                      }}
+                      onSendTimeChange={(time) => handleChange("send_time", time)}
+                      onStartDateChange={(date) => handleChange("start_date", date)}
+                      onEndDateChange={(date) => handleChange("end_date", date)}
+                      onTriggerTypeChange={(type) => handleChange("trigger_type", type)}
+                      onTriggerOffsetDaysChange={(days) => handleChange("trigger_offset_days", days)}
+                    />
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                        Voltar
+                      </Button>
+                      <Button type="button" onClick={goToNextStep}>
+                        Próximo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etapa: Boletos (apenas para cobrança) */}
+                {currentStep === "boletos" && selectedWorkflowType === "cobranca" && (
+                  <div className="space-y-4">
+                    <WorkflowBoletoConfig
+                      recipientMode={values.recipientMode}
+                      recipientCount={recipientInfo.count}
+                      recipientName={recipientInfo.name}
+                      asaasConfig={asaasBoletoConfig}
+                      mercadoPagoConfig={mercadoPagoBoletoConfig}
+                      onAsaasConfigChange={setAsaasBoletoConfig}
+                      onMercadoPagoConfigChange={setMercadoPagoBoletoConfig}
+                    />
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                        Voltar
+                      </Button>
+                      <Button type="button" onClick={goToNextStep}>
+                        Próximo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etapa: Configurações */}
+                {currentStep === "configuracoes" && (
+                  <div className="space-y-6">
+                    {/* Anexos Gerais */}
+                    <section className="space-y-3">
+                      <Label>Anexos Gerais</Label>
+                      <WorkflowAttachmentsField
+                        existingAttachments={existingAttachments.filter(
+                          (attachment) => !attachmentsToRemove.includes(attachment.id),
+                        )}
+                        pendingFiles={pendingFiles}
+                        onSelectFiles={(files) =>
+                          setPendingFiles((prev) => [...prev, ...files])
+                        }
+                        onRemoveExisting={handleRemoveAttachment}
+                        onRemovePending={(index) =>
+                          setPendingFiles((prev) => prev.filter((_, idx) => idx !== index))
+                        }
+                      />
+                    </section>
+
+                    {/* Anexos por contato */}
+                    {values.workflow_list_id && listContacts.length > 0 && (
+                      <section className="space-y-3">
+                        {values.workflow_type === "cobranca" ? (
+                          <WorkflowMonthlyAttachmentsField
+                            contacts={listContacts}
+                            monthlyAttachments={monthlyAttachments}
+                            selectedMonths={selectedMonths}
+                            onMonthToggle={(leadId, monthRef) => {
+                              setSelectedMonths((prev) => {
+                                const current = prev[leadId] || [];
+                                const isSelected = current.includes(monthRef);
+                                return {
+                                  ...prev,
+                                  [leadId]: isSelected
+                                    ? current.filter((m) => m !== monthRef)
+                                    : [...current, monthRef],
+                                };
+                              });
+                            }}
+                            onFileChange={(leadId, monthRef, file) => {
+                              setMonthlyAttachments((prev) => {
+                                const current = prev[leadId] || [];
+                                const filtered = current.filter((a) => a.month_reference !== monthRef);
+                                return {
+                                  ...prev,
+                                  [leadId]: file ? [...filtered, { month_reference: monthRef, file }] : filtered,
+                                };
+                              });
+                            }}
+                            workflowType={values.workflow_type}
+                          />
+                        ) : (
+                          <WorkflowContactAttachmentsField
+                            contacts={listContacts}
+                            contactFiles={contactFiles}
+                            contactMetadata={contactMetadata}
+                            onFileChange={(leadId, file) => {
+                              if (file) {
+                                setContactFiles((prev) => ({ ...prev, [leadId]: file }));
+                              } else {
+                                setContactFiles((prev) => {
+                                  const newFiles = { ...prev };
+                                  delete newFiles[leadId];
+                                  return newFiles;
+                                });
+                              }
+                            }}
+                            onMetadataChange={(leadId, metadata) => {
+                              setContactMetadata((prev) => ({ ...prev, [leadId]: metadata }));
+                            }}
+                          />
+                        )}
+                      </section>
+                    )}
+
+                    {/* Aprovação */}
+                    <section className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label>Requer Aprovação</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Ative para criar uma fila de aprovação antes do envio
+                          </p>
+                        </div>
+                        <Switch
+                          checked={values.requires_approval || false}
+                          onCheckedChange={(checked) =>
+                            handleChange("requires_approval", checked)
+                          }
+                        />
+                      </div>
+
+                      {values.requires_approval && (
+                        <div>
+                          <Label>Prazo para Aprovação (horas antes do envio)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={168}
+                            value={values.approval_deadline_hours || 24}
+                            onChange={(event) =>
+                              handleChange("approval_deadline_hours", Number(event.target.value))
+                            }
+                            placeholder="24"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Mensagens serão enviadas para aprovação X horas antes do envio agendado
+                          </p>
+                        </div>
+                      )}
+                    </section>
+
+                    {/* Observações */}
+                    <section className="space-y-3">
+                      <Label>Observações internas</Label>
+                      <Textarea
+                        rows={3}
+                        value={values.observations || ""}
+                        onChange={(event) => handleChange("observations", event.target.value)}
+                        placeholder="Comentários visíveis apenas para o time interno."
+                      />
+                    </section>
+
+                    {/* Status ativo/inativo */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={values.is_active}
+                          onCheckedChange={(checked) => handleChange("is_active", checked)}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          Workflow {values.is_active ? "ativo" : "inativo"}
+                        </span>
+                      </div>
+                    </section>
+
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button type="button" variant="outline" onClick={goToPreviousStep}>
+                        Voltar
+                      </Button>
+                      <Button
+                        onClick={handleSubmit}
+                        className="w-auto"
+                        disabled={isSubmitting}
+                      >
+                        {workflow ? "Atualizar workflow" : "Criar workflow"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Formulário legado removido - usar novo sistema de etapas para todos os workflows */}
             <section className="space-y-3">
               <Label>Informações básicas</Label>
               <Input
