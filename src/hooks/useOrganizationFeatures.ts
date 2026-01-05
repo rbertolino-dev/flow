@@ -109,11 +109,23 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
       const disabledFeatures = Array.isArray(limitsData.disabled_features)
         ? limitsData.disabled_features as string[]
         : [];
+      
+      // Garantir que planFeatures seja sempre um array
+      // Pode vir como JSONB (objeto ou array) do banco
+      let planFeatures: string[] = [];
+      if (planData?.features) {
+        if (Array.isArray(planData.features)) {
+          planFeatures = planData.features as string[];
+        } else if (typeof planData.features === 'object') {
+          // Se for objeto JSONB, tentar converter para array
+          planFeatures = Object.values(planData.features) as string[];
+        }
+      }
 
       setData({
         planId: limitsData.plan_id,
         planName: planData?.name || null,
-        planFeatures: (planData?.features as string[]) || [],
+        planFeatures,
         enabledFeatures,
         disabledFeatures,
         trialEndsAt,
