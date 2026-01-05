@@ -126,7 +126,7 @@ export function useEvolutionConfigs() {
         normalized_url: normalizedUrl,
         instance_name: cleanedInstanceName,
         user_id: user.id,
-        organization_id: orgId
+        organization_id: activeOrgId
       });
       
       // Verificar se o usuário realmente pertence a esta org
