@@ -3,6 +3,43 @@
 -- ============================================
 -- Corrige dados corrompidos e garante que colunas JSONB sempre retornem arrays válidos
 
+-- Primeiro, verificar e converter tipo das colunas se necessário
+DO $$
+DECLARE
+  enabled_type TEXT;
+  disabled_type TEXT;
+BEGIN
+  -- Verificar tipo de enabled_features
+  SELECT data_type INTO enabled_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'organization_limits'
+    AND column_name = 'enabled_features';
+  
+  -- Se for array de enums, converter para JSONB primeiro
+  IF enabled_type = 'ARRAY' THEN
+    -- Converter array para JSONB
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN enabled_features TYPE JSONB
+    USING to_jsonb(enabled_features);
+  END IF;
+  
+  -- Verificar tipo de disabled_features
+  SELECT data_type INTO disabled_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'organization_limits'
+    AND column_name = 'disabled_features';
+  
+  -- Se for array de enums, converter para JSONB primeiro
+  IF disabled_type = 'ARRAY' THEN
+    -- Converter array para JSONB
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN disabled_features TYPE JSONB
+    USING to_jsonb(disabled_features);
+  END IF;
+END $$;
+
 -- Função helper para normalizar JSONB para array
 CREATE OR REPLACE FUNCTION public.normalize_jsonb_array(value JSONB)
 RETURNS JSONB
@@ -42,16 +79,53 @@ BEGIN
 END;
 $$;
 
--- Atualizar todos os registros com dados inválidos
+-- Verificar tipo da coluna e converter se necessário
+DO $$
+DECLARE
+  enabled_type TEXT;
+  disabled_type TEXT;
+BEGIN
+  -- Verificar tipo de enabled_features
+  SELECT data_type INTO enabled_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'organization_limits'
+    AND column_name = 'enabled_features';
+  
+  -- Se for array de enums, converter para JSONB primeiro
+  IF enabled_type = 'ARRAY' THEN
+    -- Converter array para JSONB
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN enabled_features TYPE JSONB
+    USING to_jsonb(enabled_features);
+  END IF;
+  
+  -- Verificar tipo de disabled_features
+  SELECT data_type INTO disabled_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'organization_limits'
+    AND column_name = 'disabled_features';
+  
+  -- Se for array de enums, converter para JSONB primeiro
+  IF disabled_type = 'ARRAY' THEN
+    -- Converter array para JSONB
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN disabled_features TYPE JSONB
+    USING to_jsonb(disabled_features);
+  END IF;
+END $$;
+
+-- Atualizar todos os registros com dados inválidos (agora que são JSONB)
 UPDATE public.organization_limits
 SET 
   enabled_features = public.normalize_jsonb_array(enabled_features),
   disabled_features = public.normalize_jsonb_array(disabled_features)
 WHERE 
-  enabled_features IS NOT NULL 
-  AND jsonb_typeof(enabled_features) != 'array'
-  OR disabled_features IS NOT NULL 
-  AND jsonb_typeof(disabled_features) != 'array';
+  (enabled_features IS NOT NULL 
+   AND jsonb_typeof(enabled_features) != 'array')
+  OR (disabled_features IS NOT NULL 
+      AND jsonb_typeof(disabled_features) != 'array');
 
 -- Garantir que valores NULL sejam arrays vazios
 UPDATE public.organization_limits
