@@ -187,53 +187,60 @@ export function UsersPanel() {
 
     setCreating(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUserData.email,
-        password: newUserData.password,
-        email_confirm: true,
+      // Usar edge function para criar usuário (tem SERVICE_ROLE_KEY)
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newUserData.email.trim(),
+          password: newUserData.password.trim(),
+          fullName: newUserData.fullName.trim() || newUserData.email.trim(),
+          isAdmin: newUserData.isAdmin && isAdmin,
+          organizationId: activeOrgId,
+        },
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Usuário não criado");
-
-      const userId = authData.user.id;
-
-      if (newUserData.fullName) {
-        await supabase
-          .from("profiles")
-          .update({ full_name: newUserData.fullName })
-          .eq("id", userId);
+      if (error) {
+        let detailedMessage = error.message || 'Erro ao criar usuário';
+        const contextResponse = (error as any)?.context?.response;
+        if (contextResponse && typeof contextResponse.text === 'function') {
+          try {
+            const rawText = await contextResponse.text();
+            if (rawText) {
+              try {
+                const parsed = JSON.parse(rawText);
+                detailedMessage = parsed.error || parsed.message || detailedMessage;
+              } catch {
+                detailedMessage = rawText;
+              }
+            }
+          } catch {
+            // ignora parsing do contexto
+          }
+        }
+        throw new Error(detailedMessage);
       }
 
-      if (newUserData.isAdmin && isAdmin) {
-        await supabase.from("user_roles").insert({
-          user_id: userId,
-          role: "admin",
-        });
+      if (data?.error || data?.success === false) {
+        throw new Error(data.error || 'Erro ao criar usuário');
       }
-
-      await supabase.from("organization_members").insert({
-        organization_id: activeOrgId,
-        user_id: userId,
-      });
 
       toast({
         title: "Usuário criado",
-        description: "O usuário foi criado com sucesso",
+        description: "O usuário foi criado com sucesso e adicionado à organização",
       });
 
       setCreateDialogOpen(false);
       setNewUserData({ email: "", password: "", fullName: "", isAdmin: false });
       
-      // Forçar recarregamento completo do navegador após criar usuário
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // Recarregar lista de usuários
+      await fetchUsers();
+      
+      // Disparar evento de refresh para outros componentes
+      forceRefreshAfterMutation('user', 'create');
     } catch (error: any) {
       console.error("Erro ao criar usuário:", error);
       toast({
         title: "Erro ao criar usuário",
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao criar usuário',
         variant: "destructive",
       });
     } finally {
