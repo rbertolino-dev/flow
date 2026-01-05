@@ -18,10 +18,18 @@ BEGIN
   
   -- Se for array de enums, converter para JSONB primeiro
   IF enabled_type = 'ARRAY' THEN
+    -- Remover DEFAULT antes de converter (se existir)
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN enabled_features DROP DEFAULT;
+    
     -- Converter array para JSONB
     ALTER TABLE public.organization_limits
     ALTER COLUMN enabled_features TYPE JSONB
     USING to_jsonb(enabled_features);
+    
+    -- Adicionar DEFAULT JSONB
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN enabled_features SET DEFAULT '[]'::jsonb;
   END IF;
   
   -- Verificar tipo de disabled_features
@@ -33,10 +41,18 @@ BEGIN
   
   -- Se for array de enums, converter para JSONB primeiro
   IF disabled_type = 'ARRAY' THEN
+    -- Remover DEFAULT antes de converter (se existir)
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN disabled_features DROP DEFAULT;
+    
     -- Converter array para JSONB
     ALTER TABLE public.organization_limits
     ALTER COLUMN disabled_features TYPE JSONB
     USING to_jsonb(disabled_features);
+    
+    -- Adicionar DEFAULT JSONB
+    ALTER TABLE public.organization_limits
+    ALTER COLUMN disabled_features SET DEFAULT '[]'::jsonb;
   END IF;
 END $$;
 
