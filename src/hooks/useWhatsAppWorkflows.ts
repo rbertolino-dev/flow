@@ -48,7 +48,7 @@ export function useWhatsAppWorkflows() {
           `
             *,
             list:whatsapp_workflow_lists(*),
-            template:message_templates(id, name, content, media_url, media_type)
+            template:message_templates(id, name, content)
           `,
         )
         .eq("organization_id", activeOrgId)
@@ -60,6 +60,38 @@ export function useWhatsAppWorkflows() {
         if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
           console.warn("Tabela whatsapp_workflows não encontrada. Retornando array vazio.");
           return [];
+        }
+        // Se coluna não existe, tentar novamente sem media_url e media_type
+        if (error.code === '42703' && error.message?.includes('media_url')) {
+          console.warn("Colunas media_url/media_type não encontradas. Tentando sem essas colunas.");
+          const { data: retryData, error: retryError } = await supabase
+            .from("whatsapp_workflows")
+            .select(
+              `
+                *,
+                list:whatsapp_workflow_lists(*),
+                template:message_templates(id, name, content)
+              `,
+            )
+            .eq("organization_id", activeOrgId)
+            .order("created_at", { ascending: false })
+            .limit(100);
+          
+          if (retryError) {
+            console.error("Erro ao buscar workflows (retry)", retryError);
+            return [];
+          }
+          
+          const workflows = (retryData || []).map(w => ({
+            ...w,
+            list: w.list ? {
+              ...w.list,
+              contacts: Array.isArray(w.list.contacts) 
+                ? w.list.contacts as any[]
+                : []
+            } : null
+          })) as unknown as WorkflowEnvio[];
+          return workflows;
         }
         console.error("Erro ao buscar workflows", error);
         toast({
