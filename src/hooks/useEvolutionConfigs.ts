@@ -327,12 +327,15 @@ export function useEvolutionConfigs() {
       // Capturar resposta de erro completa
       if (!response.ok) {
         let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        let errorDetails: any = null;
+        
         try {
           const errorData = await response.text();
           if (errorData) {
             try {
               const parsed = JSON.parse(errorData);
-              errorMessage = parsed.message || parsed.error || errorMessage;
+              errorMessage = parsed.message || parsed.error || parsed.detail || errorMessage;
+              errorDetails = parsed;
             } catch {
               errorMessage = errorData.length > 200 ? errorData.substring(0, 200) + '...' : errorData;
             }
@@ -346,9 +349,34 @@ export function useEvolutionConfigs() {
           statusText: response.statusText,
           message: errorMessage,
           endpoint,
+          errorDetails,
+          webhookUrlLength: webhookUrl.length,
+          instanceName: config.instance_name,
         });
 
-        throw new Error(`Erro ao configurar webhook: ${errorMessage}`);
+        // Mensagens mais específicas baseadas no status
+        if (response.status === 400) {
+          // Bad Request - pode ser URL inválida, instância não existe, ou payload incorreto
+          let specificMessage = 'Requisição inválida. ';
+          
+          if (errorMessage.includes('instance') || errorMessage.includes('not found')) {
+            specificMessage += 'A instância pode não existir ou não estar conectada. Verifique se o WhatsApp está conectado.';
+          } else if (errorMessage.includes('url') || errorMessage.includes('webhook')) {
+            specificMessage += 'A URL do webhook pode estar inválida ou muito longa.';
+          } else if (errorMessage.includes('apikey') || errorMessage.includes('key')) {
+            specificMessage += 'A API Key pode estar inválida ou expirada. Verifique as credenciais.';
+          } else {
+            specificMessage += errorMessage || 'Verifique se a instância existe e está conectada.';
+          }
+          
+          throw new Error(specificMessage);
+        } else if (response.status === 401 || response.status === 403) {
+          throw new Error('API Key inválida ou sem permissão. Verifique as credenciais.');
+        } else if (response.status === 404) {
+          throw new Error('Instância não encontrada. Verifique se o nome da instância está correto e se o WhatsApp está conectado.');
+        } else {
+          throw new Error(`Erro ao configurar webhook: ${errorMessage}`);
+        }
       }
 
       const responseData = await response.json().catch(() => ({}));
