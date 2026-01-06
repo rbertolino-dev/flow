@@ -124,56 +124,106 @@ export function WebhookTestPanel({ config }: { config: any }) {
         updateStep(4, { status: 'running' });
         
         try {
+          // Obter URL do Supabase
+          const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 
+                             (window as any).__SUPABASE_URL__ ||
+                             'https://ogeljmbhqxpfjbpnbwog.supabase.co';
+          
+          const webhookSecret = config.webhook_secret || config.api_key || '';
+          
+          if (!webhookSecret) {
+            updateStep(4, { 
+              status: 'error', 
+              message: 'Webhook secret não configurado',
+              details: 'Configure webhook_secret ou api_key na instância'
+            });
+            return;
+          }
+
+          // Criar payload de teste no formato correto que o webhook espera
           const testPayload = {
             event: 'messages.upsert',
             instance: config.instance_name,
-            apikey: config.webhook_secret || config.api_key || '',
             data: {
               key: {
                 remoteJid: '5511999999999@s.whatsapp.net',
                 fromMe: false,
               },
               message: {
-                conversation: 'Mensagem de teste do diagnóstico'
+                conversation: 'Mensagem de teste do diagnóstico - ' + new Date().toISOString()
               },
               pushName: 'Teste Diagnóstico',
             }
           };
 
-          // Importar supabase client
-          const { supabase } = await import('@/integrations/supabase/client');
+          console.log('🧪 Testando webhook com payload:', testPayload);
+          console.log('🔑 Usando secret:', webhookSecret.substring(0, 8) + '...');
+
+          // Chamar webhook diretamente via fetch
+          // Adicionar secret no query parameter também (como o webhook espera)
+          const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?secret=${encodeURIComponent(webhookSecret)}`;
           
-          const { data: testResponse, error } = await supabase.functions.invoke('evolution-webhook', {
-            body: testPayload,
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
             headers: {
-              'x-webhook-secret': config.webhook_secret || config.api_key || ''
-            }
+              'Content-Type': 'application/json',
+              'x-webhook-secret': webhookSecret,
+              'x-api-key': webhookSecret,
+            },
+            body: JSON.stringify(testPayload),
           });
 
-          if (error) {
-            const errorData = await error;
+          const responseText = await response.text();
+          let responseData;
+          
+          try {
+            responseData = JSON.parse(responseText);
+          } catch {
+            responseData = { raw: responseText };
+          }
+
+          console.log('📥 Resposta do webhook:', {
+            status: response.status,
+            statusText: response.statusText,
+            data: responseData
+          });
+
+          if (!response.ok) {
             updateStep(4, { 
               status: 'error', 
-              message: 'Webhook não respondeu corretamente',
-              details: JSON.stringify(errorData).slice(0, 100)
+              message: `Webhook retornou erro ${response.status}`,
+              details: responseData?.error || responseData?.message || responseText.substring(0, 200)
+            });
+            
+            toast({
+              title: "❌ Erro no teste",
+              description: `Webhook retornou ${response.status}: ${response.statusText}`,
+              variant: "destructive",
             });
           } else {
             updateStep(4, { 
               status: 'success', 
-              message: 'Webhook funcionando',
-              details: 'Lead de teste deve aparecer no funil'
+              message: 'Webhook funcionando corretamente',
+              details: responseData?.message || 'Lead de teste deve aparecer no funil em alguns segundos'
             });
             
             toast({
               title: "✅ Teste concluído!",
-              description: "Um lead de teste foi criado. Verifique o funil de vendas.",
+              description: "Webhook respondeu com sucesso. Verifique se o lead de teste aparece no funil.",
             });
           }
         } catch (error: any) {
+          console.error('❌ Erro ao testar webhook:', error);
           updateStep(4, { 
             status: 'error', 
             message: 'Erro ao testar webhook',
-            details: error.message
+            details: error.message || String(error)
+          });
+          
+          toast({
+            title: "❌ Erro no teste",
+            description: error.message || 'Erro desconhecido ao testar webhook',
+            variant: "destructive",
           });
         }
 
