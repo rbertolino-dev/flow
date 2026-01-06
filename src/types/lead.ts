@@ -49,6 +49,7 @@ export interface Lead {
     price: number;
     category: string;
   };
+  cpf_cnpj?: string | null;
 }
 
 export interface CallQueueItem {

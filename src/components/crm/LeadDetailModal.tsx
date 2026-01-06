@@ -106,6 +106,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
   const [editedEmail, setEditedEmail] = useState(lead.email || "");
   const [editedCompany, setEditedCompany] = useState(lead.company || "");
   const [editedNotes, setEditedNotes] = useState(lead.notes || "");
+  const [editedCpfCnpj, setEditedCpfCnpj] = useState(lead.cpf_cnpj || "");
 
   // Atualizar currentLead e editedName quando o lead prop mudar
   useEffect(() => {
@@ -115,6 +116,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     setEditedEmail(lead.email || "");
     setEditedCompany(lead.company || "");
     setEditedNotes(lead.notes || "");
+    setEditedCpfCnpj(lead.cpf_cnpj || "");
   }, [lead]);
 
   // Identificar listas que contêm este lead
@@ -771,6 +773,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
       if (editedCompany !== (currentLead.company || "")) {
         updates.company = editedCompany.trim() || null;
       }
+      if (editedCpfCnpj !== (currentLead.cpf_cnpj || "")) {
+        const cpfCnpjClean = editedCpfCnpj.replace(/\D/g, "");
+        updates.cpf_cnpj = cpfCnpjClean || null;
+      }
       if (editedNotes !== (currentLead.notes || "")) {
         updates.notes = editedNotes.trim() || null;
       }
@@ -819,6 +825,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     setEditedPhone(currentLead.phone);
     setEditedEmail(currentLead.email || "");
     setEditedCompany(currentLead.company || "");
+    setEditedCpfCnpj(currentLead.cpf_cnpj || "");
     setEditedNotes(currentLead.notes || "");
     setIsEditingInfo(false);
   };
@@ -1008,6 +1015,23 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                       onChange={(e) => setEditedCompany(e.target.value)}
                       placeholder="Nome da empresa"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-cpf-cnpj">CPF/CNPJ</Label>
+                    <Input
+                      id="edit-cpf-cnpj"
+                      value={editedCpfCnpj}
+                      onChange={(e) => {
+                        // Remover caracteres não numéricos
+                        const value = e.target.value.replace(/\D/g, "");
+                        setEditedCpfCnpj(value);
+                      }}
+                      placeholder="Apenas números (11 para CPF, 14 para CNPJ)"
+                      maxLength={14}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      CPF: 11 dígitos | CNPJ: 14 dígitos
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-notes">Observações</Label>

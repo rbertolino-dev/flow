@@ -43,6 +43,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     productId: "",
     stageId: "",
     notes: "",
+    cpfCnpj: "",
   });
 
   // Resetar formulário quando o dialog abrir ou quando stages mudar
@@ -129,6 +130,17 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
 
       if (error) throw error;
 
+      // Atualizar CPF/CNPJ se fornecido (após criar lead)
+      if (formData.cpfCnpj && leadId) {
+        const cpfCnpjClean = formData.cpfCnpj.replace(/\D/g, "");
+        if (cpfCnpjClean.length === 11 || cpfCnpjClean.length === 14) {
+          await supabase
+            .from('leads')
+            .update({ cpf_cnpj: cpfCnpjClean })
+            .eq('id', leadId);
+        }
+      }
+
       // Vincular produto ao lead via tabela lead_products se selecionado
       if (formData.productId && leadId && selectedProduct) {
         await supabase
@@ -198,6 +210,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         productId: "",
         stageId: stages[0]?.id || "",
         notes: "",
+        cpfCnpj: "",
       });
       setSelectedTagIds([]);
       setAddToQueue(true);
@@ -269,6 +282,24 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               onChange={(e) => setFormData({ ...formData, company: e.target.value })}
               placeholder="Nome da empresa"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cpfCnpj">CPF/CNPJ</Label>
+            <Input
+              id="cpfCnpj"
+              value={formData.cpfCnpj}
+              onChange={(e) => {
+                // Remover caracteres não numéricos
+                const value = e.target.value.replace(/\D/g, "");
+                setFormData({ ...formData, cpfCnpj: value });
+              }}
+              placeholder="Apenas números (11 para CPF, 14 para CNPJ)"
+              maxLength={14}
+            />
+            <p className="text-xs text-muted-foreground">
+              Opcional. Recomendado para workflows de cobrança.
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -401,6 +401,7 @@ serve(async (req) => {
       }
 
       console.log(`👤 Mensagem ${direction} ${isFromMe ? 'para' : 'de'} ${contactName} (${phoneNumber}): ${messageContent}`);
+      console.log(`📋 Contexto: org=${configs.organization_id}, user=${configs.user_id}, instance=${configs.instance_name}, instance_id=${configs.id}`);
 
       try {
         // Registrar log de mensagem
@@ -423,14 +424,101 @@ serve(async (req) => {
       }
 
       // Verificar se já existe lead com este telefone NESTA organização
+      // IMPORTANTE: Buscar por phone + organization_id (sem source_instance_id) porque
+      // a constraint única é apenas (organization_id, phone), não inclui source_instance_id
       console.log('🔍 Verificando se lead existe...');
-      const { data: existingLead } = await supabaseServiceRole
+      
+      // Primeiro buscar lead ativo (não deletado)
+      let { data: existingLead } = await supabaseServiceRole
         .from('leads')
-        .select('id, deleted_at, source_instance_id, source_instance_name')
+        .select('id, deleted_at, excluded_from_funnel, source_instance_id, source_instance_name')
         .eq('phone', phoneNumber)
         .eq('organization_id', configs.organization_id)
-        .eq('source_instance_id', configs.id)
+        .is('deleted_at', null)
         .maybeSingle();
+      
+      // Se não encontrou lead ativo, buscar lead deletado (soft delete) para restaurar
+      if (!existingLead) {
+        console.log('🔍 Buscando lead deletado para restaurar...');
+        const { data: deletedLead } = await supabaseServiceRole
+          .from('leads')
+          .select('id, deleted_at, excluded_from_funnel, source_instance_id, source_instance_name')
+          .eq('phone', phoneNumber)
+          .eq('organization_id', configs.organization_id)
+          .not('deleted_at', 'is', null)
+          .order('deleted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (deletedLead) {
+          console.log(`🔄 Lead deletado encontrado (ID: ${deletedLead.id}), restaurando...`);
+          
+          // Buscar primeiro estágio do funil para garantir que o lead tenha uma etapa
+          const { data: firstStage } = await supabaseServiceRole
+            .from('pipeline_stages')
+            .select('id')
+            .eq('organization_id', configs.organization_id)
+            .order('position', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          
+          if (!firstStage) {
+            console.error('❌ Nenhum estágio do funil encontrado. Não é possível restaurar lead.');
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: 'Nenhum estágio do funil encontrado. Configure pelo menos um estágio no funil.' 
+              }),
+              { 
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
+          }
+          
+          // Preparar dados de atualização para restaurar
+          const restoreData: any = {
+            deleted_at: null,
+            name: contactName,
+            last_contact: new Date().toISOString(),
+            stage_id: firstStage.id,
+            source_instance_id: configs.id,
+            source_instance_name: configs.instance_name,
+          };
+          
+          // Se for mensagem recebida, marcar como não lida
+          if (!isFromMe) {
+            restoreData.has_unread_messages = true;
+            restoreData.last_message_at = new Date().toISOString();
+            restoreData.unread_message_count = 1;
+          }
+          
+          const { error: restoreError } = await supabaseServiceRole
+            .from('leads')
+            .update(restoreData)
+            .eq('id', deletedLead.id);
+          
+          if (restoreError) {
+            console.error('❌ Erro ao restaurar lead:', restoreError);
+            throw restoreError;
+          }
+          
+          // Adicionar atividade de retorno
+          await supabaseServiceRole.from('activities').insert({
+            organization_id: configs.organization_id,
+            lead_id: deletedLead.id,
+            type: 'whatsapp',
+            content: isFromMe ? messageContent : `[Retorno] ${messageContent}`,
+            user_name: isFromMe ? 'Você' : contactName,
+            direction,
+          });
+          
+          console.log(`✅ Lead restaurado com ID: ${deletedLead.id} na etapa ${firstStage.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
+          
+          // Usar lead restaurado como existingLead para continuar o fluxo
+          existingLead = { ...deletedLead, deleted_at: null };
+        }
+      }
 
         if (existingLead) {
           // Se está excluído do funil, não criar/restaurar - apenas registrar atividade silenciosamente
@@ -453,66 +541,10 @@ serve(async (req) => {
             });
           }
           
-          // Se foi excluído (soft delete), recriar
-          if (existingLead.deleted_at) {
-          console.log(`🔄 Lead foi excluído, recriando (ID: ${existingLead.id})`);
-          
-          // Buscar primeiro estágio do funil para garantir que o lead tenha uma etapa
-          const { data: firstStage } = await supabaseServiceRole
-            .from('pipeline_stages')
-            .select('id')
-            .eq('organization_id', configs.organization_id)
-            .order('position', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-          
-          // Preparar dados de atualização
-          const updateData: any = {
-            deleted_at: null,
-            name: contactName,
-            last_contact: new Date().toISOString(),
-            stage_id: firstStage?.id,
-            source_instance_id: configs.id,
-            source_instance_name: configs.instance_name,
-          };
-          
-          // Se for mensagem recebida, marcar como não lida
-          if (!isFromMe) {
-            updateData.has_unread_messages = true;
-            updateData.last_message_at = new Date().toISOString();
-            updateData.unread_message_count = 1;
-          }
-          
-          await supabaseServiceRole
-            .from('leads')
-            .update(updateData)
-            .eq('id', existingLead.id);
-
-          // Adicionar atividade de retorno
-          await supabaseServiceRole.from('activities').insert({
-            organization_id: configs.organization_id,
-            lead_id: existingLead.id,
-            type: 'whatsapp',
-            content: isFromMe ? messageContent : `[Retorno] ${messageContent}`,
-            user_name: isFromMe ? 'Você' : contactName,
-            direction,
-          });
-
-          console.log(`✅ Lead restaurado com ID: ${existingLead.id} na etapa ${firstStage?.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
-        } else {
           // Lead existe e não foi excluído, apenas adicionar atividade
           console.log(`♻️ Lead já existe (ID: ${existingLead.id}), adicionando atividade`);
           
-          await supabaseServiceRole.from('activities').insert({
-            organization_id: configs.organization_id,
-            lead_id: existingLead.id,
-            type: 'whatsapp',
-            content: messageContent,
-            user_name: isFromMe ? 'Você' : contactName,
-            direction,
-          });
-
-          // Atualizar lead com informações de mensagem
+          // Atualizar source_instance_id se necessário (pode ter sido criado por outro meio)
           const updateData: any = { 
             last_contact: new Date().toISOString(),
             source_instance_id: configs.id,
@@ -532,67 +564,150 @@ serve(async (req) => {
             .update(updateData)
             .eq('id', existingLead.id);
           
-          console.log(`✅ Atividade registrada para lead ${existingLead.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
-        }
-
-      } else {
-        // Criar novo lead apenas se a mensagem for recebida (não criar lead quando você envia primeira mensagem)
-        if (!isFromMe) {
-          console.log('🆕 Criando novo lead...');
-          
-          // Buscar primeiro estágio do funil da organização
-          const { data: firstStage } = await supabaseServiceRole
-            .from('pipeline_stages')
-            .select('id')
-            .eq('organization_id', configs.organization_id)
-            .order('position', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-          console.log(`📊 Primeiro estágio do funil: ${firstStage?.id || 'não encontrado'}`);
-          
-          const { data: newLead, error: leadError } = await supabaseServiceRole
-            .from('leads')
-            .insert({
-              user_id: configs.user_id,
-              organization_id: configs.organization_id,
-              name: contactName,
-              phone: phoneNumber,
-              source: 'whatsapp',
-              source_instance_id: configs.id,
-              source_instance_name: configs.instance_name,
-              status: 'novo',
-              stage_id: firstStage?.id,
-              last_contact: new Date().toISOString(),
-              has_unread_messages: true,
-              last_message_at: new Date().toISOString(),
-              unread_message_count: 1,
-            })
-            .select()
-            .single();
-
-          if (leadError) {
-            console.error('❌ Erro ao criar lead:', leadError);
-            throw leadError;
-          }
-
-          console.log(`✅ Lead criado com ID: ${newLead.id} no estágio ${firstStage?.id || 'padrão'}`);
-
-          // Adicionar primeira atividade
+          // Adicionar atividade
           await supabaseServiceRole.from('activities').insert({
             organization_id: configs.organization_id,
-            lead_id: newLead.id,
+            lead_id: existingLead.id,
             type: 'whatsapp',
             content: messageContent,
-            user_name: contactName,
+            user_name: isFromMe ? 'Você' : contactName,
             direction,
           });
-
-          console.log(`✅ Primeira atividade registrada para lead ${newLead.id}`);
+          
+          console.log(`✅ Atividade registrada para lead ${existingLead.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
         } else {
-          console.log(`ℹ️ Mensagem enviada para número não existente como lead, ignorando`);
+          // Criar novo lead apenas se a mensagem for recebida (não criar lead quando você envia primeira mensagem)
+          if (!isFromMe) {
+            console.log('🆕 Criando novo lead...');
+            
+            // Buscar primeiro estágio do funil da organização
+            const { data: firstStage } = await supabaseServiceRole
+              .from('pipeline_stages')
+              .select('id')
+              .eq('organization_id', configs.organization_id)
+              .order('position', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            console.log(`📊 Primeiro estágio do funil: ${firstStage?.id || 'não encontrado'}`);
+            
+            if (!firstStage) {
+              console.error('❌ Nenhum estágio do funil encontrado para a organização. Lead não pode ser criado sem estágio.');
+              console.error(`   Organização: ${configs.organization_id}`);
+              
+              // Logar erro no banco para rastreamento
+              await supabaseServiceRole.from('evolution_logs').insert({
+                user_id: configs.user_id,
+                organization_id: configs.organization_id,
+                instance,
+                event,
+                level: 'error',
+                message: 'Tentativa de criar lead sem estágio do funil configurado',
+                payload: { phoneNumber, contactName, organization_id: configs.organization_id },
+              });
+              
+              return new Response(
+                JSON.stringify({ 
+                  success: false, 
+                  error: 'Nenhum estágio do funil encontrado. Configure pelo menos um estágio no funil antes de receber mensagens.' 
+                }),
+                { 
+                  status: 400,
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                }
+              );
+            }
+            
+            console.log(`💾 Tentando criar lead: phone=${phoneNumber}, org=${configs.organization_id}, stage=${firstStage.id}`);
+            const { data: newLead, error: leadError } = await supabaseServiceRole
+              .from('leads')
+              .insert({
+                user_id: configs.user_id,
+                organization_id: configs.organization_id,
+                name: contactName,
+                phone: phoneNumber,
+                source: 'whatsapp',
+                source_instance_id: configs.id,
+                source_instance_name: configs.instance_name,
+                status: 'novo',
+                stage_id: firstStage.id,
+                last_contact: new Date().toISOString(),
+                has_unread_messages: true,
+                last_message_at: new Date().toISOString(),
+                unread_message_count: 1,
+              })
+              .select()
+              .single();
+
+            if (leadError) {
+              console.error('❌ Erro ao criar lead:', leadError);
+              
+              // Se erro for constraint única, significa que lead foi criado entre a busca e o insert
+              // Buscar novamente e atualizar
+              if (leadError.code === '23505' || leadError.message?.includes('unique constraint') || leadError.message?.includes('duplicate key')) {
+                console.log('⚠️ Erro de constraint única detectado. Buscando lead existente...');
+                
+                const { data: existingLeadRetry } = await supabaseServiceRole
+                  .from('leads')
+                  .select('id, excluded_from_funnel')
+                  .eq('phone', phoneNumber)
+                  .eq('organization_id', configs.organization_id)
+                  .is('deleted_at', null)
+                  .maybeSingle();
+                
+                if (existingLeadRetry) {
+                  console.log(`✅ Lead encontrado após erro de constraint (ID: ${existingLeadRetry.id}). Atualizando...`);
+                  
+                  // Atualizar lead existente
+                  await supabaseServiceRole
+                    .from('leads')
+                    .update({
+                      last_contact: new Date().toISOString(),
+                      source_instance_id: configs.id,
+                      source_instance_name: configs.instance_name,
+                      has_unread_messages: true,
+                      last_message_at: new Date().toISOString(),
+                    })
+                    .eq('id', existingLeadRetry.id);
+                  
+                  // Adicionar atividade
+                  await supabaseServiceRole.from('activities').insert({
+                    organization_id: configs.organization_id,
+                    lead_id: existingLeadRetry.id,
+                    type: 'whatsapp',
+                    content: messageContent,
+                    user_name: contactName,
+                    direction,
+                  });
+                  
+                  console.log(`✅ Lead atualizado com sucesso (ID: ${existingLeadRetry.id})`);
+                } else {
+                  // Lead não encontrado mesmo após erro de constraint - erro real
+                  throw leadError;
+                }
+              } else {
+                // Outro tipo de erro - lançar
+                throw leadError;
+              }
+            } else {
+              console.log(`✅ Lead criado com ID: ${newLead.id} no estágio ${firstStage.id}`);
+
+              // Adicionar primeira atividade
+              await supabaseServiceRole.from('activities').insert({
+                organization_id: configs.organization_id,
+                lead_id: newLead.id,
+                type: 'whatsapp',
+                content: messageContent,
+                user_name: contactName,
+                direction,
+              });
+
+              console.log(`✅ Primeira atividade registrada para lead ${newLead.id}`);
+            }
+          } else {
+            console.log(`ℹ️ Mensagem enviada para número não existente como lead, ignorando`);
+          }
         }
-      }
 
       return new Response(
         JSON.stringify({ success: true, message: 'Mensagem processada com sucesso' }),
