@@ -25,11 +25,15 @@
 2. Faça login se necessário
 
 ### Passo 2: Aplicar Migration 1 (evolution_logs)
+**IMPORTANTE:** Esta migration agora cria a tabela `evolution_logs` se ela não existir.
+
 1. Abra o arquivo: `supabase/migrations/20260106000001_fix_evolution_logs_rls.sql`
 2. Copie TODO o conteúdo
 3. Cole no SQL Editor do Supabase
 4. Clique em **Run** ou pressione `Ctrl+Enter`
 5. Aguarde confirmação de sucesso
+
+**Nota:** Se a tabela já existir, a migration apenas adiciona a coluna `organization_id` e atualiza as políticas RLS.
 
 ### Passo 3: Aplicar Migration 2 (facebook_configs)
 1. Abra o arquivo: `supabase/migrations/20260106000002_fix_facebook_configs_rls.sql`
