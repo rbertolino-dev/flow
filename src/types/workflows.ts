@@ -199,6 +199,7 @@ export interface WorkflowFormValues {
   mercado_pago_boleto_vencimento?: string;
   mercado_pago_boleto_descricao?: string;
   mercado_pago_tipo?: "link" | "boleto"; // Tipo de cobrança Mercado Pago
+  boletoAttachmentMode?: "auto" | "download"; // Modo de anexo do boleto
 }
 
 export interface LeadOption {

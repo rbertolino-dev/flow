@@ -1080,6 +1080,16 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                       <span>{currentLead.company}</span>
                     </div>
                   )}
+                  {currentLead.cpf_cnpj && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <span>
+                        {currentLead.cpf_cnpj.length === 11
+                          ? `${currentLead.cpf_cnpj.slice(0, 3)}.${currentLead.cpf_cnpj.slice(3, 6)}.${currentLead.cpf_cnpj.slice(6, 9)}-${currentLead.cpf_cnpj.slice(9)}`
+                          : `${currentLead.cpf_cnpj.slice(0, 2)}.${currentLead.cpf_cnpj.slice(2, 5)}.${currentLead.cpf_cnpj.slice(5, 8)}/${currentLead.cpf_cnpj.slice(8, 12)}-${currentLead.cpf_cnpj.slice(12)}`}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span>
