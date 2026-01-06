@@ -288,6 +288,7 @@ export function useEvolutionConfigs() {
       }
 
       // Verificar se a instância está conectada antes de configurar webhook
+      // Usar extractConnectionState para normalizar diferentes formatos de resposta
       try {
         const connectionUrl = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${config.instance_name}`;
         const connectionResponse = await fetch(connectionUrl, {
@@ -296,17 +297,35 @@ export function useEvolutionConfigs() {
         
         if (connectionResponse.ok) {
           const connectionData = await connectionResponse.json();
-          if (connectionData?.state !== 'open') {
-            throw new Error('A instância não está conectada. Conecte o WhatsApp antes de configurar o webhook.');
+          const isConnected = extractConnectionState(connectionData) === true;
+          
+          if (!isConnected) {
+            // Se config.is_connected está true mas a API diz que não está, pode ser cache
+            // Mas ainda assim, tentar configurar o webhook pode funcionar
+            if (config.is_connected) {
+              console.warn('⚠️ Status local indica conectado, mas API retornou desconectado. Tentando configurar webhook mesmo assim...');
+            } else {
+              throw new Error('A instância não está conectada. Conecte o WhatsApp antes de configurar o webhook.');
+            }
           }
         } else {
-          console.warn('⚠️ Não foi possível verificar status da conexão, continuando...');
+          // Se não conseguir verificar, mas config.is_connected está true, tentar mesmo assim
+          if (config.is_connected) {
+            console.warn('⚠️ Não foi possível verificar status da conexão, mas status local indica conectado. Continuando...');
+          } else {
+            throw new Error('Não foi possível verificar status da conexão. Verifique se a instância está conectada.');
+          }
         }
       } catch (checkError: any) {
-        if (checkError.message.includes('não está conectada')) {
+        if (checkError.message.includes('não está conectada') || checkError.message.includes('Não foi possível verificar')) {
           throw checkError;
         }
-        console.warn('⚠️ Erro ao verificar conexão (não crítico):', checkError.message);
+        // Se config.is_connected está true, tentar mesmo assim (pode ser erro temporário da API)
+        if (config.is_connected) {
+          console.warn('⚠️ Erro ao verificar conexão, mas status local indica conectado. Continuando...', checkError.message);
+        } else {
+          throw new Error('Erro ao verificar conexão. Verifique se a instância está conectada.');
+        }
       }
 
       // Obter URL base do Supabase corretamente
