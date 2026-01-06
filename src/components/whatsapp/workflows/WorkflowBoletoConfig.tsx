@@ -36,6 +36,8 @@ interface WorkflowBoletoConfigProps {
   mercadoPagoConfig: BoletoConfig;
   onAsaasConfigChange: (config: BoletoConfig) => void;
   onMercadoPagoConfigChange: (config: BoletoConfig) => void;
+  boletoAttachmentMode?: "auto" | "download";
+  onBoletoAttachmentModeChange?: (mode: "auto" | "download") => void;
 }
 
 export function WorkflowBoletoConfig({
@@ -46,6 +48,8 @@ export function WorkflowBoletoConfig({
   mercadoPagoConfig,
   onAsaasConfigChange,
   onMercadoPagoConfigChange,
+  boletoAttachmentMode = "download",
+  onBoletoAttachmentModeChange,
 }: WorkflowBoletoConfigProps) {
   const { config: asaasConfigData, loading: loadingAsaas } = useAsaasConfig();
   const { config: mercadoPagoConfigData, isLoadingConfig: loadingMercadoPago } = useMercadoPago();
@@ -413,14 +417,64 @@ export function WorkflowBoletoConfig({
       </div>
 
       {totalBoletos > 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle className="text-sm">Atenção</AlertTitle>
-          <AlertDescription className="text-xs">
-            Todos os destinatários precisam ter CPF/CNPJ cadastrado para gerar boletos.
-            {recipientMode === "list" && " Verifique os dados antes de continuar."}
-          </AlertDescription>
-        </Alert>
+        <>
+          <Card className="border-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Opções de Boleto</CardTitle>
+              <CardDescription className="text-xs">
+                Escolha como os boletos serão tratados após a criação
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="boleto-download"
+                    name="boleto-attachment-mode"
+                    value="download"
+                    checked={boletoAttachmentMode === "download"}
+                    onChange={() => onBoletoAttachmentModeChange?.("download")}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <Label htmlFor="boleto-download" className="text-sm font-normal cursor-pointer">
+                    Apenas gerar e baixar
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  Os boletos serão criados e você poderá baixá-los manualmente. Não serão anexados automaticamente aos leads.
+                </p>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="boleto-auto"
+                    name="boleto-attachment-mode"
+                    value="auto"
+                    checked={boletoAttachmentMode === "auto"}
+                    onChange={() => onBoletoAttachmentModeChange?.("auto")}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <Label htmlFor="boleto-auto" className="text-sm font-normal cursor-pointer">
+                    Anexar automaticamente aos leads
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  Os boletos serão criados e automaticamente anexados como arquivos nos leads correspondentes.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle className="text-sm">Atenção</AlertTitle>
+            <AlertDescription className="text-xs">
+              Todos os destinatários precisam ter CPF/CNPJ cadastrado para gerar boletos.
+              {recipientMode === "list" && " Verifique os dados antes de continuar."}
+            </AlertDescription>
+          </Alert>
+        </>
       )}
     </div>
   );

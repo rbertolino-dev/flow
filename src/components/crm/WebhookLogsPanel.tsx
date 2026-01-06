@@ -8,6 +8,7 @@ import { RefreshCw, AlertCircle, CheckCircle, Info, Search } from "lucide-react"
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 interface LogEntry {
   id: string;
@@ -25,17 +26,23 @@ export function WebhookLogsPanel() {
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (activeOrgId) {
+      fetchLogs();
+    }
+  }, [activeOrgId]);
 
   const fetchLogs = async () => {
+    if (!activeOrgId) return;
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('evolution_logs')
         .select('*')
+        .eq('organization_id', activeOrgId)
         .order('created_at', { ascending: false })
         .limit(50);
 

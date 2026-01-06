@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 interface EvolutionLog {
   id: string;
@@ -27,21 +28,23 @@ export function EvolutionLogsPanel() {
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (activeOrgId) {
+      fetchLogs();
+    }
+  }, [activeOrgId, eventFilter]);
 
   const fetchLogs = async () => {
+    if (!activeOrgId) return;
+    
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       let query = supabase
         .from('evolution_logs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('organization_id', activeOrgId)
         .order('created_at', { ascending: false })
         .limit(50);
 

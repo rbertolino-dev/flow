@@ -188,6 +188,9 @@ export function WorkflowFormDrawer({
   const [leadsSemCpfCnpj, setLeadsSemCpfCnpj] = useState<Array<{ id: string; name: string; cpf_cnpj: string }>>([]);
   const [cpfCnpjValues, setCpfCnpjValues] = useState<Record<string, string>>({});
   
+  // Estado para modo de anexo do boleto
+  const [boletoAttachmentMode, setBoletoAttachmentMode] = useState<"auto" | "download">("download");
+  
   // Estado para preview de mensagem
   const [showPreview, setShowPreview] = useState(false);
 
@@ -376,6 +379,7 @@ export function WorkflowFormDrawer({
           mercado_pago_boleto_vencimento: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.vencimento : undefined,
           mercado_pago_boleto_descricao: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.descricao : undefined,
           mercado_pago_tipo: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.tipo : undefined,
+          boletoAttachmentMode: boletoAttachmentMode,
         },
         {
           attachmentsToUpload: pendingFiles,
@@ -517,17 +521,16 @@ export function WorkflowFormDrawer({
         // Para lead único, verificar se tem CPF/CNPJ
         const { data: leadData } = await supabase
           .from("leads")
-          .select("id, name")
+          .select("id, name, cpf_cnpj")
           .eq("id", selectedLead.id)
           .single();
 
-        // Validação de CPF/CNPJ removida temporariamente - coluna não existe ainda
-        // if (!leadData?.cpf_cnpj || leadData.cpf_cnpj.trim() === "") {
-        //   setLeadsSemCpfCnpj([{ id: leadData.id, name: leadData.name, cpf_cnpj: "" }]);
-        //   setCpfCnpjValues({ [leadData.id]: "" });
-        //   setShowCpfCnpjDialog(true);
-        //   return;
-        // }
+        if (!leadData?.cpf_cnpj || leadData.cpf_cnpj.trim() === "") {
+          setLeadsSemCpfCnpj([{ id: leadData.id, name: leadData.name, cpf_cnpj: "" }]);
+          setCpfCnpjValues({ [leadData.id]: "" });
+          setShowCpfCnpjDialog(true);
+          return;
+        }
       } else if (values.recipientMode === "list" && listContacts.length > 0) {
         // Para lista, verificar todos os leads
         const leadIds = listContacts
@@ -537,26 +540,25 @@ export function WorkflowFormDrawer({
         if (leadIds.length > 0) {
           const { data: leadsData } = await supabase
             .from("leads")
-            .select("id, name")
+            .select("id, name, cpf_cnpj")
             .in("id", leadIds);
 
-          // Validação de CPF/CNPJ removida temporariamente - coluna não existe ainda
-          // if (leadsData) {
-          //   const leadsFaltando = leadsData.filter(
-          //     (lead) => !lead.cpf_cnpj || lead.cpf_cnpj.trim() === ""
-          //   );
+          if (leadsData) {
+            const leadsFaltando = leadsData.filter(
+              (lead) => !lead.cpf_cnpj || lead.cpf_cnpj.trim() === ""
+            );
 
-          //   if (leadsFaltando.length > 0) {
-          //     setLeadsSemCpfCnpj(leadsFaltando.map(l => ({ id: l.id, name: l.name, cpf_cnpj: "" })));
-          //     const initialValues: Record<string, string> = {};
-          //     leadsFaltando.forEach(l => {
-          //       initialValues[l.id] = "";
-          //     });
-          //     setCpfCnpjValues(initialValues);
-          //     setShowCpfCnpjDialog(true);
-          //     return;
-          //   }
-          // }
+            if (leadsFaltando.length > 0) {
+              setLeadsSemCpfCnpj(leadsFaltando.map(l => ({ id: l.id, name: l.name, cpf_cnpj: "" })));
+              const initialValues: Record<string, string> = {};
+              leadsFaltando.forEach(l => {
+                initialValues[l.id] = "";
+              });
+              setCpfCnpjValues(initialValues);
+              setShowCpfCnpjDialog(true);
+              return;
+            }
+          }
         }
       }
     }
@@ -602,6 +604,7 @@ export function WorkflowFormDrawer({
           mercado_pago_boleto_vencimento: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.vencimento : undefined,
           mercado_pago_boleto_descricao: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.descricao : undefined,
           mercado_pago_tipo: mercadoPagoBoletoConfig.enabled ? mercadoPagoBoletoConfig.tipo : undefined,
+          boletoAttachmentMode: boletoAttachmentMode,
         },
         {
           attachmentsToUpload: pendingFiles,
@@ -834,6 +837,8 @@ export function WorkflowFormDrawer({
                       mercadoPagoConfig={mercadoPagoBoletoConfig}
                       onAsaasConfigChange={setAsaasBoletoConfig}
                       onMercadoPagoConfigChange={setMercadoPagoBoletoConfig}
+                      boletoAttachmentMode={boletoAttachmentMode}
+                      onBoletoAttachmentModeChange={setBoletoAttachmentMode}
                     />
                     <div className="flex justify-end gap-2 pt-4 border-t">
                       <Button type="button" variant="outline" onClick={goToPreviousStep}>
@@ -1805,16 +1810,16 @@ export function WorkflowFormDrawer({
                 }
 
                 try {
-                  // Atualizar todos os leads com CPF/CNPJ - removido temporariamente
-                  // for (const lead of leadsSemCpfCnpj) {
-                  //   const { error } = await supabase
-                  //     .from("leads")
-                  //     .update({ cpf_cnpj: cpfCnpjValues[lead.id] })
-                  //     .eq("id", lead.id);
-                  //   if (error) {
-                  //     throw new Error(`Erro ao atualizar ${lead.name}: ${error.message}`);
-                  //   }
-                  // }
+                  // Atualizar todos os leads com CPF/CNPJ
+                  for (const lead of leadsSemCpfCnpj) {
+                    const { error } = await supabase
+                      .from("leads")
+                      .update({ cpf_cnpj: cpfCnpjValues[lead.id] })
+                      .eq("id", lead.id);
+                    if (error) {
+                      throw new Error(`Erro ao atualizar ${lead.name}: ${error.message}`);
+                    }
+                  }
 
                   toast({
                     title: "Workflow criado",
