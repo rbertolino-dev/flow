@@ -287,6 +287,28 @@ export function useEvolutionConfigs() {
         throw new Error('API Key é obrigatória para configurar webhook');
       }
 
+      // Verificar se a instância está conectada antes de configurar webhook
+      try {
+        const connectionUrl = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${config.instance_name}`;
+        const connectionResponse = await fetch(connectionUrl, {
+          headers: { 'apikey': config.api_key },
+        });
+        
+        if (connectionResponse.ok) {
+          const connectionData = await connectionResponse.json();
+          if (connectionData?.state !== 'open') {
+            throw new Error('A instância não está conectada. Conecte o WhatsApp antes de configurar o webhook.');
+          }
+        } else {
+          console.warn('⚠️ Não foi possível verificar status da conexão, continuando...');
+        }
+      } catch (checkError: any) {
+        if (checkError.message.includes('não está conectada')) {
+          throw checkError;
+        }
+        console.warn('⚠️ Erro ao verificar conexão (não crítico):', checkError.message);
+      }
+
       // Obter URL base do Supabase corretamente
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       if (!supabaseUrl) {
@@ -296,12 +318,18 @@ export function useEvolutionConfigs() {
       const secret = config.webhook_secret || config.api_key || '';
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?secret=${encodeURIComponent(secret)}`;
 
+      // Validar tamanho da URL (algumas APIs têm limite)
+      if (webhookUrl.length > 2048) {
+        throw new Error('A URL do webhook é muito longa. Tente usar um webhook_secret mais curto.');
+      }
+
       const apiUrl = normalizeApiUrl(config.api_url);
       const endpoint = `${apiUrl}/webhook/set/${config.instance_name}`;
 
       console.log('🔧 Configurando webhook:', {
         endpoint,
         webhookUrl: webhookUrl.substring(0, 100) + '...',
+        webhookUrlLength: webhookUrl.length,
         instanceName: config.instance_name,
         hasApiKey: !!config.api_key,
       });
