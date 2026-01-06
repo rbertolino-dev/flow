@@ -1,0 +1,64 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║          ✅ PGADMIN INSTALADO COM SUCESSO - ACESSO GRÁFICO               ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+🌐 ACESSO WEB:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+URL: http://95.217.2.116:5050
+
+📧 CREDENCIAIS DE LOGIN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Email:    admin@kanbanbuzz.com
+Senha:    Admin@KanbanBuzz2025!
+
+
+📊 CONFIGURAR SERVIDOR POSTGRESQL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Após fazer login:
+
+1. Clique com botão direito em "Servers" > "Register" > "Server..."
+
+2. Aba "General":
+   Name: Hetzner PostgreSQL
+
+3. Aba "Connection":
+   Host:      95.217.2.116
+   Port:      5432
+   Database:  budget_services
+   Username:  budget_user
+   Password:  XdgoSA4ABHSRWdTXA5cKDfJJs
+   ✅ Marque "Save password"
+
+4. Clique em "Save"
+
+
+🛠️ COMANDOS ÚTEIS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ver status:     ssh kanban-buzz-server "docker ps | grep pgadmin"
+Ver logs:       ssh kanban-buzz-server "docker logs pgadmin-kanban-buzz"
+Reiniciar:      ssh kanban-buzz-server "docker restart pgadmin-kanban-buzz"
+Parar:          ssh kanban-buzz-server "docker stop pgadmin-kanban-buzz"
+Iniciar:        ssh kanban-buzz-server "docker start pgadmin-kanban-buzz"
+
+
+📚 DOCUMENTAÇÃO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Guia completo:  GUIA-PGADMIN-INSTALADO.md
+Credenciais:    ACESSO-POSTGRESQL-COMPLETO.md
+
+
+✅ STATUS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ pgAdmin instalado via Docker
+✅ Container rodando na porta 5050
+✅ Firewall configurado
+✅ Pronto para uso!
+
+
+⚠️  PRÓXIMOS PASSOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Acesse: http://95.217.2.116:5050
+2. Faça login com as credenciais acima
+3. Adicione o servidor PostgreSQL (instruções acima)
+4. Comece a usar! 🎉
+

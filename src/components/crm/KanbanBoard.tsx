@@ -116,63 +116,66 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     };
   }, []);
 
-  const filteredLeads = leads.filter(lead => {
-    // Filtro de busca
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const normalizedQuery = normalizePhone(searchQuery);
-      const normalizedLeadPhone = normalizePhone(lead.phone);
-      
-      const matchesName = lead.name.toLowerCase().includes(query);
-      const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
-      const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
-      
-      if (!matchesName && !matchesPhone && !matchesTags) return false;
-    }
+  // ✅ OTIMIZAÇÃO: Memoizar filtros para evitar recálculos desnecessários
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      // Filtro de busca
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const normalizedQuery = normalizePhone(searchQuery);
+        const normalizedLeadPhone = normalizePhone(lead.phone);
+        
+        const matchesName = lead.name.toLowerCase().includes(query);
+        const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
+        const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+        
+        if (!matchesName && !matchesPhone && !matchesTags) return false;
+      }
 
-    // Filtro de instância
-    if (filterInstance && filterInstance !== "all") {
-      if (lead.sourceInstanceId !== filterInstance) return false;
-    }
+      // Filtro de instância
+      if (filterInstance && filterInstance !== "all") {
+        if (lead.sourceInstanceId !== filterInstance) return false;
+      }
 
-    // Filtro de data de criação
-    if (filterCreatedDateStart) {
-      const startDate = new Date(filterCreatedDateStart);
-      startDate.setHours(0, 0, 0, 0);
-      if (new Date(lead.createdAt) < startDate) return false;
-    }
-    if (filterCreatedDateEnd) {
-      const endDate = new Date(filterCreatedDateEnd);
-      endDate.setHours(23, 59, 59, 999);
-      if (new Date(lead.createdAt) > endDate) return false;
-    }
+      // Filtro de data de criação
+      if (filterCreatedDateStart) {
+        const startDate = new Date(filterCreatedDateStart);
+        startDate.setHours(0, 0, 0, 0);
+        if (new Date(lead.createdAt) < startDate) return false;
+      }
+      if (filterCreatedDateEnd) {
+        const endDate = new Date(filterCreatedDateEnd);
+        endDate.setHours(23, 59, 59, 999);
+        if (new Date(lead.createdAt) > endDate) return false;
+      }
 
-    // Filtro de data de retorno
-    if (filterReturnDateStart && lead.returnDate) {
-      const startDate = new Date(filterReturnDateStart);
-      startDate.setHours(0, 0, 0, 0);
-      if (new Date(lead.returnDate) < startDate) return false;
-    }
-    if (filterReturnDateEnd && lead.returnDate) {
-      const endDate = new Date(filterReturnDateEnd);
-      endDate.setHours(23, 59, 59, 999);
-      if (new Date(lead.returnDate) > endDate) return false;
-    }
+      // Filtro de data de retorno
+      if (filterReturnDateStart && lead.returnDate) {
+        const startDate = new Date(filterReturnDateStart);
+        startDate.setHours(0, 0, 0, 0);
+        if (new Date(lead.returnDate) < startDate) return false;
+      }
+      if (filterReturnDateEnd && lead.returnDate) {
+        const endDate = new Date(filterReturnDateEnd);
+        endDate.setHours(23, 59, 59, 999);
+        if (new Date(lead.returnDate) > endDate) return false;
+      }
 
-    // Filtro de fila de ligação
-    if (filterInCallQueue) {
-      if (!leadsInCallQueue.has(lead.id)) return false;
-    }
+      // Filtro de fila de ligação
+      if (filterInCallQueue) {
+        if (!leadsInCallQueue.has(lead.id)) return false;
+      }
 
-    // Filtro de etiquetas
-    if (filterTags.length > 0) {
-      const leadTagIds = lead.tags?.map(tag => tag.id) || [];
-      const hasAnyTag = filterTags.some(tagId => leadTagIds.includes(tagId));
-      if (!hasAnyTag) return false;
-    }
+      // Filtro de etiquetas
+      if (filterTags.length > 0) {
+        const leadTagIds = lead.tags?.map(tag => tag.id) || [];
+        const hasAnyTag = filterTags.some(tagId => leadTagIds.includes(tagId));
+        if (!hasAnyTag) return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [leads, searchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
 
   // Map de etapas válidas (apenas da organização atual)
   const stageIdSet = useMemo(() => new Set(stages.map(s => s.id)), [stages]);

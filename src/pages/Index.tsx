@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -49,6 +50,8 @@ const Index = () => {
     }
   }, [location.state]);
   const [searchQuery, setSearchQuery] = useState("");
+  // ✅ OTIMIZAÇÃO: Debounce na busca (300ms) para reduzir re-renders
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [filterInstance, setFilterInstance] = useState<string>("all");
@@ -453,7 +456,7 @@ const Index = () => {
               <KanbanBoard 
                 leads={leads} 
                 onLeadUpdate={handleLeadUpdate} 
-                searchQuery={searchQuery} 
+                searchQuery={debouncedSearchQuery} 
                 onRefetch={refetchLeads}
                 onEditLeadName={handleEditLeadName}
                 filterInstance={filterInstance}

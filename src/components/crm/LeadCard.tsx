@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,8 @@ interface LeadCardProps {
   compact?: boolean;
 }
 
-export function LeadCard({
+// ✅ OTIMIZAÇÃO: Memoizar componente para evitar re-renders desnecessários
+export const LeadCard = memo(function LeadCard({
   lead,
   onClick,
   stages,
@@ -553,4 +554,18 @@ export function LeadCard({
       />
     </Card>
   );
-}
+}, (prevProps, nextProps) => {
+  // ✅ Comparação customizada para evitar re-renders desnecessários
+  return (
+    prevProps.lead.id === nextProps.lead.id &&
+    prevProps.lead.name === nextProps.lead.name &&
+    prevProps.lead.phone === nextProps.lead.phone &&
+    prevProps.lead.stageId === nextProps.lead.stageId &&
+    prevProps.lead.status === nextProps.lead.status &&
+    prevProps.lead.value === nextProps.lead.value &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.compact === nextProps.compact &&
+    prevProps.instanceName === nextProps.instanceName &&
+    JSON.stringify(prevProps.lead.tags) === JSON.stringify(nextProps.lead.tags)
+  );
+});

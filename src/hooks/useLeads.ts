@@ -132,18 +132,19 @@ export function useLeads() {
         } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
           console.error('❌ Erro no canal realtime de leads:', status);
           console.warn('⚠️ Realtime não está funcionando. Ativando polling como fallback...');
-          // Polling a cada 10 segundos quando Realtime não funciona
+          // ✅ OTIMIZAÇÃO: Polling a cada 20 segundos quando Realtime não funciona (reduzido de 10s)
           const pollingInterval = setInterval(() => {
             fetchLeads();
-          }, 10000);
+          }, 20000);
           
           // Limpar polling quando componente desmontar ou Realtime voltar
           return () => clearInterval(pollingInterval);
         }
       });
 
-    // Polling de fallback: verificar a cada 15 segundos se Realtime está funcionando
-    // Se não estiver, fazer polling a cada 10 segundos
+    // ✅ OTIMIZAÇÃO: Reduzir polling quando realtime está funcionando
+    // Polling de fallback: verificar a cada 30 segundos (reduzido de 15s)
+    // Se não estiver, fazer polling a cada 20 segundos (reduzido de 10s)
     const fallbackPolling = setInterval(() => {
       const channels = supabase.realtime.getChannels();
       const hasActiveConnection = channels.some((ch: any) => {
@@ -155,7 +156,7 @@ export function useLeads() {
         console.log('🔄 Realtime não conectado. Fazendo polling de fallback...');
         fetchLeads();
       }
-    }, 15000);
+    }, 30000); // ✅ Reduzido de 15s para 30s quando realtime está OK
 
     // Escutar eventos de refresh disparados por outros componentes
     const handleRefreshEvent = (event: CustomEvent) => {
@@ -241,13 +242,19 @@ export function useLeads() {
         return;
       }
       
-      // Batch fetch activities e tags em paralelo para melhor performance
+      // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
+      // Usar subquery para pegar apenas as últimas activities de cada lead
+      // Isso reduz drasticamente a quantidade de dados carregados
       const [activitiesResult, tagsResult] = await Promise.all([
+        // Buscar activities com limite por lead usando window function
+        // Como Supabase não suporta window functions diretamente, vamos buscar todas
+        // mas limitar no processamento (mais eficiente que N queries)
         (supabase as any)
           .from('activities')
           .select('*')
           .in('lead_id', leadIds)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(leadIds.length * 5), // Limite máximo: 5 activities por lead
         (supabase as any)
           .from('lead_tags')
           .select('lead_id, tag_id, tags(id, name, color)')
@@ -257,10 +264,13 @@ export function useLeads() {
       const allActivities = activitiesResult.data || [];
       const allLeadTags = tagsResult.data || [];
 
-      // Group by lead_id for fast lookup
+      // ✅ OTIMIZAÇÃO: Group by lead_id e limitar a 5 activities por lead
       const activitiesByLead = allActivities.reduce((acc, act) => {
         if (!acc[act.lead_id]) acc[act.lead_id] = [];
-        acc[act.lead_id].push(act);
+        // Limitar a 5 activities por lead (já ordenadas por created_at desc)
+        if (acc[act.lead_id].length < 5) {
+          acc[act.lead_id].push(act);
+        }
         return acc;
       }, {} as Record<string, any[]>);
 

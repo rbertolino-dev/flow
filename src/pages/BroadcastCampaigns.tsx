@@ -1475,6 +1475,15 @@ export default function BroadcastCampaigns() {
           // Agendar todas as mensagens a partir do próximo horário disponível
           await scheduleCampaignMessages(campaignId, queueItems, campaign, "reschedule");
           
+          // Atualizar status da campanha para "running" mesmo quando agendada
+          await supabase
+            .from("broadcast_campaigns")
+            .update({
+              status: "running",
+              started_at: new Date().toISOString(),
+            })
+            .eq("id", campaignId);
+          
           toast({
             title: "Campanha agendada!",
             description: `Mensagens agendadas para ${formatDate(nextWindowTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,

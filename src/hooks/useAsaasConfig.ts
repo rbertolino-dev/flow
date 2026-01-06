@@ -36,15 +36,27 @@ export function useAsaasConfig() {
         .eq("organization_id", activeOrgId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        // Se erro for de coluna não encontrada, não mostrar toast (schema pode estar atualizando)
+        if (error.code === 'PGRST204' && error.message?.includes('base_url')) {
+          console.warn("Coluna base_url ainda não disponível no schema cache. Aguarde alguns segundos.");
+          setConfig(null);
+          return;
+        }
+        throw error;
+      }
       setConfig((data as AsaasConfig) || null);
     } catch (error: any) {
       console.error("Erro ao carregar config Asaas:", error);
-      toast({
-        title: "Erro ao carregar integração Asaas",
-        description: error.message,
-        variant: "destructive",
-      });
+      // Não mostrar toast para erros de schema (evita spam)
+      if (error.code !== 'PGRST204' && error.code !== 'PGRST205') {
+        toast({
+          title: "Erro ao carregar integração Asaas",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+      setConfig(null);
     } finally {
       setLoading(false);
     }
