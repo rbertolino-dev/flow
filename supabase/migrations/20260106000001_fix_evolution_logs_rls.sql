@@ -4,14 +4,42 @@
 -- Problema: Políticas RLS só permitem ver logs do próprio user_id
 -- Solução: Permitir que usuários vejam logs da própria organização
 
--- Remover políticas antigas
+-- Criar tabela se não existir
+CREATE TABLE IF NOT EXISTS public.evolution_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID,
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
+  instance TEXT,
+  event TEXT NOT NULL,
+  level TEXT NOT NULL DEFAULT 'info',
+  message TEXT,
+  payload JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.evolution_logs ENABLE ROW LEVEL SECURITY;
+
+-- Criar índices se não existirem
+CREATE INDEX IF NOT EXISTS idx_evolution_logs_user_created ON public.evolution_logs (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_evolution_logs_event ON public.evolution_logs (event);
+CREATE INDEX IF NOT EXISTS idx_evolution_logs_organization ON public.evolution_logs(organization_id);
+
+-- Remover políticas antigas (se existirem)
 DROP POLICY IF EXISTS "Users can view their own evolution logs" ON public.evolution_logs;
 DROP POLICY IF EXISTS "Users can insert their own evolution logs" ON public.evolution_logs;
+DROP POLICY IF EXISTS "Users can view evolution logs from their organization" ON public.evolution_logs;
+DROP POLICY IF EXISTS "Users can insert evolution logs" ON public.evolution_logs;
 
--- Adicionar coluna organization_id se não existir
+-- Adicionar coluna organization_id se tabela já existir mas não tiver a coluna
 DO $$ 
 BEGIN
-  IF NOT EXISTS (
+  -- Verificar se tabela existe mas não tem organization_id
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+      AND table_name = 'evolution_logs'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' 
       AND table_name = 'evolution_logs' 
