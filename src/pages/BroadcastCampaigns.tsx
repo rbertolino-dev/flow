@@ -1899,10 +1899,13 @@ export default function BroadcastCampaigns() {
   };
 
   const handleCancelCampaign = async (campaignId: string) => {
+    // Guardar estado anterior para rollback em caso de erro
+    const previousCampaigns = [...campaigns];
+    
     try {
       setLoading(true);
       
-      // PASSO 1: Atualizar status da campanha PRIMEIRO para bloquear novos processamentos
+      // PASSO 1: Atualizar status da campanha PRIMEIRO no banco (aguardar confirmação)
       // Isso garante que o process-broadcast-queue não pegará novos itens
       const { error: campaignError } = await supabase
         .from("broadcast_campaigns")
@@ -1917,7 +1920,8 @@ export default function BroadcastCampaigns() {
         throw campaignError;
       }
 
-      // Atualização otimista: atualizar UI imediatamente
+      // Atualização otimista: atualizar UI APENAS após confirmar sucesso no banco
+      // Isso garante que UI sempre reflete o estado real do banco
       setCampaigns(prevCampaigns => 
         prevCampaigns.map(c => 
           c.id === campaignId 
@@ -1999,6 +2003,17 @@ export default function BroadcastCampaigns() {
       }, 1000);
     } catch (error: any) {
       console.error("Erro completo ao cancelar campanha:", error);
+      
+      // ROLLBACK: Reverter atualização otimista em caso de erro
+      setCampaigns(previousCampaigns);
+      
+      // Limpar cache para forçar atualização do banco
+      dataCacheRef.current.campaigns = undefined;
+      dataCacheRef.current.lastFetch = undefined;
+      
+      // Buscar estado real do banco para garantir sincronização
+      await fetchCampaigns();
+      
       toast({
         title: "Erro ao cancelar campanha",
         description: error.message || "Erro desconhecido ao cancelar campanha",
