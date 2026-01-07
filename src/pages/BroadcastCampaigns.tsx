@@ -2079,6 +2079,87 @@ export default function BroadcastCampaigns() {
     }
   };
 
+  const handleDeleteCampaign = async (campaignId: string) => {
+    try {
+      setLoading(true);
+      
+      // Verificar se campanha está cancelada antes de permitir exclusão
+      const campaign = campaigns.find(c => c.id === campaignId);
+      if (!campaign) {
+        toast({
+          title: "Erro",
+          description: "Campanha não encontrada",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (campaign.status !== "cancelled") {
+        toast({
+          title: "Ação não permitida",
+          description: "Apenas campanhas canceladas podem ser excluídas",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Confirmar exclusão
+      const confirmed = window.confirm(
+        `Tem certeza que deseja excluir permanentemente a campanha "${campaign.name}"?\n\nEsta ação não pode ser desfeita e excluirá:\n- A campanha\n- Todos os itens da fila relacionados\n- Todos os logs relacionados`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      // Excluir itens da fila primeiro (foreign key constraint)
+      const { error: queueError } = await supabase
+        .from("broadcast_queue")
+        .delete()
+        .eq("campaign_id", campaignId);
+
+      if (queueError) {
+        console.error("Erro ao excluir itens da fila:", queueError);
+        // Continuar mesmo se houver erro (pode não ter itens na fila)
+      }
+
+      // Excluir campanha
+      const { error: deleteError } = await supabase
+        .from("broadcast_campaigns")
+        .delete()
+        .eq("id", campaignId);
+
+      if (deleteError) {
+        console.error("Erro ao excluir campanha:", deleteError);
+        throw deleteError;
+      }
+
+      toast({
+        title: "Campanha excluída",
+        description: `Campanha "${campaign.name}" foi excluída permanentemente.`,
+      });
+
+      // Remover da lista local
+      setCampaigns(prevCampaigns => prevCampaigns.filter(c => c.id !== campaignId));
+      
+      // Limpar cache
+      dataCacheRef.current.campaigns = undefined;
+      dataCacheRef.current.lastFetch = undefined;
+      
+      // Atualizar lista
+      await fetchCampaigns();
+    } catch (error: any) {
+      console.error("Erro completo ao excluir campanha:", error);
+      toast({
+        title: "Erro ao excluir campanha",
+        description: error.message || "Erro desconhecido ao excluir campanha",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewLogs = async (campaignId: string) => {
     try {
       const { data, error } = await supabase
