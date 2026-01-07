@@ -163,11 +163,23 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     }
 
     const now = Date.now();
+    
+    // Normalizar URL da API (declarar antes do try para estar disponível no catch)
+    const normalizeApiUrl = (url: string) => {
+      try {
+        const u = new URL(url);
+        let base = u.origin + u.pathname.replace(/\/$/, '');
+        base = base.replace(/\/(manager|dashboard|app)$/i, '');
+        return base;
+      } catch {
+        return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+      }
+    };
+    
+    const baseUrl = normalizeApiUrl(instance.api_url);
+    const url = `${baseUrl}/instance/connectionState/${instance.instance_name}`;
 
     try {
-      const baseUrl = instance.api_url.replace(/\/+$/, '');
-      const url = `${baseUrl}/instance/connectionState/${instance.instance_name}`;
-      
       const response = await fetch(url, {
         headers: {
           'apikey': instance.api_key,
@@ -237,7 +249,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         message: error?.message,
         name: error?.name,
         stack: error?.stack,
-        url: `${baseUrl}/instance/connectionState/${instance.instance_name}`
+        url: url
       });
     } finally {
       checkingRef.current.delete(instance.id);
