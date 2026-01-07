@@ -2113,26 +2113,46 @@ export default function BroadcastCampaigns() {
       }
 
       // Excluir itens da fila primeiro (foreign key constraint)
-      const { error: queueError } = await supabase
+      console.log("🗑️ Iniciando exclusão de campanha:", campaignId);
+      
+      const { data: queueData, error: queueError } = await supabase
         .from("broadcast_queue")
         .delete()
-        .eq("campaign_id", campaignId);
+        .eq("campaign_id", campaignId)
+        .select("id");
 
       if (queueError) {
-        console.error("Erro ao excluir itens da fila:", queueError);
+        console.error("❌ Erro ao excluir itens da fila:", queueError);
+        toast({
+          title: "Aviso",
+          description: `Erro ao excluir itens da fila: ${queueError.message}. Tentando continuar...`,
+          variant: "default",
+        });
         // Continuar mesmo se houver erro (pode não ter itens na fila)
+      } else {
+        console.log("✅ Itens da fila excluídos:", queueData?.length || 0);
       }
 
       // Excluir campanha
-      const { error: deleteError } = await supabase
+      console.log("🗑️ Excluindo campanha do banco...");
+      const { data: deletedData, error: deleteError } = await supabase
         .from("broadcast_campaigns")
         .delete()
-        .eq("id", campaignId);
+        .eq("id", campaignId)
+        .select("id");
 
       if (deleteError) {
-        console.error("Erro ao excluir campanha:", deleteError);
-        throw deleteError;
+        console.error("❌ Erro ao excluir campanha:", deleteError);
+        console.error("Detalhes do erro:", JSON.stringify(deleteError, null, 2));
+        throw new Error(`Erro ao excluir campanha: ${deleteError.message || JSON.stringify(deleteError)}`);
       }
+
+      if (!deletedData || deletedData.length === 0) {
+        console.warn("⚠️ Nenhuma campanha foi excluída (pode ser bloqueado por RLS)");
+        throw new Error("Nenhuma campanha foi excluída. Verifique se você tem permissão para excluir esta campanha.");
+      }
+
+      console.log("✅ Campanha excluída com sucesso:", deletedData);
 
       toast({
         title: "Campanha excluída",
