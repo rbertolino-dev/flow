@@ -54,19 +54,19 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 </Badge>
               )}
             </div>
-            <div className="flex gap-1 flex-wrap flex-shrink-0">
+            <div className="flex gap-1 flex-wrap flex-shrink-0 items-center">
               {onEdit && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm flex items-center gap-1.5 hover:bg-accent"
+                  className="h-7 px-2 text-xs flex items-center gap-1 hover:bg-accent"
                   onClick={(e) => {
                     e.stopPropagation();
                     onEdit();
                   }}
                   title="Editar evento"
                 >
-                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <Edit className="h-3 w-3" />
                   <span className="hidden sm:inline">Editar</span>
                 </Button>
               )}
@@ -74,14 +74,14 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm flex items-center gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-100 border-green-300 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/30"
+                  className="h-7 px-2 text-xs flex items-center gap-1 text-green-600 hover:text-green-700 hover:bg-green-100 border-green-300 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/30"
                   onClick={(e) => {
                     e.stopPropagation();
                     onMarkCompleted();
                   }}
                   title="Marcar como realizada"
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <CheckCircle2 className="h-3 w-3" />
                   <span className="hidden sm:inline">Concluir</span>
                 </Button>
               )}
@@ -89,45 +89,45 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 sm:w-auto sm:px-2 flex items-center justify-center gap-1.5 hover:bg-accent"
+                  className="h-7 px-2 text-xs flex items-center gap-1 hover:bg-accent"
                   onClick={(e) => {
                     e.stopPropagation();
                     onScheduleMessage();
                   }}
                   title="Agendar mensagem"
                 >
-                  <MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline text-xs">Mensagem</span>
+                  <MessageSquare className="h-3 w-3" />
+                  <span className="hidden sm:inline">Mensagem</span>
                 </Button>
               )}
               {onDelete && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 sm:w-auto sm:px-2 flex items-center justify-center gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                  className="h-7 px-2 text-xs flex items-center gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
                   title="Excluir evento"
                 >
-                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline text-xs">Excluir</span>
+                  <Trash2 className="h-3 w-3" />
+                  <span className="hidden sm:inline">Excluir</span>
                 </Button>
               )}
               {event.html_link && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 sm:w-auto sm:px-2 flex items-center justify-center gap-1.5 hover:bg-accent"
+                  className="h-7 px-2 text-xs flex items-center gap-1 hover:bg-accent"
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(event.html_link || "", "_blank");
                   }}
                   title="Abrir no Google Calendar"
                 >
-                  <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline text-xs">Abrir</span>
+                  <ExternalLink className="h-3 w-3" />
+                  <span className="hidden sm:inline">Abrir</span>
                 </Button>
               )}
             </div>
