@@ -189,32 +189,98 @@ export function EvolutionInstanceCard({
   const checkRealStatus = async () => {
     setTesting(true);
     try {
-      const response = await fetch(`${config.api_url}/instance/connectionState/${config.instance_name}`, {
+      // Normalizar URL da API
+      const baseUrl = config.api_url.replace(/\/+$/, '');
+      const url = `${baseUrl}/instance/connectionState/${config.instance_name}`;
+      
+      console.log(`🔍 Verificando status real da instância ${config.instance_name}...`);
+      console.log(`📍 URL: ${url}`);
+      
+      const response = await fetch(url, {
         headers: {
-          'apikey': config.api_key
-        }
+          'apikey': config.api_key || ''
+        },
+        signal: AbortSignal.timeout(10000) // 10s timeout
       });
 
       if (!response.ok) {
-        throw new Error('Falha ao verificar status');
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log(`📦 Resposta da API:`, data);
+      
       const isConnected = extractConnectionState(data) === true;
+      console.log(`✅ Status extraído: ${isConnected ? 'CONECTADO' : 'DESCONECTADO'}`);
+      
       setRealStatus(isConnected);
 
-      toast({
-        title: isConnected ? "Conectado ✓" : "Desconectado ✗",
-        description: isConnected 
-          ? "A instância está conectada e funcional" 
-          : "A instância não está conectada ao WhatsApp",
-        variant: isConnected ? "default" : "destructive"
-      });
-    } catch (error) {
+      // ATUALIZAR NO BANCO se o status mudou
+      if (isConnected !== config.is_connected) {
+        console.log(`🔄 Atualizando status no banco: ${config.is_connected} → ${isConnected}`);
+        
+        const { error: updateError } = await supabase
+          .from('evolution_config')
+          .update({ 
+            is_connected: isConnected,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', config.id);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status no banco:', updateError);
+          toast({
+            title: "Status verificado, mas erro ao atualizar",
+            description: `Status real: ${isConnected ? 'Conectado' : 'Desconectado'}, mas não foi possível atualizar no banco.`,
+            variant: "default"
+          });
+        } else {
+          console.log('✅ Status atualizado no banco com sucesso!');
+          // Atualizar lista para refletir mudança
+          onRefresh?.();
+          
+          toast({
+            title: isConnected ? "✅ Conectado e atualizado!" : "❌ Desconectado e atualizado",
+            description: isConnected 
+              ? "A instância está conectada e o status foi atualizado no sistema" 
+              : "A instância não está conectada e o status foi atualizado no sistema",
+            variant: isConnected ? "default" : "destructive"
+          });
+        }
+      } else {
+        // Status já está correto no banco
+        toast({
+          title: isConnected ? "✅ Conectado" : "❌ Desconectado",
+          description: isConnected 
+            ? "A instância está conectada e o status está correto" 
+            : "A instância não está conectada ao WhatsApp",
+          variant: isConnected ? "default" : "destructive"
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao verificar status:', error);
       setRealStatus(false);
+      
+      // Se estava marcado como conectado mas não conseguiu verificar, pode estar desconectado
+      if (config.is_connected) {
+        console.log('⚠️ Instância estava marcada como conectada, mas verificação falhou. Atualizando para desconectado...');
+        
+        const { error: updateError } = await supabase
+          .from('evolution_config')
+          .update({ 
+            is_connected: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', config.id);
+          
+        if (!updateError) {
+          onRefresh?.();
+        }
+      }
+      
       toast({
         title: "Erro ao verificar status",
-        description: "Não foi possível conectar à API Evolution",
+        description: error.message || "Não foi possível conectar à API Evolution",
         variant: "destructive"
       });
     } finally {
