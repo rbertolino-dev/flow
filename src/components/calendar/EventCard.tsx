@@ -45,8 +45,8 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
       <CardContent className="p-4">
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm line-clamp-2 break-words">{event.summary || "Sem título"}</h3>
+            <div className="flex-1 min-w-0 pr-2">
+              <h3 className="font-semibold text-base mb-1 break-words text-foreground">{event.summary || "Sem título"}</h3>
               {isCompleted && (
                 <Badge variant="outline" className="mt-1 text-xs bg-green-100 text-green-800 border-green-300">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -54,7 +54,7 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                 </Badge>
               )}
             </div>
-            <div className="flex gap-1 flex-wrap flex-shrink-0 items-center">
+            <div className="flex gap-1 flex-wrap flex-shrink-0 items-start pt-0.5">
               {onEdit && (
                 <Button
                   variant="outline"
