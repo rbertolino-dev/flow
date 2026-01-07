@@ -1994,13 +1994,46 @@ export default function BroadcastCampaigns() {
       dataCacheRef.current.campaigns = undefined;
       dataCacheRef.current.lastFetch = undefined;
       
-      // Atualizar imediatamente para refletir mudanças
+      // Buscar campanha cancelada diretamente do banco para verificar status real
+      const { data: freshData, error: fetchError } = await supabase
+        .from("broadcast_campaigns")
+        .select(`
+          *,
+          broadcast_queue (
+            id,
+            status
+          )
+        `)
+        .eq("organization_id", activeOrgId)
+        .eq("id", campaignId)
+        .single();
+
+      if (!fetchError && freshData) {
+        // Atualizar campanha com dados frescos do banco (garantir sincronização)
+        setCampaigns(prevCampaigns => 
+          prevCampaigns.map(c => {
+            if (c.id === campaignId) {
+              const queueItems = freshData.broadcast_queue || [];
+              return {
+                ...c,
+                status: freshData.status,
+                completed_at: freshData.completed_at,
+                sent_count: queueItems.filter((q: any) => q.status === 'sent').length,
+                failed_count: queueItems.filter((q: any) => q.status === 'failed' || q.status === 'cancelled').length,
+              };
+            }
+            return c;
+          })
+        );
+      }
+      
+      // Atualizar todas as campanhas para garantir sincronização completa
       await fetchCampaigns();
       
       // Aguardar um pouco e atualizar novamente para garantir sincronização
       setTimeout(async () => {
         await fetchCampaigns();
-      }, 1000);
+      }, 1500);
     } catch (error: any) {
       console.error("Erro completo ao cancelar campanha:", error);
       
