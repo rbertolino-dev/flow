@@ -201,21 +201,49 @@ export function EvolutionInstanceCard({
         }
       };
       
-      const baseUrl = normalizeApiUrl(config.api_url);
+      // Buscar URL e API Key corretas (do provider se existir, senão do config)
+      let apiUrl = config.api_url;
+      let apiKey = config.api_key || '';
+      
+      // Se há provider configurado, buscar URL e API Key do provider
+      if (hasProvider) {
+        try {
+          const orgId = await getUserOrganizationId();
+          if (orgId) {
+            const { data: providerData, error: providerError } = await supabase.rpc('get_organization_evolution_provider' as any, {
+              _org_id: orgId,
+            }) as { data: any[] | null; error: any };
+            
+            if (!providerError && providerData && providerData.length > 0) {
+              // Usar o primeiro provider (ou o que corresponde à instância se houver múltiplos)
+              const provider = providerData[0];
+              apiUrl = provider.api_url;
+              apiKey = provider.api_key;
+              console.log(`🔗 Usando URL do provider: ${provider.provider_name} (${apiUrl})`);
+            }
+          }
+        } catch (providerErr) {
+          console.warn('⚠️ Erro ao buscar provider, usando URL do config:', providerErr);
+          // Continuar com URL do config se falhar
+        }
+      }
+      
+      const baseUrl = normalizeApiUrl(apiUrl);
       const url = `${baseUrl}/instance/connectionState/${config.instance_name}`;
       
       console.log(`🔍 Verificando status real da instância ${config.instance_name}...`);
-      console.log(`📍 API URL original: ${config.api_url}`);
+      console.log(`📍 API URL original: ${apiUrl}`);
       console.log(`📍 API URL normalizada: ${baseUrl}`);
       console.log(`📍 URL completa: ${url}`);
+      console.log(`📍 Usando provider: ${hasProvider ? 'SIM' : 'NÃO'}`);
       
-      if (!config.api_url || !config.instance_name) {
+      if (!apiUrl || !config.instance_name) {
         throw new Error('URL da API ou nome da instância não configurados');
       }
       
       const response = await fetch(url, {
         headers: {
-          'apikey': config.api_key || ''
+          'apikey': apiKey
         },
         signal: AbortSignal.timeout(10000) // 10s timeout
       });

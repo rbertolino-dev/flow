@@ -176,13 +176,37 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       }
     };
     
-    const baseUrl = normalizeApiUrl(instance.api_url);
+    // Buscar URL e API Key corretas (do provider se existir, senão do instance)
+    let apiUrl = instance.api_url;
+    let apiKey = instance.api_key || '';
+    
+    // Verificar se há provider configurado para a organização
+    try {
+      const orgId = await getUserOrganizationId();
+      if (orgId) {
+        const { data: providerData, error: providerError } = await supabase.rpc('get_organization_evolution_provider' as any, {
+          _org_id: orgId,
+        }) as { data: any[] | null; error: any };
+        
+        if (!providerError && providerData && providerData.length > 0) {
+          const provider = providerData[0];
+          apiUrl = provider.api_url;
+          apiKey = provider.api_key;
+          console.log(`🔗 InstanceStatusPanel: Usando URL do provider: ${provider.provider_name}`);
+        }
+      }
+    } catch (providerErr) {
+      console.warn('⚠️ Erro ao buscar provider, usando URL do instance:', providerErr);
+      // Continuar com URL do instance se falhar
+    }
+    
+    const baseUrl = normalizeApiUrl(apiUrl);
     const url = `${baseUrl}/instance/connectionState/${instance.instance_name}`;
 
     try {
       const response = await fetch(url, {
         headers: {
-          'apikey': instance.api_key,
+          'apikey': apiKey,
         },
         signal: AbortSignal.timeout(8000),
       });
