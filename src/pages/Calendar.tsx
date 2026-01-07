@@ -6,6 +6,7 @@ import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCale
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Settings, BarChart3, FileText } from "lucide-react";
 import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
+import { BookedMeetingsReport } from "@/components/calendar/BookedMeetingsReport";
 import { CalendarMessageTemplateManager } from "@/components/calendar/CalendarMessageTemplateManager";
 
 export default function CalendarPage() {
@@ -50,7 +51,20 @@ export default function CalendarPage() {
               </TabsContent>
 
               <TabsContent value="reports" className="mt-6">
-                <CalendarEventsReport />
+                <div className="space-y-6">
+                  <Tabs defaultValue="by-person" className="w-full">
+                    <TabsList>
+                      <TabsTrigger value="by-person">Por Pessoa</TabsTrigger>
+                      <TabsTrigger value="by-stage">Por Etiqueta</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="by-person" className="mt-6">
+                      <BookedMeetingsReport />
+                    </TabsContent>
+                    <TabsContent value="by-stage" className="mt-6">
+                      <CalendarEventsReport />
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </TabsContent>
 
               <TabsContent value="templates" className="mt-6">

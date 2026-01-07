@@ -18,6 +18,7 @@ interface CreateEventPayload {
   stageId?: string;
   addGoogleMeet?: boolean;
   organizerUserId?: string;
+  bookedByUserId?: string;
   attendees?: Array<{ email: string; displayName?: string }>;
 }
 
@@ -38,6 +39,7 @@ serve(async (req) => {
       stageId,
       addGoogleMeet = false,
       organizerUserId,
+      bookedByUserId,
       attendees = []
     } = await req.json() as CreateEventPayload;
 
@@ -207,6 +209,7 @@ serve(async (req) => {
           html_link: eventData.htmlLink || null,
           stage_id: stageId || null,
           organizer_user_id: organizerUserId || null,
+          booked_by_user_id: bookedByUserId || null,
           attendees: attendees.length > 0 ? attendees : null,
         },
         {

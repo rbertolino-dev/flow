@@ -100,6 +100,7 @@ export function CreateEventDialog({
     selectedInstanceId: "",
     messageText: "",
     organizerUserId: "",
+    bookedByUserId: "",
     attendees: [] as Array<{ email: string; displayName?: string }>,
     attendeeEmail: "",
   });
@@ -287,8 +288,9 @@ export function CreateEventDialog({
           colorId: formData.colorId || undefined,
           stageId: formData.stageId || undefined,
           addGoogleMeet: formData.addGoogleMeet || false,
-          organizerUserId: formData.organizerUserId || undefined,
-          attendees: formData.attendees.length > 0 ? formData.attendees : undefined,
+        organizerUserId: formData.organizerUserId || undefined,
+        bookedByUserId: formData.bookedByUserId || undefined,
+        attendees: formData.attendees.length > 0 ? formData.attendees : undefined,
         },
       });
 
@@ -416,6 +418,7 @@ export function CreateEventDialog({
         selectedInstanceId: "",
         messageText: "",
         organizerUserId: currentUserId || "",
+        bookedByUserId: currentUserId || "",
         attendees: [],
         attendeeEmail: "",
       });
@@ -647,6 +650,28 @@ export function CreateEventDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bookedBy">Quem Marcou a Reunião *</Label>
+            <Select
+              value={formData.bookedByUserId || undefined}
+              onValueChange={(value) => setFormData({ ...formData, bookedByUserId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={currentUserId ? "Selecione quem marcou" : "Carregando..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {organizationUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.full_name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Usuário que conseguiu marcar/agendar esta reunião
+            </p>
           </div>
 
           <div className="space-y-2">
