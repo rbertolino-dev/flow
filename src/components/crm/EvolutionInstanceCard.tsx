@@ -236,26 +236,57 @@ export function EvolutionInstanceCard({
                 apiKey = provider.api_key;
                 console.log(`🔗 Usando único provider disponível: ${provider.provider_name} (${apiUrl})`);
               } else {
-                // Se há múltiplos providers, tentar todos até encontrar a instância
-                console.log(`🔍 Múltiplos providers encontrados (${providerData.length}). Tentando encontrar instância "${config.instance_name}"...`);
+                // Se há múltiplos providers, listar instâncias de cada um para encontrar qual tem a instância
+                console.log(`🔍 Múltiplos providers encontrados (${providerData.length}). Listando instâncias para encontrar "${config.instance_name}"...`);
                 
                 let foundProvider = null;
                 for (const provider of providerData) {
-                  const testUrl = `${normalizeApiUrl(provider.api_url)}/instance/connectionState/${config.instance_name}`;
                   try {
-                    const testResponse = await fetch(testUrl, {
+                    // Listar todas as instâncias do provider
+                    const listUrl = `${normalizeApiUrl(provider.api_url)}/instance/fetchInstances`;
+                    const listResponse = await fetch(listUrl, {
                       headers: { 'apikey': provider.api_key },
-                      signal: AbortSignal.timeout(5000) // 5s timeout para teste rápido
+                      signal: AbortSignal.timeout(5000) // 5s timeout
                     });
                     
-                    if (testResponse.ok) {
-                      foundProvider = provider;
-                      console.log(`✅ Instância encontrada no provider: ${provider.provider_name} (${provider.api_url})`);
-                      break;
+                    if (listResponse.ok) {
+                      const instancesData = await listResponse.json();
+                      console.log(`📋 Instâncias do provider ${provider.provider_name}:`, instancesData);
+                      
+                      // Verificar se a instância existe na lista (diferentes formatos possíveis)
+                      const instanceExists = Array.isArray(instancesData) 
+                        ? instancesData.some((inst: any) => {
+                            const name = inst.instance?.instanceName || inst.instanceName || inst.name || inst.instance?.name;
+                            return name && name.toLowerCase() === config.instance_name.toLowerCase();
+                          })
+                        : (instancesData.instance?.instanceName || instancesData.instanceName || instancesData.name || instancesData.instance?.name)?.toLowerCase() === config.instance_name.toLowerCase();
+                      
+                      if (instanceExists) {
+                        foundProvider = provider;
+                        console.log(`✅ Instância "${config.instance_name}" encontrada no provider: ${provider.provider_name} (${provider.api_url})`);
+                        break;
+                      } else {
+                        console.log(`⚠️ Instância "${config.instance_name}" não encontrada no provider ${provider.provider_name}`);
+                      }
                     }
-                  } catch (testErr) {
-                    // Continuar tentando próximo provider
-                    console.log(`⚠️ Provider ${provider.provider_name} não tem a instância, tentando próximo...`);
+                  } catch (listErr) {
+                    // Se listar falhar, tentar connectionState como fallback
+                    console.log(`⚠️ Erro ao listar instâncias do provider ${provider.provider_name}, tentando connectionState...`, listErr);
+                    try {
+                      const testUrl = `${normalizeApiUrl(provider.api_url)}/instance/connectionState/${config.instance_name}`;
+                      const testResponse = await fetch(testUrl, {
+                        headers: { 'apikey': provider.api_key },
+                        signal: AbortSignal.timeout(5000)
+                      });
+                      
+                      if (testResponse.ok) {
+                        foundProvider = provider;
+                        console.log(`✅ Instância encontrada via connectionState no provider: ${provider.provider_name}`);
+                        break;
+                      }
+                    } catch (testErr) {
+                      console.log(`⚠️ Provider ${provider.provider_name} não tem a instância`);
+                    }
                   }
                 }
                 
