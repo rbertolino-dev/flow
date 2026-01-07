@@ -221,7 +221,19 @@ export function EvolutionInstanceCard({
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text().catch(() => '');
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        if (response.status === 404) {
+          errorMessage = `Instância "${config.instance_name}" não encontrada na Evolution API. Verifique:\n- Se o nome da instância está correto (case-sensitive)\n- Se a URL da API está correta: ${baseUrl}\n- Se a instância existe na Evolution API`;
+        } else if (response.status === 401) {
+          errorMessage = `API Key inválida ou expirada. Verifique a API Key configurada.`;
+        } else if (response.status === 403) {
+          errorMessage = `Acesso negado. Verifique se a API Key tem permissão para acessar esta instância.`;
+        }
+        
+        console.error(`❌ Erro HTTP ${response.status}:`, errorText);
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
