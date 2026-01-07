@@ -206,6 +206,7 @@ export function EvolutionInstanceCard({
       let apiKey = config.api_key || '';
       
       // Se há provider configurado, buscar URL e API Key do provider
+      // IMPORTANTE: Organizações podem ter MÚLTIPLOS providers, então tentamos todos até encontrar a instância
       if (hasProvider) {
         try {
           const orgId = await getUserOrganizationId();
@@ -215,11 +216,61 @@ export function EvolutionInstanceCard({
             }) as { data: any[] | null; error: any };
             
             if (!providerError && providerData && providerData.length > 0) {
-              // Usar o primeiro provider (ou o que corresponde à instância se houver múltiplos)
-              const provider = providerData[0];
-              apiUrl = provider.api_url;
-              apiKey = provider.api_key;
-              console.log(`🔗 Usando URL do provider: ${provider.provider_name} (${apiUrl})`);
+              // ESTRATÉGIA: Tentar encontrar o provider correto
+              // 1. Primeiro, verificar se alguma URL de provider corresponde à URL do config
+              const matchingProvider = providerData.find(p => {
+                const normalizedProvider = normalizeApiUrl(p.api_url);
+                const normalizedConfig = normalizeApiUrl(config.api_url);
+                return normalizedProvider === normalizedConfig;
+              });
+              
+              if (matchingProvider) {
+                // Se encontrou provider com URL correspondente, usar esse
+                apiUrl = matchingProvider.api_url;
+                apiKey = matchingProvider.api_key;
+                console.log(`🔗 Usando provider correspondente: ${matchingProvider.provider_name} (${apiUrl})`);
+              } else if (providerData.length === 1) {
+                // Se há apenas um provider, usar esse
+                const provider = providerData[0];
+                apiUrl = provider.api_url;
+                apiKey = provider.api_key;
+                console.log(`🔗 Usando único provider disponível: ${provider.provider_name} (${apiUrl})`);
+              } else {
+                // Se há múltiplos providers, tentar todos até encontrar a instância
+                console.log(`🔍 Múltiplos providers encontrados (${providerData.length}). Tentando encontrar instância "${config.instance_name}"...`);
+                
+                let foundProvider = null;
+                for (const provider of providerData) {
+                  const testUrl = `${normalizeApiUrl(provider.api_url)}/instance/connectionState/${config.instance_name}`;
+                  try {
+                    const testResponse = await fetch(testUrl, {
+                      headers: { 'apikey': provider.api_key },
+                      signal: AbortSignal.timeout(5000) // 5s timeout para teste rápido
+                    });
+                    
+                    if (testResponse.ok) {
+                      foundProvider = provider;
+                      console.log(`✅ Instância encontrada no provider: ${provider.provider_name} (${provider.api_url})`);
+                      break;
+                    }
+                  } catch (testErr) {
+                    // Continuar tentando próximo provider
+                    console.log(`⚠️ Provider ${provider.provider_name} não tem a instância, tentando próximo...`);
+                  }
+                }
+                
+                if (foundProvider) {
+                  apiUrl = foundProvider.api_url;
+                  apiKey = foundProvider.api_key;
+                  console.log(`🔗 Usando provider onde instância foi encontrada: ${foundProvider.provider_name}`);
+                } else {
+                  // Se não encontrou em nenhum, usar o primeiro como fallback
+                  const provider = providerData[0];
+                  apiUrl = provider.api_url;
+                  apiKey = provider.api_key;
+                  console.log(`⚠️ Instância não encontrada em nenhum provider. Usando primeiro como fallback: ${provider.provider_name}`);
+                }
+              }
             }
           }
         } catch (providerErr) {
