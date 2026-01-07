@@ -46,7 +46,7 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0 pr-2">
-              <h3 className="font-semibold text-base mb-1 break-words text-foreground">{event.summary || "Sem título"}</h3>
+              <h3 className="font-semibold text-base mb-1 text-foreground">{event.summary || "Sem título"}</h3>
               {isCompleted && (
                 <Badge variant="outline" className="mt-1 text-xs bg-green-100 text-green-800 border-green-300">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
