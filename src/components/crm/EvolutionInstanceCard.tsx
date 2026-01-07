@@ -189,12 +189,29 @@ export function EvolutionInstanceCard({
   const checkRealStatus = async () => {
     setTesting(true);
     try {
-      // Normalizar URL da API
-      const baseUrl = config.api_url.replace(/\/+$/, '');
+      // Normalizar URL da API usando a mesma função que outros lugares usam
+      const normalizeApiUrl = (url: string) => {
+        try {
+          const u = new URL(url);
+          let base = u.origin + u.pathname.replace(/\/$/, '');
+          base = base.replace(/\/(manager|dashboard|app)$/i, '');
+          return base;
+        } catch {
+          return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+        }
+      };
+      
+      const baseUrl = normalizeApiUrl(config.api_url);
       const url = `${baseUrl}/instance/connectionState/${config.instance_name}`;
       
       console.log(`🔍 Verificando status real da instância ${config.instance_name}...`);
-      console.log(`📍 URL: ${url}`);
+      console.log(`📍 API URL original: ${config.api_url}`);
+      console.log(`📍 API URL normalizada: ${baseUrl}`);
+      console.log(`📍 URL completa: ${url}`);
+      
+      if (!config.api_url || !config.instance_name) {
+        throw new Error('URL da API ou nome da instância não configurados');
+      }
       
       const response = await fetch(url, {
         headers: {
