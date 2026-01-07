@@ -1912,46 +1912,96 @@ export default function BroadcastCampaigns() {
         })
         .eq("id", campaignId);
 
-      if (campaignError) throw campaignError;
+      if (campaignError) {
+        console.error("Erro ao cancelar campanha:", campaignError);
+        throw campaignError;
+      }
+
+      // Atualização otimista: atualizar UI imediatamente
+      setCampaigns(prevCampaigns => 
+        prevCampaigns.map(c => 
+          c.id === campaignId 
+            ? { ...c, status: "cancelled", completed_at: new Date().toISOString() }
+            : c
+        )
+      );
 
       // PASSO 2: Cancelar TODOS os itens da fila (independente do status)
-      // Isso inclui: pending, scheduled, processing, e qualquer outro status
-      // IMPORTANTE: Não usar .in() com lista limitada - cancelar TODOS os status exceto já cancelados/completos
-      const { data: cancelledItems, error: queueError } = await supabase
+      // Isso inclui: pending, scheduled, e qualquer outro status
+      // IMPORTANTE: Tentar usar 'cancelled' primeiro, mas usar 'failed' como fallback
+      // se a constraint não permitir 'cancelled'
+      
+      // Primeiro, tentar cancelar com status 'cancelled'
+      let cancelledItems: any[] = [];
+      let queueError: any = null;
+      
+      const { data: cancelledData, error: cancelledError } = await supabase
         .from("broadcast_queue")
         .update({ 
           status: "cancelled",
           error_message: "Campanha cancelada pelo usuário"
         })
         .eq("campaign_id", campaignId)
-        .not("status", "eq", "cancelled") // Não atualizar os que já estão cancelados
-        .not("status", "eq", "sent") // Não atualizar os que já foram enviados
-        .not("status", "eq", "failed") // Não atualizar os que já falharam
+        .in("status", ["pending", "scheduled"]) // Apenas cancelar pending e scheduled
         .select("id");
 
-      if (queueError) {
-        console.warn("Aviso ao cancelar itens da fila:", queueError);
-        // Não falhar se houver erro - campanha já foi cancelada
+      if (cancelledError) {
+        // Se 'cancelled' não for permitido, usar 'failed' como fallback
+        console.warn("Status 'cancelled' não permitido, usando 'failed' como fallback:", cancelledError);
+        
+        const { data: failedData, error: failedError } = await supabase
+          .from("broadcast_queue")
+          .update({ 
+            status: "failed",
+            error_message: "Campanha cancelada pelo usuário"
+          })
+          .eq("campaign_id", campaignId)
+          .in("status", ["pending", "scheduled"])
+          .select("id");
+
+        if (failedError) {
+          console.error("Erro ao cancelar itens da fila:", failedError);
+          queueError = failedError;
+        } else {
+          cancelledItems = failedData || [];
+        }
+      } else {
+        cancelledItems = cancelledData || [];
       }
 
       const cancelledCount = cancelledItems?.length || 0;
 
-      toast({
-        title: "Campanha cancelada",
-        description: `Campanha cancelada com sucesso. ${cancelledCount} mensagens foram canceladas e não serão enviadas.`,
-      });
+      if (queueError) {
+        console.warn("Aviso ao cancelar itens da fila:", queueError);
+        // Não falhar se houver erro - campanha já foi cancelada
+        toast({
+          title: "Campanha cancelada",
+          description: `Campanha cancelada, mas alguns itens da fila podem não ter sido atualizados. Verifique os logs.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Campanha cancelada",
+          description: `Campanha cancelada com sucesso. ${cancelledCount} mensagens foram canceladas e não serão enviadas.`,
+        });
+      }
 
+      // Limpar cache para forçar atualização
+      dataCacheRef.current.campaigns = undefined;
+      dataCacheRef.current.lastFetch = undefined;
+      
       // Atualizar imediatamente para refletir mudanças
-      fetchCampaigns();
+      await fetchCampaigns();
       
       // Aguardar um pouco e atualizar novamente para garantir sincronização
-      setTimeout(() => {
-        fetchCampaigns();
+      setTimeout(async () => {
+        await fetchCampaigns();
       }, 1000);
     } catch (error: any) {
+      console.error("Erro completo ao cancelar campanha:", error);
       toast({
         title: "Erro ao cancelar campanha",
-        description: error.message,
+        description: error.message || "Erro desconhecido ao cancelar campanha",
         variant: "destructive",
       });
     } finally {
