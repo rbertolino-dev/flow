@@ -3509,6 +3509,17 @@ export default function BroadcastCampaigns() {
                     <FileText className="h-4 w-4 mr-1" />
                     Logs
                   </Button>
+                  {campaign.status === "cancelled" && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteCampaign(campaign.id)}
+                      disabled={loading}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Excluir
+                    </Button>
+                  )}
                   {(campaign.status === "completed" || campaign.status === "cancelled") && (
                     <Button
                       size="sm"
