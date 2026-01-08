@@ -38,16 +38,51 @@ serve(async (req) => {
     console.log(`🔍 [send-whatsapp-message] Buscando configuração da instância ${instanceId}...`);
 
     // Buscar configuração da instância Evolution
-    const { data: config, error: configError } = await supabase
-      .from('evolution_config')
-      .select('api_url, api_key, instance_name, is_connected, organization_id')
-      .eq('id', instanceId)
-      .maybeSingle();
+    let config: any = null;
+    let configError: any = null;
+    
+    try {
+      const result = await supabase
+        .from('evolution_config')
+        .select('api_url, api_key, instance_name, is_connected, organization_id')
+        .eq('id', instanceId)
+        .maybeSingle();
+      
+      config = result.data;
+      configError = result.error;
+      
+      console.log('📊 [send-whatsapp-message] Resultado da busca:', {
+        hasConfig: !!config,
+        hasError: !!configError,
+        errorMessage: configError?.message,
+        errorCode: configError?.code,
+        errorDetails: configError?.details,
+        errorHint: configError?.hint
+      });
+    } catch (fetchError: any) {
+      console.error('💥 [send-whatsapp-message] Erro ao executar query:', {
+        message: fetchError.message,
+        stack: fetchError.stack,
+        name: fetchError.name
+      });
+      configError = fetchError;
+    }
 
     if (configError) {
-      console.error('❌ [send-whatsapp-message] Erro ao buscar config:', configError);
+      console.error('❌ [send-whatsapp-message] Erro ao buscar config:', {
+        message: configError.message,
+        code: configError.code,
+        details: configError.details,
+        hint: configError.hint,
+        stack: configError.stack
+      });
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar configuração', details: configError.message }),
+        JSON.stringify({ 
+          error: 'Erro ao buscar configuração', 
+          details: configError.message,
+          code: configError.code,
+          hint: configError.hint
+        }),
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -61,6 +96,25 @@ serve(async (req) => {
         JSON.stringify({ error: 'Instância Evolution não encontrada ou não configurada' }),
         { 
           status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
+    // Validar campos obrigatórios
+    if (!config.api_url || !config.instance_name) {
+      console.error('❌ [send-whatsapp-message] Configuração incompleta:', {
+        hasApiUrl: !!config.api_url,
+        hasInstanceName: !!config.instance_name,
+        hasApiKey: !!config.api_key
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Configuração da instância incompleta',
+          details: 'api_url ou instance_name não encontrados'
+        }),
+        { 
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
@@ -254,17 +308,28 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('💥 [send-whatsapp-message] Erro crítico:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+    const errorDetails = {
+      message: error?.message || 'Erro desconhecido',
+      stack: error?.stack || 'N/A',
+      name: error?.name || 'Error',
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      cause: error?.cause
+    };
+    
+    console.error('💥 [send-whatsapp-message] Erro crítico:', JSON.stringify(errorDetails, null, 2));
+    
+    // Log adicional para debugging
+    console.error('💥 [send-whatsapp-message] Tipo do erro:', typeof error);
+    console.error('💥 [send-whatsapp-message] Erro completo:', error);
     
     return new Response(
       JSON.stringify({ 
         error: 'Erro interno ao enviar mensagem',
-        details: error.message,
-        stack: error.stack 
+        details: errorDetails.message,
+        code: errorDetails.code,
+        hint: errorDetails.hint
       }),
       { 
         status: 500,
