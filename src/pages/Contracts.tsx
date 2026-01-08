@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -137,7 +137,7 @@ export default function Contracts() {
     );
   }
 
-  const handleView = async (contract: Contract) => {
+  const handleView = useCallback(async (contract: Contract) => {
     // Buscar contrato completo com todos os campos atualizados
     const { data: fullContract } = await supabase
       .from('contracts')
@@ -150,7 +150,7 @@ export default function Contracts() {
     } else {
       setSelectedContract(contract);
     }
-  };
+  }, []);
 
   // Carregar estatísticas do mês
   useEffect(() => {
@@ -225,8 +225,7 @@ export default function Contracts() {
       console.log('🔌 Desconectando realtime de assinaturas...');
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOrgId, selectedContract?.id]);
+  }, [activeOrgId, selectedContract?.id, handleView, refetch]);
 
   const handleSign = (contract: Contract) => {
     setSelectedContract(contract);
