@@ -529,12 +529,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
 
       if (error) {
         console.error('❌ [Frontend] Erro retornado:', error);
-        throw new Error(error.message || 'Erro ao chamar função de envio');
+        // Se o erro tem mensagem detalhada, usar ela
+        const errorMessage = error.message || 'Erro ao chamar função de envio';
+        throw new Error(errorMessage);
       }
 
       if (data?.error) {
         console.error('❌ [Frontend] Erro no data:', data);
-        throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+        // Usar mensagem amigável se disponível, senão usar details
+        const errorMessage = data.error || 'Erro desconhecido';
+        const errorDetails = data.details || '';
+        throw new Error(errorDetails ? `${errorMessage}: ${errorDetails}` : errorMessage);
       }
 
       console.log('✅ [Frontend] Mensagem enviada com sucesso!');
