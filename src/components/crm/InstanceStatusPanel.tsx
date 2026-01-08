@@ -359,45 +359,113 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [dispatchesTrend, setDispatchesTrend] = useState<number | null>(null);
   const [totalDailyLimit, setTotalDailyLimit] = useState(0);
 
-  // Buscar disparos por instância (do dia atual)
+  // Buscar disparos por instância (do dia atual) - sempre, não apenas no modo segmento
   useEffect(() => {
-    if (viewMode === "segment" && instances.length > 0) {
+    if (instances.length > 0) {
       fetchDispatchesByInstance();
-    }
-  }, [viewMode, instances.length]);
+      
+      // Configurar atualização periódica a cada 10 segundos
+      const interval = setInterval(() => {
+        fetchDispatchesByInstance();
+      }, 10000); // Atualizar a cada 10 segundos
 
-  const fetchDispatchesByInstance = async () => {
+      return () => clearInterval(interval);
+    }
+  }, [instances.length, fetchDispatchesByInstance]);
+
+  // Configurar Realtime para atualizar quando novos disparos são enviados
+  useEffect(() => {
+    let mounted = true;
+    
+    const setupRealtime = async () => {
+      const orgId = await getUserOrganizationId();
+      if (!orgId || !mounted) return;
+
+      // Canal para escutar mudanças na broadcast_queue
+      const channel = supabase
+        .channel(`broadcast_queue_changes_${orgId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'broadcast_queue',
+            filter: `organization_id=eq.${orgId}`,
+          },
+          (payload) => {
+            // Quando um disparo é marcado como "sent", atualizar contadores
+            if (payload.new.status === 'sent' && payload.old.status !== 'sent') {
+              console.log('Disparo enviado detectado via Realtime:', payload);
+              if (mounted) {
+                fetchDispatchesByInstance();
+              }
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('Subscribed to broadcast_queue changes');
+          }
+        });
+
+      return () => {
+        if (mounted) {
+          supabase.removeChannel(channel);
+        }
+      };
+    };
+
+    const cleanup = setupRealtime();
+    
+    return () => {
+      mounted = false;
+      cleanup.then((cleanupFn) => cleanupFn && cleanupFn());
+    };
+  }, [fetchDispatchesByInstance]);
+
+  const fetchDispatchesByInstance = useCallback(async () => {
     setLoadingDispatches(true);
     try {
       const orgId = await getUserOrganizationId();
-      if (!orgId) return;
+      if (!orgId) {
+        setLoadingDispatches(false);
+        return;
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Buscar disparos do dia atual diretamente por instance_id
+      // Buscar disparos do dia atual - contar TODOS, não apenas os com instance_id
       const { data: queueData, error: queueError } = await supabase
         .from("broadcast_queue")
-        .select("instance_id")
+        .select("instance_id, sent_at")
         .eq("status", "sent")
         .eq("organization_id", orgId)
-        .not("instance_id", "is", null)
         .gte("sent_at", today.toISOString())
         .lt("sent_at", tomorrow.toISOString());
 
-      if (queueError) throw queueError;
+      if (queueError) {
+        console.error("Erro ao buscar disparos:", queueError);
+        throw queueError;
+      }
 
       // Contar disparos por instance_id e total
       const counts: Record<string, number> = {};
       let total = 0;
-      queueData?.forEach((item: any) => {
-        if (item.instance_id) {
-          counts[item.instance_id] = (counts[item.instance_id] || 0) + 1;
+      
+      if (queueData) {
+        queueData.forEach((item: any) => {
+          // Contar TODOS os disparos, mesmo sem instance_id
           total++;
-        }
-      });
+          
+          // Se tiver instance_id, contar por instância também
+          if (item.instance_id) {
+            counts[item.instance_id] = (counts[item.instance_id] || 0) + 1;
+          }
+        });
+      }
 
       setDispatchesByInstance(counts);
       setTotalDispatchesToday(total);
@@ -408,20 +476,20 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
       const { data: yesterdayData, error: yesterdayError } = await supabase
         .from("broadcast_queue")
-        .select("id")
+        .select("id", { count: 'exact', head: false })
         .eq("status", "sent")
         .eq("organization_id", orgId)
-        .not("instance_id", "is", null)
         .gte("sent_at", yesterday.toISOString())
         .lt("sent_at", today.toISOString());
 
       if (!yesterdayError && yesterdayData) {
-        const yesterdayTotal = yesterdayData.length;
+        const yesterdayTotal = Array.isArray(yesterdayData) ? yesterdayData.length : 0;
         if (yesterdayTotal > 0) {
           const trend = ((total - yesterdayTotal) / yesterdayTotal) * 100;
           setDispatchesTrend(trend);
         } else {
-          setDispatchesTrend(null);
+          // Se não havia disparos ontem e há hoje, mostrar 100% de aumento
+          setDispatchesTrend(total > 0 ? 100 : null);
         }
       } else {
         setDispatchesTrend(null);
@@ -431,7 +499,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     } finally {
       setLoadingDispatches(false);
     }
-  };
+  }, []);
 
   // Agrupar instâncias por segmento para visualização de segmento
   const instancesBySegment = useMemo(() => {

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Budget } from '@/types/budget';
 import { isAfter, isBefore, addDays } from 'date-fns';
-import { Calendar, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide-react';
 
 interface BudgetIndicatorsProps {
   budgets: Budget[];
@@ -79,6 +79,19 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
 
   const total = budgetsInPeriod.length;
 
+  // Calcular total em reais dos orçamentos no período
+  const totalValue = useMemo(() => {
+    return budgetsInPeriod.reduce((sum, budget) => {
+      return sum + (budget.total || 0);
+    }, 0);
+  }, [budgetsInPeriod]);
+
+  // Formatar valor em reais
+  const formattedTotalValue = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(totalValue);
+
   return (
     <Card>
       <CardHeader className="pb-1.5">
@@ -89,27 +102,38 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
       </CardHeader>
       <CardContent className="pt-0 pb-3">
         <div className="space-y-1.5">
-          {/* Total de orçamentos criados no período */}
-          <div className="flex items-center justify-between pb-1 border-b">
+          {/* Total de orçamentos e valor total */}
+          <div className="grid grid-cols-2 gap-2 pb-1 border-b">
             <div>
               <p className="text-[10px] font-medium text-muted-foreground">
                 Total de Orçamentos
               </p>
               <p className="text-base font-bold">{total}</p>
-              {(dateFrom || dateTo) && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {dateFrom && dateTo && `Período: ${new Date(dateFrom).toLocaleDateString('pt-BR')} - ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
-                  {dateFrom && !dateTo && `A partir de: ${new Date(dateFrom).toLocaleDateString('pt-BR')}`}
-                  {!dateFrom && dateTo && `Até: ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
-                </p>
-              )}
-              {!dateFrom && !dateTo && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Todos os orçamentos
-                </p>
-              )}
+            </div>
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                <DollarSign className="w-3 h-3" />
+                Valor Total Orçado
+              </p>
+              <p className="text-base font-bold text-primary">{formattedTotalValue}</p>
             </div>
           </div>
+          {(dateFrom || dateTo) && (
+            <div className="pb-1 border-b">
+              <p className="text-[10px] text-muted-foreground">
+                {dateFrom && dateTo && `Período: ${new Date(dateFrom).toLocaleDateString('pt-BR')} - ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
+                {dateFrom && !dateTo && `A partir de: ${new Date(dateFrom).toLocaleDateString('pt-BR')}`}
+                {!dateFrom && dateTo && `Até: ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
+              </p>
+            </div>
+          )}
+          {!dateFrom && !dateTo && (
+            <div className="pb-1 border-b">
+              <p className="text-[10px] text-muted-foreground">
+                Todos os orçamentos
+              </p>
+            </div>
+          )}
 
           {/* Status dos orçamentos */}
           <div className="grid grid-cols-3 gap-1.5">
