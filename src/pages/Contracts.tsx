@@ -712,15 +712,15 @@ export default function Contracts() {
                 }
               }}
             />
-            {showPdfBuilder && (
-              <React.Suspense 
-                fallback={
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                    <p className="ml-2">Carregando builder de PDF...</p>
-                  </div>
-                }
-              >
+            <React.Suspense 
+              fallback={
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <p className="ml-2">Carregando builder de PDF...</p>
+                </div>
+              }
+            >
+              {showPdfBuilder && selectedContract && (
                 <ContractPdfBuilderLazy
                   open={showPdfBuilder}
                   onOpenChange={setShowPdfBuilder}
@@ -733,8 +733,8 @@ export default function Contracts() {
                     });
                   }}
                 />
-              </React.Suspense>
-            )}
+              )}
+            </React.Suspense>
           </>
         )}
 
