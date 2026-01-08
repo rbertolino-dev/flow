@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,7 +87,9 @@ export default function Contracts() {
   const [loadingStats, setLoadingStats] = useState(false);
 
   const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
-  const { contracts, loading, updateContractStatus, deleteContract, regenerateContractPDF, refetch } = useContracts({
+  
+  // Memoizar filtros para evitar recriação do objeto a cada render
+  const contractFilters = useMemo(() => ({
     status: statusFilter !== 'all' ? statusFilter : undefined,
     search: searchQuery || undefined,
     category_id: categoryFilter,
@@ -95,7 +97,9 @@ export default function Contracts() {
     date_to: dateToFilter,
     expires_from: expiresFromFilter,
     expires_to: expiresToFilter,
-  });
+  }), [statusFilter, searchQuery, categoryFilter, dateFromFilter, dateToFilter, expiresFromFilter, expiresToFilter]);
+  
+  const { contracts, loading, updateContractStatus, deleteContract, regenerateContractPDF, refetch } = useContracts(contractFilters);
   const { templates } = useContractTemplates();
   const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
   const { toast } = useToast();
@@ -221,7 +225,8 @@ export default function Contracts() {
       console.log('🔌 Desconectando realtime de assinaturas...');
       supabase.removeChannel(channel);
     };
-  }, [activeOrgId, selectedContract?.id, refetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrgId, selectedContract?.id]);
 
   const handleSign = (contract: Contract) => {
     setSelectedContract(contract);

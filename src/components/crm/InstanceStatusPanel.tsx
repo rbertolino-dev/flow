@@ -2,13 +2,16 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder, Plus, Settings, UserPlus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { InstanceDetailDialog } from "./InstanceDetailDialog";
+import { SegmentManagerDialog } from "./SegmentManagerDialog";
+import { EditDispatchLimitsDialog } from "./EditDispatchLimitsDialog";
+import { AddReserveAgentDialog } from "./AddReserveAgentDialog";
 
 interface Instance {
   id: string;
@@ -40,6 +43,11 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [viewMode, setViewMode] = useState<ViewMode>("connection");
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [segmentManagerOpen, setSegmentManagerOpen] = useState(false);
+  const [editLimitsDialogOpen, setEditLimitsDialogOpen] = useState(false);
+  const [editLimitsInstance, setEditLimitsInstance] = useState<Instance | null>(null);
+  const [addReserveDialogOpen, setAddReserveDialogOpen] = useState(false);
+  const [addReserveInstance, setAddReserveInstance] = useState<Instance | null>(null);
   const { toast } = useToast();
   const checkingRef = useRef<Set<string>>(new Set());
   const lastUpdateRef = useRef<Record<string, boolean>>({});
@@ -420,6 +428,18 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     }
   };
 
+  const handleEditLimits = (instance: Instance, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditLimitsInstance(instance);
+    setEditLimitsDialogOpen(true);
+  };
+
+  const handleAddReserve = (instance: Instance, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAddReserveInstance(instance);
+    setAddReserveDialogOpen(true);
+  };
+
   if (instances.length === 0) {
     return null;
   }
@@ -454,6 +474,19 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                 Planilha / Segmentos
               </Button>
             </div>
+            {/* Botões específicos da visualização de segmento */}
+            {viewMode === "segment" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSegmentManagerOpen(true)}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Gerenciar Segmentos
+                </Button>
+              </>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -598,6 +631,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                           <TableHead>TITULAR</TableHead>
                           <TableHead>RESERVA</TableHead>
                           <TableHead className="text-right">DISPAROS/LIMITE</TableHead>
+                          <TableHead className="w-32 text-center">AÇÕES</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -640,6 +674,28 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                                     {limit > 0 && ` / ${limit.toLocaleString('pt-BR')}`}
                                   </span>
                                 )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => handleAddReserve(instance, e)}
+                                    className="h-7 px-2"
+                                    title="Adicionar/Editar Agente Reserva"
+                                  >
+                                    <UserPlus className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => handleEditLimits(instance, e)}
+                                    className="h-7 px-2"
+                                    title="Editar Limites de Disparo"
+                                  >
+                                    <Settings className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -700,6 +756,47 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           onOpenChange={setDialogOpen}
           instance={selectedInstance}
           onUpdate={handleDialogClose}
+        />
+      )}
+
+      {/* Dialog de gerenciamento de segmentos */}
+      <SegmentManagerDialog
+        open={segmentManagerOpen}
+        onOpenChange={setSegmentManagerOpen}
+        onUpdate={() => {
+          if (onRefresh) {
+            onRefresh();
+          }
+        }}
+      />
+
+      {/* Dialog de editar limites de disparo */}
+      {editLimitsInstance && (
+        <EditDispatchLimitsDialog
+          open={editLimitsDialogOpen}
+          onOpenChange={setEditLimitsDialogOpen}
+          instance={editLimitsInstance}
+          onUpdate={() => {
+            setEditLimitsInstance(null);
+            if (onRefresh) {
+              onRefresh();
+            }
+          }}
+        />
+      )}
+
+      {/* Dialog de adicionar agente reserva */}
+      {addReserveInstance && (
+        <AddReserveAgentDialog
+          open={addReserveDialogOpen}
+          onOpenChange={setAddReserveDialogOpen}
+          instance={addReserveInstance}
+          onUpdate={() => {
+            setAddReserveInstance(null);
+            if (onRefresh) {
+              onRefresh();
+            }
+          }}
         />
       )}
     </Card>
