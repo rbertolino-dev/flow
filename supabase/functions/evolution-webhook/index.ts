@@ -138,8 +138,20 @@ serve(async (req) => {
 
     // Processar mensagens recebidas E enviadas
     if (event === 'messages.upsert' && data?.key) {
-      const isFromMe = data.key.fromMe === true;
+      // Detectar se mensagem foi enviada por nós (mais robusto - aceita boolean, string "true", ou 1)
+      const isFromMe = data.key?.fromMe === true || 
+                       data.key?.fromMe === "true" || 
+                       data.key?.fromMe === 1 ||
+                       data.key?.fromMe === "1";
       const direction = isFromMe ? 'outgoing' : 'incoming';
+      
+      console.log(`🔍 Debug isFromMe:`, {
+        rawValue: data.key?.fromMe,
+        type: typeof data.key?.fromMe,
+        isFromMe,
+        direction,
+        remoteJid: data.key?.remoteJid
+      });
       
       console.log(`📨 Processando mensagem ${direction}...`);
       
