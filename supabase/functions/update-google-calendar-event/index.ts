@@ -15,6 +15,7 @@ interface UpdateEventPayload {
   stageId?: string;
   addGoogleMeet?: boolean;
   organizerUserId?: string;
+  bookedByUserId?: string;
   attendees?: Array<{ email: string; displayName?: string }>;
 }
 
@@ -63,6 +64,7 @@ serve(async (req) => {
       stageId,
       addGoogleMeet = false,
       organizerUserId,
+      bookedByUserId,
       attendees = []
     } = payload;
 
@@ -238,19 +240,37 @@ serve(async (req) => {
     const eventEnd = updatedEvent.end?.dateTime || updatedEvent.end?.date;
 
     if (eventStart && eventEnd) {
+      const updateData: any = {
+        summary: updatedEvent.summary || summary,
+        description: updatedEvent.description || description || null,
+        start_datetime: new Date(eventStart).toISOString(),
+        end_datetime: new Date(eventEnd).toISOString(),
+        location: updatedEvent.location || location || null,
+        html_link: updatedEvent.htmlLink || null,
+        stage_id: stageId !== undefined ? (stageId || null) : undefined,
+        organizer_user_id: organizerUserId !== undefined ? (organizerUserId || null) : undefined,
+        attendees: attendees !== undefined ? (attendees.length > 0 ? attendees : null) : undefined,
+      };
+
+      // Só atualizar booked_by_user_id se for fornecido e o evento ainda não tiver esse campo preenchido
+      if (bookedByUserId !== undefined) {
+        // Verificar se o evento já tem booked_by_user_id
+        const { data: existingEvent } = await supabase
+          .from('calendar_events')
+          .select('booked_by_user_id')
+          .eq('google_calendar_config_id', google_calendar_config_id)
+          .eq('google_event_id', google_event_id)
+          .single();
+
+        // Só atualizar se o campo estiver vazio (null) e um novo valor foi fornecido
+        if (!existingEvent?.booked_by_user_id && bookedByUserId) {
+          updateData.booked_by_user_id = bookedByUserId;
+        }
+      }
+
       await supabase
         .from('calendar_events')
-        .update({
-          summary: updatedEvent.summary || summary,
-          description: updatedEvent.description || description || null,
-          start_datetime: new Date(eventStart).toISOString(),
-          end_datetime: new Date(eventEnd).toISOString(),
-          location: updatedEvent.location || location || null,
-          html_link: updatedEvent.htmlLink || null,
-          stage_id: stageId !== undefined ? (stageId || null) : undefined,
-          organizer_user_id: organizerUserId !== undefined ? (organizerUserId || null) : undefined,
-          attendees: attendees !== undefined ? (attendees.length > 0 ? attendees : null) : undefined,
-        })
+        .update(updateData)
         .eq('google_calendar_config_id', google_calendar_config_id)
         .eq('google_event_id', google_event_id);
     }

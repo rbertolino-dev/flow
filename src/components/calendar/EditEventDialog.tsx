@@ -71,6 +71,7 @@ export function EditEventDialog({
     stageId: "",
     addGoogleMeet: false,
     organizerUserId: "",
+    bookedByUserId: "",
     attendees: [] as Array<{ email: string; displayName?: string }>,
     attendeeEmail: "",
   });
@@ -85,6 +86,8 @@ export function EditEventDialog({
       // Formatar data no formato ISO (yyyy-MM-dd) para input[type="date"]
       const isoDate = format(startDate, "yyyy-MM-dd");
       
+      const bookedByUserId = (event as any).booked_by_user_id || "";
+      
       setFormData({
         summary: event.summary || "",
         startDate: isoDate,
@@ -96,12 +99,12 @@ export function EditEventDialog({
         stageId: event.stage_id || "",
         addGoogleMeet: false, // Verificar se já tem Meet link
         organizerUserId: (event as any).organizer_user_id || "",
+        bookedByUserId: bookedByUserId,
         attendees: (event as any).attendees || [],
         attendeeEmail: "",
       });
 
       // Buscar nome do usuário que marcou a reunião
-      const bookedByUserId = (event as any).booked_by_user_id;
       if (bookedByUserId) {
         const bookedByUser = organizationUsers.find(u => u.id === bookedByUserId);
         if (bookedByUser) {
@@ -170,6 +173,7 @@ export function EditEventDialog({
           stageId: formData.stageId || undefined,
           addGoogleMeet: formData.addGoogleMeet || false,
           organizerUserId: formData.organizerUserId || undefined,
+          bookedByUserId: formData.bookedByUserId || undefined,
           attendees: formData.attendees.length > 0 ? formData.attendees : undefined,
         },
       });
@@ -382,7 +386,7 @@ export function EditEventDialog({
             </Select>
           </div>
 
-          {/* Campo somente leitura: Quem Marcou a Reunião */}
+          {/* Campo Quem Marcou a Reunião - Editável se vazio, somente leitura se preenchido */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Label htmlFor="booked-by" className="flex items-center gap-2">
@@ -396,30 +400,59 @@ export function EditEventDialog({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="max-w-xs">
-                      Usuário que conseguiu marcar/agendar esta reunião. Este campo não pode ser alterado após a criação do evento.
+                      {formData.bookedByUserId 
+                        ? "Usuário que conseguiu marcar/agendar esta reunião. Este campo não pode ser alterado após ser preenchido."
+                        : "Usuário que conseguiu marcar/agendar esta reunião. Você pode preencher este campo para eventos antigos que não têm essa informação."}
                     </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md border border-dashed">
-              {bookedByUserName ? (
-                <div className="flex items-center gap-2 flex-1">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{bookedByUserName}</span>
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    Somente leitura
-                  </Badge>
+            {formData.bookedByUserId ? (
+              // Se já tiver valor, mostrar somente leitura
+              <>
+                <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md border border-dashed">
+                  <div className="flex items-center gap-2 flex-1">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{bookedByUserName || "Carregando..."}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      Somente leitura
+                    </Badge>
+                  </div>
                 </div>
-              ) : (
-                <span className="text-sm text-muted-foreground italic">
-                  Não informado
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Este campo é definido apenas na criação do evento e não pode ser alterado.
-            </p>
+                <p className="text-xs text-muted-foreground">
+                  Este campo não pode ser alterado após ser preenchido.
+                </p>
+              </>
+            ) : (
+              // Se não tiver valor, permitir edição
+              <>
+                <Select
+                  value={formData.bookedByUserId || undefined}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, bookedByUserId: value });
+                    const selectedUser = organizationUsers.find(u => u.id === value);
+                    if (selectedUser) {
+                      setBookedByUserName(selectedUser.full_name || selectedUser.email || null);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione quem marcou a reunião (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizationUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.full_name || user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Preencha este campo para eventos antigos que não têm essa informação. Após salvar, não poderá ser alterado.
+                </p>
+              </>
+            )}
           </div>
 
           {/* Campo editável: Usuário Responsável */}
