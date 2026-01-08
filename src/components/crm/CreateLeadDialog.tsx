@@ -163,7 +163,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
 
       // Vincular produto ao lead via tabela lead_products se selecionado
       if (formData.productId && leadId && selectedProduct) {
-        await supabase
+        const { error: productError } = await supabase
           .from('lead_products')
           .insert({
             lead_id: leadId,
@@ -172,6 +172,12 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
             unit_price: selectedProduct.price,
             total_price: selectedProduct.price,
           });
+        
+        // Ignorar erro 409 (Conflict) - produto já está vinculado
+        if (productError && productError.code !== '23505') {
+          console.error('⚠️ Erro ao vincular produto:', productError);
+          // Não bloquear criação do lead por erro ao vincular produto
+        }
       }
 
       // Adicionar tags selecionadas ao lead
