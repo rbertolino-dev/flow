@@ -42,6 +42,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { ServiceBulkImport } from '@/components/budgets/ServiceBulkImport';
 import { ServiceCategoriesManager } from '@/components/budgets/ServiceCategoriesManager';
+import { BudgetIndicators } from '@/components/budgets/BudgetIndicators';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -479,6 +480,10 @@ export default function Budgets() {
           </TabsList>
 
           <TabsContent value="budgets" className="space-y-6">
+            {/* Indicadores */}
+            {!selectedBudget && (
+              <BudgetIndicators budgets={budgets} />
+            )}
 
             {/* Filtros */}
             {!selectedBudget && (
