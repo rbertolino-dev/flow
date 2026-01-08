@@ -210,9 +210,33 @@ export function useSellerGoals() {
     if (!activeOrgId) throw new Error("Organização não encontrada");
 
     try {
+      // Filtrar campos vazios, nulos ou inválidos antes de atualizar
+      const cleanData: any = {};
+      
+      // Campos que NUNCA devem ser atualizados
+      const restrictedFields = ['user_id', 'organization_id', 'id', 'created_at', 'created_by'];
+      
+      Object.keys(goalData).forEach(key => {
+        // Pular campos restritos
+        if (restrictedFields.includes(key)) {
+          return;
+        }
+        
+        const value = goalData[key as keyof typeof goalData];
+        // Não incluir campos vazios, nulos, undefined ou strings vazias
+        if (value !== "" && value !== null && value !== undefined) {
+          cleanData[key] = value;
+        }
+      });
+
+      // Garantir que pelo menos um campo está sendo atualizado
+      if (Object.keys(cleanData).length === 0) {
+        throw new Error("Nenhum campo válido para atualizar");
+      }
+
       const { error } = await supabase
         .from("seller_goals")
-        .update(goalData)
+        .update(cleanData)
         .eq("id", goalId)
         .eq("organization_id", activeOrgId);
 

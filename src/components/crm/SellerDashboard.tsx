@@ -103,7 +103,29 @@ export function SellerDashboard() {
   const handleCreateOrUpdateGoal = async (goalData: SellerGoalFormData) => {
     try {
       if (editingGoal) {
-        await updateGoal(editingGoal.id, goalData);
+        // Para atualização, remover campos vazios e campos que não devem ser atualizados
+        // NUNCA atualizar user_id, organization_id ou outros campos de identificação
+        const updateData: Partial<SellerGoalFormData> = {
+          period_type: goalData.period_type,
+          period_start: goalData.period_start,
+          period_end: goalData.period_end,
+          target_leads: goalData.target_leads,
+          target_value: goalData.target_value,
+          target_commission: goalData.target_commission,
+        };
+        
+        // Remover campos vazios, nulos ou inválidos
+        Object.keys(updateData).forEach(key => {
+          const value = updateData[key as keyof typeof updateData];
+          if (value === "" || value === null || value === undefined) {
+            delete updateData[key as keyof typeof updateData];
+          }
+        });
+        
+        // Garantir que user_id NUNCA seja enviado na atualização
+        delete (updateData as any).user_id;
+        
+        await updateGoal(editingGoal.id, updateData);
       } else {
         await createGoal({
           ...goalData,

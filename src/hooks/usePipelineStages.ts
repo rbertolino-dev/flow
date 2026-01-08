@@ -30,18 +30,18 @@ export function usePipelineStages() {
       }
 
       if (isMounted) {
-        fetchStages();
+    fetchStages();
       }
 
       // Configurar realtime com filtro por organization_id
       // Usar nome de canal único mas estável (sem timestamp para evitar múltiplos canais)
       channel = supabase
         .channel(`pipeline-stages-${orgId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
             table: 'pipeline_stages',
             filter: `organization_id=eq.${orgId}`
           },
@@ -93,11 +93,13 @@ export function usePipelineStages() {
                 return;
               }
               
-              console.log('🔄 Atualizando etapa via realtime:', {
+              console.log('🔄 Evento UPDATE recebido via realtime:', {
                 id: updatedStage.id,
                 name: updatedStage.name,
                 color: updatedStage.color,
-                position: updatedStage.position
+                position: updatedStage.position,
+                organization_id: updatedStage.organization_id,
+                fullPayload: payload
               });
               
               setStages((prev) => {
@@ -105,24 +107,36 @@ export function usePipelineStages() {
                 if (!stageExists) {
                   console.warn('⚠️ Etapa não encontrada localmente, adicionando:', updatedStage.id);
                   // Se a etapa não existe localmente, adicionar (pode acontecer em edge cases)
-                  return [...prev, {
+                  const newStages = [...prev, {
                     id: updatedStage.id,
                     name: updatedStage.name,
                     color: updatedStage.color || '#3B82F6',
                     position: updatedStage.position ?? prev.length
                   }].sort((a, b) => a.position - b.position);
+                  console.log('✅ Etapa adicionada via realtime (não existia localmente):', updatedStage.name);
+                  return newStages;
                 }
                 
-                const updated = prev.map(s => 
-                  s.id === updatedStage.id ? {
-                    id: updatedStage.id,
-                    name: updatedStage.name || s.name,
-                    color: updatedStage.color || s.color,
-                    position: updatedStage.position ?? s.position
-                  } : s
-                ).sort((a, b) => a.position - b.position);
+                // Atualizar etapa existente - SEMPRE usar valores do payload (não fallback)
+                const updated = prev.map(s => {
+                  if (s.id === updatedStage.id) {
+                    const newStage = {
+                      id: updatedStage.id,
+                      name: updatedStage.name || s.name, // Fallback apenas se name vier null/undefined
+                      color: updatedStage.color || s.color, // Fallback apenas se color vier null/undefined
+                      position: updatedStage.position ?? s.position
+                    };
+                    console.log('🔄 Atualizando etapa local:', {
+                      old: { name: s.name, color: s.color },
+                      new: { name: newStage.name, color: newStage.color }
+                    });
+                    return newStage;
+                  }
+                  return s;
+                }).sort((a, b) => a.position - b.position);
                 
                 console.log('✅ Etapa atualizada via realtime:', updatedStage.name, 'Total:', updated.length);
+                console.log('📊 Estado atualizado:', updated.find(s => s.id === updatedStage.id));
                 return updated;
               });
             } else if (eventType === 'DELETE') {
@@ -141,7 +155,7 @@ export function usePipelineStages() {
               // Fallback: refetch completo para eventos desconhecidos
               console.log('⚠️ Evento desconhecido, fazendo refetch completo:', eventType);
               if (isMounted) {
-                fetchStages();
+          fetchStages();
               }
             }
           }
@@ -167,7 +181,7 @@ export function usePipelineStages() {
       isMounted = false;
       if (channel) {
         console.log('🔌 Desconectando canal realtime de etapas...');
-        supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
       }
     };
   }, []);
@@ -280,34 +294,53 @@ export function usePipelineStages() {
     try {
       // Atualização otimista: atualizar localmente antes da resposta do servidor
       const stageToUpdate = stages.find(s => s.id === id);
+      const oldName = stageToUpdate?.name;
+      const oldColor = stageToUpdate?.color;
+      
+      console.log('📝 Iniciando atualização de etapa:', { id, name: name.trim(), color, oldName, oldColor });
+      
       if (stageToUpdate) {
-        setStages((prev) => 
-          prev.map(s => 
+        // Atualizar imediatamente na UI
+        setStages((prev) => {
+          const updated = prev.map(s => 
             s.id === id 
               ? { ...s, name: name.trim(), color }
               : s
-          )
-        );
+          );
+          console.log('✅ Atualização otimista aplicada:', updated.find(s => s.id === id));
+          return updated;
+        });
       }
 
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('pipeline_stages')
-        .update({ name: name.trim(), color })
-        .eq('id', id);
+        .update({ 
+          name: name.trim(), 
+          color,
+          updated_at: new Date().toISOString() // Forçar atualização do updated_at para garantir que o realtime detecte
+        })
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) {
+        console.error('❌ Erro ao atualizar etapa no servidor:', error);
         // Reverter atualização otimista em caso de erro
-        if (stageToUpdate) {
+        if (stageToUpdate && oldName && oldColor) {
           setStages((prev) => 
             prev.map(s => 
               s.id === id 
-                ? { ...s, name: stageToUpdate.name, color: stageToUpdate.color }
+                ? { ...s, name: oldName, color: oldColor }
                 : s
             )
           );
+          console.log('↩️ Atualização otimista revertida devido a erro');
         }
         throw error;
       }
+
+      console.log('✅ Etapa atualizada no servidor:', data);
+      console.log('⏳ Aguardando evento realtime para confirmar atualização...');
 
       toast({
         title: "Etapa atualizada",
@@ -315,9 +348,10 @@ export function usePipelineStages() {
       });
 
       // Não fazer fetchStages() aqui - o realtime cuidará da atualização
-      // Isso evita sobrescrever a atualização otimista e garante que o realtime funcione
+      // A atualização otimista já foi aplicada, e o realtime confirmará quando receber o evento
       return true;
     } catch (error: any) {
+      console.error('💥 Erro completo ao atualizar etapa:', error);
       toast({
         title: "Erro ao atualizar etapa",
         description: error.message,
