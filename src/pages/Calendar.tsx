@@ -4,10 +4,14 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Settings, BarChart3, FileText } from "lucide-react";
+import { Calendar, Settings, BarChart3, FileText, CheckCircle2, Clock, Link as LinkIcon } from "lucide-react";
 import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
 import { BookedMeetingsReport } from "@/components/calendar/BookedMeetingsReport";
 import { CalendarMessageTemplateManager } from "@/components/calendar/CalendarMessageTemplateManager";
+import { BookingApprovalQueue } from "@/components/calendar/BookingApprovalQueue";
+import { UserAvailabilitySettings } from "@/components/calendar/UserAvailabilitySettings";
+import { BookingTemplatesSettings } from "@/components/calendar/BookingTemplatesSettings";
+import { BookingConfigPanel } from "@/components/calendar/BookingConfigPanel";
 
 export default function CalendarPage() {
   const [activeTab, setActiveTab] = useState("calendar");
@@ -40,6 +44,18 @@ export default function CalendarPage() {
                   <FileText className="h-4 w-4" />
                   Templates
                 </TabsTrigger>
+                <TabsTrigger value="approval" className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Aprovações
+                </TabsTrigger>
+                <TabsTrigger value="availability" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Disponibilidade
+                </TabsTrigger>
+                <TabsTrigger value="booking-config" className="flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  Link Público
+                </TabsTrigger>
                 <TabsTrigger value="integration" className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
                   Integração
@@ -69,6 +85,19 @@ export default function CalendarPage() {
 
               <TabsContent value="templates" className="mt-6">
                 <CalendarMessageTemplateManager />
+              </TabsContent>
+
+              <TabsContent value="approval" className="mt-6">
+                <BookingApprovalQueue />
+              </TabsContent>
+
+              <TabsContent value="availability" className="mt-6">
+                <UserAvailabilitySettings />
+              </TabsContent>
+
+              <TabsContent value="booking-config" className="mt-6 space-y-6">
+                <BookingConfigPanel />
+                <BookingTemplatesSettings />
               </TabsContent>
 
               <TabsContent value="integration" className="mt-6">

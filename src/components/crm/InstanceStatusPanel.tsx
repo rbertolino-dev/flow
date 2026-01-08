@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid } from "lucide-react";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { InstanceDetailDialog } from "./InstanceDetailDialog";
 
 interface Instance {
   id: string;
@@ -13,6 +15,14 @@ interface Instance {
   api_url: string;
   api_key: string | null;
   is_connected: boolean | null;
+  reserve_agent_name?: string | null;
+  guideline?: string | null;
+  daily_dispatch_limit?: number | null;
+  total_dispatch_limit?: number | null;
+  segment?: string | null;
+  segment_start_date?: string | null;
+  segment_end_date?: string | null;
+  is_titular?: boolean | null;
 }
 
 interface InstanceStatusPanelProps {
@@ -20,10 +30,15 @@ interface InstanceStatusPanelProps {
   onRefresh?: () => void;
 }
 
+type ViewMode = "connection" | "segment";
+
 export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances, onRefresh }: InstanceStatusPanelProps) {
   const [statusMap, setStatusMap] = useState<Record<string, { isConnected: boolean | null; checking: boolean; lastCheck?: number }>>({});
   const [checkingAll, setCheckingAll] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("connection");
+  const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
   const checkingRef = useRef<Set<string>>(new Set());
   const lastUpdateRef = useRef<Record<string, boolean>>({});
@@ -328,6 +343,32 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     [instances, statusKeys]
   );
 
+  // Agrupar instâncias por segmento para visualização de segmento
+  const instancesBySegment = useMemo(() => {
+    const grouped: Record<string, Instance[]> = {};
+    instances.forEach(inst => {
+      const segment = inst.segment || "Sem Segmento";
+      if (!grouped[segment]) {
+        grouped[segment] = [];
+      }
+      grouped[segment].push(inst);
+    });
+    return grouped;
+  }, [instances]);
+
+  const handleInstanceClick = (instance: Instance) => {
+    setSelectedInstance(instance);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    setSelectedInstance(null);
+    if (onRefresh) {
+      onRefresh();
+    }
+  };
+
   if (instances.length === 0) {
     return null;
   }
@@ -341,6 +382,27 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
             Status das Instâncias WhatsApp
           </CardTitle>
           <div className="flex items-center gap-2">
+            {/* Botão de alternar visualização */}
+            <div className="flex items-center gap-1 border rounded-md p-1">
+              <Button
+                variant={viewMode === "connection" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("connection")}
+                className="h-7 px-3"
+              >
+                <Wifi className="h-4 w-4 mr-1" />
+                Conexão
+              </Button>
+              <Button
+                variant={viewMode === "segment" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("segment")}
+                className="h-7 px-3"
+              >
+                <LayoutGrid className="h-4 w-4 mr-1" />
+                Segmento
+              </Button>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -367,93 +429,152 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       </CardHeader>
       {!isCollapsed && (
         <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Instâncias Conectadas */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <h3 className="font-semibold text-sm">
-                Conectadas ({connectedInstances.length})
-              </h3>
-            </div>
-            {connectedInstances.length > 0 ? (
-              <div className="space-y-2">
-                {connectedInstances.map(instance => (
-                  <div
-                    key={instance.id}
-                    className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg"
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400 animate-pulse" />
-                      <span className="font-medium text-sm truncate">
-                        {instance.instance_name}
-                      </span>
-                    </div>
-                    <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Conectado
-                    </Badge>
-                  </div>
-                ))}
+        {viewMode === "connection" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Instâncias Conectadas */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <h3 className="font-semibold text-sm">
+                  Conectadas ({connectedInstances.length})
+                </h3>
               </div>
-            ) : (
-              <div className="p-4 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
-                Nenhuma instância conectada
-              </div>
-            )}
-          </div>
-
-          {/* Instâncias Desconectadas */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 mb-3">
-              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-              <h3 className="font-semibold text-sm">
-                Desconectadas ({disconnectedInstances.length})
-              </h3>
-            </div>
-            {disconnectedInstances.length > 0 ? (
-              <div className="space-y-2">
-                {disconnectedInstances.map(instance => {
-                  const status = statusMap[instance.id];
-                  const isChecking = status?.checking || false;
-                  
-                  return (
+              {connectedInstances.length > 0 ? (
+                <div className="space-y-2">
+                  {connectedInstances.map(instance => (
                     <div
                       key={instance.id}
-                      className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg"
+                      onClick={() => handleInstanceClick(instance)}
+                      className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg cursor-pointer hover:bg-green-100 dark:hover:bg-green-950/30 transition-colors"
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="w-2 h-2 rounded-full bg-red-600 dark:bg-red-400" />
+                        <div className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-400 animate-pulse" />
                         <span className="font-medium text-sm truncate">
                           {instance.instance_name}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="destructive">
-                          <WifiOff className="h-3 w-3 mr-1" />
-                          Desconectado
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => checkInstanceStatus(instance, false)}
-                          disabled={isChecking || checkingRef.current.has(instance.id)}
-                          className="h-7 px-2"
-                        >
-                          <RefreshCw className={`h-3 w-3 ${isChecking ? 'animate-spin' : ''}`} />
-                        </Button>
-                      </div>
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Conectado
+                      </Badge>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                  Nenhuma instância conectada
+                </div>
+              )}
+            </div>
+
+            {/* Instâncias Desconectadas */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-3">
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                <h3 className="font-semibold text-sm">
+                  Desconectadas ({disconnectedInstances.length})
+                </h3>
               </div>
-            ) : (
-              <div className="p-4 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
-                Todas as instâncias estão conectadas
-              </div>
-            )}
+              {disconnectedInstances.length > 0 ? (
+                <div className="space-y-2">
+                  {disconnectedInstances.map(instance => {
+                    const status = statusMap[instance.id];
+                    const isChecking = status?.checking || false;
+                    
+                    return (
+                      <div
+                        key={instance.id}
+                        onClick={() => handleInstanceClick(instance)}
+                        className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="w-2 h-2 rounded-full bg-red-600 dark:bg-red-400" />
+                          <span className="font-medium text-sm truncate">
+                            {instance.instance_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="destructive">
+                            <WifiOff className="h-3 w-3 mr-1" />
+                            Desconectado
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              checkInstanceStatus(instance, false);
+                            }}
+                            disabled={isChecking || checkingRef.current.has(instance.id)}
+                            className="h-7 px-2"
+                          >
+                            <RefreshCw className={`h-3 w-3 ${isChecking ? 'animate-spin' : ''}`} />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                  Todas as instâncias estão conectadas
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(instancesBySegment).map(([segment, segmentInstances]) => (
+              <div key={segment} className="space-y-2">
+                <h3 className="font-semibold text-sm text-muted-foreground mb-2">
+                  {segment} ({segmentInstances.length})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {segmentInstances.map(instance => {
+                    const status = statusMap[instance.id];
+                    const isConnected = status?.isConnected === true;
+                    
+                    return (
+                      <div
+                        key={instance.id}
+                        onClick={() => handleInstanceClick(instance)}
+                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                          isConnected
+                            ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-950/30"
+                            : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-950/30"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className={`w-2 h-2 rounded-full ${
+                            isConnected
+                              ? "bg-green-600 dark:bg-green-400 animate-pulse"
+                              : "bg-red-600 dark:bg-red-400"
+                          }`} />
+                          <span className="font-medium text-sm truncate">
+                            {instance.instance_name}
+                          </span>
+                        </div>
+                        <Badge variant={isConnected ? "default" : "destructive"} className={isConnected ? "bg-green-600 hover:bg-green-700" : ""}>
+                          {isConnected ? (
+                            <>
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Conectado
+                            </>
+                          ) : (
+                            <>
+                              <WifiOff className="h-3 w-3 mr-1" />
+                              Desconectado
+                            </>
+                          )}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Resumo */}
         <div className="mt-4 pt-4 border-t">
@@ -493,6 +614,16 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
             </span>
           </div>
         </CardContent>
+      )}
+      
+      {/* Dialog de detalhes da instância */}
+      {selectedInstance && (
+        <InstanceDetailDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          instance={selectedInstance}
+          onUpdate={handleDialogClose}
+        />
       )}
     </Card>
   );
