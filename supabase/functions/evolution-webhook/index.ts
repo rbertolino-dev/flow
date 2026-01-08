@@ -900,10 +900,39 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('💥 Erro no webhook:', error);
+    console.error('💥 Stack trace:', error.stack);
+    console.error('💥 Error details:', {
+      message: error.message,
+      name: error.name,
+      cause: error.cause,
+      // Logar apenas chaves do objeto de erro (não valores sensíveis)
+      errorKeys: Object.keys(error),
+    });
+    
+    // Tentar logar erro no banco (usando service role para garantir)
+    try {
+      await supabaseServiceRole.from('evolution_logs').insert({
+        user_id: null,
+        organization_id: null,
+        instance: 'unknown',
+        event: 'error',
+        level: 'error',
+        message: `Erro no webhook: ${error.message}`,
+        payload: { 
+          errorName: error.name,
+          errorMessage: error.message?.substring(0, 500), // Limitar tamanho
+          errorStack: error.stack?.substring(0, 1000), // Limitar tamanho
+        },
+      });
+    } catch (logError) {
+      console.error('❌ Erro ao tentar logar erro no banco:', logError);
+    }
+    
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        stack: error.stack 
+        success: false,
+        error: error.message || 'Erro interno no servidor',
+        // Não expor stack em produção, mas logar no console
       }),
       { 
         status: 500,
