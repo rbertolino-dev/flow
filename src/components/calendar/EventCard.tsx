@@ -44,19 +44,17 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
     <Card className={`cursor-pointer hover:bg-accent transition-colors ${isCompleted ? 'border-green-500 bg-green-50/50' : ''}`} onClick={onClick}>
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Título do evento - sempre visível no topo */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base leading-tight mb-2 text-foreground pr-2">
-                {event.summary || "Sem título"}
-              </h3>
-              {isCompleted && (
-                <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Realizada
-                </Badge>
-              )}
-            </div>
+          {/* Título do evento - sempre visível no topo com prioridade máxima */}
+          <div className="w-full">
+            <h3 className="font-semibold text-base leading-normal mb-2 text-foreground break-words overflow-wrap-anywhere word-break-normal">
+              {event.summary || "Sem título"}
+            </h3>
+            {isCompleted && (
+              <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300 mt-1">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Realizada
+              </Badge>
+            )}
           </div>
 
           {/* Botões de ação - abaixo do título */}
