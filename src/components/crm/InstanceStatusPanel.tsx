@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder, Plus, Settings, UserPlus } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder, Plus, Settings, UserPlus, TrendingUp } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
@@ -355,6 +355,9 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   // Estado para armazenar disparos por instância
   const [dispatchesByInstance, setDispatchesByInstance] = useState<Record<string, number>>({});
   const [loadingDispatches, setLoadingDispatches] = useState(false);
+  const [totalDispatchesToday, setTotalDispatchesToday] = useState(0);
+  const [dispatchesTrend, setDispatchesTrend] = useState<number | null>(null);
+  const [totalDailyLimit, setTotalDailyLimit] = useState(0);
 
   // Buscar disparos por instância (do dia atual)
   useEffect(() => {
@@ -386,15 +389,43 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
       if (queueError) throw queueError;
 
-      // Contar disparos por instance_id
+      // Contar disparos por instance_id e total
       const counts: Record<string, number> = {};
+      let total = 0;
       queueData?.forEach((item: any) => {
         if (item.instance_id) {
           counts[item.instance_id] = (counts[item.instance_id] || 0) + 1;
+          total++;
         }
       });
 
       setDispatchesByInstance(counts);
+      setTotalDispatchesToday(total);
+
+      // Buscar disparos de ontem para calcular tendência
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const { data: yesterdayData, error: yesterdayError } = await supabase
+        .from("broadcast_queue")
+        .select("id")
+        .eq("status", "sent")
+        .eq("organization_id", orgId)
+        .not("instance_id", "is", null)
+        .gte("sent_at", yesterday.toISOString())
+        .lt("sent_at", today.toISOString());
+
+      if (!yesterdayError && yesterdayData) {
+        const yesterdayTotal = yesterdayData.length;
+        if (yesterdayTotal > 0) {
+          const trend = ((total - yesterdayTotal) / yesterdayTotal) * 100;
+          setDispatchesTrend(trend);
+        } else {
+          setDispatchesTrend(null);
+        }
+      } else {
+        setDispatchesTrend(null);
+      }
     } catch (error: any) {
       console.error("Erro ao buscar disparos:", error);
     } finally {
@@ -414,6 +445,18 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     });
     return grouped;
   }, [instances]);
+
+  // Calcular limite total diário
+  const calculatedTotalDailyLimit = useMemo(() => {
+    return instances.reduce((sum, inst) => {
+      return sum + (inst.daily_dispatch_limit || 0);
+    }, 0);
+  }, [instances]);
+
+  // Atualizar limite total quando instâncias mudarem
+  useEffect(() => {
+    setTotalDailyLimit(calculatedTotalDailyLimit);
+  }, [calculatedTotalDailyLimit]);
 
   const handleInstanceClick = (instance: Instance) => {
     setSelectedInstance(instance);
@@ -445,7 +488,76 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   }
 
   return (
-    <Card className="mb-6">
+    <div className="space-y-6 mb-6">
+      {/* Cards de Indicadores */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card: Instâncias Totais */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              INSTÂNCIAS TOTAIS
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold">{instances.length}</div>
+              <Badge variant="secondary" className="text-xs mb-1">
+                100%
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card: Disparos Hoje */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              DISPAROS HOJE
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold">
+                {loadingDispatches ? (
+                  <span className="text-muted-foreground">...</span>
+                ) : (
+                  totalDispatchesToday.toLocaleString('pt-BR')
+                )}
+              </div>
+              {dispatchesTrend !== null && dispatchesTrend !== 0 && (
+                <div className={`flex items-center gap-1 text-xs mb-1 ${
+                  dispatchesTrend > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  <TrendingUp className={`h-3 w-3 ${dispatchesTrend < 0 ? 'rotate-180' : ''}`} />
+                  <span>
+                    {dispatchesTrend > 0 ? '+' : ''}{dispatchesTrend.toFixed(0)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card: Limite Total Diário */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              LIMITE TOTAL DIÁRIO
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold">
+                {totalDailyLimit.toLocaleString('pt-BR')}
+              </div>
+              <span className="text-xs text-muted-foreground mb-1">Capacidade</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Painel de Instâncias */}
+      <Card className="mb-6">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -799,7 +911,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           }}
         />
       )}
-    </Card>
+      </Card>
+    </div>
   );
 });
 

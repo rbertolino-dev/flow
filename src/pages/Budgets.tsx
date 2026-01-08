@@ -8,7 +8,7 @@ import { BudgetViewer } from '@/components/budgets/BudgetViewer';
 import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
 import { useBudgets } from '@/hooks/useBudgets';
 import { Budget, Service, type Budget as BudgetType } from '@/types/budget';
-import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2 } from 'lucide-react';
+import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
@@ -72,6 +72,7 @@ export default function Budgets() {
   const [budgetExpiresFrom, setBudgetExpiresFrom] = useState<string>('');
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired'>('all');
+  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(true);
   
   // Estados para serviços
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
@@ -480,52 +481,59 @@ export default function Budgets() {
           </TabsList>
 
           <TabsContent value="budgets" className="space-y-6">
-            {/* Indicadores */}
-            {!selectedBudget && (
-              <BudgetIndicators 
-                budgets={budgets} 
-                dateFrom={budgetDateFrom || undefined}
-                dateTo={budgetDateTo || undefined}
-              />
-            )}
-
             {/* Filtros */}
             {!selectedBudget && (
               <Card>
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    {/* Busca */}
-                    <div className="flex gap-4 items-center">
-                      <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                        <Input
-                          placeholder="Buscar por número ou cliente..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10"
-                        />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Filtros</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFiltersExpanded(!filtersExpanded)}
+                    className="h-8 w-8 p-0"
+                  >
+                    {filtersExpanded ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </Button>
+                </CardHeader>
+                {filtersExpanded && (
+                  <CardContent className="pt-2">
+                    <div className="space-y-4">
+                      {/* Busca */}
+                      <div className="flex gap-4 items-center">
+                        <div className="flex-1 relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                          <Input
+                            placeholder="Buscar por número ou cliente..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        {(searchQuery || budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSearchQuery('');
+                              setBudgetClientFilter('all');
+                              setBudgetDateFrom('');
+                              setBudgetDateTo('');
+                              setBudgetExpiresFrom('');
+                              setBudgetExpiresTo('');
+                              setBudgetStatusFilter('all');
+                            }}
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            Limpar Filtros
+                          </Button>
+                        )}
                       </div>
-                      {(searchQuery || budgetClientFilter !== 'all' || budgetDateFrom || budgetDateTo || budgetExpiresFrom || budgetExpiresTo || budgetStatusFilter !== 'all') && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSearchQuery('');
-                            setBudgetClientFilter('all');
-                            setBudgetDateFrom('');
-                            setBudgetDateTo('');
-                            setBudgetExpiresFrom('');
-                            setBudgetExpiresTo('');
-                            setBudgetStatusFilter('all');
-                          }}
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Limpar Filtros
-                        </Button>
-                      )}
-                    </div>
-                    {/* Filtros Avançados */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Filtros Avançados */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="budget-client-filter">Cliente</Label>
                         <Select value={budgetClientFilter} onValueChange={setBudgetClientFilter}>
