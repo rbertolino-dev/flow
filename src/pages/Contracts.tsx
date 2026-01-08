@@ -225,7 +225,8 @@ export default function Contracts() {
       console.log('🔌 Desconectando realtime de assinaturas...');
       supabase.removeChannel(channel);
     };
-  }, [activeOrgId, selectedContract?.id, handleView, refetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrgId, selectedContract?.id]);
 
   const handleSign = (contract: Contract) => {
     setSelectedContract(contract);
