@@ -359,70 +359,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [dispatchesTrend, setDispatchesTrend] = useState<number | null>(null);
   const [totalDailyLimit, setTotalDailyLimit] = useState(0);
 
-  // Buscar disparos por instância (do dia atual) - sempre, não apenas no modo segmento
-  useEffect(() => {
-    if (instances.length > 0) {
-      fetchDispatchesByInstance();
-      
-      // Configurar atualização periódica a cada 10 segundos
-      const interval = setInterval(() => {
-        fetchDispatchesByInstance();
-      }, 10000); // Atualizar a cada 10 segundos
-
-      return () => clearInterval(interval);
-    }
-  }, [instances.length, fetchDispatchesByInstance]);
-
-  // Configurar Realtime para atualizar quando novos disparos são enviados
-  useEffect(() => {
-    let mounted = true;
-    
-    const setupRealtime = async () => {
-      const orgId = await getUserOrganizationId();
-      if (!orgId || !mounted) return;
-
-      // Canal para escutar mudanças na broadcast_queue
-      const channel = supabase
-        .channel(`broadcast_queue_changes_${orgId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'broadcast_queue',
-            filter: `organization_id=eq.${orgId}`,
-          },
-          (payload) => {
-            // Quando um disparo é marcado como "sent", atualizar contadores
-            if (payload.new.status === 'sent' && payload.old.status !== 'sent') {
-              console.log('Disparo enviado detectado via Realtime:', payload);
-              if (mounted) {
-                fetchDispatchesByInstance();
-              }
-            }
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('Subscribed to broadcast_queue changes');
-          }
-        });
-
-      return () => {
-        if (mounted) {
-          supabase.removeChannel(channel);
-        }
-      };
-    };
-
-    const cleanup = setupRealtime();
-    
-    return () => {
-      mounted = false;
-      cleanup.then((cleanupFn) => cleanupFn && cleanupFn());
-    };
-  }, [fetchDispatchesByInstance]);
-
+  // Função para buscar disparos por instância (do dia atual)
   const fetchDispatchesByInstance = useCallback(async () => {
     setLoadingDispatches(true);
     try {
@@ -474,16 +411,16 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
-      const { data: yesterdayData, error: yesterdayError } = await supabase
+      const { data: yesterdayData, error: yesterdayError, count: yesterdayCount } = await supabase
         .from("broadcast_queue")
-        .select("id", { count: 'exact', head: false })
+        .select("id", { count: 'exact' })
         .eq("status", "sent")
         .eq("organization_id", orgId)
         .gte("sent_at", yesterday.toISOString())
         .lt("sent_at", today.toISOString());
 
-      if (!yesterdayError && yesterdayData) {
-        const yesterdayTotal = Array.isArray(yesterdayData) ? yesterdayData.length : 0;
+      if (!yesterdayError) {
+        const yesterdayTotal = yesterdayCount || (Array.isArray(yesterdayData) ? yesterdayData.length : 0);
         if (yesterdayTotal > 0) {
           const trend = ((total - yesterdayTotal) / yesterdayTotal) * 100;
           setDispatchesTrend(trend);
@@ -500,6 +437,67 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       setLoadingDispatches(false);
     }
   }, []);
+
+  // Buscar disparos por instância (do dia atual) - sempre, não apenas no modo segmento
+  useEffect(() => {
+    if (instances.length > 0) {
+      fetchDispatchesByInstance();
+      
+      // Configurar atualização periódica a cada 10 segundos
+      const interval = setInterval(() => {
+        fetchDispatchesByInstance();
+      }, 10000); // Atualizar a cada 10 segundos
+
+      return () => clearInterval(interval);
+    }
+  }, [instances.length, fetchDispatchesByInstance]);
+
+  // Configurar Realtime para atualizar quando novos disparos são enviados
+  useEffect(() => {
+    let mounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    
+    const setupRealtime = async () => {
+      try {
+        const orgId = await getUserOrganizationId();
+        if (!orgId || !mounted) return;
+
+        // Canal para escutar mudanças na broadcast_queue
+        channel = supabase
+          .channel(`broadcast_queue_changes_${orgId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'broadcast_queue',
+              filter: `organization_id=eq.${orgId}`,
+            },
+            (payload) => {
+              // Quando um disparo é marcado como "sent", atualizar contadores
+              if (mounted && payload.new && payload.new.status === 'sent') {
+                const oldStatus = payload.old?.status || null;
+                if (oldStatus !== 'sent') {
+                  fetchDispatchesByInstance();
+                }
+              }
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        console.error('Erro ao configurar Realtime:', error);
+      }
+    };
+
+    setupRealtime();
+    
+    return () => {
+      mounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [fetchDispatchesByInstance]);
 
   // Agrupar instâncias por segmento para visualização de segmento
   const instancesBySegment = useMemo(() => {
