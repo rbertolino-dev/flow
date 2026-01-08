@@ -249,6 +249,14 @@ export const LeadCard = memo(function LeadCard({
             )}
           </div>
 
+          {/* ✅ Instância de origem - sempre visível */}
+          {(instanceName || lead.sourceInstanceName) && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 shrink-0">
+              <Smartphone className="h-2.5 w-2.5 mr-1" />
+              {instanceName || lead.sourceInstanceName || 'WhatsApp'}
+            </Badge>
+          )}
+
           {lead.tags && lead.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
               {lead.tags.map((tag) => (
@@ -459,6 +467,14 @@ export const LeadCard = memo(function LeadCard({
             </div>
           )}
         </div>
+
+        {/* ✅ Instância de origem - sempre visível */}
+        {(instanceName || lead.sourceInstanceName) && (
+          <Badge variant="secondary" className="text-xs px-2 py-1 shrink-0">
+            <Smartphone className="h-3 w-3 mr-1" />
+            {instanceName || lead.sourceInstanceName || 'WhatsApp'}
+          </Badge>
+        )}
 
         {lead.tags && lead.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">

@@ -47,3 +47,4 @@ GROUP BY status;
 
 COMMIT;
 
+

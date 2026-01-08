@@ -23,3 +23,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Comentário
 COMMENT ON FUNCTION public.increment_unread_count(UUID) IS 'Incrementa contador de mensagens não lidas de um lead';
 
+

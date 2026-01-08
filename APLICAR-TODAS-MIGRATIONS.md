@@ -49,3 +49,4 @@ Após aplicar todas as migrations:
 - Se houver erro ao aplicar, verificar se as tabelas existem
 - A migration de leads adiciona colunas se não existirem (não causa erro se já existirem)
 
+

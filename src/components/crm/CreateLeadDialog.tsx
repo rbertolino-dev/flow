@@ -15,6 +15,7 @@ import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { CreateTagDialog } from "@/components/shared/CreateTagDialog";
 import { useTags } from "@/hooks/useTags";
+import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -29,6 +30,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
   const { toast } = useToast();
   const { getActiveProducts, refetch: refetchProducts } = useProducts();
   const { tags, refetch: refetchTags, addTagToLead } = useTags();
+  const { configs } = useEvolutionConfigs();
   const [loading, setLoading] = useState(false);
   const [addToQueue, setAddToQueue] = useState(true);
   const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
@@ -44,6 +46,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     stageId: "",
     notes: "",
     cpfCnpj: "",
+    sourceInstanceId: "", // ✅ Instância de origem
   });
 
   // Resetar formulário quando o dialog abrir ou quando stages mudar
@@ -58,12 +61,14 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         productId: "",
         stageId: stages[0]?.id || "",
         notes: "",
+        cpfCnpj: "",
+        sourceInstanceId: configs?.[0]?.id || "", // ✅ Primeira instância como padrão
       });
       setSelectedTagIds([]);
       setAddToQueue(true);
       setLoading(false);
     }
-  }, [open, stages]);
+  }, [open, stages, configs]);
 
   const activeProducts = getActiveProducts();
 
@@ -115,6 +120,10 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         ? parseFloat(formData.value) 
         : (selectedProduct ? selectedProduct.price : null);
 
+      // ✅ Buscar nome da instância selecionada
+      const selectedInstance = configs?.find(c => c.id === formData.sourceInstanceId);
+      const instanceName = selectedInstance?.instance_name || null;
+
       const { data: leadId, error } = await supabase
         .rpc('create_lead_secure', {
           p_org_id: organizationId,
@@ -127,6 +136,17 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           p_notes: formData.notes || null,
           p_source: 'manual',
         });
+
+      // ✅ Atualizar instância de origem após criar lead
+      if (leadId && formData.sourceInstanceId) {
+        await supabase
+          .from('leads')
+          .update({
+            source_instance_id: formData.sourceInstanceId,
+            source_instance_name: instanceName,
+          })
+          .eq('id', leadId);
+      }
 
       if (error) throw error;
 
@@ -211,6 +231,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         stageId: stages[0]?.id || "",
         notes: "",
         cpfCnpj: "",
+        sourceInstanceId: configs?.[0]?.id || "",
       });
       setSelectedTagIds([]);
       setAddToQueue(true);
@@ -283,6 +304,31 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               placeholder="Nome da empresa"
             />
           </div>
+
+          {/* ✅ Campo de instância de origem */}
+          {configs && configs.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="sourceInstanceId">Instância de Origem *</Label>
+              <Select
+                value={formData.sourceInstanceId || configs[0]?.id || ""}
+                onValueChange={(value) => setFormData({ ...formData, sourceInstanceId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  {configs.map((config) => (
+                    <SelectItem key={config.id} value={config.id}>
+                      {config.instance_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Instância do WhatsApp que será associada a este contato
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="cpfCnpj">CPF/CNPJ</Label>

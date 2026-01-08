@@ -73,3 +73,4 @@ WHERE schemaname = 'public'
   AND tablename IN ('facebook_configs', 'evolution_logs', 'leads')
 ORDER BY tablename;
 
+

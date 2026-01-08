@@ -38,3 +38,4 @@ CREATE POLICY "broadcast_campaigns_delete_org_members"
 COMMENT ON POLICY "broadcast_campaigns_delete_org_members" ON public.broadcast_campaigns IS 
   'Permite que membros da organização deletem campanhas da sua organização. Super admins podem deletar qualquer campanha.';
 
+

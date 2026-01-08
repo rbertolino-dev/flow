@@ -96,3 +96,4 @@ echo "   1. supabase/migrations/20260106000001_fix_evolution_logs_rls.sql"
 echo "   2. supabase/migrations/20260106000002_fix_facebook_configs_rls.sql"
 echo "   3. supabase/migrations/20260106000003_fix_leads_unread_columns.sql"
 
+

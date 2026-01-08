@@ -309,6 +309,7 @@ export function useLeads() {
             }
           })() : undefined,
           sourceInstanceId: lead.source_instance_id || undefined,
+          sourceInstanceName: lead.source_instance_name || undefined,
           notes: lead.notes || undefined,
           stageId: lead.stage_id || undefined,
           excluded_from_funnel: lead.excluded_from_funnel ?? false,

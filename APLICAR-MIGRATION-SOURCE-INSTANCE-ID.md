@@ -63,3 +63,4 @@ Após aplicar a migration:
 - Detecta automaticamente o nome correto da tabela de referência
 - Não causa erro se as colunas já existirem
 
+

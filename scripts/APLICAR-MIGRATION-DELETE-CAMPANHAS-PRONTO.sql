@@ -52,3 +52,4 @@ FROM pg_policies
 WHERE tablename = 'broadcast_campaigns'
   AND policyname = 'broadcast_campaigns_delete_org_members';
 
+

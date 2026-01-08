@@ -113,3 +113,4 @@ BEGIN
   RAISE NOTICE '✅ Schema cache será atualizado automaticamente';
 END $$;
 
+
