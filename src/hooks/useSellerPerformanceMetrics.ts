@@ -66,12 +66,34 @@ export function useSellerPerformanceMetrics({
   return useMemo(() => {
     const metrics: SellerPerformanceMetrics[] = performance.map((perf) => {
       // Buscar meta atual do vendedor
+      // Encontra a meta que está ativa no período calculado
       const currentGoal = goals.find(
-        (goal) =>
-          goal.user_id === perf.sellerId &&
-          goal.period_type === periodType &&
-          new Date(goal.period_start) <= periodStart &&
-          new Date(goal.period_end) >= periodEnd
+        (goal) => {
+          // Verificar se é do mesmo vendedor e tipo de período
+          if (goal.user_id !== perf.sellerId || goal.period_type !== periodType) {
+            return false;
+          }
+          
+          // Converter datas para comparar apenas a parte de data (sem hora)
+          const goalStart = new Date(goal.period_start);
+          goalStart.setHours(0, 0, 0, 0);
+          const goalEnd = new Date(goal.period_end);
+          goalEnd.setHours(23, 59, 59, 999);
+          
+          const periodStartDate = new Date(periodStart);
+          periodStartDate.setHours(0, 0, 0, 0);
+          const periodEndDate = new Date(periodEnd);
+          periodEndDate.setHours(23, 59, 59, 999);
+          
+          // A meta está ativa se o período calculado está dentro do período da meta
+          // Ou seja: o início do período calculado está dentro da meta E o fim também
+          // OU a meta cobre completamente o período calculado
+          const periodStartInGoal = periodStartDate >= goalStart && periodStartDate <= goalEnd;
+          const periodEndInGoal = periodEndDate >= goalStart && periodEndDate <= goalEnd;
+          const goalCoversPeriod = goalStart <= periodStartDate && goalEnd >= periodEndDate;
+          
+          return periodStartInGoal && periodEndInGoal || goalCoversPeriod;
+        }
       );
 
       // Buscar comissão do vendedor

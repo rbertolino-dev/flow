@@ -86,24 +86,43 @@ export function usePipelineStages() {
                 return updated;
               });
             } else if (eventType === 'UPDATE') {
-              // Etapa atualizada - atualizar otimisticamente
+              // Etapa atualizada - atualizar imediatamente
               const updatedStage = payload.new;
               if (!updatedStage || !updatedStage.id) {
                 console.error('❌ Payload UPDATE inválido:', payload);
                 return;
               }
               
+              console.log('🔄 Atualizando etapa via realtime:', {
+                id: updatedStage.id,
+                name: updatedStage.name,
+                color: updatedStage.color,
+                position: updatedStage.position
+              });
+              
               setStages((prev) => {
+                const stageExists = prev.find(s => s.id === updatedStage.id);
+                if (!stageExists) {
+                  console.warn('⚠️ Etapa não encontrada localmente, adicionando:', updatedStage.id);
+                  // Se a etapa não existe localmente, adicionar (pode acontecer em edge cases)
+                  return [...prev, {
+                    id: updatedStage.id,
+                    name: updatedStage.name,
+                    color: updatedStage.color || '#3B82F6',
+                    position: updatedStage.position ?? prev.length
+                  }].sort((a, b) => a.position - b.position);
+                }
+                
                 const updated = prev.map(s => 
                   s.id === updatedStage.id ? {
                     id: updatedStage.id,
-                    name: updatedStage.name,
+                    name: updatedStage.name || s.name,
                     color: updatedStage.color || s.color,
                     position: updatedStage.position ?? s.position
                   } : s
                 ).sort((a, b) => a.position - b.position);
                 
-                console.log('✅ Etapa atualizada via realtime:', updatedStage.name);
+                console.log('✅ Etapa atualizada via realtime:', updatedStage.name, 'Total:', updated.length);
                 return updated;
               });
             } else if (eventType === 'DELETE') {
@@ -259,19 +278,44 @@ export function usePipelineStages() {
 
   const updateStage = async (id: string, name: string, color: string) => {
     try {
+      // Atualização otimista: atualizar localmente antes da resposta do servidor
+      const stageToUpdate = stages.find(s => s.id === id);
+      if (stageToUpdate) {
+        setStages((prev) => 
+          prev.map(s => 
+            s.id === id 
+              ? { ...s, name: name.trim(), color }
+              : s
+          )
+        );
+      }
+
       const { error } = await (supabase as any)
         .from('pipeline_stages')
-        .update({ name, color })
+        .update({ name: name.trim(), color })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        // Reverter atualização otimista em caso de erro
+        if (stageToUpdate) {
+          setStages((prev) => 
+            prev.map(s => 
+              s.id === id 
+                ? { ...s, name: stageToUpdate.name, color: stageToUpdate.color }
+                : s
+            )
+          );
+        }
+        throw error;
+      }
 
       toast({
         title: "Etapa atualizada",
         description: "Etapa atualizada com sucesso.",
       });
 
-      await fetchStages();
+      // Não fazer fetchStages() aqui - o realtime cuidará da atualização
+      // Isso evita sobrescrever a atualização otimista e garante que o realtime funcione
       return true;
     } catch (error: any) {
       toast({

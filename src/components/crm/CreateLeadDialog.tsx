@@ -181,10 +181,22 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
       }
 
       // Adicionar tags selecionadas ao lead
+      // Aguardar um pouco para garantir que o lead está totalmente commitado no banco
       if (selectedTagIds.length > 0 && leadId) {
-        await Promise.all(
+        // Pequeno delay para garantir que o lead está disponível para RLS
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Adicionar tags uma por uma para melhor tratamento de erros
+        const tagResults = await Promise.allSettled(
           selectedTagIds.map(tagId => addTagToLead(leadId as string, tagId))
         );
+        
+        // Verificar se alguma tag falhou
+        const failedTags = tagResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success));
+        if (failedTags.length > 0) {
+          console.warn('⚠️ Algumas tags não puderam ser adicionadas:', failedTags);
+          // Não bloquear criação do lead por erro ao adicionar tags
+        }
       }
 
       // Opcionalmente adicionar à fila de ligações

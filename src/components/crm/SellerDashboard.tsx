@@ -76,6 +76,20 @@ export function SellerDashboard() {
   const currentMetric = metrics.find((m) => m.sellerId === currentUserId) || metrics[0];
   const currentGoal = currentMetric?.currentGoal;
   
+  // Debug: Log para verificar se a meta está sendo encontrada
+  useEffect(() => {
+    if (currentUserId && goals.length > 0) {
+      console.log('🔍 Debug Meta de Valor:', {
+        currentUserId,
+        periodType,
+        goalsCount: goals.length,
+        userGoals: goals.filter(g => g.user_id === currentUserId),
+        currentGoal,
+        currentMetric,
+      });
+    }
+  }, [currentUserId, periodType, goals, currentGoal, currentMetric]);
+  
   // Filtrar metas do vendedor atual
   const userGoals = goals.filter(goal => goal.user_id === currentUserId);
 
@@ -264,16 +278,32 @@ export function SellerDashboard() {
             <div className="text-2xl font-bold">
               {formatCurrency(currentMetric.actualValue)}
             </div>
-            <div className="text-sm text-muted-foreground mt-1">
-              Meta: {formatCurrency(currentGoal?.target_value || 0)}
-            </div>
-            <Progress
-              value={Math.min(currentMetric.valueProgress, 100)}
-              className="mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {currentMetric.valueProgress.toFixed(1)}% concluído
-            </p>
+            {currentGoal ? (
+              <>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Meta: {formatCurrency(currentGoal.target_value)}
+                </div>
+                <Progress
+                  value={Math.min(currentMetric.valueProgress, 100)}
+                  className="mt-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {currentMetric.valueProgress.toFixed(1)}% concluído
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Período: {format(new Date(currentGoal.period_start), "dd/MM/yyyy", { locale: ptBR })} até {format(new Date(currentGoal.period_end), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground mt-1">
+                <p className="text-amber-600 dark:text-amber-400">
+                  Nenhuma meta definida para este período
+                </p>
+                <p className="text-xs mt-1">
+                  Clique em "Definir Meta" para criar uma meta de valor
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -568,6 +598,7 @@ function GoalForm({
   onSubmit: (data: SellerGoalFormData) => void;
   onCancel: () => void;
 }) {
+  const [selectedPeriodType, setSelectedPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>(periodType);
   const [formData, setFormData] = useState<SellerGoalFormData>({
     user_id: "",
     period_type: periodType,
@@ -577,7 +608,33 @@ function GoalForm({
     target_value: goal?.target_value || 0,
     target_commission: goal?.target_commission || 0,
   });
-  const [selectedPeriodType, setSelectedPeriodType] = useState<'monthly' | 'weekly' | 'quarterly' | 'yearly'>(periodType);
+
+  // Atualizar formData quando goal mudar
+  useEffect(() => {
+    if (goal) {
+      setFormData({
+        user_id: goal.user_id || "",
+        period_type: goal.period_type || periodType,
+        period_start: goal.period_start || "",
+        period_end: goal.period_end || "",
+        target_leads: goal.target_leads || 0,
+        target_value: goal.target_value || 0,
+        target_commission: goal.target_commission || 0,
+      });
+      setSelectedPeriodType(goal.period_type || periodType);
+    } else {
+      // Resetar para valores padrão quando não há meta
+      setFormData({
+        user_id: "",
+        period_type: periodType,
+        period_start: "",
+        period_end: "",
+        target_leads: 0,
+        target_value: 0,
+        target_commission: 0,
+      });
+    }
+  }, [goal, periodType]);
 
   useEffect(() => {
     // Calcular período baseado no tipo selecionado
