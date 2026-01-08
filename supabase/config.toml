@@ -266,3 +266,16 @@ verify_jwt = true
 # ========== Contratos ==========
 [functions.send-contract-reminder]
 verify_jwt = false
+
+# ========== Agendamento Público ==========
+[functions.get-availability]
+verify_jwt = false
+
+[functions.create-booking-request]
+verify_jwt = false
+
+[functions.approve-booking]
+verify_jwt = true
+
+[functions.send-booking-confirmation]
+verify_jwt = false
