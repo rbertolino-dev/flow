@@ -32,14 +32,24 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
         return;
       }
 
+      // ✅ CORREÇÃO: Buscar por organization_id ao invés de user_id
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        console.log('⚠️ Organização não encontrada');
+        return;
+      }
+
       const { data: config, error: configError } = await (supabase as any)
         .from('evolution_config')
         .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .eq('organization_id', orgId)
+        .eq('is_connected', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
       if (configError || !config) {
-        console.log('⚠️ Configuração Evolution não encontrada');
+        console.log('⚠️ Configuração Evolution não encontrada ou desconectada');
         return;
       }
 
@@ -96,13 +106,17 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
                                   '[Mensagem de mídia]';
             const contactName = msg.pushName || phoneNumber;
 
-            // Verificar se já existe lead
+            // ✅ CORREÇÃO: Verificar se já existe lead por organization_id
+            const orgId = await getUserOrganizationId();
+            if (!orgId) continue;
+            
             const { data: existingLead } = await (supabase as any)
               .from('leads')
               .select('id')
               .eq('phone', phoneNumber)
-              .eq('user_id', user.id)
-              .single();
+              .eq('organization_id', orgId)
+              .is('deleted_at', null)
+              .maybeSingle();
 
             if (!existingLead) {
               // Criar novo lead
