@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -152,6 +152,16 @@ export default function Contracts() {
     }
   }, []);
 
+  // Usar refs para armazenar funções que podem mudar
+  const refetchRef = useRef(refetch);
+  const handleViewRef = useRef(handleView);
+  
+  // Atualizar refs quando funções mudarem
+  useEffect(() => {
+    refetchRef.current = refetch;
+    handleViewRef.current = handleView;
+  }, [refetch, handleView]);
+
   // Carregar estatísticas do mês
   useEffect(() => {
     if (!activeOrgId) return;
@@ -212,10 +222,10 @@ export default function Contracts() {
         (payload) => {
           console.log('🔄 Realtime: Assinatura de contrato alterada', payload);
           // Refetch contratos para atualizar a lista
-          refetch();
+          refetchRef.current();
           // Se houver um contrato selecionado, atualizar também
           if (selectedContract) {
-            handleView(selectedContract);
+            handleViewRef.current(selectedContract);
           }
         }
       )
@@ -225,7 +235,7 @@ export default function Contracts() {
       console.log('🔌 Desconectando realtime de assinaturas...');
       supabase.removeChannel(channel);
     };
-  }, [activeOrgId, selectedContract?.id, refetch, handleView]);
+  }, [activeOrgId, selectedContract?.id]);
 
   const handleSign = (contract: Contract) => {
     setSelectedContract(contract);
