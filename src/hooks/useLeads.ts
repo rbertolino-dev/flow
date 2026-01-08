@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,160 @@ export function useLeads() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
+
+  const fetchLeads = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setLeads([]);
+        toast({
+          title: "Você não está autenticado",
+          description: "Faça login para visualizar seus leads conectados.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Usar a organização ativa do contexto
+      if (!activeOrgId) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      // ✅ RESILIENTE: Tenta query completa, se falhar usa fallback sem colunas opcionais
+      let leadsData: any[] | null = null;
+      let leadsError: any = null;
+
+      // Primeira tentativa: query completa com excluded_from_funnel
+      const result1 = await (supabase as any)
+        .from('leads')
+        .select('*')
+        .eq('organization_id', activeOrgId)
+        .is('deleted_at', null)
+        .eq('excluded_from_funnel', false)
+        .order('created_at', { ascending: false });
+
+      if (result1.error) {
+        // Se erro de coluna não existir, tenta sem o filtro
+        if (result1.error.message?.includes('does not exist') || 
+            result1.error.code === '42703') {
+          console.warn('⚠️ Coluna excluded_from_funnel não existe, usando fallback...');
+          const result2 = await (supabase as any)
+            .from('leads')
+            .select('*')
+            .eq('organization_id', activeOrgId)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false });
+          
+          leadsData = result2.data;
+          leadsError = result2.error;
+        } else {
+          leadsError = result1.error;
+        }
+      } else {
+        leadsData = result1.data;
+      }
+
+      if (leadsError) throw leadsError;
+
+      // ✅ OTIMIZAÇÃO: Buscar activities e tags em batch (evita N+1 queries)
+      const leadIds = (leadsData || []).map(l => l.id);
+      
+      if (leadIds.length === 0) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+      
+      // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
+      const [activitiesResult, tagsResult] = await Promise.all([
+        (supabase as any)
+          .from('activities')
+          .select('*')
+          .in('lead_id', leadIds)
+          .order('created_at', { ascending: false })
+          .limit(leadIds.length * 5),
+        (supabase as any)
+          .from('lead_tags')
+          .select('lead_id, tag_id, tags(id, name, color)')
+          .in('lead_id', leadIds)
+      ]);
+
+      const allActivities = activitiesResult.data || [];
+      const allLeadTags = tagsResult.data || [];
+
+      // ✅ OTIMIZAÇÃO: Group by lead_id e limitar a 5 activities por lead
+      const activitiesByLead = allActivities.reduce((acc, act) => {
+        if (!acc[act.lead_id]) acc[act.lead_id] = [];
+        if (acc[act.lead_id].length < 5) {
+          acc[act.lead_id].push(act);
+        }
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      const tagsByLead = allLeadTags.reduce((acc, lt) => {
+        if (!acc[lt.lead_id]) acc[lt.lead_id] = [];
+        acc[lt.lead_id].push(lt);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Map leads with their activities and tags
+      const leadsWithActivities = (leadsData || []).map((lead) => {
+        const activities = activitiesByLead[lead.id] || [];
+        const leadTags = tagsByLead[lead.id] || [];
+
+        const statusRaw = (lead.status || '').toLowerCase();
+        const statusMap: Record<string, LeadStatus> = { new: 'novo' };
+        const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
+        return {
+          id: lead.id,
+          name: lead.name,
+          phone: lead.phone,
+          email: lead.email || undefined,
+          company: lead.company || undefined,
+          value: lead.value || undefined,
+          status: mappedStatus,
+          source: lead.source || 'WhatsApp',
+          assignedTo: lead.assigned_to || 'Não atribuído',
+          lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
+          createdAt: new Date(lead.created_at!),
+          returnDate: lead.return_date ? (() => {
+            try {
+              const date = new Date(lead.return_date);
+              return isNaN(date.getTime()) ? undefined : date;
+            } catch {
+              return undefined;
+            }
+          })() : undefined,
+          sourceInstanceId: lead.source_instance_id || undefined,
+          sourceInstanceName: lead.source_instance_name || undefined,
+          notes: lead.notes || undefined,
+          stageId: lead.stage_id || undefined,
+          excluded_from_funnel: lead.excluded_from_funnel ?? false,
+          activities: (activities || []).map((a) => ({
+            id: a.id,
+            type: a.type as Activity['type'],
+            content: a.content,
+            timestamp: new Date(a.created_at!),
+            user: a.user_name || 'Sistema',
+          })),
+          tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
+        } as Lead;
+      });
+
+      setLeads(leadsWithActivities);
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar leads:', error);
+      toast({
+        title: "Erro ao carregar leads",
+        description: error.message || "Tente recarregar a página",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrgId, toast]);
 
   useEffect(() => {
     if (activeOrgId) {
@@ -212,169 +366,7 @@ export function useLeads() {
         }
       }
     };
-  }, [toast, activeOrgId]);
-
-  const fetchLeads = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setLeads([]);
-        toast({
-          title: "Você não está autenticado",
-          description: "Faça login para visualizar seus leads conectados.",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Usar a organização ativa do contexto
-      if (!activeOrgId) {
-        setLeads([]);
-        setLoading(false);
-        return;
-      }
-
-      // ✅ RESILIENTE: Tenta query completa, se falhar usa fallback sem colunas opcionais
-      let leadsData: any[] | null = null;
-      let leadsError: any = null;
-
-      // Primeira tentativa: query completa com excluded_from_funnel
-      const result1 = await (supabase as any)
-        .from('leads')
-        .select('*')
-        .eq('organization_id', activeOrgId)
-        .is('deleted_at', null)
-        .eq('excluded_from_funnel', false)
-        .order('created_at', { ascending: false });
-
-      if (result1.error) {
-        // Se erro de coluna não existir, tenta sem o filtro
-        if (result1.error.message?.includes('does not exist') || 
-            result1.error.code === '42703') {
-          console.warn('⚠️ Coluna excluded_from_funnel não existe, usando fallback...');
-          const result2 = await (supabase as any)
-            .from('leads')
-            .select('*')
-            .eq('organization_id', activeOrgId)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: false });
-          
-          leadsData = result2.data;
-          leadsError = result2.error;
-        } else {
-          leadsError = result1.error;
-        }
-      } else {
-        leadsData = result1.data;
-      }
-
-      if (leadsError) throw leadsError;
-
-      // ✅ OTIMIZAÇÃO: Buscar activities e tags em batch (evita N+1 queries)
-      const leadIds = (leadsData || []).map(l => l.id);
-      
-      if (leadIds.length === 0) {
-        setLeads([]);
-        setLoading(false);
-        return;
-      }
-      
-      // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
-      // Usar subquery para pegar apenas as últimas activities de cada lead
-      // Isso reduz drasticamente a quantidade de dados carregados
-      const [activitiesResult, tagsResult] = await Promise.all([
-        // Buscar activities com limite por lead usando window function
-        // Como Supabase não suporta window functions diretamente, vamos buscar todas
-        // mas limitar no processamento (mais eficiente que N queries)
-        (supabase as any)
-          .from('activities')
-          .select('*')
-          .in('lead_id', leadIds)
-          .order('created_at', { ascending: false })
-          .limit(leadIds.length * 5), // Limite máximo: 5 activities por lead
-        (supabase as any)
-          .from('lead_tags')
-          .select('lead_id, tag_id, tags(id, name, color)')
-          .in('lead_id', leadIds)
-      ]);
-
-      const allActivities = activitiesResult.data || [];
-      const allLeadTags = tagsResult.data || [];
-
-      // ✅ OTIMIZAÇÃO: Group by lead_id e limitar a 5 activities por lead
-      const activitiesByLead = allActivities.reduce((acc, act) => {
-        if (!acc[act.lead_id]) acc[act.lead_id] = [];
-        // Limitar a 5 activities por lead (já ordenadas por created_at desc)
-        if (acc[act.lead_id].length < 5) {
-          acc[act.lead_id].push(act);
-        }
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      const tagsByLead = allLeadTags.reduce((acc, lt) => {
-        if (!acc[lt.lead_id]) acc[lt.lead_id] = [];
-        acc[lt.lead_id].push(lt);
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      // Map leads with their activities and tags
-      const leadsWithActivities = (leadsData || []).map((lead) => {
-        const activities = activitiesByLead[lead.id] || [];
-        const leadTags = tagsByLead[lead.id] || [];
-
-        const statusRaw = (lead.status || '').toLowerCase();
-        const statusMap: Record<string, LeadStatus> = { new: 'novo' };
-        const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
-        return {
-          id: lead.id,
-          name: lead.name,
-          phone: lead.phone,
-          email: lead.email || undefined,
-          company: lead.company || undefined,
-          value: lead.value || undefined,
-          status: mappedStatus,
-          source: lead.source || 'WhatsApp',
-          assignedTo: lead.assigned_to || 'Não atribuído',
-          lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
-          createdAt: new Date(lead.created_at!),
-          returnDate: lead.return_date ? (() => {
-            try {
-              const date = new Date(lead.return_date);
-              return isNaN(date.getTime()) ? undefined : date;
-            } catch {
-              return undefined;
-            }
-          })() : undefined,
-          sourceInstanceId: lead.source_instance_id || undefined,
-          sourceInstanceName: lead.source_instance_name || undefined,
-          notes: lead.notes || undefined,
-          stageId: lead.stage_id || undefined,
-          excluded_from_funnel: lead.excluded_from_funnel ?? false,
-          activities: (activities || []).map((a) => ({
-            id: a.id,
-            type: a.type as Activity['type'],
-            content: a.content,
-            timestamp: new Date(a.created_at!),
-            user: a.user_name || 'Sistema',
-          })),
-          tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
-        } as Lead;
-      });
-
-      setLeads(leadsWithActivities);
-    } catch (error: any) {
-      console.error('❌ Erro ao carregar leads:', error);
-      toast({
-        title: "Erro ao carregar leads",
-        description: error.message || "Tente recarregar a página",
-        variant: "destructive",
-      });
-      // Em caso de erro, mantém os leads existentes ao invés de limpar
-      // setLeads([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [toast, activeOrgId, fetchLeads]);
 
   const updateLeadStatus = async (leadId: string, newStageId: string) => {
     try {
