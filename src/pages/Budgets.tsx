@@ -602,7 +602,17 @@ export default function Budgets() {
                     </div>
                   </div>
                 </CardContent>
+                )}
               </Card>
+            )}
+
+            {/* Indicadores */}
+            {!selectedBudget && (
+              <BudgetIndicators 
+                budgets={budgets} 
+                dateFrom={budgetDateFrom || undefined}
+                dateTo={budgetDateTo || undefined}
+              />
             )}
 
             {/* Lista ou Visualização */}
