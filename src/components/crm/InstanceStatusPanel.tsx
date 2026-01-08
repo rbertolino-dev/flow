@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -343,6 +344,56 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     [instances, statusKeys]
   );
 
+  // Estado para armazenar disparos por instância
+  const [dispatchesByInstance, setDispatchesByInstance] = useState<Record<string, number>>({});
+  const [loadingDispatches, setLoadingDispatches] = useState(false);
+
+  // Buscar disparos por instância (do dia atual)
+  useEffect(() => {
+    if (viewMode === "segment" && instances.length > 0) {
+      fetchDispatchesByInstance();
+    }
+  }, [viewMode, instances.length]);
+
+  const fetchDispatchesByInstance = async () => {
+    setLoadingDispatches(true);
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Buscar disparos do dia atual diretamente por instance_id
+      const { data: queueData, error: queueError } = await supabase
+        .from("broadcast_queue")
+        .select("instance_id")
+        .eq("status", "sent")
+        .eq("organization_id", orgId)
+        .not("instance_id", "is", null)
+        .gte("sent_at", today.toISOString())
+        .lt("sent_at", tomorrow.toISOString());
+
+      if (queueError) throw queueError;
+
+      // Contar disparos por instance_id
+      const counts: Record<string, number> = {};
+      queueData?.forEach((item: any) => {
+        if (item.instance_id) {
+          counts[item.instance_id] = (counts[item.instance_id] || 0) + 1;
+        }
+      });
+
+      setDispatchesByInstance(counts);
+    } catch (error: any) {
+      console.error("Erro ao buscar disparos:", error);
+    } finally {
+      setLoadingDispatches(false);
+    }
+  };
+
   // Agrupar instâncias por segmento para visualização de segmento
   const instancesBySegment = useMemo(() => {
     const grouped: Record<string, Instance[]> = {};
@@ -400,7 +451,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                 className="h-7 px-3"
               >
                 <LayoutGrid className="h-4 w-4 mr-1" />
-                Segmento
+                Planilha / Segmentos
               </Button>
             </div>
             <Button
@@ -523,56 +574,82 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            {Object.entries(instancesBySegment).map(([segment, segmentInstances]) => (
-              <div key={segment} className="space-y-2">
-                <h3 className="font-semibold text-sm text-muted-foreground mb-2">
-                  {segment} ({segmentInstances.length})
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {segmentInstances.map(instance => {
-                    const status = statusMap[instance.id];
-                    const isConnected = status?.isConnected === true;
-                    
-                    return (
-                      <div
-                        key={instance.id}
-                        onClick={() => handleInstanceClick(instance)}
-                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                          isConnected
-                            ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-950/30"
-                            : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-950/30"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className={`w-2 h-2 rounded-full ${
-                            isConnected
-                              ? "bg-green-600 dark:bg-green-400 animate-pulse"
-                              : "bg-red-600 dark:bg-red-400"
-                          }`} />
-                          <span className="font-medium text-sm truncate">
-                            {instance.instance_name}
-                          </span>
-                        </div>
-                        <Badge variant={isConnected ? "default" : "destructive"} className={isConnected ? "bg-green-600 hover:bg-green-700" : ""}>
-                          {isConnected ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Conectado
-                            </>
-                          ) : (
-                            <>
-                              <WifiOff className="h-3 w-3 mr-1" />
-                              Desconectado
-                            </>
-                          )}
-                        </Badge>
-                      </div>
-                    );
-                  })}
+          <div className="space-y-6">
+            {Object.entries(instancesBySegment).map(([segment, segmentInstances]) => {
+              return (
+                <div key={segment} className="border rounded-lg overflow-hidden">
+                  {/* Cabeçalho do Segmento */}
+                  <div className="flex items-center justify-between p-4 bg-muted/50 border-b">
+                    <div className="flex items-center gap-2">
+                      <Folder className="h-5 w-5 text-muted-foreground" />
+                      <h3 className="font-semibold text-base">{segment}</h3>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {segmentInstances.length} Instância{segmentInstances.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  {/* Tabela de Instâncias */}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-20">STATUS</TableHead>
+                          <TableHead>TITULAR</TableHead>
+                          <TableHead>RESERVA</TableHead>
+                          <TableHead className="text-right">DISPAROS/LIMITE</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {segmentInstances.map(instance => {
+                          const status = statusMap[instance.id];
+                          const isConnected = status?.isConnected === true;
+                          const dispatchCount = dispatchesByInstance[instance.id] || 0;
+                          const limit = instance.daily_dispatch_limit || instance.total_dispatch_limit || 0;
+                          
+                          // Se é titular, mostra o nome da instância como titular e o agente reserva
+                          // Se não é titular, mostra como reserva de outra instância
+                          const titularName = instance.instance_name;
+                          const reserveName = instance.reserve_agent_name || "-";
+
+                          return (
+                            <TableRow
+                              key={instance.id}
+                              onClick={() => handleInstanceClick(instance)}
+                              className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            >
+                              <TableCell>
+                                <div className={`w-3 h-3 rounded-full ${
+                                  isConnected
+                                    ? "bg-green-600 dark:bg-green-400"
+                                    : "bg-red-600 dark:bg-red-400"
+                                }`} />
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {titularName}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {reserveName}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {loadingDispatches ? (
+                                  <span className="text-muted-foreground">...</span>
+                                ) : (
+                                  <span>
+                                    <strong>{dispatchCount.toLocaleString('pt-BR')}</strong>
+                                    {limit > 0 && ` / ${limit.toLocaleString('pt-BR')}`}
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

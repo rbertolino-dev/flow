@@ -46,6 +46,7 @@ import SignContract from "./pages/SignContract";
 import Budgets from "./pages/Budgets";
 import Employees from "./pages/Employees";
 import PublicSurvey from "./pages/PublicSurvey";
+import PublicBooking from "./pages/PublicBooking";
 import DigitalContracts from "./pages/DigitalContracts";
 import DigitalContractsNew from "./pages/DigitalContractsNew";
 import DigitalContractView from "./pages/DigitalContractView";
@@ -125,6 +126,7 @@ const App = () => {
             <Route path="/reconnect/:notificationId" element={<ReconnectInstance />} />
             <Route path="/reconnect-instance/:instanceId" element={<ReconnectInstance />} />
             <Route path="/survey/:slug" element={<PublicSurvey />} />
+            <Route path="/book/:organizationSlug" element={<PublicBooking />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>

@@ -109,6 +109,7 @@ ALTER TABLE public.booking_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.booking_templates ENABLE ROW LEVEL SECURITY;
 
 -- Policies para organization_booking_configs
+DROP POLICY IF EXISTS "Organization booking config: members can select" ON public.organization_booking_configs;
 CREATE POLICY "Organization booking config: members can select"
   ON public.organization_booking_configs
   FOR SELECT
@@ -123,11 +124,13 @@ CREATE POLICY "Organization booking config: members can select"
   );
 
 -- Política pública para buscar por slug (sem autenticação)
+DROP POLICY IF EXISTS "Organization booking config: public can select by slug" ON public.organization_booking_configs;
 CREATE POLICY "Organization booking config: public can select by slug"
   ON public.organization_booking_configs
   FOR SELECT
   USING (is_active = true);
 
+DROP POLICY IF EXISTS "Organization booking config: admins can manage" ON public.organization_booking_configs;
 CREATE POLICY "Organization booking config: admins can manage"
   ON public.organization_booking_configs
   FOR ALL
@@ -136,6 +139,7 @@ CREATE POLICY "Organization booking config: admins can manage"
   );
 
 -- Policies para user_availability_slots
+DROP POLICY IF EXISTS "User availability: users can manage own slots" ON public.user_availability_slots;
 CREATE POLICY "User availability: users can manage own slots"
   ON public.user_availability_slots
   FOR ALL
@@ -151,6 +155,7 @@ CREATE POLICY "User availability: users can manage own slots"
   );
 
 -- Policies para booking_requests
+DROP POLICY IF EXISTS "Booking requests: members can select" ON public.booking_requests;
 CREATE POLICY "Booking requests: members can select"
   ON public.booking_requests
   FOR SELECT
@@ -165,6 +170,7 @@ CREATE POLICY "Booking requests: members can select"
   );
 
 -- Política pública para criar solicitação (sem autenticação)
+DROP POLICY IF EXISTS "Booking requests: public can insert" ON public.booking_requests;
 CREATE POLICY "Booking requests: public can insert"
   ON public.booking_requests
   FOR INSERT
@@ -177,6 +183,7 @@ CREATE POLICY "Booking requests: public can insert"
     )
   );
 
+DROP POLICY IF EXISTS "Booking requests: members can update" ON public.booking_requests;
 CREATE POLICY "Booking requests: members can update"
   ON public.booking_requests
   FOR UPDATE
@@ -191,6 +198,7 @@ CREATE POLICY "Booking requests: members can update"
   );
 
 -- Policies para booking_templates
+DROP POLICY IF EXISTS "Booking templates: members can select" ON public.booking_templates;
 CREATE POLICY "Booking templates: members can select"
   ON public.booking_templates
   FOR SELECT
@@ -204,6 +212,7 @@ CREATE POLICY "Booking templates: members can select"
     OR public.user_is_org_admin(auth.uid(), booking_templates.organization_id)
   );
 
+DROP POLICY IF EXISTS "Booking templates: admins can manage" ON public.booking_templates;
 CREATE POLICY "Booking templates: admins can manage"
   ON public.booking_templates
   FOR ALL
@@ -220,6 +229,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_organization_booking_configs_updated_at ON public.organization_booking_configs;
 CREATE TRIGGER trigger_organization_booking_configs_updated_at
   BEFORE UPDATE ON public.organization_booking_configs
   FOR EACH ROW
@@ -233,6 +243,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_user_availability_slots_updated_at ON public.user_availability_slots;
 CREATE TRIGGER trigger_user_availability_slots_updated_at
   BEFORE UPDATE ON public.user_availability_slots
   FOR EACH ROW
@@ -246,6 +257,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_booking_requests_updated_at ON public.booking_requests;
 CREATE TRIGGER trigger_booking_requests_updated_at
   BEFORE UPDATE ON public.booking_requests
   FOR EACH ROW
@@ -259,6 +271,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_booking_templates_updated_at ON public.booking_templates;
 CREATE TRIGGER trigger_booking_templates_updated_at
   BEFORE UPDATE ON public.booking_templates
   FOR EACH ROW

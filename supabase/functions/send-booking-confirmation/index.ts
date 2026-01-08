@@ -138,7 +138,7 @@ serve(async (req) => {
     }
 
     // Substituir variáveis no template
-    let message = messageTemplate
+    const message = messageTemplate
       .replace(/{nome}/g, bookingRequest.client_name)
       .replace(/{data}/g, dateStr)
       .replace(/{hora}/g, timeStr)
