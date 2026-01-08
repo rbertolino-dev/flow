@@ -482,7 +482,11 @@ export default function Budgets() {
           <TabsContent value="budgets" className="space-y-6">
             {/* Indicadores */}
             {!selectedBudget && (
-              <BudgetIndicators budgets={budgets} />
+              <BudgetIndicators 
+                budgets={budgets} 
+                dateFrom={budgetDateFrom || undefined}
+                dateTo={budgetDateTo || undefined}
+              />
             )}
 
             {/* Filtros */}

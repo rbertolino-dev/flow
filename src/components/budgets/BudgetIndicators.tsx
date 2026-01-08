@@ -1,57 +1,45 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Budget } from '@/types/budget';
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isAfter, isBefore, addDays, differenceInDays } from 'date-fns';
+import { isAfter, isBefore, addDays } from 'date-fns';
 import { Calendar, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 
 interface BudgetIndicatorsProps {
   budgets: Budget[];
+  dateFrom?: string;
+  dateTo?: string;
 }
 
-type PeriodType = 'week' | 'month' | 'year';
-
-export function BudgetIndicators({ budgets }: BudgetIndicatorsProps) {
-  const [periodType, setPeriodType] = useState<PeriodType>('month');
-
-  // Calcular período baseado no tipo selecionado
-  const { periodStart, periodEnd } = useMemo(() => {
-    const now = new Date();
-    let start: Date;
-    let end: Date;
-
-    switch (periodType) {
-      case 'week':
-        start = startOfWeek(now, { weekStartsOn: 1 }); // Segunda-feira
-        end = endOfWeek(now, { weekStartsOn: 1 }); // Domingo
-        break;
-      case 'month':
-        start = startOfMonth(now);
-        end = endOfMonth(now);
-        break;
-      case 'year':
-        start = startOfYear(now);
-        end = endOfYear(now);
-        break;
-      default:
-        start = startOfMonth(now);
-        end = endOfMonth(now);
-    }
-
-    return { periodStart: start, periodEnd: end };
-  }, [periodType]);
-
-  // Filtrar orçamentos criados no período
+export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicatorsProps) {
+  // Filtrar orçamentos baseado nos filtros de data da página
   const budgetsInPeriod = useMemo(() => {
     if (!budgets || !Array.isArray(budgets)) return [];
+    
+    // Se não houver filtro de data, usar todos os orçamentos
+    if (!dateFrom && !dateTo) {
+      return budgets;
+    }
     
     return budgets.filter((budget) => {
       if (!budget.created_at) return false;
       const createdAt = new Date(budget.created_at);
-      return createdAt >= periodStart && createdAt <= periodEnd;
+      
+      if (dateFrom && createdAt < new Date(dateFrom)) {
+        return false;
+      }
+      
+      if (dateTo) {
+        const dateToEnd = new Date(dateTo);
+        dateToEnd.setHours(23, 59, 59, 999); // Incluir o dia inteiro
+        if (createdAt > dateToEnd) {
+          return false;
+        }
+      }
+      
+      return true;
     });
-  }, [budgets, periodStart, periodEnd]);
+  }, [budgets, dateFrom, dateTo]);
 
   // Calcular status dos orçamentos
   const { expired, expiringSoon, valid } = useMemo(() => {
@@ -99,16 +87,6 @@ export function BudgetIndicators({ budgets }: BudgetIndicatorsProps) {
             <Calendar className="w-4 h-4" />
             Indicadores de Orçamentos
           </CardTitle>
-          <Select value={periodType} onValueChange={(value: PeriodType) => setPeriodType(value)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="week">Semana</SelectItem>
-              <SelectItem value="month">Mês</SelectItem>
-              <SelectItem value="year">Anual</SelectItem>
-            </SelectContent>
-          </Select>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -116,14 +94,21 @@ export function BudgetIndicators({ budgets }: BudgetIndicatorsProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Total de Orçamentos Criados
+                  Total de Orçamentos
                 </p>
                 <p className="text-2xl font-bold">{total}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {periodType === 'week' && 'Esta semana'}
-                  {periodType === 'month' && 'Este mês'}
-                  {periodType === 'year' && 'Este ano'}
-                </p>
+                {(dateFrom || dateTo) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dateFrom && dateTo && `Período: ${new Date(dateFrom).toLocaleDateString('pt-BR')} - ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
+                    {dateFrom && !dateTo && `A partir de: ${new Date(dateFrom).toLocaleDateString('pt-BR')}`}
+                    {!dateFrom && dateTo && `Até: ${new Date(dateTo).toLocaleDateString('pt-BR')}`}
+                  </p>
+                )}
+                {!dateFrom && !dateTo && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Todos os orçamentos
+                  </p>
+                )}
               </div>
             </div>
 
