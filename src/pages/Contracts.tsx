@@ -12,7 +12,7 @@ import { EditMessageDialog } from '@/components/contracts/EditMessageDialog';
 import { SendContractDialog } from '@/components/contracts/SendContractDialog';
 // Import dinâmico do ContractPdfBuilder para evitar carregar react-pdf na inicialização
 // Com tratamento de erro robusto para cache de navegador com hash antigo
-const ContractPdfBuilder = React.lazy(() => 
+const ContractPdfBuilderLazy = React.lazy(() => 
   import('@/components/contracts/ContractPdfBuilder')
     .then(module => ({ default: module.ContractPdfBuilder }))
     .catch((error) => {
@@ -225,8 +225,7 @@ export default function Contracts() {
       console.log('🔌 Desconectando realtime de assinaturas...');
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOrgId, selectedContract?.id]);
+  }, [activeOrgId, selectedContract?.id, refetch, handleView]);
 
   const handleSign = (contract: Contract) => {
     setSelectedContract(contract);
@@ -703,27 +702,29 @@ export default function Contracts() {
                 }
               }}
             />
-            <React.Suspense 
-              fallback={
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="w-8 h-8 animate-spin" />
-                  <p className="ml-2">Carregando builder de PDF...</p>
-                </div>
-              }
-            >
-              <ContractPdfBuilder
-                open={showPdfBuilder}
-                onOpenChange={setShowPdfBuilder}
-                contractId={selectedContract.id}
-                onSuccess={async () => {
-                  await refetch();
-                  toast({
-                    title: 'Posições configuradas',
-                    description: 'As posições de assinatura foram salvas com sucesso',
-                  });
-                }}
-              />
-            </React.Suspense>
+            {showPdfBuilder && (
+              <React.Suspense 
+                fallback={
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <p className="ml-2">Carregando builder de PDF...</p>
+                  </div>
+                }
+              >
+                <ContractPdfBuilderLazy
+                  open={showPdfBuilder}
+                  onOpenChange={setShowPdfBuilder}
+                  contractId={selectedContract.id}
+                  onSuccess={async () => {
+                    await refetch();
+                    toast({
+                      title: 'Posições configuradas',
+                      description: 'As posições de assinatura foram salvas com sucesso',
+                    });
+                  }}
+                />
+              </React.Suspense>
+            )}
           </>
         )}
 
