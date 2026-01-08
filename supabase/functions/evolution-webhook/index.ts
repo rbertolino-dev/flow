@@ -384,9 +384,19 @@ serve(async (req) => {
       // Processar telefone normal (@s.whatsapp.net)
       // NOTA: Se vier como LID mas tiver número real alternativo, usar o alternativo
       const phoneSource = hasRealPhone ? remoteJid : remoteJidAlt;
-      const phoneNumber = phoneSource.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+      let phoneNumber = phoneSource.replace('@s.whatsapp.net', '').replace(/\D/g, '');
       
-      console.log(`📞 Processando número real: ${phoneNumber} ${hasRealPhoneAlt ? '(via remoteJidAlt)' : '(via remoteJid)'}`);
+      // Normalização adicional: garantir que número está limpo
+      phoneNumber = phoneNumber.trim();
+      
+      console.log(`📞 Processando número real:`, {
+        originalRemoteJid: remoteJid,
+        originalRemoteJidAlt: remoteJidAlt,
+        phoneSource,
+        phoneNumber,
+        phoneNumberLength: phoneNumber.length,
+        via: hasRealPhoneAlt ? 'remoteJidAlt' : 'remoteJid'
+      });
       
       // Verificar se é brasileiro
       const isBrazilian = phoneNumber.startsWith('55') && phoneNumber.length >= 12 && phoneNumber.length <= 13;
@@ -438,16 +448,28 @@ serve(async (req) => {
       // Verificar se já existe lead com este telefone NESTA organização
       // IMPORTANTE: Buscar por phone + organization_id (sem source_instance_id) porque
       // a constraint única é apenas (organization_id, phone), não inclui source_instance_id
-      console.log('🔍 Verificando se lead existe...');
+      console.log('🔍 Verificando se lead existe...', {
+        phoneNumber,
+        phoneNumberLength: phoneNumber.length,
+        organization_id: configs.organization_id,
+        isFromMe,
+        direction
+      });
       
       // Primeiro buscar lead ativo (não deletado)
-      let { data: existingLead } = await supabaseServiceRole
+      let { data: existingLead, error: searchError } = await supabaseServiceRole
         .from('leads')
         .select('id, deleted_at, excluded_from_funnel, source_instance_id, source_instance_name')
         .eq('phone', phoneNumber)
         .eq('organization_id', configs.organization_id)
         .is('deleted_at', null)
         .maybeSingle();
+      
+      if (searchError) {
+        console.error('❌ Erro ao buscar lead existente:', searchError);
+      } else {
+        console.log(`🔍 Resultado da busca: ${existingLead ? `Lead encontrado (ID: ${existingLead.id})` : 'Nenhum lead encontrado'}`);
+      }
       
       // Se não encontrou lead ativo, buscar lead deletado (soft delete) para restaurar
       if (!existingLead) {
@@ -589,19 +611,31 @@ serve(async (req) => {
           console.log(`✅ Atividade registrada para lead ${existingLead.id}${!isFromMe ? ' (marcado como não lido)' : ''}`);
         } else {
           // Criar novo lead apenas se a mensagem for recebida (não criar lead quando você envia primeira mensagem)
+          console.log(`🔍 Verificando se deve criar lead: isFromMe=${isFromMe}, direction=${direction}`);
+          
           if (!isFromMe) {
-            console.log('🆕 Criando novo lead...');
+            console.log('🆕 Criando novo lead...', {
+              phoneNumber,
+              contactName,
+              organization_id: configs.organization_id,
+              user_id: configs.user_id,
+              instance: configs.instance_name
+            });
             
             // Buscar primeiro estágio do funil da organização
-            const { data: firstStage } = await supabaseServiceRole
+            const { data: firstStage, error: stageError } = await supabaseServiceRole
               .from('pipeline_stages')
-              .select('id')
+              .select('id, name, position')
               .eq('organization_id', configs.organization_id)
               .order('position', { ascending: true })
               .limit(1)
               .maybeSingle();
 
-            console.log(`📊 Primeiro estágio do funil: ${firstStage?.id || 'não encontrado'}`);
+            console.log(`📊 Primeiro estágio do funil:`, {
+              stage: firstStage ? { id: firstStage.id, name: firstStage.name, position: firstStage.position } : null,
+              error: stageError,
+              organization_id: configs.organization_id
+            });
             
             if (!firstStage) {
               console.error('❌ Nenhum estágio do funil encontrado para a organização. Lead não pode ser criado sem estágio.');
