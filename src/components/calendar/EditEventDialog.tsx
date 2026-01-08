@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, Loader2, Video, Trash2 } from "lucide-react";
+import { Calendar, Loader2, Video, Trash2, User, Info } from "lucide-react";
 import { format } from "date-fns";
 import { CalendarEvent } from "@/hooks/useCalendarEvents";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +30,12 @@ import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { parseSaoPauloDateTime, formatSaoPauloTime } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { DateTimePicker } from "./DateTimePicker";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface EditEventDialogProps {
   open: boolean;
@@ -53,6 +59,7 @@ export function EditEventDialog({
   
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [bookedByUserName, setBookedByUserName] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     summary: "",
     startDate: "",
@@ -92,8 +99,33 @@ export function EditEventDialog({
         attendees: (event as any).attendees || [],
         attendeeEmail: "",
       });
+
+      // Buscar nome do usuário que marcou a reunião
+      const bookedByUserId = (event as any).booked_by_user_id;
+      if (bookedByUserId) {
+        const bookedByUser = organizationUsers.find(u => u.id === bookedByUserId);
+        if (bookedByUser) {
+          setBookedByUserName(bookedByUser.full_name || bookedByUser.email || null);
+        } else {
+          // Se não encontrar na lista, buscar no banco
+          supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', bookedByUserId)
+            .single()
+            .then(({ data }) => {
+              if (data) {
+                setBookedByUserName(data.full_name || data.email || null);
+              } else {
+                setBookedByUserName(null);
+              }
+            });
+        }
+      } else {
+        setBookedByUserName(null);
+      }
     }
-  }, [event]);
+  }, [event, organizationUsers]);
 
   const calendarColors = [
     { id: "1", name: "Lavanda", hex: "#7986CB" },
@@ -216,7 +248,7 @@ export function EditEventDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
@@ -350,8 +382,63 @@ export function EditEventDialog({
             </Select>
           </div>
 
+          {/* Campo somente leitura: Quem Marcou a Reunião */}
           <div className="space-y-2">
-            <Label htmlFor="organizer">Usuário Responsável</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="booked-by" className="flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" />
+                Quem Marcou a Reunião
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Usuário que conseguiu marcar/agendar esta reunião. Este campo não pode ser alterado após a criação do evento.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md border border-dashed">
+              {bookedByUserName ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{bookedByUserName}</span>
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    Somente leitura
+                  </Badge>
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground italic">
+                  Não informado
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Este campo é definido apenas na criação do evento e não pode ser alterado.
+            </p>
+          </div>
+
+          {/* Campo editável: Usuário Responsável */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="organizer">Usuário Responsável pela Reunião</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Usuário responsável por conduzir/realizar a reunião. Pode ser diferente de quem marcou a reunião.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Select
               value={formData.organizerUserId || undefined}
               onValueChange={(value) => setFormData({ ...formData, organizerUserId: value })}
@@ -367,6 +454,9 @@ export function EditEventDialog({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Pode ser alterado a qualquer momento. Diferente de quem marcou a reunião.
+            </p>
           </div>
 
           <div className="space-y-2">
