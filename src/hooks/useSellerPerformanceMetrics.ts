@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Lead } from "@/types/lead";
-import { Product } from "@/types/product";
-import { SellerGoal, SellerPerformanceMetrics } from "@/types/product";
+import { Product, SellerGoal, SellerPerformanceMetrics } from "@/types/product";
 import { useSellerCommissions } from "./useSellerCommissions";
 import { useSellerPerformance } from "./useSellerPerformance";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns";
@@ -67,34 +66,156 @@ export function useSellerPerformanceMetrics({
     const metrics: SellerPerformanceMetrics[] = performance.map((perf) => {
       // Buscar meta atual do vendedor
       // Encontra a meta que está ativa no período calculado
-      const currentGoal = goals.find(
-        (goal) => {
-          // Verificar se é do mesmo vendedor e tipo de período
-          if (goal.user_id !== perf.sellerId || goal.period_type !== periodType) {
-            return false;
-          }
-          
-          // Converter datas para comparar apenas a parte de data (sem hora)
+      const now = new Date();
+      const nowTime = now.getTime();
+      
+      // Filtrar metas do vendedor e tipo de período correto
+      const relevantGoals = goals.filter(
+        (goal) => goal.user_id === perf.sellerId && goal.period_type === periodType
+      );
+      
+      // Converter período calculado para comparar
+      const periodStartTime = periodStart.getTime();
+      const periodEndTime = periodEnd.getTime();
+      
+      // Encontrar a meta que está ativa
+      // Estratégia: Encontrar meta onde o período calculado se sobrepõe com o período da meta
+      // Prioridade 1: Meta onde há sobreposição entre período calculado e período da meta
+      // Prioridade 2: Meta mais recente do tipo de período
+      let currentGoal: SellerGoal | undefined = undefined;
+      
+      // Normalizar períodos para comparação
+      const periodStartTime = periodStart.getTime();
+      const periodEndTime = periodEnd.getTime();
+      
+      // Tentar encontrar meta com sobreposição de períodos
+      const goalsWithOverlap = relevantGoals
+        .map((goal) => {
           const goalStart = new Date(goal.period_start);
           goalStart.setHours(0, 0, 0, 0);
           const goalEnd = new Date(goal.period_end);
           goalEnd.setHours(23, 59, 59, 999);
           
-          const periodStartDate = new Date(periodStart);
-          periodStartDate.setHours(0, 0, 0, 0);
-          const periodEndDate = new Date(periodEnd);
-          periodEndDate.setHours(23, 59, 59, 999);
+          const goalStartTime = goalStart.getTime();
+          const goalEndTime = goalEnd.getTime();
           
-          // A meta está ativa se o período calculado está dentro do período da meta
-          // Ou seja: o início do período calculado está dentro da meta E o fim também
-          // OU a meta cobre completamente o período calculado
-          const periodStartInGoal = periodStartDate >= goalStart && periodStartDate <= goalEnd;
-          const periodEndInGoal = periodEndDate >= goalStart && periodEndDate <= goalEnd;
-          const goalCoversPeriod = goalStart <= periodStartDate && goalEnd >= periodEndDate;
+          // Verificar sobreposição: períodos se sobrepõem se:
+          // - O início do período calculado está dentro do período da meta, OU
+          // - O fim do período calculado está dentro do período da meta, OU
+          // - O período calculado contém completamente o período da meta
+          const hasOverlap = 
+            (periodStartTime >= goalStartTime && periodStartTime <= goalEndTime) ||
+            (periodEndTime >= goalStartTime && periodEndTime <= goalEndTime) ||
+            (periodStartTime <= goalStartTime && periodEndTime >= goalEndTime);
           
-          return periodStartInGoal && periodEndInGoal || goalCoversPeriod;
-        }
-      );
+          // Calcular quanto do período da meta está dentro do período calculado
+          const overlapStart = Math.max(periodStartTime, goalStartTime);
+          const overlapEnd = Math.min(periodEndTime, goalEndTime);
+          const overlapDays = hasOverlap ? Math.max(0, (overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) : 0;
+          
+          return {
+            goal,
+            hasOverlap,
+            overlapDays,
+            goalStartTime,
+            goalEndTime,
+          };
+        })
+        .filter((item) => item.hasOverlap)
+        .sort((a, b) => {
+          // Priorizar meta com maior sobreposição
+          if (b.overlapDays !== a.overlapDays) {
+            return b.overlapDays - a.overlapDays;
+          }
+          // Se empate, priorizar mais recente
+          return b.goalStartTime - a.goalStartTime;
+        });
+      
+      if (goalsWithOverlap.length > 0) {
+        // Usar meta com maior sobreposição
+        currentGoal = goalsWithOverlap[0].goal;
+        console.log('✅ Meta encontrada por sobreposição:', {
+          goalId: currentGoal.id,
+          target_value: currentGoal.target_value,
+          period_start: currentGoal.period_start,
+          period_end: currentGoal.period_end,
+          overlapDays: goalsWithOverlap[0].overlapDays,
+        });
+      } else if (relevantGoals.length > 0) {
+        // Se não encontrou sobreposição, pegar a meta mais recente do tipo de período
+        // Isso garante que sempre haverá uma meta se existir alguma do tipo correto
+        currentGoal = relevantGoals
+          .sort((a, b) => {
+            const dateA = new Date(a.period_start).getTime();
+            const dateB = new Date(b.period_start).getTime();
+            return dateB - dateA; // Mais recente primeiro
+          })[0];
+        console.log('⚠️ Meta encontrada sem sobreposição (usando mais recente):', {
+          goalId: currentGoal.id,
+          target_value: currentGoal.target_value,
+          period_start: currentGoal.period_start,
+          period_end: currentGoal.period_end,
+          calculatedPeriod: {
+            start: periodStart.toISOString().split('T')[0],
+            end: periodEnd.toISOString().split('T')[0],
+          },
+        });
+      } else {
+        console.log('❌ Nenhuma meta encontrada para:', {
+          sellerId: perf.sellerId,
+          periodType,
+          totalGoals: goals.length,
+          relevantGoalsCount: relevantGoals.length,
+        });
+      }
+      
+      // Debug: Log detalhado para verificar busca de meta
+      if (relevantGoals.length > 0) {
+        const goalsWithOverlapDebug = relevantGoals.map((goal) => {
+          const goalStart = new Date(goal.period_start);
+          goalStart.setHours(0, 0, 0, 0);
+          const goalEnd = new Date(goal.period_end);
+          goalEnd.setHours(23, 59, 59, 999);
+          
+          const goalStartTime = goalStart.getTime();
+          const goalEndTime = goalEnd.getTime();
+          
+          const hasOverlap = 
+            (periodStartTime >= goalStartTime && periodStartTime <= goalEndTime) ||
+            (periodEndTime >= goalStartTime && periodEndTime <= goalEndTime) ||
+            (periodStartTime <= goalStartTime && periodEndTime >= goalEndTime);
+          
+          return {
+            id: goal.id,
+            period_start: goal.period_start,
+            period_end: goal.period_end,
+            target_value: goal.target_value,
+            goalStartTime: new Date(goalStartTime).toISOString(),
+            goalEndTime: new Date(goalEndTime).toISOString(),
+            hasOverlap,
+          };
+        });
+        
+        console.log('🔍 Busca de Meta (Detalhado):', {
+          sellerId: perf.sellerId,
+          periodType,
+          periodCalculated: {
+            start: periodStart.toISOString().split('T')[0],
+            end: periodEnd.toISOString().split('T')[0],
+            startTime: periodStartTime,
+            endTime: periodEndTime,
+          },
+          now: now.toISOString().split('T')[0],
+          relevantGoalsCount: relevantGoals.length,
+          foundGoal: currentGoal ? {
+            id: currentGoal.id,
+            period_start: currentGoal.period_start,
+            period_end: currentGoal.period_end,
+            target_value: currentGoal.target_value,
+          } : null,
+          goalsWithOverlap: goalsWithOverlapDebug,
+        });
+      }
 
       // Buscar comissão do vendedor
       const commission = commissions.find((c) => c.sellerId === perf.sellerId);

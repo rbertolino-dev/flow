@@ -10,7 +10,7 @@ import { useSellerGoals } from "@/hooks/useSellerGoals";
 import { useProducts } from "@/hooks/useProducts";
 import { useLeads } from "@/hooks/useLeads";
 import { Lead } from "@/types/lead";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Target,
@@ -79,13 +79,32 @@ export function SellerDashboard() {
   // Debug: Log para verificar se a meta está sendo encontrada
   useEffect(() => {
     if (currentUserId && goals.length > 0) {
+      const userGoals = goals.filter(g => g.user_id === currentUserId);
+      const goalsForPeriod = userGoals.filter(g => g.period_type === periodType);
+      
       console.log('🔍 Debug Meta de Valor:', {
         currentUserId,
         periodType,
         goalsCount: goals.length,
-        userGoals: goals.filter(g => g.user_id === currentUserId),
-        currentGoal,
-        currentMetric,
+        userGoalsCount: userGoals.length,
+        goalsForPeriodCount: goalsForPeriod.length,
+        goalsForPeriod: goalsForPeriod.map(g => ({
+          id: g.id,
+          period_start: g.period_start,
+          period_end: g.period_end,
+          target_value: g.target_value,
+          period_type: g.period_type,
+        })),
+        currentGoal: currentGoal ? {
+          id: currentGoal.id,
+          period_start: currentGoal.period_start,
+          period_end: currentGoal.period_end,
+          target_value: currentGoal.target_value,
+        } : null,
+        currentMetric: currentMetric ? {
+          actualValue: currentMetric.actualValue,
+          valueProgress: currentMetric.valueProgress,
+        } : null,
       });
     }
   }, [currentUserId, periodType, goals, currentGoal, currentMetric]);
@@ -127,17 +146,28 @@ export function SellerDashboard() {
         
         await updateGoal(editingGoal.id, updateData);
       } else {
-        await createGoal({
+        const newGoal = await createGoal({
           ...goalData,
           user_id: currentUserId!,
         });
+        console.log('✅ Meta criada:', newGoal);
       }
+      
       // Refetch para garantir que a lista está atualizada
       await refetchGoals();
+      
+      // Forçar atualização das métricas aguardando um pouco para garantir que o banco foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Fechar dialog
       setGoalDialogOpen(false);
       setEditingGoal(null);
+      
+      // Log para debug
+      console.log('🔄 Metas atualizadas após criar/editar');
     } catch (error) {
       // Erro já tratado no hook
+      console.error('❌ Erro ao criar/atualizar meta:', error);
     }
   };
 
@@ -324,6 +354,12 @@ export function SellerDashboard() {
                 <p className="text-xs mt-1">
                   Clique em "Definir Meta" para criar uma meta de valor
                 </p>
+                {/* Debug: Mostrar informações sobre metas disponíveis */}
+                {userGoals.length > 0 && (
+                  <p className="text-xs mt-2 text-muted-foreground">
+                    {userGoals.filter(g => g.period_type === periodType).length} meta(s) do tipo "{periodType}" encontrada(s), mas nenhuma está ativa para o período atual.
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
@@ -660,41 +696,31 @@ function GoalForm({
 
   useEffect(() => {
     // Calcular período baseado no tipo selecionado
+    // Usar a mesma lógica do useSellerPerformanceMetrics para garantir consistência
     const now = new Date();
     let start: Date;
     let end: Date;
 
     switch (selectedPeriodType) {
       case 'monthly':
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        start = startOfMonth(now);
+        end = endOfMonth(now);
         break;
       case 'weekly':
-        const dayOfWeek = now.getDay();
-        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const weekStart = new Date(now);
-        weekStart.setDate(diff);
-        weekStart.setHours(0, 0, 0, 0);
-        start = weekStart;
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
-        end = weekEnd;
+        start = startOfWeek(now, { weekStartsOn: 1 });
+        end = endOfWeek(now, { weekStartsOn: 1 });
         break;
       case 'quarterly':
-        const quarter = Math.floor(now.getMonth() / 3);
-        start = new Date(now.getFullYear(), quarter * 3, 1);
-        end = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
-        end.setHours(23, 59, 59, 999);
+        start = startOfQuarter(now);
+        end = endOfQuarter(now);
         break;
       case 'yearly':
-        start = new Date(now.getFullYear(), 0, 1);
-        end = new Date(now.getFullYear(), 11, 31);
-        end.setHours(23, 59, 59, 999);
+        start = startOfYear(now);
+        end = endOfYear(now);
         break;
       default:
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        start = startOfMonth(now);
+        end = endOfMonth(now);
     }
 
     setFormData((prev) => ({

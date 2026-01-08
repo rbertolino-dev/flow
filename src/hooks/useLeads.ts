@@ -19,8 +19,26 @@ export function useLeads() {
     }
 
     // ✅ OTIMIZAÇÃO: Realtime com updates otimistas + Polling como fallback
-    const channel = supabase
-      .channel('schema-db-changes')
+    let channel: any = null;
+    const maxReconnectAttempts = 3;
+    let reconnectAttempts = 0;
+    
+    const setupRealtime = () => {
+      // Reset contador ao tentar reconectar
+      if (reconnectAttempts > 0) {
+        console.log(`🔄 Tentando reconectar canal realtime (tentativa ${reconnectAttempts + 1}/${maxReconnectAttempts})...`);
+      }
+      // Remover canal anterior se existir
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {
+          // ignore
+        }
+      }
+      
+      channel = supabase
+      .channel(`leads-realtime-${activeOrgId}-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'leads' },
@@ -129,18 +147,31 @@ export function useLeads() {
         console.log('📡 Status do canal realtime de leads:', status);
         if (status === 'SUBSCRIBED') {
           console.log('✅ Canal realtime de leads conectado com sucesso!');
-        } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-          console.error('❌ Erro no canal realtime de leads:', status);
-          console.warn('⚠️ Realtime não está funcionando. Ativando polling como fallback...');
-          // ✅ OTIMIZAÇÃO: Polling a cada 20 segundos quando Realtime não funciona (reduzido de 10s)
-          const pollingInterval = setInterval(() => {
-            fetchLeads();
-          }, 20000);
-          
-          // Limpar polling quando componente desmontar ou Realtime voltar
-          return () => clearInterval(pollingInterval);
+          reconnectAttempts = 0; // Reset contador ao conectar
+        } else if (status === 'CLOSED') {
+          // CLOSED é normal quando usuário troca de aba ou canal é fechado
+          // Não é um erro, apenas log informativo
+          console.log('ℹ️ Canal realtime de leads fechado (normal ao trocar de aba)');
+        } else if (status === 'TIMED_OUT') {
+          // Timeout - tentar reconectar
+          console.warn('⏱️ Timeout no canal realtime de leads. Polling de fallback ativo.');
+        } else if (status === 'CHANNEL_ERROR') {
+          // Erro no canal - tentar reconectar algumas vezes
+          console.warn('⚠️ Erro no canal realtime de leads. Tentando reconectar...');
+          if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            setTimeout(() => {
+              console.log(`🔄 Tentativa de reconexão ${reconnectAttempts}/${maxReconnectAttempts}...`);
+              setupRealtime();
+            }, 2000 * reconnectAttempts); // Backoff exponencial
+          } else {
+            console.warn('⚠️ Máximo de tentativas de reconexão atingido. Usando apenas polling.');
+          }
         }
       });
+    
+    // Configurar realtime
+    setupRealtime();
 
     // ✅ OTIMIZAÇÃO: Reduzir polling quando realtime está funcionando
     // Polling de fallback: verificar a cada 30 segundos (reduzido de 15s)
@@ -170,10 +201,16 @@ export function useLeads() {
     window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
 
     return () => {
-      console.log('🔌 Desconectando realtime...');
+      console.log('🔌 Desconectando realtime de leads...');
       clearInterval(fallbackPolling);
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {
+          // ignore erros ao remover canal
+        }
+      }
     };
   }, [toast, activeOrgId]);
 
