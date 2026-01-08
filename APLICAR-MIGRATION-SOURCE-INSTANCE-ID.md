@@ -64,3 +64,4 @@ Após aplicar a migration:
 - Não causa erro se as colunas já existirem
 
 
+
