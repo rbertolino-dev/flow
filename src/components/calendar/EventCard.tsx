@@ -43,18 +43,24 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
   return (
     <Card className={`cursor-pointer hover:bg-accent transition-colors ${isCompleted ? 'border-green-500 bg-green-50/50' : ''}`} onClick={onClick}>
       <CardContent className="p-4">
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {/* Título do evento - sempre visível no topo */}
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0 pr-2">
-              <h3 className="font-semibold text-base mb-1 text-foreground">{event.summary || "Sem título"}</h3>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-base leading-tight mb-2 text-foreground pr-2">
+                {event.summary || "Sem título"}
+              </h3>
               {isCompleted && (
-                <Badge variant="outline" className="mt-1 text-xs bg-green-100 text-green-800 border-green-300">
+                <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Realizada
                 </Badge>
               )}
             </div>
-            <div className="flex gap-1 flex-wrap flex-shrink-0 items-start pt-0.5">
+          </div>
+
+          {/* Botões de ação - abaixo do título */}
+          <div className="flex gap-1 flex-wrap items-center">
               {onEdit && (
                 <Button
                   variant="outline"
@@ -130,10 +136,10 @@ export function EventCard({ event, onClick, onEdit, onDelete, onScheduleMessage,
                   <span className="hidden sm:inline">Abrir</span>
                 </Button>
               )}
-            </div>
           </div>
 
-          <div className="space-y-1 text-xs text-muted-foreground">
+          {/* Detalhes do evento */}
+          <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t">
             <div className="flex items-center gap-1">
               <span>
                 {isAllDay
