@@ -284,7 +284,7 @@ serve(async (req) => {
           console.log('⚠️ Instância não encontrada no banco:', instance);
         }
 
-        await supabase.from('evolution_logs').insert({
+        await supabaseServiceRole.from('evolution_logs').insert({
           user_id: null,
           organization_id: null,
           instance,
@@ -326,7 +326,7 @@ serve(async (req) => {
         console.log(`💼 Mensagem de LID puro (sem telefone real): ${lid}`);
 
         // Registrar log
-        await supabase.from('evolution_logs').insert({
+        await supabaseServiceRole.from('evolution_logs').insert({
           user_id: configs.user_id,
           organization_id: configs.organization_id,
           instance,
@@ -406,7 +406,7 @@ serve(async (req) => {
         console.log(`🌍 Número internacional detectado: ${phoneNumber}`);
         
         // Registrar log
-        await supabase.from('evolution_logs').insert({
+        await supabaseServiceRole.from('evolution_logs').insert({
           user_id: configs.user_id,
           organization_id: configs.organization_id,
           instance,
