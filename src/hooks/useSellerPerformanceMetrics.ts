@@ -74,10 +74,6 @@ export function useSellerPerformanceMetrics({
         (goal) => goal.user_id === perf.sellerId && goal.period_type === periodType
       );
       
-      // Converter período calculado para comparar
-      const periodStartTime = periodStart.getTime();
-      const periodEndTime = periodEnd.getTime();
-      
       // Encontrar a meta que está ativa
       // Estratégia: Encontrar meta onde o período calculado se sobrepõe com o período da meta
       // Prioridade 1: Meta onde há sobreposição entre período calculado e período da meta

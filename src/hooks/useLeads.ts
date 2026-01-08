@@ -177,7 +177,7 @@ export function useLeads() {
     const maxReconnectAttempts = 3;
     let reconnectAttempts = 0;
     
-    const setupRealtime = () => {
+    const setupRealtime = (fetchFn: () => Promise<void>) => {
       // Reset contador ao tentar reconectar
       if (reconnectAttempts > 0) {
         console.log(`🔄 Tentando reconectar canal realtime (tentativa ${reconnectAttempts + 1}/${maxReconnectAttempts})...`);
@@ -204,7 +204,7 @@ export function useLeads() {
             description: `${newLead.name || newLead.phone} foi adicionado ao funil`,
           });
           // Refetch apenas quando há novo lead
-          forceRefreshAfterMutation(fetchLeads);
+          forceRefreshAfterMutation(fetchFn);
           broadcastRefreshEvent('create', 'lead');
         }
       )
@@ -294,7 +294,7 @@ export function useLeads() {
         (payload) => {
           console.log('🏷️ Tags do lead alteradas:', payload);
           // Refetch para atualizar as tags dos leads
-          fetchLeads();
+          fetchFn();
         }
       )
       .subscribe((status) => {
@@ -316,16 +316,17 @@ export function useLeads() {
             reconnectAttempts++;
             setTimeout(() => {
               console.log(`🔄 Tentativa de reconexão ${reconnectAttempts}/${maxReconnectAttempts}...`);
-              setupRealtime();
+              setupRealtime(fetchFn);
             }, 2000 * reconnectAttempts); // Backoff exponencial
           } else {
             console.warn('⚠️ Máximo de tentativas de reconexão atingido. Usando apenas polling.');
           }
         }
       });
+    };
     
-    // Configurar realtime
-    setupRealtime();
+    // Configurar realtime inicialmente
+    setupRealtime(fetchLeads);
 
     // ✅ OTIMIZAÇÃO: Reduzir polling quando realtime está funcionando
     // Polling de fallback: verificar a cada 30 segundos (reduzido de 15s)
@@ -339,7 +340,7 @@ export function useLeads() {
 
       if (!hasActiveConnection) {
         console.log('🔄 Realtime não conectado. Fazendo polling de fallback...');
-        fetchLeads();
+        fetchLeads().catch(console.error);
       }
     }, 30000); // ✅ Reduzido de 15s para 30s quando realtime está OK
 
