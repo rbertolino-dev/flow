@@ -69,3 +69,4 @@ COMMENT ON POLICY "Organization booking config: public can select by slug" ON pu
 COMMENT ON POLICY "Organization booking config: admins can manage" ON public.organization_booking_configs IS 
   'Permite que admins/owners da organização gerenciem (INSERT/UPDATE/DELETE) a configuração';
 
+

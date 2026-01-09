@@ -72,7 +72,7 @@ export default function Budgets() {
   const [budgetExpiresFrom, setBudgetExpiresFrom] = useState<string>('');
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired'>('all');
-  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(true);
+  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
   
   // Estados para serviços
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
@@ -450,8 +450,8 @@ export default function Budgets() {
           </div>
           <div className="flex gap-2">
             {activeTab === 'budgets' && (
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button onClick={() => setShowCreateDialog(true)} size="lg" className="h-12 px-6 text-base font-semibold">
+                <Plus className="w-5 h-5 mr-2" />
                 Novo Orçamento
               </Button>
             )}

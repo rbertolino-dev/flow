@@ -117,3 +117,4 @@ Se ainda não funcionar após aplicar a migration:
 3. Verifique se o evento UPDATE está sendo recebido: `🔄 Evento UPDATE recebido via realtime`
 
 
+

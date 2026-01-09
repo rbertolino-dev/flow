@@ -93,3 +93,4 @@ CREATE POLICY "Organization booking config: admins can manage"
 -- Após executar este script, o erro 406 deve ser resolvido.
 -- Teste acessando a página de configuração de agendamento novamente.
 
+
