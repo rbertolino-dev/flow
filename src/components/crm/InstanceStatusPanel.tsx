@@ -451,8 +451,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   }, []);
 
   // Função para buscar disparos por data selecionada (com status sent e failed)
-  const fetchDispatchesByDate = useCallback(async (date: Date | undefined) => {
-    if (!date) {
+  const fetchDispatchesByDate = useCallback(async (date: Date | undefined, filterType: "today" | "thisWeek" | "thisMonth" | "custom" = "custom") => {
+    if (!date && filterType !== "today" && filterType !== "thisWeek" && filterType !== "thisMonth") {
       setTotalDispatchesByDate(0);
       setSuccessfulDispatches(0);
       setFailedDispatches(0);
@@ -467,13 +467,41 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         return;
       }
 
-      const startDate = new Date(date);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 1);
+      let startDate: Date;
+      let endDate: Date;
+      const now = new Date();
 
-      // Buscar todos os disparos da data (sent e failed)
-      // Filtrar por sent_at se disponível, caso contrário usar created_at
+      // Calcular intervalo baseado no tipo de filtro
+      switch (filterType) {
+        case "today":
+          startDate = new Date(now);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(startDate);
+          endDate.setDate(endDate.getDate() + 1);
+          break;
+        case "thisWeek":
+          // Semana começa no domingo (0)
+          startDate = new Date(now);
+          const dayOfWeek = startDate.getDay();
+          startDate.setDate(startDate.getDate() - dayOfWeek);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(startDate);
+          endDate.setDate(endDate.getDate() + 7);
+          break;
+        case "thisMonth":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          break;
+        default: // custom
+          startDate = new Date(date!);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(startDate);
+          endDate.setDate(endDate.getDate() + 1);
+          break;
+      }
+
+      // Buscar todos os disparos do período (sent e failed)
       const { data: queueData, error: queueError } = await supabase
         .from("broadcast_queue")
         .select("status, sent_at, created_at")
@@ -488,7 +516,6 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       }
 
       // Contar disparos por status
-      // Filtrar apenas os que foram enviados na data selecionada (usar sent_at se disponível, senão created_at)
       let total = 0;
       let successful = 0;
       let failed = 0;
@@ -498,7 +525,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           // Usar sent_at se disponível, senão usar created_at
           const dispatchDate = item.sent_at ? new Date(item.sent_at) : new Date(item.created_at);
           
-          // Verificar se o disparo foi feito na data selecionada
+          // Verificar se o disparo foi feito no período selecionado
           if (dispatchDate >= startDate && dispatchDate < endDate) {
             total++;
             if (item.status === "sent") {
@@ -643,16 +670,58 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   return (
     <div className="space-y-6 mb-6">
       {/* Filtro de Data */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1 border rounded-md p-1">
+          <Button
+            variant={dateFilterType === "today" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setDateFilterType("today");
+              setSelectedDate(new Date());
+            }}
+            className="h-8 px-3 text-xs"
+          >
+            Hoje
+          </Button>
+          <Button
+            variant={dateFilterType === "thisWeek" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setDateFilterType("thisWeek");
+              setSelectedDate(new Date());
+            }}
+            className="h-8 px-3 text-xs"
+          >
+            Essa Semana
+          </Button>
+          <Button
+            variant={dateFilterType === "thisMonth" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setDateFilterType("thisMonth");
+              setSelectedDate(new Date());
+            }}
+            className="h-8 px-3 text-xs"
+          >
+            Esse Mês
+          </Button>
+        </div>
         <Popover>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
+              variant={dateFilterType === "custom" ? "default" : "outline"}
               className="w-[240px] justify-start text-left font-normal"
+              onClick={() => setDateFilterType("custom")}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {selectedDate ? (
+              {dateFilterType === "custom" && selectedDate ? (
                 formatDate(selectedDate, "PPP", { locale: ptBR })
+              ) : dateFilterType === "today" ? (
+                "Hoje"
+              ) : dateFilterType === "thisWeek" ? (
+                "Essa Semana"
+              ) : dateFilterType === "thisMonth" ? (
+                "Esse Mês"
               ) : (
                 <span>Selecione uma data</span>
               )}
@@ -664,19 +733,13 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               selected={selectedDate}
               onSelect={(date) => {
                 setSelectedDate(date);
+                setDateFilterType("custom");
               }}
               initialFocus
               locale={ptBR}
             />
           </PopoverContent>
         </Popover>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedDate(new Date())}
-        >
-          Hoje
-        </Button>
       </div>
 
       {/* Cards de Indicadores */}
