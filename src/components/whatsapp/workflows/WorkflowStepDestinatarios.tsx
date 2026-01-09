@@ -5,6 +5,7 @@ import { WorkflowListManager } from "./WorkflowListManager";
 import { WorkflowGroupSelector } from "./WorkflowGroupSelector";
 import { WorkflowList, LeadOption } from "@/types/workflows";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
+import { Edit2 } from "lucide-react";
 
 interface WorkflowStepDestinatariosProps {
   recipientMode: "list" | "single" | "group";
@@ -21,6 +22,7 @@ interface WorkflowStepDestinatariosProps {
   onGroupChange: (groupId: string) => void;
   onInstanceChange: (instanceId: string) => void;
   onOpenListManager: () => void;
+  onEditLead?: (leadId: string) => void;
 }
 
 export function WorkflowStepDestinatarios({
@@ -38,6 +40,7 @@ export function WorkflowStepDestinatarios({
   onGroupChange,
   onInstanceChange,
   onOpenListManager,
+  onEditLead,
 }: WorkflowStepDestinatariosProps) {
   const selectedList = lists.find((list) => list.id === workflowListId);
   const selectedLead = leadOptions.find((lead) => lead.id === singleLeadId);
@@ -169,12 +172,28 @@ export function WorkflowStepDestinatarios({
             </SelectContent>
           </Select>
           {selectedLead && (
-            <div className="p-3 bg-muted rounded-lg text-sm">
-              <p className="font-medium">{selectedLead.name}</p>
-              <p className="text-muted-foreground">{selectedLead.phone}</p>
-              {selectedLead.email && (
-                <p className="text-muted-foreground">{selectedLead.email}</p>
-              )}
+            <div className="p-3 bg-muted rounded-lg text-sm space-y-2">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="font-medium">{selectedLead.name}</p>
+                  <p className="text-muted-foreground">{selectedLead.phone}</p>
+                  {selectedLead.email && (
+                    <p className="text-muted-foreground">{selectedLead.email}</p>
+                  )}
+                </div>
+                {onEditLead && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEditLead(selectedLead.id)}
+                    className="ml-2"
+                  >
+                    <Edit2 className="h-3 w-3 mr-1" />
+                    Editar
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -52,7 +52,7 @@ import { MessageTemplate } from "@/hooks/useMessageTemplates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { Badge } from "@/components/ui/badge";
-import { Info, AlertCircle } from "lucide-react";
+import { Info, AlertCircle, Edit2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAsaasConfig } from "@/hooks/useAsaasConfig";
 import {
@@ -187,6 +187,12 @@ export function WorkflowFormDrawer({
   const [showCpfCnpjDialog, setShowCpfCnpjDialog] = useState(false);
   const [leadsSemCpfCnpj, setLeadsSemCpfCnpj] = useState<Array<{ id: string; name: string; cpf_cnpj: string }>>([]);
   const [cpfCnpjValues, setCpfCnpjValues] = useState<Record<string, string>>({});
+  
+  // Estados para dialog de edição de lead
+  const [showEditLeadDialog, setShowEditLeadDialog] = useState(false);
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
+  const [editingLeadCpfCnpj, setEditingLeadCpfCnpj] = useState<string>("");
+  const [editingLeadName, setEditingLeadName] = useState<string>("");
   
   // Estado para modo de anexo do boleto
   const [boletoAttachmentMode, setBoletoAttachmentMode] = useState<"auto" | "download">("download");
@@ -734,6 +740,24 @@ export function WorkflowFormDrawer({
                       onGroupChange={(groupId) => handleChange("group_id", groupId)}
                       onInstanceChange={(instanceId) => handleChange("default_instance_id", instanceId)}
                       onOpenListManager={() => setListManagerOpen(true)}
+                      onEditLead={async (leadId) => {
+                        const lead = leadOptions.find((l) => l.id === leadId);
+                        if (!lead) return;
+                        
+                        // Buscar dados completos do lead incluindo CPF/CNPJ
+                        const { data: leadData } = await supabase
+                          .from("leads")
+                          .select("id, name, cpf_cnpj")
+                          .eq("id", leadId)
+                          .single();
+                        
+                        if (leadData) {
+                          setEditingLeadId(leadData.id);
+                          setEditingLeadName(leadData.name);
+                          setEditingLeadCpfCnpj(leadData.cpf_cnpj || "");
+                          setShowEditLeadDialog(true);
+                        }
+                      }}
                     />
                     <div className="flex justify-end gap-2 pt-4 border-t">
                       <Button type="button" variant="outline" onClick={goToPreviousStep}>
@@ -1726,6 +1750,108 @@ export function WorkflowFormDrawer({
         recipientName={selectedLead?.name || listContacts[0]?.name}
         scheduledFor={values.start_date ? `${values.start_date}T${values.send_time}` : undefined}
       />
+
+      {/* Dialog para editar informações do lead */}
+      <Dialog open={showEditLeadDialog} onOpenChange={setShowEditLeadDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5" />
+              Editar Informações do Cliente
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Edite o CPF/CNPJ do cliente selecionado
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Cliente</Label>
+              <p className="text-sm text-muted-foreground">{editingLeadName}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-lead-cpf-cnpj">CPF/CNPJ</Label>
+              <Input
+                id="edit-lead-cpf-cnpj"
+                placeholder="Digite o CPF ou CNPJ (apenas números)"
+                value={editingLeadCpfCnpj}
+                onChange={(e) => {
+                  // Remover caracteres não numéricos
+                  const value = e.target.value.replace(/\D/g, "");
+                  setEditingLeadCpfCnpj(value);
+                }}
+                maxLength={18}
+              />
+              <p className="text-xs text-muted-foreground">
+                CPF: 11 dígitos | CNPJ: 14 dígitos
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditLeadDialog(false);
+                setEditingLeadId(null);
+                setEditingLeadCpfCnpj("");
+                setEditingLeadName("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editingLeadId) return;
+
+                // Validar formato (CPF: 11 dígitos, CNPJ: 14 dígitos)
+                if (editingLeadCpfCnpj && editingLeadCpfCnpj.length !== 11 && editingLeadCpfCnpj.length !== 14) {
+                  toast({
+                    title: "CPF/CNPJ inválido",
+                    description: "CPF deve ter 11 dígitos e CNPJ deve ter 14 dígitos.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                try {
+                  const { error } = await supabase
+                    .from("leads")
+                    .update({ cpf_cnpj: editingLeadCpfCnpj || null })
+                    .eq("id", editingLeadId);
+
+                  if (error) {
+                    throw new Error(`Erro ao atualizar cliente: ${error.message}`);
+                  }
+
+                  toast({
+                    title: "Cliente atualizado",
+                    description: "As informações do cliente foram atualizadas com sucesso.",
+                  });
+
+                  // Fechar dialog
+                  setShowEditLeadDialog(false);
+                  setEditingLeadId(null);
+                  setEditingLeadCpfCnpj("");
+                  setEditingLeadName("");
+
+                  // Recarregar leadOptions se necessário (pode ser feito via invalidation do hook)
+                  // Por enquanto, apenas fechamos o dialog
+                } catch (error: any) {
+                  toast({
+                    title: "Erro ao atualizar",
+                    description: error.message,
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Salvar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog para adicionar CPF/CNPJ */}
       <Dialog open={showCpfCnpjDialog} onOpenChange={setShowCpfCnpjDialog}>
