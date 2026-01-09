@@ -108,35 +108,9 @@ export default function Contracts() {
   // Debug: verificar instâncias disponíveis
   const connectedInstances = evolutionConfigs.filter((config) => config.is_connected);
 
-  // Verificar se tem acesso à feature de contratos
-  const canAccessContracts = hasFeature('contracts');
-
-  // Se não tem acesso, mostrar mensagem
-  if (!featuresLoading && !canAccessContracts) {
-    return (
-      <CRMLayout activeView="contracts" onViewChange={() => {}}>
-        <div className="flex items-center justify-center min-h-[400px] p-6">
-          <Card className="max-w-md">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-                <CardTitle>Acesso Restrito</CardTitle>
-              </div>
-              <CardDescription>
-                Esta funcionalidade não está disponível para sua organização.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Entre em contato com o administrador do sistema para solicitar acesso ao módulo de Contratos.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </CRMLayout>
-    );
-  }
-
+  // TODOS OS HOOKS DEVEM SER CHAMADOS ANTES DE QUALQUER EARLY RETURN
+  // Isso é CRÍTICO para evitar erro React #300
+  
   const handleView = useCallback(async (contract: Contract) => {
     // Buscar contrato completo com todos os campos atualizados
     const { data: fullContract } = await supabase
@@ -236,6 +210,35 @@ export default function Contracts() {
       supabase.removeChannel(channel);
     };
   }, [activeOrgId, selectedContract?.id]);
+
+  // Verificar se tem acesso à feature de contratos
+  const canAccessContracts = hasFeature('contracts');
+
+  // Se não tem acesso, mostrar mensagem (DEPOIS de todos os hooks)
+  if (!featuresLoading && !canAccessContracts) {
+    return (
+      <CRMLayout activeView="contracts" onViewChange={() => {}}>
+        <div className="flex items-center justify-center min-h-[400px] p-6">
+          <Card className="max-w-md">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Lock className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Acesso Restrito</CardTitle>
+              </div>
+              <CardDescription>
+                Esta funcionalidade não está disponível para sua organização.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Entre em contato com o administrador do sistema para solicitar acesso ao módulo de Contratos.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </CRMLayout>
+    );
+  }
 
   const handleSign = (contract: Contract) => {
     setSelectedContract(contract);
