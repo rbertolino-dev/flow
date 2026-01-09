@@ -173,7 +173,7 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
               </div>
               <p className="text-[11px] font-semibold text-green-700 dark:text-green-300 mb-0.5">Válido</p>
               <p className="text-lg font-bold text-green-900 dark:text-green-100">{valid}</p>
-              <p className="text-[9px] text-green-600/70 dark:text-green-400/70 mt-0.5">> 7 dias</p>
+              <p className="text-[9px] text-green-600/70 dark:text-green-400/70 mt-0.5">&gt; 7 dias</p>
             </div>
           </div>
         </div>
