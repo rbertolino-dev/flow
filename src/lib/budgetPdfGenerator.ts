@@ -611,10 +611,17 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   }
 
   // ==========================================
-  // RODAPÉ
+  // RODAPÉ - ASSINATURA
   // ==========================================
-  checkNewPage(lineHeight * 8);
+  // Garantir espaço suficiente para assinatura (pelo menos 25mm do final)
+  const minSpaceForSignature = 25;
+  if (yPosition + minSpaceForSignature > pageHeight - margin) {
+    doc.addPage();
+    drawPageHeader();
+    yPosition = margin + 18;
+  }
   
+  // Linha separadora antes da assinatura
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.2);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
@@ -625,17 +632,19 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   doc.setTextColor(100, 100, 100);
   doc.text('Assinatura', pageWidth / 2, yPosition, { align: 'center' });
 
-  // Rodapé com numeração de páginas
+  // Rodapé com numeração de páginas (garantir que não fique cortado)
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(150, 150, 150);
+    // Posicionar rodapé com margem segura (10mm do final)
+    const footerY = pageHeight - 10;
     doc.text(
       `Documento gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - Pagina ${i} de ${totalPages}`,
       pageWidth / 2,
-      pageHeight - 8,
+      footerY,
       { align: 'center' }
     );
   }
