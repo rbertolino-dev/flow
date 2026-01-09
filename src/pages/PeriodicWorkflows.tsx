@@ -242,12 +242,13 @@ export default function PeriodicWorkflows() {
   const pageContent = (
     <div className="h-full flex flex-col bg-background">
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Card 1: Workflows e Estatísticas */}
         <Card>
           <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>Fluxo Automatizado</CardTitle>
+              <CardTitle>Workflows e Estatísticas</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Agende cobranças e lembretes automáticos com controle por organização.
+                Gerencie workflows, visualize estatísticas e acompanhe execuções.
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 💡 Atalhos: <kbd className="px-1 py-0.5 text-xs font-semibold bg-muted rounded">Ctrl+N</kbd> Novo workflow • <kbd className="px-1 py-0.5 text-xs font-semibold bg-muted rounded">Ctrl+F</kbd> Buscar • <kbd className="px-1 py-0.5 text-xs font-semibold bg-muted rounded">Esc</kbd> Fechar
@@ -273,10 +274,6 @@ export default function PeriodicWorkflows() {
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="boletos">Gestão de Boletos Asaas</TabsTrigger>
-                <TabsTrigger value="asaas">Integração Asaas</TabsTrigger>
-                <TabsTrigger value="mercado-pago">Integração Mercado Pago</TabsTrigger>
-                <TabsTrigger value="mercado-pago-cobrancas">Cobranças Mercado Pago</TabsTrigger>
               </TabsList>
               <TabsContent value="workflows" className="space-y-6 mt-6">
                 <WorkflowFilters
@@ -310,6 +307,26 @@ export default function PeriodicWorkflows() {
               <TabsContent value="approvals" className="mt-6">
                 <WorkflowApprovalQueue />
               </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Boletos e Integrações */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Boletos e Integrações</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Gerencie boletos e configure integrações de pagamento.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="boletos" className="w-full">
+              <TabsList>
+                <TabsTrigger value="boletos">Gestão de Boletos Asaas</TabsTrigger>
+                <TabsTrigger value="asaas">Integração Asaas</TabsTrigger>
+                <TabsTrigger value="mercado-pago">Integração Mercado Pago</TabsTrigger>
+                <TabsTrigger value="mercado-pago-cobrancas">Cobranças Mercado Pago</TabsTrigger>
+              </TabsList>
               <TabsContent value="boletos" className="mt-6">
                 <BoletoManagement />
               </TabsContent>
