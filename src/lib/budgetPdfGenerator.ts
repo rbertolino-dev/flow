@@ -327,7 +327,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   // ==========================================
   // DADOS DO CLIENTE
   // ==========================================
-  checkNewPage(lineHeight * 8);
+  checkNewPage(lineHeight * 10);
   
   // Linha separadora antes de "DADOS DO CLIENTE" (como na imagem laranja)
   doc.setDrawColor(200, 200, 200);
@@ -340,40 +340,55 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   yPosition += lineHeight * 1.5;
 
   const client = budget.client_data || budget.lead;
-  if (client) {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    
-    const leftColX = margin;
-    const rightColX = margin + maxWidth / 2;
-    let leftY = yPosition;
-    let rightY = yPosition;
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('Cliente:', leftColX, leftY);
-    doc.setFont('helvetica', 'normal');
-    leftY += lineHeight;
-    doc.text(client.name || '', leftColX, leftY);
-    leftY += lineHeight * 1.2;
-    
-    if (client.company) {
-      doc.text(`Endereco: ${client.company}`, leftColX, leftY);
-      leftY += lineHeight;
-    }
-    
-    if (client.email) {
-      doc.text(`Email: ${client.email}`, leftColX, leftY);
-      leftY += lineHeight;
-    }
-    
-    if (client.phone) {
-      doc.text(`Telefone: ${client.phone}`, rightColX, rightY);
-      rightY += lineHeight;
-    }
-    
-    yPosition = Math.max(leftY, rightY) + lineHeight * 1.5;
-  }
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 30, 30);
+  
+  const leftColX = margin;
+  const rightColX = margin + maxWidth / 2;
+  let leftY = yPosition;
+  let rightY = yPosition;
+  
+  // SEMPRE mostrar todos os campos, mesmo vazios (como na imagem laranja)
+  
+  // Lado esquerdo
+  doc.setFont('helvetica', 'bold');
+  doc.text('Cliente:', leftColX, leftY);
+  doc.setFont('helvetica', 'normal');
+  leftY += lineHeight;
+  doc.text(client?.name || '', leftColX, leftY);
+  leftY += lineHeight * 1.2;
+  
+  // Endereço (sempre mostrar)
+  doc.text(`Endereco: ${client?.company || ''}`, leftColX, leftY);
+  leftY += lineHeight;
+  
+  // Bairro (sempre mostrar, mesmo vazio)
+  doc.text(`Bairro: `, leftColX, leftY);
+  leftY += lineHeight;
+  
+  // Email (sempre mostrar)
+  doc.text(`Email: ${client?.email || ''}`, leftColX, leftY);
+  leftY += lineHeight;
+  
+  // Lado direito
+  // CPF (sempre mostrar)
+  doc.text(`CPF: ${(client as any)?.cpf_cnpj || ''}`, rightColX, rightY);
+  rightY += lineHeight;
+  
+  // CEP (sempre mostrar, mesmo vazio)
+  doc.text(`CEP: `, rightColX, rightY);
+  rightY += lineHeight;
+  
+  // Cidade (sempre mostrar, mesmo vazio)
+  doc.text(`Cidade: `, rightColX, rightY);
+  rightY += lineHeight;
+  
+  // Telefone (sempre mostrar)
+  doc.text(`Telefone: ${client?.phone || ''}`, rightColX, rightY);
+  rightY += lineHeight;
+  
+  yPosition = Math.max(leftY, rightY) + lineHeight * 1.5;
 
   // Linha separadora antes de "PRODUTOS" (como na imagem laranja)
   doc.setDrawColor(200, 200, 200);
@@ -512,23 +527,29 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += lineHeight * 1.5;
 
-    // Totais
+    // Totais - SEMPRE mostrar todos os campos (como na imagem laranja)
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     
-    if (budget.subtotal_products > 0 || (budget.subtotal_services && budget.subtotal_services > 0)) {
-      doc.text('SUBTOTAL:', margin + 100, yPosition, { align: 'right' });
-      doc.text(formatCurrency(budget.subtotal_products + (budget.subtotal_services || 0)), margin + 160, yPosition, { align: 'right' });
-      yPosition += lineHeight;
-    }
+    // SUBTOTAL (sempre mostrar)
+    const subtotal = budget.subtotal_products + (budget.subtotal_services || 0);
+    doc.text('SUBTOTAL:', margin + 100, yPosition, { align: 'right' });
+    doc.text(formatCurrency(subtotal), margin + 160, yPosition, { align: 'right' });
+    yPosition += lineHeight;
     
-    if (budget.additions !== 0) {
-      const label = budget.additions > 0 ? 'ACRESCIMO:' : 'DESCONTO:';
-      doc.text(label, margin + 100, yPosition, { align: 'right' });
-      doc.text(formatCurrency(Math.abs(budget.additions)), margin + 160, yPosition, { align: 'right' });
-      yPosition += lineHeight;
-    }
+    // DESCONTO (sempre mostrar, mesmo se zero)
+    const discount = budget.additions < 0 ? Math.abs(budget.additions) : 0;
+    doc.text('DESCONTO:', margin + 100, yPosition, { align: 'right' });
+    doc.text(formatCurrency(discount), margin + 160, yPosition, { align: 'right' });
+    yPosition += lineHeight;
     
+    // ACRÉSCIMO (sempre mostrar, mesmo se zero)
+    const addition = budget.additions > 0 ? budget.additions : 0;
+    doc.text('ACRESCIMO:', margin + 100, yPosition, { align: 'right' });
+    doc.text(formatCurrency(addition), margin + 160, yPosition, { align: 'right' });
+    yPosition += lineHeight;
+    
+    // TOTAL (sempre mostrar)
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     const totalRgb = hexToRgb(headerColor);
@@ -548,37 +569,37 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   const rightInfoX = margin + maxWidth / 2;
   let infoY = yPosition;
 
-  // Coluna esquerda: Forma de Pagamento
+  // Coluna esquerda: Forma de Pagamento (SEMPRE mostrar, como na imagem laranja)
+  writeTitle('FORMA DE PAGAMENTO', leftInfoX, infoY, 10);
+  infoY += lineHeight;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
   if (budget.payment_methods && budget.payment_methods.length > 0) {
-    // Usar função writeTitle que garante sanitização e reset completo de estado
-    writeTitle('FORMA DE PAGAMENTO', leftInfoX, infoY, 10);
-    infoY += lineHeight;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
     const paymentText = formatPaymentMethods(budget.payment_methods as any[]);
     const paymentLines = doc.splitTextToSize(paymentText, maxWidth / 2 - 5);
     paymentLines.forEach((line: string) => {
       doc.text(line, leftInfoX, infoY);
       infoY += lineHeight;
     });
-    infoY += lineHeight * 0.5;
+  } else {
+    // Mostrar vazio se não houver método de pagamento
+    doc.text('', leftInfoX, infoY);
+    infoY += lineHeight;
   }
+  infoY += lineHeight * 0.5;
 
-  // Coluna direita: Informações de Entrega
+  // Coluna direita: Validade (SEMPRE mostrar, como na imagem laranja)
   let rightInfoY = yPosition;
-  if (budget.expires_at) {
-    // Usar função writeTitle que garante sanitização e reset completo de estado
-    writeTitle('INFORMACOES DE ENTREGA', rightInfoX, rightInfoY, 10);
-    rightInfoY += lineHeight;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    rightInfoY += lineHeight;
-    const expiresDate = format(new Date(budget.expires_at), 'dd/MM/yyyy');
-    doc.text(`O presente orcamento possui validade de ${budget.validity_days || 7} dias uteis.`, rightInfoX, rightInfoY);
-    rightInfoY += lineHeight;
-    doc.text('Apos o prazo entre em contato para novo orcamento.', rightInfoX, rightInfoY);
-    rightInfoY += lineHeight * 1.5;
-  }
+  writeTitle('VALIDADE', rightInfoX, rightInfoY, 10);
+  rightInfoY += lineHeight;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  rightInfoY += lineHeight;
+  const validityDays = budget.validity_days || 15; // Padrão 15 dias como na imagem
+  doc.text(`O presente orcamento possui validade de ${validityDays} dias uteis.`, rightInfoX, rightInfoY);
+  rightInfoY += lineHeight;
+  doc.text('Apos o prazo entre em contato para novo orcamento.', rightInfoX, rightInfoY);
+  rightInfoY += lineHeight * 1.5;
 
   yPosition = Math.max(infoY, rightInfoY) + lineHeight;
 
