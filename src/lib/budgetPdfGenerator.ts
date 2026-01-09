@@ -558,7 +558,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   // ==========================================
   // INFORMAÇÕES ADICIONAIS
   // ==========================================
-  checkNewPage(lineHeight * 12);
+  checkNewPage(lineHeight * 10);
   
   const leftInfoX = margin;
   const rightInfoX = margin + maxWidth / 2;
