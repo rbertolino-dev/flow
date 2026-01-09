@@ -44,35 +44,52 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    // Buscar usuário autenticado
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Criar cliente com service role para operações no banco
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Extrair token do header e validar usuário
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
+      console.error('Erro ao validar usuário:', userError);
       return new Response(
-        JSON.stringify({ error: 'Usuário não autenticado' }),
+        JSON.stringify({ error: 'Usuário não autenticado', details: userError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Usuário autenticado:', user.id);
 
     // Buscar solicitação de agendamento
+    console.log('Buscando booking request:', booking_request_id);
     const { data: bookingRequest, error: requestError } = await supabase
       .from('booking_requests')
       .select('*, organization_id, user_id, google_calendar_config_id, requested_datetime, duration_minutes, client_name, client_email, client_phone, client_notes, status')
       .eq('id', booking_request_id)
       .single();
 
-    if (requestError || !bookingRequest) {
+    if (requestError) {
+      console.error('Erro ao buscar booking request:', requestError);
+      return new Response(
+        JSON.stringify({ error: 'Solicitação de agendamento não encontrada', details: requestError.message }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!bookingRequest) {
+      console.error('Booking request não encontrado');
       return new Response(
         JSON.stringify({ error: 'Solicitação de agendamento não encontrada' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Booking request encontrado:', bookingRequest.id, 'Status:', bookingRequest.status);
 
     // Verificar se usuário pertence à organização
+    console.log('Verificando membro da organização:', bookingRequest.organization_id);
     const { data: member, error: memberError } = await supabase
       .from('organization_members')
       .select('role')
@@ -80,12 +97,23 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
-    if (memberError || !member) {
+    if (memberError) {
+      console.error('Erro ao verificar membro:', memberError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao verificar permissões', details: memberError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!member) {
+      console.error('Usuário não é membro da organização');
       return new Response(
         JSON.stringify({ error: 'Você não tem permissão para aprovar esta solicitação' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Membro verificado, role:', member.role);
 
     if (bookingRequest.status !== 'pending') {
       return new Response(
@@ -124,7 +152,9 @@ serve(async (req) => {
     }
 
     // Aprovar solicitação
+    console.log('Aprovando solicitação...');
     if (!bookingRequest.google_calendar_config_id) {
+      console.error('google_calendar_config_id não encontrado no booking request');
       return new Response(
         JSON.stringify({ error: 'Organização não possui configuração do Google Calendar' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -132,18 +162,30 @@ serve(async (req) => {
     }
 
     // Buscar configuração do Google Calendar
+    console.log('Buscando configuração do Google Calendar:', bookingRequest.google_calendar_config_id);
     const { data: calendarConfig, error: configError } = await supabase
       .from('google_calendar_configs')
       .select('*')
       .eq('id', bookingRequest.google_calendar_config_id)
       .single();
 
-    if (configError || !calendarConfig) {
+    if (configError) {
+      console.error('Erro ao buscar calendar config:', configError);
+      return new Response(
+        JSON.stringify({ error: 'Configuração do Google Calendar não encontrada', details: configError.message }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!calendarConfig) {
+      console.error('Calendar config não encontrado');
       return new Response(
         JSON.stringify({ error: 'Configuração do Google Calendar não encontrada' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Calendar config encontrado:', calendarConfig.id);
 
     // Obter access token do Google
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
