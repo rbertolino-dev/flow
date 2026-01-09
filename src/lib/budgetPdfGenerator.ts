@@ -203,27 +203,27 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
 
   // ==========================================
   // CABEÇALHO COM LOGO E DADOS DA ORGANIZAÇÃO
+  // Baseado no modelo da imagem laranja
   // ==========================================
   const headerStartY = 20;
   let currentY = headerStartY;
-  const logoSize = 20; // Tamanho da logo
-  const logoMargin = 5; // Espaçamento após logo
+  const logoSize = 25; // Tamanho da logo (aumentado)
   const leftColumnX = margin;
   const rightColumnX = pageWidth - margin;
+  const logoRightX = rightColumnX - logoSize; // Logo no topo direito
   
-  // Carregar e posicionar logo à esquerda
+  // Carregar e posicionar logo no topo direito (ao lado da data)
   let logoLoaded = false;
-  let logoHeight = logoSize; // Altura padrão
+  let logoHeight = logoSize;
   if (logoUrl) {
     try {
       const logoDataUrl = await loadImage(logoUrl);
       if (logoDataUrl) {
-        // Usar dimensões fixas para logo (ajustar proporção se necessário)
         const logoWidth = logoSize;
-        logoHeight = logoSize; // Altura igual à largura (quadrado) ou ajustar conforme necessário
-        
+        logoHeight = logoSize;
         const imageType = logoUrl.toLowerCase().endsWith('.png') ? 'PNG' : 'JPEG';
-        doc.addImage(logoDataUrl, imageType, leftColumnX, currentY, logoWidth, logoHeight);
+        // Logo no topo direito, alinhada com a data de emissão
+        doc.addImage(logoDataUrl, imageType, logoRightX, headerStartY, logoWidth, logoHeight);
         logoLoaded = true;
       }
     } catch (error) {
@@ -231,34 +231,32 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     }
   }
 
-  // Dados da organização (ao lado da logo ou abaixo se não houver logo)
-  const orgDataStartX = logoLoaded ? leftColumnX + logoSize + logoMargin : leftColumnX;
-  const orgDataStartY = currentY;
-  let orgDataY = orgDataStartY;
+  // Dados da organização no topo esquerdo (como na imagem laranja)
+  const orgDataStartX = leftColumnX;
+  let orgDataY = headerStartY;
   
-  // Nome da organização
+  // Nome da organização (negrito, maior)
   const orgName = organizationData?.name || 'Agilize Vendas';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(30, 30, 30);
   doc.text(orgName, orgDataStartX, orgDataY);
-  orgDataY += lineHeight * 1.2;
+  orgDataY += lineHeight * 1.3;
   
-  // Perfil da empresa (MEI, ME, LTDA, etc.) e CNPJ se disponível
+  // CNPJ
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(60, 60, 60);
-  
-  if (organizationData?.company_profile) {
-    doc.text(organizationData.company_profile, orgDataStartX, orgDataY);
+  if (organizationData?.cnpj) {
+    doc.text(`CNPJ: ${organizationData.cnpj}`, orgDataStartX, orgDataY);
     orgDataY += lineHeight;
   }
   
   // Endereço da organização
   if (organizationData?.address) {
-    const addressLines = doc.splitTextToSize(organizationData.address, maxWidth - (orgDataStartX - margin));
+    const addressLines = doc.splitTextToSize(organizationData.address, 90); // Largura fixa para alinhamento
     addressLines.forEach((line: string) => {
-      doc.text(line, orgDataStartX, orgDataY);
+      doc.text(`Endereco: ${line}`, orgDataStartX, orgDataY);
       orgDataY += lineHeight;
     });
   } else if (organizationData?.city || organizationData?.state) {
@@ -266,45 +264,63 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     if (organizationData.city) locationParts.push(organizationData.city);
     if (organizationData.state) locationParts.push(organizationData.state);
     if (locationParts.length > 0) {
-      doc.text(locationParts.join(' - '), orgDataStartX, orgDataY);
+      doc.text(`Endereco: ${locationParts.join(' - ')}`, orgDataStartX, orgDataY);
       orgDataY += lineHeight;
     }
   }
   
-  // Ajustar posição Y baseado na altura do cabeçalho
-  const headerHeight = Math.max(logoHeight, orgDataY - orgDataStartY);
-  currentY = headerStartY + headerHeight + lineHeight * 1.5;
+  // Telefone
+  if (organizationData?.phone) {
+    doc.text(`Telefone: ${organizationData.phone}`, orgDataStartX, orgDataY);
+    orgDataY += lineHeight;
+  }
   
-  // Lado direito: Número do orçamento e datas
-  doc.setFontSize(9);
+  // Email
+  if (organizationData?.contact_email) {
+    doc.text(`Email: ${organizationData.contact_email}`, orgDataStartX, orgDataY);
+    orgDataY += lineHeight;
+  }
+  
+  // Lado direito: Logo (já posicionada) e Data de emissão
+  let rightY = headerStartY;
+  if (logoLoaded) {
+    // Data ao lado da logo (um pouco à esquerda)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, logoRightX - 5, rightY + logoHeight / 2, { align: 'right' });
+  } else {
+    // Se não houver logo, data no topo direito
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
+    rightY += lineHeight;
+  }
+  
+  // Número do orçamento abaixo da data (ou logo)
+  rightY = headerStartY + (logoLoaded ? logoHeight + lineHeight * 0.5 : lineHeight * 1.2);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
   doc.setTextColor(30, 30, 30);
-  doc.text(`Orcamento N: ${budget.budget_number}`, rightColumnX, headerStartY, { align: 'right' });
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(60, 60, 60);
-  let rightY = headerStartY + lineHeight;
-  doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
+  doc.text(`Orcamento N°: ${budget.budget_number}`, rightColumnX, rightY, { align: 'right' });
   rightY += lineHeight;
   
+  // Data de entrega (se houver)
   if (budget.delivery_date) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
     doc.text(`Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
     rightY += lineHeight;
   }
-  if (budget.delivery_location) {
-    const locationLines = doc.splitTextToSize(`Local: ${budget.delivery_location}`, 80);
-    locationLines.forEach((line: string, idx: number) => {
-      doc.text(line, rightColumnX, rightY + (idx * lineHeight), { align: 'right' });
-    });
-  }
 
-  // Linha separadora após cabeçalho
-  currentY += lineHeight * 0.5;
+  // Linha separadora após cabeçalho (como na imagem laranja)
+  currentY = Math.max(orgDataY, rightY) + lineHeight * 0.8;
   doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.1);
+  doc.setLineWidth(0.2);
   doc.line(margin, currentY, pageWidth - margin, currentY);
-  currentY += lineHeight;
+  currentY += lineHeight * 1.2;
   
   yPosition = currentY;
 
@@ -312,6 +328,12 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   // DADOS DO CLIENTE
   // ==========================================
   checkNewPage(lineHeight * 8);
+  
+  // Linha separadora antes de "DADOS DO CLIENTE" (como na imagem laranja)
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += lineHeight * 1.2;
   
   // Usar função writeTitle que garante sanitização e reset completo de estado
   writeTitle('DADOS DO CLIENTE', margin, yPosition, 10);
@@ -352,6 +374,12 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     
     yPosition = Math.max(leftY, rightY) + lineHeight * 1.5;
   }
+
+  // Linha separadora antes de "PRODUTOS" (como na imagem laranja)
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += lineHeight * 1.2;
 
   // ==========================================
   // TABELA DE PRODUTOS E SERVIÇOS

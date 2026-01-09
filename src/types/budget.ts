@@ -92,6 +92,9 @@ export interface BudgetPdfOptions {
     company_profile?: string;
     city?: string;
     state?: string;
+    cnpj?: string;
+    phone?: string;
+    contact_email?: string;
   };
 }
 

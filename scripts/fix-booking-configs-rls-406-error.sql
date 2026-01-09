@@ -94,3 +94,4 @@ CREATE POLICY "Organization booking config: admins can manage"
 -- Teste acessando a página de configuração de agendamento novamente.
 
 
+

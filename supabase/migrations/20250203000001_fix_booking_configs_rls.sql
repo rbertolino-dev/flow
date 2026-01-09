@@ -70,3 +70,4 @@ COMMENT ON POLICY "Organization booking config: admins can manage" ON public.org
   'Permite que admins/owners da organização gerenciem (INSERT/UPDATE/DELETE) a configuração';
 
 
+

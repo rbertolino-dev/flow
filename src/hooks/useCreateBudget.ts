@@ -95,7 +95,7 @@ export function useCreateBudget() {
         if (activeOrgId) {
           const { data: orgData } = await supabase
             .from('organizations')
-            .select('name, logo_url, address, company_profile, city, state')
+            .select('name, logo_url, address, company_profile, city, state, cnpj, phone, contact_email')
             .eq('id', activeOrgId)
             .single();
           
@@ -107,6 +107,9 @@ export function useCreateBudget() {
               company_profile: orgData.company_profile,
               city: orgData.city,
               state: orgData.state,
+              cnpj: orgData.cnpj,
+              phone: orgData.phone,
+              contact_email: orgData.contact_email,
             };
             
             // Se não houver logo no orçamento, usar da organização

@@ -2,8 +2,12 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder, Plus, Settings, UserPlus, TrendingUp } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, LayoutGrid, Folder, Plus, Settings, UserPlus, TrendingUp, CalendarIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format as formatDate } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -358,6 +362,13 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [totalDispatchesToday, setTotalDispatchesToday] = useState(0);
   const [dispatchesTrend, setDispatchesTrend] = useState<number | null>(null);
   const [totalDailyLimit, setTotalDailyLimit] = useState(0);
+  
+  // Estado para filtro de data e indicadores detalhados
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [totalDispatchesByDate, setTotalDispatchesByDate] = useState(0);
+  const [successfulDispatches, setSuccessfulDispatches] = useState(0);
+  const [failedDispatches, setFailedDispatches] = useState(0);
+  const [loadingDateDispatches, setLoadingDateDispatches] = useState(false);
 
   // Função para buscar disparos por instância (do dia atual)
   const fetchDispatchesByInstance = useCallback(async () => {
@@ -438,6 +449,76 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     }
   }, []);
 
+  // Função para buscar disparos por data selecionada (com status sent e failed)
+  const fetchDispatchesByDate = useCallback(async (date: Date | undefined) => {
+    if (!date) {
+      setTotalDispatchesByDate(0);
+      setSuccessfulDispatches(0);
+      setFailedDispatches(0);
+      return;
+    }
+
+    setLoadingDateDispatches(true);
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        setLoadingDateDispatches(false);
+        return;
+      }
+
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+
+      // Buscar todos os disparos da data (sent e failed)
+      // Filtrar por sent_at se disponível, caso contrário usar created_at
+      const { data: queueData, error: queueError } = await supabase
+        .from("broadcast_queue")
+        .select("status, sent_at, created_at")
+        .eq("organization_id", orgId)
+        .in("status", ["sent", "failed"])
+        .gte("created_at", startDate.toISOString())
+        .lt("created_at", endDate.toISOString());
+
+      if (queueError) {
+        console.error("Erro ao buscar disparos por data:", queueError);
+        throw queueError;
+      }
+
+      // Contar disparos por status
+      // Filtrar apenas os que foram enviados na data selecionada (usar sent_at se disponível, senão created_at)
+      let total = 0;
+      let successful = 0;
+      let failed = 0;
+
+      if (queueData) {
+        queueData.forEach((item: any) => {
+          // Usar sent_at se disponível, senão usar created_at
+          const dispatchDate = item.sent_at ? new Date(item.sent_at) : new Date(item.created_at);
+          
+          // Verificar se o disparo foi feito na data selecionada
+          if (dispatchDate >= startDate && dispatchDate < endDate) {
+            total++;
+            if (item.status === "sent") {
+              successful++;
+            } else if (item.status === "failed") {
+              failed++;
+            }
+          }
+        });
+      }
+
+      setTotalDispatchesByDate(total);
+      setSuccessfulDispatches(successful);
+      setFailedDispatches(failed);
+    } catch (error: any) {
+      console.error("Erro ao buscar disparos por data:", error);
+    } finally {
+      setLoadingDateDispatches(false);
+    }
+  }, []);
+
   // Buscar disparos por instância (do dia atual) - sempre, não apenas no modo segmento
   useEffect(() => {
     if (instances.length > 0) {
@@ -451,6 +532,11 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       return () => clearInterval(interval);
     }
   }, [instances.length, fetchDispatchesByInstance]);
+
+  // Buscar disparos por data selecionada
+  useEffect(() => {
+    fetchDispatchesByDate(selectedDate);
+  }, [selectedDate, fetchDispatchesByDate]);
 
   // Configurar Realtime para atualizar quando novos disparos são enviados
   useEffect(() => {
@@ -555,6 +641,43 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
   return (
     <div className="space-y-6 mb-6">
+      {/* Filtro de Data */}
+      <div className="flex items-center gap-4">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-[240px] justify-start text-left font-normal"
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {selectedDate ? (
+                formatDate(selectedDate, "PPP", { locale: ptBR })
+              ) : (
+                <span>Selecione uma data</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                setSelectedDate(date);
+              }}
+              initialFocus
+              locale={ptBR}
+            />
+          </PopoverContent>
+        </Popover>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedDate(new Date())}
+        >
+          Hoje
+        </Button>
+      </div>
+
       {/* Cards de Indicadores */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card: Instâncias Totais */}
@@ -618,6 +741,99 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               </div>
               <span className="text-xs text-muted-foreground mb-1">Capacidade</span>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cards de Indicadores por Data Selecionada */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card: Total de Disparos na Data */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              TOTAL DE DISPAROS
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold">
+                {loadingDateDispatches ? (
+                  <span className="text-muted-foreground">...</span>
+                ) : (
+                  totalDispatchesByDate.toLocaleString('pt-BR')
+                )}
+              </div>
+              <Badge variant="secondary" className="text-xs mb-1">
+                Total
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card: Disparos Bem-Sucedidos */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              DISPAROS BEM-SUCEDIDOS
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold text-green-600">
+                {loadingDateDispatches ? (
+                  <span className="text-muted-foreground">...</span>
+                ) : (
+                  successfulDispatches.toLocaleString('pt-BR')
+                )}
+              </div>
+              <Badge variant="outline" className="text-xs mb-1 text-green-600 border-green-600">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Sucesso
+              </Badge>
+            </div>
+            {totalDispatchesByDate > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {((successfulDispatches / totalDispatchesByDate) * 100).toFixed(1)}% do total
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card: Disparos Falhados */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              DISPAROS FALHADOS
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold text-red-600">
+                {loadingDateDispatches ? (
+                  <span className="text-muted-foreground">...</span>
+                ) : (
+                  failedDispatches.toLocaleString('pt-BR')
+                )}
+              </div>
+              <Badge variant="outline" className="text-xs mb-1 text-red-600 border-red-600">
+                <XCircle className="h-3 w-3 mr-1" />
+                Falha
+              </Badge>
+            </div>
+            {totalDispatchesByDate > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {((failedDispatches / totalDispatchesByDate) * 100).toFixed(1)}% do total
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
