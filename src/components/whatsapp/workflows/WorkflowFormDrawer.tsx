@@ -191,8 +191,12 @@ export function WorkflowFormDrawer({
   // Estados para dialog de edição de lead
   const [showEditLeadDialog, setShowEditLeadDialog] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
-  const [editingLeadCpfCnpj, setEditingLeadCpfCnpj] = useState<string>("");
   const [editingLeadName, setEditingLeadName] = useState<string>("");
+  const [editingLeadPhone, setEditingLeadPhone] = useState<string>("");
+  const [editingLeadEmail, setEditingLeadEmail] = useState<string>("");
+  const [editingLeadCompany, setEditingLeadCompany] = useState<string>("");
+  const [editingLeadCpfCnpj, setEditingLeadCpfCnpj] = useState<string>("");
+  const [editingLeadNotes, setEditingLeadNotes] = useState<string>("");
   
   // Estado para modo de anexo do boleto
   const [boletoAttachmentMode, setBoletoAttachmentMode] = useState<"auto" | "download">("download");
@@ -525,11 +529,21 @@ export function WorkflowFormDrawer({
       // Validação obrigatória de CPF/CNPJ - abrir dialog se faltar
       if (values.recipientMode === "single" && selectedLead) {
         // Para lead único, verificar se tem CPF/CNPJ
-        const { data: leadData } = await supabase
+        const { data: leadData, error } = await supabase
           .from("leads")
           .select("id, name, cpf_cnpj")
           .eq("id", selectedLead.id)
-          .single();
+          .maybeSingle();
+
+        if (error) {
+          console.error("Erro ao verificar CPF/CNPJ do lead:", error);
+          toast({
+            title: "Erro ao verificar dados",
+            description: "Não foi possível verificar os dados do cliente.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         if (!leadData?.cpf_cnpj || leadData.cpf_cnpj.trim() === "") {
           setLeadsSemCpfCnpj([{ id: leadData.id, name: leadData.name, cpf_cnpj: "" }]);
@@ -544,10 +558,20 @@ export function WorkflowFormDrawer({
           .filter((id): id is string => !!id);
 
         if (leadIds.length > 0) {
-          const { data: leadsData } = await supabase
+          const { data: leadsData, error } = await supabase
             .from("leads")
             .select("id, name, cpf_cnpj")
             .in("id", leadIds);
+
+          if (error) {
+            console.error("Erro ao verificar CPF/CNPJ dos leads:", error);
+            toast({
+              title: "Erro ao verificar dados",
+              description: "Não foi possível verificar os dados dos clientes.",
+              variant: "destructive",
+            });
+            return;
+          }
 
           if (leadsData) {
             const leadsFaltando = leadsData.filter(
@@ -744,18 +768,41 @@ export function WorkflowFormDrawer({
                         const lead = leadOptions.find((l) => l.id === leadId);
                         if (!lead) return;
                         
-                        // Buscar dados completos do lead incluindo CPF/CNPJ
-                        const { data: leadData } = await supabase
-                          .from("leads")
-                          .select("id, name, cpf_cnpj")
-                          .eq("id", leadId)
-                          .single();
-                        
-                        if (leadData) {
-                          setEditingLeadId(leadData.id);
-                          setEditingLeadName(leadData.name);
-                          setEditingLeadCpfCnpj(leadData.cpf_cnpj || "");
-                          setShowEditLeadDialog(true);
+                        try {
+                          // Buscar dados completos do lead
+                          const { data: leadData, error } = await supabase
+                            .from("leads")
+                            .select("id, name, phone, email, company, cpf_cnpj, notes")
+                            .eq("id", leadId)
+                            .single();
+                          
+                          if (error) {
+                            console.error("Erro ao buscar lead:", error);
+                            toast({
+                              title: "Erro ao carregar dados",
+                              description: error.message || "Não foi possível carregar os dados do cliente.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          
+                          if (leadData) {
+                            setEditingLeadId(leadData.id);
+                            setEditingLeadName(leadData.name || "");
+                            setEditingLeadPhone(leadData.phone || "");
+                            setEditingLeadEmail(leadData.email || "");
+                            setEditingLeadCompany(leadData.company || "");
+                            setEditingLeadCpfCnpj(leadData.cpf_cnpj || "");
+                            setEditingLeadNotes(leadData.notes || "");
+                            setShowEditLeadDialog(true);
+                          }
+                        } catch (error: any) {
+                          console.error("Erro ao buscar lead:", error);
+                          toast({
+                            title: "Erro ao carregar dados",
+                            description: error.message || "Não foi possível carregar os dados do cliente.",
+                            variant: "destructive",
+                          });
                         }
                       }}
                     />
@@ -1753,21 +1800,63 @@ export function WorkflowFormDrawer({
 
       {/* Dialog para editar informações do lead */}
       <Dialog open={showEditLeadDialog} onOpenChange={setShowEditLeadDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="h-5 w-5" />
               Editar Informações do Cliente
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Edite o CPF/CNPJ do cliente selecionado
+              Edite todas as informações do cliente selecionado
             </p>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Cliente</Label>
-              <p className="text-sm text-muted-foreground">{editingLeadName}</p>
+              <Label htmlFor="edit-lead-name">Nome *</Label>
+              <Input
+                id="edit-lead-name"
+                placeholder="Nome completo"
+                value={editingLeadName}
+                onChange={(e) => setEditingLeadName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-lead-phone">Telefone *</Label>
+              <Input
+                id="edit-lead-phone"
+                placeholder="(00) 00000-0000"
+                value={editingLeadPhone}
+                onChange={(e) => {
+                  // Remover caracteres não numéricos
+                  const value = e.target.value.replace(/\D/g, "");
+                  setEditingLeadPhone(value);
+                }}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-lead-email">Email</Label>
+              <Input
+                id="edit-lead-email"
+                type="email"
+                placeholder="email@exemplo.com"
+                value={editingLeadEmail}
+                onChange={(e) => setEditingLeadEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-lead-company">Empresa</Label>
+              <Input
+                id="edit-lead-company"
+                placeholder="Nome da empresa"
+                value={editingLeadCompany}
+                onChange={(e) => setEditingLeadCompany(e.target.value)}
+              />
             </div>
             
             <div className="space-y-2">
@@ -1787,6 +1876,17 @@ export function WorkflowFormDrawer({
                 CPF: 11 dígitos | CNPJ: 14 dígitos
               </p>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-lead-notes">Observações</Label>
+              <Textarea
+                id="edit-lead-notes"
+                placeholder="Observações sobre o contato..."
+                rows={3}
+                value={editingLeadNotes}
+                onChange={(e) => setEditingLeadNotes(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 justify-end mt-6">
@@ -1795,8 +1895,12 @@ export function WorkflowFormDrawer({
               onClick={() => {
                 setShowEditLeadDialog(false);
                 setEditingLeadId(null);
-                setEditingLeadCpfCnpj("");
                 setEditingLeadName("");
+                setEditingLeadPhone("");
+                setEditingLeadEmail("");
+                setEditingLeadCompany("");
+                setEditingLeadCpfCnpj("");
+                setEditingLeadNotes("");
               }}
             >
               Cancelar
@@ -1804,6 +1908,25 @@ export function WorkflowFormDrawer({
             <Button
               onClick={async () => {
                 if (!editingLeadId) return;
+
+                // Validações
+                if (!editingLeadName.trim()) {
+                  toast({
+                    title: "Nome obrigatório",
+                    description: "O nome do cliente é obrigatório.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                if (!editingLeadPhone.trim()) {
+                  toast({
+                    title: "Telefone obrigatório",
+                    description: "O telefone do cliente é obrigatório.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
 
                 // Validar formato (CPF: 11 dígitos, CNPJ: 14 dígitos)
                 if (editingLeadCpfCnpj && editingLeadCpfCnpj.length !== 11 && editingLeadCpfCnpj.length !== 14) {
@@ -1816,9 +1939,18 @@ export function WorkflowFormDrawer({
                 }
 
                 try {
+                  const updates: any = {
+                    name: editingLeadName.trim(),
+                    phone: editingLeadPhone.replace(/\D/g, ""),
+                    email: editingLeadEmail.trim() || null,
+                    company: editingLeadCompany.trim() || null,
+                    cpf_cnpj: editingLeadCpfCnpj || null,
+                    notes: editingLeadNotes.trim() || null,
+                  };
+
                   const { error } = await supabase
                     .from("leads")
-                    .update({ cpf_cnpj: editingLeadCpfCnpj || null })
+                    .update(updates)
                     .eq("id", editingLeadId);
 
                   if (error) {
@@ -1833,15 +1965,22 @@ export function WorkflowFormDrawer({
                   // Fechar dialog
                   setShowEditLeadDialog(false);
                   setEditingLeadId(null);
-                  setEditingLeadCpfCnpj("");
                   setEditingLeadName("");
+                  setEditingLeadPhone("");
+                  setEditingLeadEmail("");
+                  setEditingLeadCompany("");
+                  setEditingLeadCpfCnpj("");
+                  setEditingLeadNotes("");
 
-                  // Recarregar leadOptions se necessário (pode ser feito via invalidation do hook)
-                  // Por enquanto, apenas fechamos o dialog
+                  // Disparar evento de refresh para atualizar em tempo real
+                  window.dispatchEvent(new CustomEvent('data-refresh', {
+                    detail: { type: 'update', entity: 'lead', leadId: editingLeadId }
+                  }));
                 } catch (error: any) {
+                  console.error("Erro ao atualizar lead:", error);
                   toast({
                     title: "Erro ao atualizar",
-                    description: error.message,
+                    description: error.message || "Erro desconhecido ao atualizar cliente",
                     variant: "destructive",
                   });
                 }

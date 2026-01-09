@@ -79,11 +79,15 @@ export function WorkflowListManager({
   const [searchContact, setSearchContact] = useState("");
   const { toast } = useToast();
   
-  // Estados para edição de CPF/CNPJ do contato
+  // Estados para edição completa do contato
   const [showEditContactDialog, setShowEditContactDialog] = useState(false);
   const [editingContactLeadId, setEditingContactLeadId] = useState<string | null>(null);
   const [editingContactName, setEditingContactName] = useState<string>("");
+  const [editingContactPhone, setEditingContactPhone] = useState<string>("");
+  const [editingContactEmail, setEditingContactEmail] = useState<string>("");
+  const [editingContactCompany, setEditingContactCompany] = useState<string>("");
   const [editingContactCpfCnpj, setEditingContactCpfCnpj] = useState<string>("");
+  const [editingContactNotes, setEditingContactNotes] = useState<string>("");
 
   useEffect(() => {
     if (!open) {
@@ -473,18 +477,47 @@ export function WorkflowListManager({
                                 variant="ghost"
                                 size="icon"
                                 onClick={async () => {
-                                  // Buscar dados completos do lead incluindo CPF/CNPJ
-                                  const { data: leadData } = await supabase
-                                    .from("leads")
-                                    .select("id, name, cpf_cnpj")
-                                    .eq("id", contact.lead_id)
-                                    .single();
-                                  
-                                  if (leadData) {
-                                    setEditingContactLeadId(leadData.id);
-                                    setEditingContactName(leadData.name);
-                                    setEditingContactCpfCnpj(leadData.cpf_cnpj || "");
-                                    setShowEditContactDialog(true);
+                                  try {
+                                    // Buscar dados completos do lead
+                                    const { data: leadData, error } = await supabase
+                                      .from("leads")
+                                      .select("id, name, phone, email, company, cpf_cnpj, notes")
+                                      .eq("id", contact.lead_id)
+                                      .maybeSingle();
+                                    
+                                    if (error) {
+                                      console.error("Erro ao buscar lead:", error);
+                                      toast({
+                                        title: "Erro ao carregar dados",
+                                        description: error.message || "Não foi possível carregar os dados do cliente.",
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    
+                                    if (leadData) {
+                                      setEditingContactLeadId(leadData.id);
+                                      setEditingContactName(leadData.name || "");
+                                      setEditingContactPhone(leadData.phone || "");
+                                      setEditingContactEmail(leadData.email || "");
+                                      setEditingContactCompany(leadData.company || "");
+                                      setEditingContactCpfCnpj(leadData.cpf_cnpj || "");
+                                      setEditingContactNotes(leadData.notes || "");
+                                      setShowEditContactDialog(true);
+                                    } else {
+                                      toast({
+                                        title: "Cliente não encontrado",
+                                        description: "Não foi possível encontrar os dados do cliente.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (error: any) {
+                                    console.error("Erro ao buscar lead:", error);
+                                    toast({
+                                      title: "Erro ao carregar dados",
+                                      description: error.message || "Não foi possível carregar os dados do cliente.",
+                                      variant: "destructive",
+                                    });
                                   }
                                 }}
                                 title="Editar CPF/CNPJ"
@@ -620,23 +653,65 @@ export function WorkflowListManager({
         )}
       </DialogContent>
 
-      {/* Dialog para editar CPF/CNPJ do contato */}
+      {/* Dialog para editar informações completas do contato */}
       <Dialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="h-5 w-5" />
               Editar Informações do Contato
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Edite o CPF/CNPJ do contato da lista
+              Edite todas as informações do contato da lista
             </p>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Cliente</Label>
-              <p className="text-sm text-muted-foreground">{editingContactName}</p>
+              <Label htmlFor="edit-contact-name">Nome *</Label>
+              <Input
+                id="edit-contact-name"
+                placeholder="Nome completo"
+                value={editingContactName}
+                onChange={(e) => setEditingContactName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-phone">Telefone *</Label>
+              <Input
+                id="edit-contact-phone"
+                placeholder="(00) 00000-0000"
+                value={editingContactPhone}
+                onChange={(e) => {
+                  // Remover caracteres não numéricos
+                  const value = e.target.value.replace(/\D/g, "");
+                  setEditingContactPhone(value);
+                }}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-email">Email</Label>
+              <Input
+                id="edit-contact-email"
+                type="email"
+                placeholder="email@exemplo.com"
+                value={editingContactEmail}
+                onChange={(e) => setEditingContactEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-company">Empresa</Label>
+              <Input
+                id="edit-contact-company"
+                placeholder="Nome da empresa"
+                value={editingContactCompany}
+                onChange={(e) => setEditingContactCompany(e.target.value)}
+              />
             </div>
             
             <div className="space-y-2">
@@ -656,6 +731,17 @@ export function WorkflowListManager({
                 CPF: 11 dígitos | CNPJ: 14 dígitos
               </p>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-notes">Observações</Label>
+              <Textarea
+                id="edit-contact-notes"
+                placeholder="Observações sobre o contato..."
+                rows={3}
+                value={editingContactNotes}
+                onChange={(e) => setEditingContactNotes(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 justify-end mt-6">
@@ -664,8 +750,12 @@ export function WorkflowListManager({
               onClick={() => {
                 setShowEditContactDialog(false);
                 setEditingContactLeadId(null);
-                setEditingContactCpfCnpj("");
                 setEditingContactName("");
+                setEditingContactPhone("");
+                setEditingContactEmail("");
+                setEditingContactCompany("");
+                setEditingContactCpfCnpj("");
+                setEditingContactNotes("");
               }}
             >
               Cancelar
@@ -673,6 +763,25 @@ export function WorkflowListManager({
             <Button
               onClick={async () => {
                 if (!editingContactLeadId) return;
+
+                // Validações
+                if (!editingContactName.trim()) {
+                  toast({
+                    title: "Nome obrigatório",
+                    description: "O nome do cliente é obrigatório.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                if (!editingContactPhone.trim()) {
+                  toast({
+                    title: "Telefone obrigatório",
+                    description: "O telefone do cliente é obrigatório.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
 
                 // Validar formato (CPF: 11 dígitos, CNPJ: 14 dígitos)
                 if (editingContactCpfCnpj && editingContactCpfCnpj.length !== 11 && editingContactCpfCnpj.length !== 14) {
@@ -685,9 +794,18 @@ export function WorkflowListManager({
                 }
 
                 try {
+                  const updates: any = {
+                    name: editingContactName.trim(),
+                    phone: editingContactPhone.replace(/\D/g, ""),
+                    email: editingContactEmail.trim() || null,
+                    company: editingContactCompany.trim() || null,
+                    cpf_cnpj: editingContactCpfCnpj || null,
+                    notes: editingContactNotes.trim() || null,
+                  };
+
                   const { error } = await supabase
                     .from("leads")
-                    .update({ cpf_cnpj: editingContactCpfCnpj || null })
+                    .update(updates)
                     .eq("id", editingContactLeadId);
 
                   if (error) {
@@ -702,12 +820,22 @@ export function WorkflowListManager({
                   // Fechar dialog
                   setShowEditContactDialog(false);
                   setEditingContactLeadId(null);
-                  setEditingContactCpfCnpj("");
                   setEditingContactName("");
+                  setEditingContactPhone("");
+                  setEditingContactEmail("");
+                  setEditingContactCompany("");
+                  setEditingContactCpfCnpj("");
+                  setEditingContactNotes("");
+
+                  // Disparar evento de refresh para atualizar em tempo real
+                  window.dispatchEvent(new CustomEvent('data-refresh', {
+                    detail: { type: 'update', entity: 'lead', leadId: editingContactLeadId }
+                  }));
                 } catch (error: any) {
+                  console.error("Erro ao atualizar lead:", error);
                   toast({
                     title: "Erro ao atualizar",
-                    description: error.message,
+                    description: error.message || "Erro desconhecido ao atualizar contato",
                     variant: "destructive",
                   });
                 }
