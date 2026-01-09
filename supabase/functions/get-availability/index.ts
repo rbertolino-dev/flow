@@ -131,15 +131,20 @@ serve(async (req) => {
       }
 
       for (const slot of daySlots) {
-        // Criar data/hora no timezone local (assumindo que start_time e end_time estão no formato HH:mm:ss)
-        // Usar a data local para evitar problemas de timezone
+        // Criar data/hora usando a data atual e os horários do slot
+        // slot.start_time e slot.end_time vêm no formato HH:mm:ss (ex: "09:00:00")
         const [hours, minutes, seconds = '00'] = slot.start_time.split(':');
         const startTime = new Date(currentDate);
-        startTime.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
+        startTime.setUTCHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
         
         const [endHours, endMinutes, endSeconds = '00'] = slot.end_time.split(':');
         const endTime = new Date(currentDate);
-        endTime.setHours(parseInt(endHours), parseInt(endMinutes), parseInt(endSeconds), 0);
+        endTime.setUTCHours(parseInt(endHours), parseInt(endMinutes), parseInt(endSeconds), 0);
+        
+        // Se end_time é menor que start_time, significa que vai até o dia seguinte (ex: 23:00 até 01:00)
+        if (endTime <= startTime) {
+          endTime.setUTCDate(endTime.getUTCDate() + 1);
+        }
 
         // Gerar slots de 30 em 30 minutos (intervalo padrão para exibição)
         // A duração do agendamento é definida por default_duration_minutes
@@ -179,9 +184,9 @@ serve(async (req) => {
           });
 
           if (!hasConflict && !hasRequestConflict) {
-            // Formatar hora no formato HH:mm (usar hora local)
-            const hours = currentSlot.getHours().toString().padStart(2, '0');
-            const mins = currentSlot.getMinutes().toString().padStart(2, '0');
+            // Formatar hora no formato HH:mm (usar UTC para manter consistência)
+            const hours = currentSlot.getUTCHours().toString().padStart(2, '0');
+            const mins = currentSlot.getUTCMinutes().toString().padStart(2, '0');
             const timeStr = `${hours}:${mins}`;
             
             availableSlots.push({
