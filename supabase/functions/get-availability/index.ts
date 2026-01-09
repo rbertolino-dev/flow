@@ -114,26 +114,43 @@ serve(async (req) => {
       user_id: string;
     }> = [];
 
+    console.log('Total de slots de disponibilidade encontrados:', availabilitySlots?.length || 0);
+    console.log('Slots:', JSON.stringify(availabilitySlots?.slice(0, 5), null, 2));
+
     // Iterar por cada dia no intervalo
     const currentDate = new Date(start);
     while (currentDate <= end) {
-      const dayOfWeek = currentDate.getDay();
+      const dayOfWeek = currentDate.getDay(); // 0 = domingo, 6 = sábado
       const dateStr = currentDate.toISOString().split('T')[0];
 
       // Encontrar slots disponíveis para este dia da semana
       const daySlots = availabilitySlots?.filter(slot => slot.day_of_week === dayOfWeek) || [];
+      
+      if (daySlots.length > 0) {
+        console.log(`Dia ${dayOfWeek} (${dateStr}): ${daySlots.length} slots encontrados`);
+      }
 
       for (const slot of daySlots) {
-        const startTime = new Date(`${dateStr}T${slot.start_time}`);
-        const endTime = new Date(`${dateStr}T${slot.end_time}`);
+        // Criar data/hora no timezone local (assumindo que start_time e end_time estão no formato HH:mm:ss)
+        // Usar a data local para evitar problemas de timezone
+        const [hours, minutes, seconds = '00'] = slot.start_time.split(':');
+        const startTime = new Date(currentDate);
+        startTime.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
+        
+        const [endHours, endMinutes, endSeconds = '00'] = slot.end_time.split(':');
+        const endTime = new Date(currentDate);
+        endTime.setHours(parseInt(endHours), parseInt(endMinutes), parseInt(endSeconds), 0);
 
-        // Gerar slots de 30 em 30 minutos (ou duração padrão)
+        // Gerar slots de 30 em 30 minutos (intervalo padrão para exibição)
+        // A duração do agendamento é definida por default_duration_minutes
         const slotDuration = config.default_duration_minutes || 60;
+        const slotInterval = 30; // Intervalo entre slots (30 minutos)
         let currentSlot = new Date(startTime);
 
         while (currentSlot < endTime) {
           const slotEnd = new Date(currentSlot.getTime() + slotDuration * 60 * 1000);
           
+          // Se o slot não cabe no horário disponível, parar
           if (slotEnd > endTime) break;
 
           const slotDateTime = currentSlot.toISOString();
@@ -162,22 +179,29 @@ serve(async (req) => {
           });
 
           if (!hasConflict && !hasRequestConflict) {
+            // Formatar hora no formato HH:mm (usar hora local)
+            const hours = currentSlot.getHours().toString().padStart(2, '0');
+            const mins = currentSlot.getMinutes().toString().padStart(2, '0');
+            const timeStr = `${hours}:${mins}`;
+            
             availableSlots.push({
               date: dateStr,
-              time: currentSlot.toTimeString().slice(0, 5), // HH:mm
+              time: timeStr,
               datetime: slotDateTime,
               user_id: slot.user_id,
             });
           }
 
-          // Próximo slot (30 minutos depois)
-          currentSlot = new Date(currentSlot.getTime() + 30 * 60 * 1000);
+          // Próximo slot (intervalo de 30 minutos)
+          currentSlot = new Date(currentSlot.getTime() + slotInterval * 60 * 1000);
         }
       }
 
       // Próximo dia
       currentDate.setDate(currentDate.getDate() + 1);
     }
+    
+    console.log(`Total de slots disponíveis gerados: ${availableSlots.length}`);
 
     // Ordenar por data/hora
     availableSlots.sort((a, b) => a.datetime.localeCompare(b.datetime));
