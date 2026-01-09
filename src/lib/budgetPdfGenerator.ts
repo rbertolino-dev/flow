@@ -231,55 +231,44 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     }
   }
 
-  // Dados da organização no topo esquerdo (como na imagem laranja)
+  // Dados da organização no topo esquerdo (SEMPRE mostrar, mesmo vazios)
   const orgDataStartX = leftColumnX;
   let orgDataY = headerStartY;
   
-  // Nome da organização (negrito, maior)
-  const orgName = organizationData?.name || 'Agilize Vendas';
+  // Nome da organização (negrito, maior) - SEMPRE mostrar
+  const orgName = organizationData?.name || '';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(30, 30, 30);
   doc.text(orgName, orgDataStartX, orgDataY);
   orgDataY += lineHeight * 1.3;
   
-  // CNPJ
+  // CNPJ - SEMPRE mostrar (mesmo vazio)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(60, 60, 60);
-  if (organizationData?.cnpj) {
-    doc.text(`CNPJ: ${organizationData.cnpj}`, orgDataStartX, orgDataY);
-    orgDataY += lineHeight;
-  }
+  doc.text(`CNPJ: ${organizationData?.cnpj || ''}`, orgDataStartX, orgDataY);
+  orgDataY += lineHeight;
   
-  // Endereço da organização
+  // Endereço da organização - SEMPRE mostrar (mesmo vazio)
   if (organizationData?.address) {
-    const addressLines = doc.splitTextToSize(organizationData.address, 90); // Largura fixa para alinhamento
+    const addressLines = doc.splitTextToSize(organizationData.address, 90);
     addressLines.forEach((line: string) => {
       doc.text(`Endereco: ${line}`, orgDataStartX, orgDataY);
       orgDataY += lineHeight;
     });
-  } else if (organizationData?.city || organizationData?.state) {
-    const locationParts = [];
-    if (organizationData.city) locationParts.push(organizationData.city);
-    if (organizationData.state) locationParts.push(organizationData.state);
-    if (locationParts.length > 0) {
-      doc.text(`Endereco: ${locationParts.join(' - ')}`, orgDataStartX, orgDataY);
-      orgDataY += lineHeight;
-    }
-  }
-  
-  // Telefone
-  if (organizationData?.phone) {
-    doc.text(`Telefone: ${organizationData.phone}`, orgDataStartX, orgDataY);
+  } else {
+    doc.text(`Endereco: `, orgDataStartX, orgDataY);
     orgDataY += lineHeight;
   }
   
-  // Email
-  if (organizationData?.contact_email) {
-    doc.text(`Email: ${organizationData.contact_email}`, orgDataStartX, orgDataY);
-    orgDataY += lineHeight;
-  }
+  // Telefone - SEMPRE mostrar (mesmo vazio)
+  doc.text(`Telefone: ${organizationData?.phone || ''}`, orgDataStartX, orgDataY);
+  orgDataY += lineHeight;
+  
+  // Email - SEMPRE mostrar (mesmo vazio)
+  doc.text(`Email: ${organizationData?.contact_email || ''}`, orgDataStartX, orgDataY);
+  orgDataY += lineHeight;
   
   // Lado direito: Logo (já posicionada) e Data de emissão
   let headerRightY = headerStartY;
@@ -602,38 +591,6 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   rightInfoY += lineHeight * 1.5;
 
   yPosition = Math.max(infoY, rightInfoY) + lineHeight * 1.5;
-
-  // Linha separadora antes de "Contato responsável" (como na imagem laranja)
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(margin, yPosition, pageWidth - margin, yPosition);
-  yPosition += lineHeight * 1.2;
-
-  // Contato responsável (SEMPRE mostrar, como na imagem laranja)
-  checkNewPage(lineHeight * 6);
-  const contactRightX = pageWidth - margin;
-  let contactY = yPosition;
-  
-  writeTitle('CONTATO RESPONSAVEL', contactRightX, contactY, 10);
-  contactY += lineHeight;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  
-  // Colaborador (sempre mostrar, mesmo vazio)
-  doc.text('Colaborador', contactRightX, contactY, { align: 'right' });
-  contactY += lineHeight;
-  
-  // Telefone (usar telefone da organização se disponível)
-  const contactPhone = organizationData?.phone || '';
-  doc.text(`Telefone: ${contactPhone}`, contactRightX, contactY, { align: 'right' });
-  contactY += lineHeight;
-  
-  // Email (usar email da organização se disponível)
-  const contactEmail = organizationData?.contact_email || '';
-  doc.text(`Email: ${contactEmail}`, contactRightX, contactY, { align: 'right' });
-  contactY += lineHeight * 1.5;
-
-  yPosition = contactY;
 
   // Observações (se houver)
   if (budget.observations) {
