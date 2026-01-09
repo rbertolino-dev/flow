@@ -88,6 +88,22 @@ export function useCreateBudget() {
         const logoUrl = formData.logoUrl || (data as any).logo_url || undefined;
         const backgroundImageUrl = formData.backgroundImageUrl || (data as any).background_image_url || undefined;
 
+        // Logo: prioridade: formData > DB > Organization
+        let logoUrl = formData.logoUrl || (data as any).logo_url;
+        
+        // Se não houver logo no orçamento, buscar da organização
+        if (!logoUrl && activeOrgId) {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('logo_url')
+            .eq('id', activeOrgId)
+            .single();
+          
+          if (orgData?.logo_url) {
+            logoUrl = orgData.logo_url;
+          }
+        }
+
         console.log('Gerando PDF automaticamente após criar orçamento:', { 
           headerColor, 
           logoUrl, 

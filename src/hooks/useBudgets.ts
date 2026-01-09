@@ -220,8 +220,23 @@ export function useBudgets(filters?: BudgetFilters) {
 
       // Garantir que os dados de personalização sejam usados (do formulário ou do banco)
       const headerColor = budgetData.headerColor || (data as any).header_color || '#3b82f6';
-      const logoUrl = budgetData.logoUrl || (data as any).logo_url || undefined;
       const backgroundImageUrl = budgetData.backgroundImageUrl || (data as any).background_image_url || undefined;
+      
+      // Logo: prioridade: formData > DB > Organization
+      let logoUrl = budgetData.logoUrl || (data as any).logo_url || undefined;
+      
+      // Se não houver logo no orçamento, buscar da organização
+      if (!logoUrl && activeOrgId) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('logo_url')
+          .eq('id', activeOrgId)
+          .single();
+        
+        if (orgData?.logo_url) {
+          logoUrl = orgData.logo_url;
+        }
+      }
 
       console.log('Gerando PDF com personalização:', { 
         headerColor, 
@@ -297,12 +312,28 @@ export function useBudgets(filters?: BudgetFilters) {
 
       if (budgetError || !budget) throw new Error('Orçamento não encontrado');
 
+      // Logo: prioridade: orçamento > organização
+      let logoUrl = budget.logo_url || undefined;
+      
+      // Se não houver logo no orçamento, buscar da organização
+      if (!logoUrl && activeOrgId) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('logo_url')
+          .eq('id', activeOrgId)
+          .single();
+        
+        if (orgData?.logo_url) {
+          logoUrl = orgData.logo_url;
+        }
+      }
+
       // Gerar PDF usando módulo antigo
       const pdfBlob = await generateBudgetPDF({
         budget: budget as Budget,
         backgroundImageUrl: budget.background_image_url || undefined,
         headerColor: budget.header_color || undefined,
-        logoUrl: budget.logo_url || undefined,
+        logoUrl,
       });
 
       // Upload do PDF
