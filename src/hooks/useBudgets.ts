@@ -238,10 +238,32 @@ export function useBudgets(filters?: BudgetFilters) {
         }
       }
 
+      // Buscar dados completos da organização para o PDF
+      let organizationData: any = null;
+      if (activeOrgId) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('name, logo_url, address, company_profile, city, state')
+          .eq('id', activeOrgId)
+          .single();
+        
+        if (orgData) {
+          organizationData = {
+            name: orgData.name,
+            logo_url: orgData.logo_url,
+            address: orgData.address,
+            company_profile: orgData.company_profile,
+            city: orgData.city,
+            state: orgData.state,
+          };
+        }
+      }
+
       console.log('Gerando PDF com personalização:', { 
         headerColor, 
         logoUrl, 
         backgroundImageUrl,
+        organizationData,
         fromForm: { headerColor: budgetData.headerColor, logoUrl: budgetData.logoUrl },
         fromDB: { header_color: (data as any).header_color, logo_url: (data as any).logo_url }
       });
@@ -252,6 +274,7 @@ export function useBudgets(filters?: BudgetFilters) {
         backgroundImageUrl,
         headerColor,
         logoUrl,
+        organizationData,
       });
 
       // Upload do PDF
@@ -315,16 +338,29 @@ export function useBudgets(filters?: BudgetFilters) {
       // Logo: prioridade: orçamento > organização
       let logoUrl = budget.logo_url || undefined;
       
-      // Se não houver logo no orçamento, buscar da organização
-      if (!logoUrl && activeOrgId) {
+      // Buscar dados completos da organização para o PDF
+      let organizationData: any = null;
+      if (activeOrgId) {
         const { data: orgData } = await supabase
           .from('organizations')
-          .select('logo_url')
+          .select('name, logo_url, address, company_profile, city, state')
           .eq('id', activeOrgId)
           .single();
         
-        if (orgData?.logo_url) {
-          logoUrl = orgData.logo_url;
+        if (orgData) {
+          organizationData = {
+            name: orgData.name,
+            logo_url: orgData.logo_url,
+            address: orgData.address,
+            company_profile: orgData.company_profile,
+            city: orgData.city,
+            state: orgData.state,
+          };
+          
+          // Se não houver logo no orçamento, usar da organização
+          if (!logoUrl && orgData.logo_url) {
+            logoUrl = orgData.logo_url;
+          }
         }
       }
 
@@ -334,6 +370,7 @@ export function useBudgets(filters?: BudgetFilters) {
         backgroundImageUrl: budget.background_image_url || undefined,
         headerColor: budget.header_color || undefined,
         logoUrl,
+        organizationData,
       });
 
       // Upload do PDF

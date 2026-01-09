@@ -90,16 +90,29 @@ export function useCreateBudget() {
         // Logo: prioridade: formData > DB > Organization
         let logoUrl = formData.logoUrl || (data as any).logo_url;
         
-        // Se não houver logo no orçamento, buscar da organização
-        if (!logoUrl && activeOrgId) {
+        // Buscar dados completos da organização para o PDF
+        let organizationData: any = null;
+        if (activeOrgId) {
           const { data: orgData } = await supabase
             .from('organizations')
-            .select('logo_url')
+            .select('name, logo_url, address, company_profile, city, state')
             .eq('id', activeOrgId)
             .single();
           
-          if (orgData?.logo_url) {
-            logoUrl = orgData.logo_url;
+          if (orgData) {
+            organizationData = {
+              name: orgData.name,
+              logo_url: orgData.logo_url,
+              address: orgData.address,
+              company_profile: orgData.company_profile,
+              city: orgData.city,
+              state: orgData.state,
+            };
+            
+            // Se não houver logo no orçamento, usar da organização
+            if (!logoUrl && orgData.logo_url) {
+              logoUrl = orgData.logo_url;
+            }
           }
         }
 
@@ -117,6 +130,7 @@ export function useCreateBudget() {
           backgroundImageUrl,
           headerColor,
           logoUrl,
+          organizationData,
         });
 
         // Upload do PDF

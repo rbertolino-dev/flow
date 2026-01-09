@@ -102,7 +102,8 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
 
   const budget = options.budget;
   const headerColor = options.headerColor || (budget as any).header_color || '#3b82f6';
-  const logoUrl = options.logoUrl || (budget as any).logo_url;
+  const logoUrl = options.logoUrl || (budget as any).logo_url || options.organizationData?.logo_url;
+  const organizationData = options.organizationData;
 
   // Função para converter hex para RGB
   const hexToRgb = (hex: string): [number, number, number] => {
@@ -200,57 +201,112 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   drawPageHeader();
   yPosition = 18;
 
-  // Carregar logo (se fornecido)
+  // ==========================================
+  // CABEÇALHO COM LOGO E DADOS DA ORGANIZAÇÃO
+  // ==========================================
+  const headerStartY = 20;
+  let currentY = headerStartY;
+  const logoSize = 20; // Tamanho da logo
+  const logoMargin = 5; // Espaçamento após logo
+  const leftColumnX = margin;
+  const rightColumnX = pageWidth - margin;
+  
+  // Carregar e posicionar logo à esquerda
+  let logoLoaded = false;
+  let logoHeight = logoSize; // Altura padrão
   if (logoUrl) {
     try {
       const logoDataUrl = await loadImage(logoUrl);
       if (logoDataUrl) {
-        const logoHeight = 10;
-        const logoWidth = 30;
-        const logoX = pageWidth - margin - logoWidth;
-        const logoY = yPosition;
+        // Usar dimensões fixas para logo (ajustar proporção se necessário)
+        const logoWidth = logoSize;
+        logoHeight = logoSize; // Altura igual à largura (quadrado) ou ajustar conforme necessário
+        
         const imageType = logoUrl.toLowerCase().endsWith('.png') ? 'PNG' : 'JPEG';
-        doc.addImage(logoDataUrl, imageType, logoX, logoY, logoWidth, logoHeight);
+        doc.addImage(logoDataUrl, imageType, leftColumnX, currentY, logoWidth, logoHeight);
+        logoLoaded = true;
       }
     } catch (error) {
       console.warn('Erro ao carregar logo:', error);
     }
   }
 
-  // Informações da empresa e documento
-  yPosition = 20;
+  // Dados da organização (ao lado da logo ou abaixo se não houver logo)
+  const orgDataStartX = logoLoaded ? leftColumnX + logoSize + logoMargin : leftColumnX;
+  const orgDataStartY = currentY;
+  let orgDataY = orgDataStartY;
   
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(50, 50, 50);
-  
-  const orgName = 'Agilize Vendas';
+  // Nome da organização
+  const orgName = organizationData?.name || 'Agilize Vendas';
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text(orgName, margin, yPosition);
-  yPosition += lineHeight * 1.2;
+  doc.setFontSize(11);
+  doc.setTextColor(30, 30, 30);
+  doc.text(orgName, orgDataStartX, orgDataY);
+  orgDataY += lineHeight * 1.2;
+  
+  // Perfil da empresa (MEI, ME, LTDA, etc.) e CNPJ se disponível
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
+  
+  if (organizationData?.company_profile) {
+    doc.text(organizationData.company_profile, orgDataStartX, orgDataY);
+    orgDataY += lineHeight;
+  }
+  
+  // Endereço da organização
+  if (organizationData?.address) {
+    const addressLines = doc.splitTextToSize(organizationData.address, maxWidth - (orgDataStartX - margin));
+    addressLines.forEach((line: string) => {
+      doc.text(line, orgDataStartX, orgDataY);
+      orgDataY += lineHeight;
+    });
+  } else if (organizationData?.city || organizationData?.state) {
+    const locationParts = [];
+    if (organizationData.city) locationParts.push(organizationData.city);
+    if (organizationData.state) locationParts.push(organizationData.state);
+    if (locationParts.length > 0) {
+      doc.text(locationParts.join(' - '), orgDataStartX, orgDataY);
+      orgDataY += lineHeight;
+    }
+  }
+  
+  // Ajustar posição Y baseado na altura do cabeçalho
+  const headerHeight = Math.max(logoHeight, orgDataY - orgDataStartY);
+  currentY = headerStartY + headerHeight + lineHeight * 1.5;
+  
+  // Lado direito: Número do orçamento e datas
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 30, 30);
+  doc.text(`Orcamento N: ${budget.budget_number}`, rightColumnX, headerStartY, { align: 'right' });
   
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
+  let rightY = headerStartY + lineHeight;
+  doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
+  rightY += lineHeight;
   
-  // Lado direito: Número do orçamento e datas
-  const rightX = pageWidth - margin;
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Orcamento N: ${budget.budget_number}`, rightX, 20, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightX, 20 + lineHeight, { align: 'right' });
   if (budget.delivery_date) {
-    doc.text(`Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`, rightX, 20 + lineHeight * 2, { align: 'right' });
+    doc.text(`Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
+    rightY += lineHeight;
   }
   if (budget.delivery_location) {
-    const locationLines = doc.splitTextToSize(`Local de entrega: ${budget.delivery_location}`, 80);
+    const locationLines = doc.splitTextToSize(`Local: ${budget.delivery_location}`, 80);
     locationLines.forEach((line: string, idx: number) => {
-      doc.text(line, rightX, 20 + lineHeight * 3 + (idx * lineHeight), { align: 'right' });
+      doc.text(line, rightColumnX, rightY + (idx * lineHeight), { align: 'right' });
     });
   }
 
-  yPosition = 35;
+  // Linha separadora após cabeçalho
+  currentY += lineHeight * 0.5;
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.1);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += lineHeight;
+  
+  yPosition = currentY;
 
   // ==========================================
   // DADOS DO CLIENTE
