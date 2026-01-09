@@ -3,6 +3,7 @@ import { useWorkflowErrors } from "@/hooks/useWorkflowErrors";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, XCircle, MessageSquare, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -77,7 +78,12 @@ export function WorkflowErrorsLog() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground text-right">
-                    {format(new Date(error.scheduled_for), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    {formatInTimeZone(
+                      new Date(error.scheduled_for),
+                      "America/Sao_Paulo",
+                      "dd/MM/yyyy HH:mm",
+                      { locale: ptBR }
+                    )}
                   </div>
                 </div>
 

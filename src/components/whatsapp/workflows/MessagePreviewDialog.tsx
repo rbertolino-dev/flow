@@ -8,6 +8,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, User, Calendar } from "lucide-react";
+import { formatInTimeZone } from "date-fns-tz";
+import { ptBR } from "date-fns/locale";
 
 interface MessagePreviewDialogProps {
   open: boolean;
@@ -55,7 +57,14 @@ export function MessagePreviewDialog({
           {scheduledFor && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
-              <span>Agendado para: {new Date(scheduledFor).toLocaleString("pt-BR")}</span>
+              <span>Agendado para: {
+                formatInTimeZone(
+                  new Date(scheduledFor),
+                  "America/Sao_Paulo",
+                  "dd/MM/yyyy 'às' HH:mm",
+                  { locale: ptBR }
+                )
+              }</span>
             </div>
           )}
 

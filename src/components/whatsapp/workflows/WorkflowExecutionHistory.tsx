@@ -3,6 +3,7 @@ import { useWorkflowExecutionHistory } from "@/hooks/useWorkflowExecutionHistory
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Clock, XCircle, AlertCircle, MessageSquare } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -92,11 +93,21 @@ export function WorkflowExecutionHistory({ workflowId, limit = 50 }: WorkflowExe
                     </div>
                     <div className="text-xs text-muted-foreground text-right">
                       <div>
-                        Agendado: {format(new Date(execution.scheduled_for), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        Agendado: {formatInTimeZone(
+                          new Date(execution.scheduled_for),
+                          "America/Sao_Paulo",
+                          "dd/MM/yyyy HH:mm",
+                          { locale: ptBR }
+                        )}
                       </div>
                       {execution.sent_at && (
                         <div>
-                          Enviado: {format(new Date(execution.sent_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          Enviado: {formatInTimeZone(
+                            new Date(execution.sent_at),
+                            "America/Sao_Paulo",
+                            "dd/MM/yyyy HH:mm",
+                            { locale: ptBR }
+                          )}
                         </div>
                       )}
                     </div>

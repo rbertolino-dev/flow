@@ -60,6 +60,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import { parseSaoPauloDateTime } from "@/lib/dateUtils";
 
 interface WorkflowFormDrawerProps {
   open: boolean;
@@ -1795,7 +1796,11 @@ export function WorkflowFormDrawer({
         }
         templateName={selectedTemplate?.name}
         recipientName={selectedLead?.name || listContacts[0]?.name}
-        scheduledFor={values.start_date ? `${values.start_date}T${values.send_time}` : undefined}
+        scheduledFor={
+          values.start_date && values.send_time
+            ? parseSaoPauloDateTime(values.start_date, values.send_time).toISOString()
+            : undefined
+        }
       />
 
       {/* Dialog para editar informações do lead */}

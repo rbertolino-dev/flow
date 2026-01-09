@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
 import { Edit, Pause, Play, Trash2, Users, Copy, Calendar } from "lucide-react";
 
 interface WorkflowListTableProps {
@@ -172,8 +173,12 @@ export function WorkflowListTable({
           <TableBody>
             {workflows.map((workflow) => {
               const isSelected = selectedIds.has(workflow.id);
-              const nextRunDate = workflow.next_run_at ? new Date(workflow.next_run_at) : null;
+              // Converter UTC para timezone do workflow para comparação e exibição
+              const nextRunDate = workflow.next_run_at 
+                ? new Date(workflow.next_run_at)
+                : null;
               const isUpcoming = nextRunDate && nextRunDate > new Date();
+              const workflowTimezone = workflow.timezone || "America/Sao_Paulo";
 
               return (
                 <TableRow key={workflow.id} className={isSelected ? "bg-muted/50" : ""}>
@@ -213,7 +218,12 @@ export function WorkflowListTable({
                     {nextRunDate ? (
                       <div className="flex flex-col">
                         <span className={isUpcoming ? "font-medium text-green-600" : ""}>
-                          {format(nextRunDate, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          {formatInTimeZone(
+                            new Date(workflow.next_run_at!),
+                            workflowTimezone,
+                            "dd/MM/yyyy HH:mm",
+                            { locale: ptBR }
+                          )}
                         </span>
                         {isUpcoming && (
                           <span className="text-xs text-muted-foreground">

@@ -9,7 +9,9 @@ import { Calendar, Clock, Send, X, Trash2, Image as ImageIcon } from "lucide-rea
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
 import { Badge } from "@/components/ui/badge";
+import { parseSaoPauloDateTime } from "@/lib/dateUtils";
 
 interface ScheduleMessagePanelProps {
   leadId: string;
@@ -42,7 +44,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
 
     setIsScheduling(true);
     try {
-      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
+      const scheduledFor = parseSaoPauloDateTime(scheduledDate, scheduledTime);
       await scheduleMessage({
         leadId,
         instanceId,
@@ -214,7 +216,12 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                         {getStatusLabel(msg.status)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(msg.scheduled_for), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        {formatInTimeZone(
+                          new Date(msg.scheduled_for),
+                          "America/Sao_Paulo",
+                          "dd/MM/yyyy 'às' HH:mm",
+                          { locale: ptBR }
+                        )}
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
@@ -253,7 +260,12 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                         {getStatusLabel(msg.status)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(msg.scheduled_for), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        {formatInTimeZone(
+                          new Date(msg.scheduled_for),
+                          "America/Sao_Paulo",
+                          "dd/MM/yyyy HH:mm",
+                          { locale: ptBR }
+                        )}
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
