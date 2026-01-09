@@ -365,6 +365,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   
   // Estado para filtro de data e indicadores detalhados
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [dateFilterType, setDateFilterType] = useState<"today" | "thisWeek" | "thisMonth" | "custom">("today");
   const [totalDispatchesByDate, setTotalDispatchesByDate] = useState(0);
   const [successfulDispatches, setSuccessfulDispatches] = useState(0);
   const [failedDispatches, setFailedDispatches] = useState(0);
@@ -535,8 +536,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
   // Buscar disparos por data selecionada
   useEffect(() => {
-    fetchDispatchesByDate(selectedDate);
-  }, [selectedDate, fetchDispatchesByDate]);
+    fetchDispatchesByDate(selectedDate, dateFilterType);
+  }, [selectedDate, dateFilterType, fetchDispatchesByDate]);
 
   // Configurar Realtime para atualizar quando novos disparos são enviados
   useEffect(() => {
@@ -754,7 +755,10 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               TOTAL DE DISPAROS
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              {selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
+              {dateFilterType === "today" ? "Hoje" : 
+               dateFilterType === "thisWeek" ? "Essa Semana" : 
+               dateFilterType === "thisMonth" ? "Esse Mês" : 
+               selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
             </p>
           </CardHeader>
           <CardContent className="pt-0">
@@ -780,7 +784,10 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               DISPAROS BEM-SUCEDIDOS
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              {selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
+              {dateFilterType === "today" ? "Hoje" : 
+               dateFilterType === "thisWeek" ? "Essa Semana" : 
+               dateFilterType === "thisMonth" ? "Esse Mês" : 
+               selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
             </p>
           </CardHeader>
           <CardContent className="pt-0">
@@ -812,7 +819,10 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               DISPAROS FALHADOS
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              {selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
+              {dateFilterType === "today" ? "Hoje" : 
+               dateFilterType === "thisWeek" ? "Essa Semana" : 
+               dateFilterType === "thisMonth" ? "Esse Mês" : 
+               selectedDate ? formatDate(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione uma data"}
             </p>
           </CardHeader>
           <CardContent className="pt-0">
