@@ -449,9 +449,9 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.text('Produto', margin + 2, yPosition);
     doc.text('Preco Unit', margin + 100, yPosition, { align: 'right' });
     doc.text('Qntd', margin + 130, yPosition, { align: 'right' });
-    doc.text('Total', margin + 160, yPosition, { align: 'right' });
-    
-    yPosition += lineHeight * 1.5;
+        doc.text('Total', margin + 160, yPosition, { align: 'right' });
+        
+        yPosition += lineHeight * 1.2;
 
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.2);
@@ -469,7 +469,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         const lightG = Math.min(255, headerRgbNew[1] + 220);
         const lightB = Math.min(255, headerRgbNew[2] + 220);
         doc.setFillColor(lightR, lightG, lightB);
-        doc.rect(margin, yPosition - 3, maxWidth, lineHeight * 1.5, 'F');
+        doc.rect(margin, yPosition - 2, maxWidth, lineHeight * 1.2, 'F');
         
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
@@ -520,7 +520,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.3);
     doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += lineHeight * 1.5;
+    yPosition += lineHeight * 1.0;
 
     // Totais - SEMPRE mostrar todos os campos (como na imagem laranja)
     doc.setFontSize(9);
@@ -530,19 +530,19 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     const subtotal = budget.subtotal_products + (budget.subtotal_services || 0);
     doc.text('SUBTOTAL:', margin + 100, yPosition, { align: 'right' });
     doc.text(formatCurrency(subtotal), margin + 160, yPosition, { align: 'right' });
-    yPosition += lineHeight;
+    yPosition += lineHeight * 0.9;
     
     // DESCONTO (sempre mostrar, mesmo se zero)
     const discount = budget.additions < 0 ? Math.abs(budget.additions) : 0;
     doc.text('DESCONTO:', margin + 100, yPosition, { align: 'right' });
     doc.text(formatCurrency(discount), margin + 160, yPosition, { align: 'right' });
-    yPosition += lineHeight;
+    yPosition += lineHeight * 0.9;
     
     // ACRÉSCIMO (sempre mostrar, mesmo se zero)
     const addition = budget.additions > 0 ? budget.additions : 0;
     doc.text('ACRESCIMO:', margin + 100, yPosition, { align: 'right' });
     doc.text(formatCurrency(addition), margin + 160, yPosition, { align: 'right' });
-    yPosition += lineHeight;
+    yPosition += lineHeight * 0.9;
     
     // TOTAL (sempre mostrar)
     doc.setFontSize(11);
@@ -552,7 +552,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     doc.text('TOTAL:', margin + 100, yPosition, { align: 'right' });
     doc.text(formatCurrency(budget.total || 0), margin + 160, yPosition, { align: 'right' });
     doc.setTextColor(0, 0, 0);
-    yPosition += lineHeight * 2;
+    yPosition += lineHeight * 1.2;
   }
 
   // ==========================================
