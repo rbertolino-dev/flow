@@ -241,34 +241,34 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   doc.setFontSize(11);
   doc.setTextColor(30, 30, 30);
   doc.text(orgName, orgDataStartX, orgDataY);
-  orgDataY += lineHeight * 1.3;
+  orgDataY += lineHeight * 1.1;
   
   // CNPJ - SEMPRE mostrar (mesmo vazio)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(60, 60, 60);
   doc.text(`CNPJ: ${organizationData?.cnpj || ''}`, orgDataStartX, orgDataY);
-  orgDataY += lineHeight;
+  orgDataY += lineHeight * 0.9;
   
   // Endereço da organização - SEMPRE mostrar (mesmo vazio)
   if (organizationData?.address) {
     const addressLines = doc.splitTextToSize(organizationData.address, 90);
     addressLines.forEach((line: string) => {
       doc.text(`Endereco: ${line}`, orgDataStartX, orgDataY);
-      orgDataY += lineHeight;
+      orgDataY += lineHeight * 0.9;
     });
   } else {
     doc.text(`Endereco: `, orgDataStartX, orgDataY);
-    orgDataY += lineHeight;
+    orgDataY += lineHeight * 0.9;
   }
   
   // Telefone - SEMPRE mostrar (mesmo vazio)
   doc.text(`Telefone: ${organizationData?.phone || ''}`, orgDataStartX, orgDataY);
-  orgDataY += lineHeight;
+  orgDataY += lineHeight * 0.9;
   
   // Email - SEMPRE mostrar (mesmo vazio)
   doc.text(`Email: ${organizationData?.contact_email || ''}`, orgDataStartX, orgDataY);
-  orgDataY += lineHeight;
+  orgDataY += lineHeight * 0.9;
   
   // Lado direito: Logo (já posicionada) e Data de emissão
   let headerRightY = headerStartY;
@@ -305,28 +305,28 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   }
 
   // Linha separadora após cabeçalho (como na imagem laranja)
-  currentY = Math.max(orgDataY, headerRightY) + lineHeight * 0.8;
+  currentY = Math.max(orgDataY, headerRightY) + lineHeight * 0.5;
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.2);
   doc.line(margin, currentY, pageWidth - margin, currentY);
-  currentY += lineHeight * 1.2;
+  currentY += lineHeight * 0.8;
   
   yPosition = currentY;
 
   // ==========================================
   // DADOS DO CLIENTE
   // ==========================================
-  checkNewPage(lineHeight * 10);
+  checkNewPage(lineHeight * 8);
   
   // Linha separadora antes de "DADOS DO CLIENTE" (como na imagem laranja)
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.2);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
-  yPosition += lineHeight * 1.2;
+  yPosition += lineHeight * 0.8;
   
   // Usar função writeTitle que garante sanitização e reset completo de estado
   writeTitle('DADOS DO CLIENTE', margin, yPosition, 10);
-  yPosition += lineHeight * 1.5;
+  yPosition += lineHeight * 1.1;
 
   const client = budget.client_data || budget.lead;
   doc.setFontSize(9);
@@ -338,52 +338,58 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   let leftY = yPosition;
   let rightY = yPosition;
   
-  // SEMPRE mostrar todos os campos, mesmo vazios (como na imagem laranja)
+  // Mostrar campos (CPF e CEP apenas se houver dados)
   
   // Lado esquerdo
   doc.setFont('helvetica', 'bold');
   doc.text('Cliente:', leftColX, leftY);
   doc.setFont('helvetica', 'normal');
-  leftY += lineHeight;
+  leftY += lineHeight * 0.9;
   doc.text(client?.name || '', leftColX, leftY);
-  leftY += lineHeight * 1.2;
+  leftY += lineHeight * 1.0;
   
   // Endereço (sempre mostrar)
   doc.text(`Endereco: ${client?.company || ''}`, leftColX, leftY);
-  leftY += lineHeight;
+  leftY += lineHeight * 0.9;
   
   // Bairro (sempre mostrar, mesmo vazio)
   doc.text(`Bairro: `, leftColX, leftY);
-  leftY += lineHeight;
+  leftY += lineHeight * 0.9;
   
   // Email (sempre mostrar)
   doc.text(`Email: ${client?.email || ''}`, leftColX, leftY);
-  leftY += lineHeight;
+  leftY += lineHeight * 0.9;
   
   // Lado direito
-  // CPF (sempre mostrar)
-  doc.text(`CPF: ${(client as any)?.cpf_cnpj || ''}`, rightColX, rightY);
-  rightY += lineHeight;
+  // CPF (apenas se houver dados)
+  const cpfCnpj = (client as any)?.cpf_cnpj;
+  if (cpfCnpj) {
+    doc.text(`CPF: ${cpfCnpj}`, rightColX, rightY);
+    rightY += lineHeight * 0.9;
+  }
   
-  // CEP (sempre mostrar, mesmo vazio)
-  doc.text(`CEP: `, rightColX, rightY);
-  rightY += lineHeight;
+  // CEP (apenas se houver dados - verificar se existe campo CEP)
+  const cep = (client as any)?.cep || (client as any)?.zip_code;
+  if (cep) {
+    doc.text(`CEP: ${cep}`, rightColX, rightY);
+    rightY += lineHeight * 0.9;
+  }
   
   // Cidade (sempre mostrar, mesmo vazio)
   doc.text(`Cidade: `, rightColX, rightY);
-  rightY += lineHeight;
+  rightY += lineHeight * 0.9;
   
   // Telefone (sempre mostrar)
   doc.text(`Telefone: ${client?.phone || ''}`, rightColX, rightY);
-  rightY += lineHeight;
+  rightY += lineHeight * 0.9;
   
-  yPosition = Math.max(leftY, rightY) + lineHeight * 1.5;
+  yPosition = Math.max(leftY, rightY) + lineHeight * 1.0;
 
   // Linha separadora antes de "PRODUTOS" (como na imagem laranja)
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.2);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
-  yPosition += lineHeight * 1.2;
+  yPosition += lineHeight * 0.8;
 
   // ==========================================
   // TABELA DE PRODUTOS E SERVIÇOS
@@ -471,18 +477,18 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
         doc.text('Preco Unit', margin + 100, yPosition, { align: 'right' });
         doc.text('Qntd', margin + 130, yPosition, { align: 'right' });
         doc.text('Total', margin + 160, yPosition, { align: 'right' });
-        yPosition += lineHeight * 1.5;
+        yPosition += lineHeight * 1.2;
         doc.setDrawColor(200, 200, 200);
         doc.setLineWidth(0.2);
         doc.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += lineHeight * 0.8;
+        yPosition += lineHeight * 0.7;
         doc.setFont('helvetica', 'normal');
         rowIndex = 0;
       }
 
       if (rowIndex % 2 === 0) {
         doc.setFillColor(250, 250, 250);
-        doc.rect(margin, yPosition - 3, maxWidth, lineHeight * 1.2, 'F');
+        doc.rect(margin, yPosition - 2, maxWidth, lineHeight * 1.0, 'F');
       }
 
       doc.setFontSize(9);
@@ -560,7 +566,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
 
   // Coluna esquerda: Forma de Pagamento (SEMPRE mostrar, como na imagem laranja)
   writeTitle('FORMA DE PAGAMENTO', leftInfoX, infoY, 10);
-  infoY += lineHeight;
+  infoY += lineHeight * 0.9;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   if (budget.payment_methods && budget.payment_methods.length > 0) {
@@ -568,29 +574,29 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     const paymentLines = doc.splitTextToSize(paymentText, maxWidth / 2 - 5);
     paymentLines.forEach((line: string) => {
       doc.text(line, leftInfoX, infoY);
-      infoY += lineHeight;
+      infoY += lineHeight * 0.9;
     });
   } else {
     // Mostrar vazio se não houver método de pagamento
     doc.text('', leftInfoX, infoY);
-    infoY += lineHeight;
+    infoY += lineHeight * 0.9;
   }
-  infoY += lineHeight * 0.5;
+  infoY += lineHeight * 0.3;
 
   // Coluna direita: Validade (SEMPRE mostrar, como na imagem laranja)
   let rightInfoY = yPosition;
   writeTitle('VALIDADE', rightInfoX, rightInfoY, 10);
-  rightInfoY += lineHeight;
+  rightInfoY += lineHeight * 0.9;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  rightInfoY += lineHeight;
+  rightInfoY += lineHeight * 0.9;
   const validityDays = budget.validity_days || 15; // Padrão 15 dias como na imagem
   doc.text(`O presente orcamento possui validade de ${validityDays} dias uteis.`, rightInfoX, rightInfoY);
-  rightInfoY += lineHeight;
+  rightInfoY += lineHeight * 0.9;
   doc.text('Apos o prazo entre em contato para novo orcamento.', rightInfoX, rightInfoY);
-  rightInfoY += lineHeight * 1.5;
+  rightInfoY += lineHeight * 1.0;
 
-  yPosition = Math.max(infoY, rightInfoY) + lineHeight * 1.5;
+  yPosition = Math.max(infoY, rightInfoY) + lineHeight * 1.0;
 
   // Observações (se houver)
   if (budget.observations) {
