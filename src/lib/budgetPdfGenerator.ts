@@ -601,9 +601,41 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   doc.text('Apos o prazo entre em contato para novo orcamento.', rightInfoX, rightInfoY);
   rightInfoY += lineHeight * 1.5;
 
-  yPosition = Math.max(infoY, rightInfoY) + lineHeight;
+  yPosition = Math.max(infoY, rightInfoY) + lineHeight * 1.5;
 
-  // Observações
+  // Linha separadora antes de "Contato responsável" (como na imagem laranja)
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += lineHeight * 1.2;
+
+  // Contato responsável (SEMPRE mostrar, como na imagem laranja)
+  checkNewPage(lineHeight * 6);
+  const contactRightX = pageWidth - margin;
+  let contactY = yPosition;
+  
+  writeTitle('CONTATO RESPONSAVEL', contactRightX, contactY, 10);
+  contactY += lineHeight;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  
+  // Colaborador (sempre mostrar, mesmo vazio)
+  doc.text('Colaborador', contactRightX, contactY, { align: 'right' });
+  contactY += lineHeight;
+  
+  // Telefone (usar telefone da organização se disponível)
+  const contactPhone = organizationData?.phone || '';
+  doc.text(`Telefone: ${contactPhone}`, contactRightX, contactY, { align: 'right' });
+  contactY += lineHeight;
+  
+  // Email (usar email da organização se disponível)
+  const contactEmail = organizationData?.contact_email || '';
+  doc.text(`Email: ${contactEmail}`, contactRightX, contactY, { align: 'right' });
+  contactY += lineHeight * 1.5;
+
+  yPosition = contactY;
+
+  // Observações (se houver)
   if (budget.observations) {
     checkNewPage(lineHeight * 6);
     // Usar função writeTitle que garante sanitização e reset completo de estado
