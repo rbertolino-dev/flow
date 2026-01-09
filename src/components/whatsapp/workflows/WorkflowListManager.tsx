@@ -29,7 +29,7 @@ import {
   LeadOption,
 } from "@/types/workflows";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
-import { Plus, Trash2, Edit, Eye, Users, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Edit, Eye, Users, ArrowLeft, Edit2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -38,6 +38,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Label } from "@/components/ui/label";
 
 interface WorkflowListManagerProps {
   open: boolean;
@@ -76,6 +78,12 @@ export function WorkflowListManager({
   const [isSaving, setIsSaving] = useState(false);
   const [searchContact, setSearchContact] = useState("");
   const { toast } = useToast();
+  
+  // Estados para edição de CPF/CNPJ do contato
+  const [showEditContactDialog, setShowEditContactDialog] = useState(false);
+  const [editingContactLeadId, setEditingContactLeadId] = useState<string | null>(null);
+  const [editingContactName, setEditingContactName] = useState<string>("");
+  const [editingContactCpfCnpj, setEditingContactCpfCnpj] = useState<string>("");
 
   useEffect(() => {
     if (!open) {
@@ -452,15 +460,48 @@ export function WorkflowListManager({
                           <div className="flex-1">
                             <p className="text-sm font-medium">{contact.name || contact.phone}</p>
                             <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                            {contact.lead_id && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                Cliente do funil
+                              </Badge>
+                            )}
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveContact(contacts.indexOf(contact))}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            {contact.lead_id && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={async () => {
+                                  // Buscar dados completos do lead incluindo CPF/CNPJ
+                                  const { data: leadData } = await supabase
+                                    .from("leads")
+                                    .select("id, name, cpf_cnpj")
+                                    .eq("id", contact.lead_id)
+                                    .single();
+                                  
+                                  if (leadData) {
+                                    setEditingContactLeadId(leadData.id);
+                                    setEditingContactName(leadData.name);
+                                    setEditingContactCpfCnpj(leadData.cpf_cnpj || "");
+                                    setShowEditContactDialog(true);
+                                  }
+                                }}
+                                title="Editar CPF/CNPJ"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveContact(contacts.indexOf(contact))}
+                              title="Remover contato"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -578,6 +619,105 @@ export function WorkflowListManager({
           </div>
         )}
       </DialogContent>
+
+      {/* Dialog para editar CPF/CNPJ do contato */}
+      <Dialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5" />
+              Editar Informações do Contato
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Edite o CPF/CNPJ do contato da lista
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Cliente</Label>
+              <p className="text-sm text-muted-foreground">{editingContactName}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-cpf-cnpj">CPF/CNPJ</Label>
+              <Input
+                id="edit-contact-cpf-cnpj"
+                placeholder="Digite o CPF ou CNPJ (apenas números)"
+                value={editingContactCpfCnpj}
+                onChange={(e) => {
+                  // Remover caracteres não numéricos
+                  const value = e.target.value.replace(/\D/g, "");
+                  setEditingContactCpfCnpj(value);
+                }}
+                maxLength={18}
+              />
+              <p className="text-xs text-muted-foreground">
+                CPF: 11 dígitos | CNPJ: 14 dígitos
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditContactDialog(false);
+                setEditingContactLeadId(null);
+                setEditingContactCpfCnpj("");
+                setEditingContactName("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editingContactLeadId) return;
+
+                // Validar formato (CPF: 11 dígitos, CNPJ: 14 dígitos)
+                if (editingContactCpfCnpj && editingContactCpfCnpj.length !== 11 && editingContactCpfCnpj.length !== 14) {
+                  toast({
+                    title: "CPF/CNPJ inválido",
+                    description: "CPF deve ter 11 dígitos e CNPJ deve ter 14 dígitos.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                try {
+                  const { error } = await supabase
+                    .from("leads")
+                    .update({ cpf_cnpj: editingContactCpfCnpj || null })
+                    .eq("id", editingContactLeadId);
+
+                  if (error) {
+                    throw new Error(`Erro ao atualizar contato: ${error.message}`);
+                  }
+
+                  toast({
+                    title: "Contato atualizado",
+                    description: "As informações do contato foram atualizadas com sucesso.",
+                  });
+
+                  // Fechar dialog
+                  setShowEditContactDialog(false);
+                  setEditingContactLeadId(null);
+                  setEditingContactCpfCnpj("");
+                  setEditingContactName("");
+                } catch (error: any) {
+                  toast({
+                    title: "Erro ao atualizar",
+                    description: error.message,
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Salvar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
