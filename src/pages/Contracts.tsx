@@ -694,49 +694,44 @@ export default function Contracts() {
         )}
 
         {selectedContract && (
-          <>
-            <SendContractDialog
-              open={showSendDialog}
-              onOpenChange={setShowSendDialog}
-              contract={selectedContract}
+          <SendContractDialog
+            open={showSendDialog}
+            onOpenChange={setShowSendDialog}
+            contract={selectedContract}
+            onSuccess={async () => {
+              await refetch();
+              // Atualizar contrato selecionado também
+              const updated = await supabase
+                .from('contracts')
+                .select('*, lead:leads(*), template:contract_templates(*)')
+                .eq('id', selectedContract.id)
+                .single();
+              if (updated.data) {
+                setSelectedContract(updated.data as Contract);
+              }
+            }}
+          />
+        )}
+
+        {/* Suspense sempre renderizado para manter ordem dos hooks */}
+        <React.Suspense 
+          fallback={null}
+        >
+          {showPdfBuilder && selectedContract && (
+            <ContractPdfBuilderLazy
+              open={showPdfBuilder}
+              onOpenChange={setShowPdfBuilder}
+              contractId={selectedContract.id}
               onSuccess={async () => {
                 await refetch();
-                // Atualizar contrato selecionado também
-                const updated = await supabase
-                  .from('contracts')
-                  .select('*, lead:leads(*), template:contract_templates(*)')
-                  .eq('id', selectedContract.id)
-                  .single();
-                if (updated.data) {
-                  setSelectedContract(updated.data as Contract);
-                }
+                toast({
+                  title: 'Posições configuradas',
+                  description: 'As posições de assinatura foram salvas com sucesso',
+                });
               }}
             />
-            <React.Suspense 
-              fallback={
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="w-8 h-8 animate-spin" />
-                  <p className="ml-2">Carregando builder de PDF...</p>
-                </div>
-              }
-            >
-              {showPdfBuilder && selectedContract && (
-                <ContractPdfBuilderLazy
-                  open={showPdfBuilder}
-                  onOpenChange={setShowPdfBuilder}
-                  contractId={selectedContract.id}
-                  onSuccess={async () => {
-                    await refetch();
-                    toast({
-                      title: 'Posições configuradas',
-                      description: 'As posições de assinatura foram salvas com sucesso',
-                    });
-                  }}
-                />
-              )}
-            </React.Suspense>
-          </>
-        )}
+          )}
+        </React.Suspense>
 
       </div>
     </CRMLayout>
