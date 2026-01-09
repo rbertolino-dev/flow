@@ -85,7 +85,6 @@ export function useCreateBudget() {
       try {
         // Garantir que os dados de personalização sejam usados (do formulário ou do banco)
         const headerColor = formData.headerColor || (data as any).header_color || '#3b82f6';
-        const logoUrl = formData.logoUrl || (data as any).logo_url || undefined;
         const backgroundImageUrl = formData.backgroundImageUrl || (data as any).background_image_url || undefined;
 
         // Logo: prioridade: formData > DB > Organization
