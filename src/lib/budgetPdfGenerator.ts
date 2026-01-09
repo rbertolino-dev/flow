@@ -282,41 +282,41 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   }
   
   // Lado direito: Logo (já posicionada) e Data de emissão
-  let rightY = headerStartY;
+  let headerRightY = headerStartY;
   if (logoLoaded) {
     // Data ao lado da logo (um pouco à esquerda)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, logoRightX - 5, rightY + logoHeight / 2, { align: 'right' });
+    doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, logoRightX - 5, headerRightY + logoHeight / 2, { align: 'right' });
   } else {
     // Se não houver logo, data no topo direito
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
-    rightY += lineHeight;
+    doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, headerRightY, { align: 'right' });
+    headerRightY += lineHeight;
   }
   
   // Número do orçamento abaixo da data (ou logo)
-  rightY = headerStartY + (logoLoaded ? logoHeight + lineHeight * 0.5 : lineHeight * 1.2);
+  headerRightY = headerStartY + (logoLoaded ? logoHeight + lineHeight * 0.5 : lineHeight * 1.2);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(30, 30, 30);
-  doc.text(`Orcamento N°: ${budget.budget_number}`, rightColumnX, rightY, { align: 'right' });
-  rightY += lineHeight;
+  doc.text(`Orcamento N°: ${budget.budget_number}`, rightColumnX, headerRightY, { align: 'right' });
+  headerRightY += lineHeight;
   
   // Data de entrega (se houver)
   if (budget.delivery_date) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`, rightColumnX, rightY, { align: 'right' });
-    rightY += lineHeight;
+    doc.text(`Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`, rightColumnX, headerRightY, { align: 'right' });
+    headerRightY += lineHeight;
   }
 
   // Linha separadora após cabeçalho (como na imagem laranja)
-  currentY = Math.max(orgDataY, rightY) + lineHeight * 0.8;
+  currentY = Math.max(orgDataY, headerRightY) + lineHeight * 0.8;
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.2);
   doc.line(margin, currentY, pageWidth - margin, currentY);
