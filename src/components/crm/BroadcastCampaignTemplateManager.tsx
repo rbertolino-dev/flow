@@ -167,6 +167,11 @@ export function BroadcastCampaignTemplateManager({
           description: "O template foi atualizado com sucesso",
         });
       } else {
+        // Para novo template, garantir que image_url seja incluído
+        if (!templateData.image_url) {
+          templateData.image_url = null;
+        }
+        
         const { error } = await supabase
           .from("broadcast_campaign_templates")
           .insert(templateData);

@@ -999,6 +999,13 @@ export default function BroadcastCampaigns() {
           instanceId?: string;
           messageVariation?: string;
           estimatedTime?: Date;
+          empresa?: string;
+          nome_empresa?: string;
+          email?: string;
+          cpf?: string;
+          cnpj?: string;
+          custom_fields?: Record<string, any>;
+          lead_id?: string;
         }> = [];
         
         if (newCampaign.sendingMethod === "separate") {
@@ -1010,6 +1017,13 @@ export default function BroadcastCampaigns() {
                 name: contact.name,
                 instanceId: instanceId,
                 messageVariation: messagesToUse[messageIndex],
+                empresa: contact.empresa,
+                nome_empresa: contact.nome_empresa,
+                email: contact.email,
+                cpf: contact.cpf,
+                cnpj: contact.cnpj,
+                custom_fields: contact.custom_fields,
+                lead_id: (contact as any).lead_id,
               });
             });
           });
@@ -1022,6 +1036,13 @@ export default function BroadcastCampaigns() {
               name: contact.name,
               instanceId: instancesForRotation[instanceIndex],
               messageVariation: messagesToUse[messageIndex],
+              empresa: contact.empresa,
+              nome_empresa: contact.nome_empresa,
+              email: contact.email,
+              cpf: contact.cpf,
+              cnpj: contact.cnpj,
+              custom_fields: contact.custom_fields,
+              lead_id: (contact as any).lead_id,
             });
           });
         }
@@ -1097,17 +1118,33 @@ export default function BroadcastCampaigns() {
         instanceId?: string;
         messageVariation?: string;
         estimatedTime?: Date;
+        empresa?: string;
+        nome_empresa?: string;
+        email?: string;
+        cpf?: string;
+        cnpj?: string;
+        custom_fields?: Record<string, any>;
+        lead_id?: string;
       }> = [];
       
       if (newCampaign.sendingMethod === "separate") {
         instancesForRotation.forEach(instanceId => {
           validation.whatsappValidated.forEach((contact, index) => {
             const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+            // Preservar dados dinâmicos do contato validado
+            const contactData = contact as any;
             simulationList.push({
               phone: contact.phone,
               name: contact.name,
               instanceId: instanceId,
               messageVariation: messagesToUse[messageIndex],
+              empresa: contactData.empresa,
+              nome_empresa: contactData.nome_empresa,
+              email: contactData.email,
+              cpf: contactData.cpf,
+              cnpj: contactData.cnpj,
+              custom_fields: contactData.custom_fields,
+              lead_id: contactData.lead_id,
             });
           });
         });
@@ -1115,11 +1152,20 @@ export default function BroadcastCampaigns() {
         validation.whatsappValidated.forEach((contact, index) => {
           const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
           const instanceIndex = index % instancesForRotation.length;
+          // Preservar dados dinâmicos do contato validado
+          const contactData = contact as any;
           simulationList.push({
             phone: contact.phone,
             name: contact.name,
             instanceId: instancesForRotation[instanceIndex],
             messageVariation: messagesToUse[messageIndex],
+            empresa: contactData.empresa,
+            nome_empresa: contactData.nome_empresa,
+            email: contactData.email,
+            cpf: contactData.cpf,
+            cnpj: contactData.cnpj,
+            custom_fields: contactData.custom_fields,
+            lead_id: contactData.lead_id,
           });
         });
       }
@@ -4325,10 +4371,27 @@ export default function BroadcastCampaigns() {
                                 const originalIndex = validatedContactsList.findIndex(c => 
                                   c.phone === contact.phone && c.instanceId === contact.instanceId
                                 );
+                                
+                                // Preparar dados para substituição de tags e visualização
+                                const contactData = {
+                                  nome: contact.name || "",
+                                  empresa: contact.empresa || contact.nome_empresa || "",
+                                  nome_empresa: contact.nome_empresa || contact.empresa || "",
+                                  email: contact.email || "",
+                                  cpf: contact.cpf || "",
+                                  cnpj: contact.cnpj || "",
+                                  ...(contact.custom_fields || {}),
+                                };
+                                
+                                // Substituir tags na mensagem para preview
+                                const messagePreview = contact.messageVariation 
+                                  ? replaceBroadcastTemplateTags(contact.messageVariation, contactData)
+                                  : "";
+                                
                                 return (
                                   <div key={`${contact.phone}-${contact.instanceId}-${index}`} className="p-3 hover:bg-muted/50 transition-colors">
                                     <div className="flex items-start justify-between gap-4">
-                                      <div className="flex-1 space-y-1">
+                                      <div className="flex-1 space-y-2">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <span className="font-medium text-sm">{contact.phone}</span>
                                           {contact.name && (
@@ -4340,11 +4403,41 @@ export default function BroadcastCampaigns() {
                                             </Badge>
                                           )}
                                         </div>
-                                        {contact.messageVariation && (
+                                        
+                                        {/* Mostrar todos os dados disponíveis */}
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {contact.empresa && (
+                                            <Badge variant="outline" className="text-xs">
+                                              Empresa: {contact.empresa}
+                                            </Badge>
+                                          )}
+                                          {contact.email && (
+                                            <Badge variant="outline" className="text-xs">
+                                              Email
+                                            </Badge>
+                                          )}
+                                          {(contact.cpf || contact.cnpj) && (
+                                            <Badge variant="outline" className="text-xs">
+                                              CPF/CNPJ
+                                            </Badge>
+                                          )}
+                                          {contact.custom_fields && Object.keys(contact.custom_fields).length > 0 && (
+                                            <Badge variant="outline" className="text-xs">
+                                              {Object.keys(contact.custom_fields).length} campo(s) customizado(s)
+                                            </Badge>
+                                          )}
+                                          {contact.lead_id && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              Cliente do funil
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        
+                                        {messagePreview && (
                                           <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded border">
-                                            <span className="font-medium">Mensagem:</span>
-                                            <p className="mt-1 whitespace-pre-wrap line-clamp-2">
-                                              {contact.messageVariation.replace(/\{nome\}/gi, contact.name || 'Cliente')}
+                                            <span className="font-medium">Mensagem personalizada:</span>
+                                            <p className="mt-1 whitespace-pre-wrap line-clamp-3">
+                                              {messagePreview}
                                             </p>
                                           </div>
                                         )}
@@ -4353,6 +4446,42 @@ export default function BroadcastCampaigns() {
                                         <Badge variant="secondary" className="text-xs">
                                           #{originalIndex + 1}
                                         </Badge>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => {
+                                            const dataLines = [
+                                              `Nome: ${contact.name || "Não informado"}`,
+                                              `Telefone: ${contact.phone}`,
+                                              contact.email ? `Email: ${contact.email}` : null,
+                                              contact.empresa ? `Empresa: ${contact.empresa}` : null,
+                                              contact.nome_empresa ? `Nome da Empresa: ${contact.nome_empresa}` : null,
+                                              contact.cpf ? `CPF: ${contact.cpf}` : null,
+                                              contact.cnpj ? `CNPJ: ${contact.cnpj}` : null,
+                                            ].filter(Boolean);
+                                            
+                                            const customFieldsText = contact.custom_fields && Object.keys(contact.custom_fields).length > 0
+                                              ? '\n\nCampos customizados:\n' + Object.entries(contact.custom_fields)
+                                                  .map(([key, value]) => `${key}: ${value}`)
+                                                  .join('\n')
+                                              : '';
+                                            
+                                            toast({
+                                              title: "Dados completos do contato",
+                                              description: (
+                                                <div className="space-y-1 text-xs whitespace-pre-line">
+                                                  {dataLines.join('\n')}
+                                                  {customFieldsText}
+                                                </div>
+                                              ),
+                                              duration: 10000,
+                                            });
+                                          }}
+                                          title="Ver todos os dados"
+                                        >
+                                          <Users className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                     </div>
                                   </div>
