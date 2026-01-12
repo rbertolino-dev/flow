@@ -142,17 +142,32 @@ export function BroadcastCampaignTemplateManager({
         max_delay_seconds: 60,
       };
 
-      // LÓGICA SIMPLIFICADA E CORRIGIDA PARA SALVAR IMAGEM
-      // Se tiver nova imagem, usar ela. Se não tiver e estiver editando, manter a existente.
+      // LÓGICA CORRIGIDA E GARANTIDA PARA SALVAR IMAGEM
+      // SEMPRE incluir image_url no templateData (não pode ser omitido)
       if (formData.imageUrl) {
+        // Se tiver imagem no formData (nova ou existente), usar ela
         templateData.image_url = formData.imageUrl;
       } else if (editingTemplate && editingTemplate.image_url) {
         // Se estiver editando e não tiver nova imagem, manter a existente
         templateData.image_url = editingTemplate.image_url;
       } else {
-        // Se não tiver imagem nova nem existente, usar null
+        // Se não tiver imagem, usar null explicitamente
         templateData.image_url = null;
       }
+      
+      // GARANTIR que image_url está sempre presente no objeto (não pode ser undefined)
+      if (templateData.image_url === undefined) {
+        templateData.image_url = null;
+      }
+      
+      // LOG para debug
+      console.log('💾 [Template] Salvando template:', {
+        name: templateData.name,
+        image_url: templateData.image_url,
+        editing: !!editingTemplate,
+        formData_imageUrl: formData.imageUrl,
+        editingTemplate_image_url: editingTemplate?.image_url,
+      });
 
       if (editingTemplate) {
         const { error } = await supabase
@@ -176,7 +191,15 @@ export function BroadcastCampaignTemplateManager({
           .from("broadcast_campaign_templates")
           .insert(templateData);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [Template] Erro ao criar:', error);
+          throw error;
+        }
+        
+        console.log('✅ [Template] Template criado com sucesso:', {
+          id: campaign?.id,
+          image_url: templateData.image_url,
+        });
 
         toast({
           title: "Template criado!",
@@ -325,10 +348,13 @@ export function BroadcastCampaignTemplateManager({
         .getPublicUrl(filePath);
 
       const publicUrl = publicUrlData.publicUrl;
+      
+      // CRÍTICO: Setar tanto formData quanto imagePreview
       setFormData(prev => ({
         ...prev,
         imageUrl: publicUrl,
       }));
+      setImagePreview(publicUrl); // Garantir que preview seja atualizado
 
       toast({
         title: "Upload concluído",

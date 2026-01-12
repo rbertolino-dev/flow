@@ -46,7 +46,19 @@ export function replaceBroadcastTemplateTags(
   // Substituir todas as tags {tag} ou {{tag}}
   result = result.replace(/\{\{?(\w+)\}?\}/gi, (match, key) => {
     const normalizedKey = key.toLowerCase();
-    return replacements[normalizedKey] !== undefined ? replacements[normalizedKey] : match;
+    const replacement = replacements[normalizedKey];
+    
+    // LOG para debug quando substituir {empresa}
+    if (normalizedKey === 'empresa' && replacement !== undefined) {
+      console.log('✅ [Tag Empresa] Substituição:', {
+        tag: match,
+        key: normalizedKey,
+        replacement,
+        availableReplacements: Object.keys(replacements),
+      });
+    }
+    
+    return replacement !== undefined ? replacement : match;
   });
 
   return result;

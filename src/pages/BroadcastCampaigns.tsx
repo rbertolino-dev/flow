@@ -1492,7 +1492,7 @@ export default function BroadcastCampaigns() {
             const messageTemplate = messagesToUse[messageIndex];
             
             // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
-            const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, {
+            const contactDataForTags = {
               nome: contact.name || "",
               empresa: contact.empresa || contact.nome_empresa || "",
               nome_empresa: contact.nome_empresa || contact.empresa || "",
@@ -1500,7 +1500,20 @@ export default function BroadcastCampaigns() {
               cpf: contact.cpf || "",
               cnpj: contact.cnpj || "",
               ...(contact.custom_fields || {}),
-            });
+            };
+            
+            // LOG para debug
+            if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
+              console.log('🏷️ [Tag Empresa] Substituindo tags:', {
+                phone: contact.phone,
+                messageTemplate,
+                contactData: contactDataForTags,
+                empresa: contact.empresa,
+                nome_empresa: contact.nome_empresa,
+              });
+            }
+            
+            const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
 
             // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
             const queueItem: any = {
@@ -1538,7 +1551,7 @@ export default function BroadcastCampaigns() {
           const messageTemplate = messagesToUse[messageIndex];
           
           // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
-          const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, {
+          const contactDataForTags = {
             nome: contact.name || "",
             empresa: contact.empresa || contact.nome_empresa || "",
             nome_empresa: contact.nome_empresa || contact.empresa || "",
@@ -1546,7 +1559,20 @@ export default function BroadcastCampaigns() {
             cpf: contact.cpf || "",
             cnpj: contact.cnpj || "",
             ...(contact.custom_fields || {}),
-          });
+          };
+          
+          // LOG para debug
+          if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
+            console.log('🏷️ [Tag Empresa] Substituindo tags:', {
+              phone: contact.phone,
+              messageTemplate,
+              contactData: contactDataForTags,
+              empresa: contact.empresa,
+              nome_empresa: contact.nome_empresa,
+            });
+          }
+          
+          const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
 
           // Rotacionar entre as instâncias (quando método é "rotate")
           const instanceIndex = index % instancesForRotation.length;
