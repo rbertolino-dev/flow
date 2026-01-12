@@ -1187,6 +1187,36 @@ export default function BroadcastCampaigns() {
         const { parseCSVFile } = await import("@/lib/csvParser");
         const csvResult = parseCSVFile(text, { hasHeader: true });
         
+        // VALIDAÇÃO: Verificar se campos do CSV correspondem às tags do template
+        const messageToValidate = newCampaign.messageVariations.length > 0 
+          ? newCampaign.messageVariations[0]
+          : newCampaign.customMessage || '';
+        
+        if (messageToValidate) {
+          const { extractDynamicTags, validateTemplateAgainstCSVFields } = await import("@/lib/messageTemplateUtils");
+          const csvColumns = csvResult.columns || [];
+          const validation = validateTemplateAgainstCSVFields(messageToValidate, csvColumns);
+          
+          if (!validation.valid) {
+            toast({
+              title: "⚠️ Campos faltando no CSV",
+              description: `O template usa as tags: ${validation.missingTags.map(t => `{${t}}`).join(', ')} mas essas colunas não foram encontradas no CSV. As tags serão substituídas por valores vazios.`,
+              variant: "destructive",
+            });
+          } else if (validation.warnings.length > 0) {
+            toast({
+              title: "ℹ️ Aviso sobre campos",
+              description: validation.warnings.join(', '),
+              variant: "default",
+            });
+          } else if (validation.availableFields.length > 0) {
+            toast({
+              title: "✅ Template validado",
+              description: `Todas as tags do template têm campos correspondentes no CSV: ${validation.availableFields.map(t => `{${t}}`).join(', ')}`,
+            });
+          }
+        }
+        
         // Converter contatos do CSV para formato esperado
         contacts = csvResult.contacts.map(contact => ({
           phone: contact.phone,
