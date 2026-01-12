@@ -1170,10 +1170,38 @@ export default function BroadcastCampaigns() {
 
       // Ler contatos novamente para obter dados validados
       let text: string;
-      let contacts: Array<{ phone: string; name?: string }> = [];
+      let contacts: Array<{ 
+        phone: string; 
+        name?: string;
+        empresa?: string;
+        nome_empresa?: string;
+        email?: string;
+        cpf?: string;
+        cnpj?: string;
+        custom_fields?: Record<string, any>;
+      }> = [];
       
       if (importMode === "csv" && csvFile) {
+        // Processar CSV com campos dinâmicos
         text = await csvFile.text();
+        const { parseCSVFile } = await import("@/lib/csvParser");
+        const csvResult = parseCSVFile(text, { hasHeader: true });
+        
+        // Converter contatos do CSV para formato esperado
+        contacts = csvResult.contacts.map(contact => ({
+          phone: contact.phone,
+          name: contact.name,
+          empresa: contact.empresa,
+          nome_empresa: contact.nome_empresa,
+          email: contact.email,
+          cpf: contact.cpf,
+          cnpj: contact.cnpj,
+          custom_fields: Object.fromEntries(
+            Object.entries(contact).filter(([key]) => 
+              !['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
+            )
+          ),
+        }));
       } else if (importMode === "list" && selectedListId) {
         // Se for lista do funil, usar contatos diretamente sem revalidar
         const selectedList = lists.find(l => l.id === selectedListId);
@@ -1197,9 +1225,22 @@ export default function BroadcastCampaigns() {
                 }
               }
               
+              // Extrair campos customizados se existirem
+              const customData = contact.custom_data || {};
+              
               return {
                 phone,
-                name: contact.name || undefined
+                name: contact.name || undefined,
+                empresa: customData.empresa,
+                nome_empresa: customData.nome_empresa,
+                email: customData.email,
+                cpf: customData.cpf,
+                cnpj: customData.cnpj,
+                custom_fields: Object.fromEntries(
+                  Object.entries(customData).filter(([key]) => 
+                    !['empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
+                  )
+                ),
               };
             });
           } else {
@@ -1244,6 +1285,8 @@ export default function BroadcastCampaigns() {
         }, newCampaign.useLatamValidator);
 
         // Usar apenas os contatos validados com WhatsApp
+        // Nota: Para paste/CSV simples, não temos campos adicionais aqui
+        // Campos dinâmicos só estão disponíveis quando vem de CSV processado ou lista com custom_data
         contacts = validation.whatsappValidated.map(c => ({
           phone: c.phone,
           name: c.name
@@ -1356,6 +1399,14 @@ export default function BroadcastCampaigns() {
               name: contact.name,
               personalized_message: personalizedMessage,
               status: "pending",
+              empresa: contact.empresa,
+              nome_empresa: contact.nome_empresa,
+              email: contact.email,
+              cpf: contact.cpf,
+              cnpj: contact.cnpj,
+              custom_fields: contact.custom_fields && Object.keys(contact.custom_fields).length > 0 
+                ? contact.custom_fields 
+                : null,
             });
           });
         });
@@ -1382,6 +1433,14 @@ export default function BroadcastCampaigns() {
             name: contact.name,
             personalized_message: personalizedMessage,
             status: "pending",
+            empresa: contact.empresa,
+            nome_empresa: contact.nome_empresa,
+            email: contact.email,
+            cpf: contact.cpf,
+            cnpj: contact.cnpj,
+            custom_fields: contact.custom_fields && Object.keys(contact.custom_fields).length > 0 
+              ? contact.custom_fields 
+              : null,
           };
         });
       }
@@ -1494,10 +1553,12 @@ export default function BroadcastCampaigns() {
       }
 
       // Verificar se há mensagens que ficarão fora da janela (continua do código original)
+      // NOTA: Para cálculo de estimativa, usamos delay médio, mas o agendamento real usa delay aleatório
       if (activeTimeWindow && !scheduleForNextWindow) {
         const now = new Date();
         const minDelay = campaign.min_delay_seconds;
         const maxDelay = campaign.max_delay_seconds;
+        // Para estimativa, usar média (mas agendamento real será aleatório)
         const avgDelay = (minDelay + maxDelay) / 2;
         const avgDelayMs = avgDelay * 1000;
         
@@ -1530,6 +1591,7 @@ export default function BroadcastCampaigns() {
             let instanceScheduledTime = new Date(now);
             
             itemsForInstance.forEach((item) => {
+              // Para estimativa, usar média; agendamento real será aleatório
               const scheduledTime = new Date(instanceScheduledTime.getTime() + avgDelayMs);
               
               if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
@@ -1546,6 +1608,7 @@ export default function BroadcastCampaigns() {
           let currentScheduledTime = new Date(now);
           
           for (const item of queueItems) {
+            // Para estimativa, usar média; agendamento real será aleatório
             const scheduledTime = new Date(currentScheduledTime.getTime() + avgDelayMs);
             
             if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
@@ -1622,6 +1685,15 @@ export default function BroadcastCampaigns() {
     }
   };
 
+  // Função auxiliar para gerar delay aleatório entre min e max
+  const getRandomDelay = (minSeconds: number, maxSeconds: number): number => {
+    // Garantir que min <= max
+    const min = Math.min(minSeconds, maxSeconds);
+    const max = Math.max(minSeconds, maxSeconds);
+    // Gerar número aleatório entre min e max (inclusive)
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  };
+
   const scheduleCampaignMessages = async (
     campaignId: string,
     queueItems: any[],
@@ -1677,11 +1749,9 @@ export default function BroadcastCampaigns() {
           instancesMap.get(item.instance_id)!.push(item);
         });
         
-        // Calcular delay uma vez (otimização)
+        // Obter limites de delay
         const minDelay = campaign.min_delay_seconds;
         const maxDelay = campaign.max_delay_seconds;
-        const avgDelay = (minDelay + maxDelay) / 2;
-        const avgDelayMs = avgDelay * 1000;
         
         // Preparar updates em batch para reduzir queries
         const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
@@ -1691,8 +1761,10 @@ export default function BroadcastCampaigns() {
           let instanceScheduledTime = new Date(now); // Todas começam ao mesmo tempo
           
           itemsForInstance.forEach((item) => {
-            // Calcular horário baseado no delay médio (independente para cada instância)
-            let scheduledTime = new Date(instanceScheduledTime.getTime() + avgDelayMs);
+            // Calcular delay ALEATÓRIO entre min e max para cada mensagem
+            const randomDelaySeconds = getRandomDelay(minDelay, maxDelay);
+            const randomDelayMs = randomDelaySeconds * 1000;
+            let scheduledTime = new Date(instanceScheduledTime.getTime() + randomDelayMs);
             
             // Se há janela ativa e ação não é exceção
             if (activeTimeWindow && action !== "exception") {
@@ -1740,11 +1812,9 @@ export default function BroadcastCampaigns() {
         }
       } else {
         // Modo SINGLE ou ROTATE: Fila sequencial normal
-        // Calcular delay uma vez (otimização)
+        // Obter limites de delay
         const minDelay = campaign.min_delay_seconds;
         const maxDelay = campaign.max_delay_seconds;
-        const avgDelay = (minDelay + maxDelay) / 2;
-        const avgDelayMs = avgDelay * 1000;
         
         let currentScheduledTime = new Date(now);
         
@@ -1752,8 +1822,10 @@ export default function BroadcastCampaigns() {
         const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
         
         for (const item of queueItems) {
-          // Calcular horário baseado no delay médio
-          let scheduledTime = new Date(currentScheduledTime.getTime() + avgDelayMs);
+          // Calcular delay ALEATÓRIO entre min e max para cada mensagem
+          const randomDelaySeconds = getRandomDelay(minDelay, maxDelay);
+          const randomDelayMs = randomDelaySeconds * 1000;
+          let scheduledTime = new Date(currentScheduledTime.getTime() + randomDelayMs);
           
           // Se há janela ativa e ação não é exceção
           if (activeTimeWindow && action !== "exception") {

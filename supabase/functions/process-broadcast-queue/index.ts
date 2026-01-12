@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateDeduplicationHash } from "../_shared/failover-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +30,9 @@ serve(async (req) => {
           id,
           status,
           custom_message,
-          message_template:message_templates(content)
+          message_template:message_templates(content),
+          current_active_instance_id,
+          instance_id
         ),
         instance:evolution_config(api_url, api_key, instance_name)
       `)
@@ -129,14 +132,80 @@ serve(async (req) => {
     for (const item of validItems) {
       try {
         const campaign = item.campaign;
-        const instance = item.instance;
         
         if (!campaign) {
           throw new Error("Configuração da campanha inválida");
         }
+
+        // Verificar lock de processamento (evitar processamento concorrente)
+        if (item.processing_lock_until) {
+          const lockUntil = new Date(item.processing_lock_until);
+          if (lockUntil > new Date()) {
+            console.log(`🔒 Item ${item.id} está lockado até ${lockUntil.toISOString()} - PULADO`);
+            continue;
+          }
+        }
+
+        // Determinar qual instância usar (failover ou original)
+        const activeInstanceId = campaign.current_active_instance_id || campaign.instance_id || item.instance_id;
         
-        if (!instance) {
-          throw new Error("Instância não configurada para este contato");
+        // Buscar instância ativa
+        const { data: activeInstance, error: instanceError } = await supabase
+          .from("evolution_config")
+          .select("id, api_url, api_key, instance_name")
+          .eq("id", activeInstanceId)
+          .single();
+
+        if (instanceError || !activeInstance) {
+          throw new Error(`Instância ${activeInstanceId} não encontrada`);
+        }
+
+        const instance = activeInstance;
+        
+        // Adquirir lock de processamento (1 minuto)
+        const lockUntil = new Date(Date.now() + 60 * 1000);
+        await supabase
+          .from("broadcast_queue")
+          .update({ processing_lock_until: lockUntil.toISOString() })
+          .eq("id", item.id)
+          .is("processing_lock_until", null); // Apenas se não estiver lockado
+
+        // Verificar deduplicação
+        const messageContent = item.personalized_message || campaign.custom_message || "";
+        const deduplicationHash = await generateDeduplicationHash(
+          campaign.id,
+          item.phone,
+          messageContent
+        );
+
+        // Verificar se já foi enviada
+        const { data: existingSent, error: dedupError } = await supabase
+          .from("broadcast_queue")
+          .select("id, status")
+          .eq("deduplication_hash", deduplicationHash)
+          .eq("status", "sent")
+          .neq("id", item.id)
+          .maybeSingle();
+
+        if (dedupError) {
+          console.error(`Erro ao verificar deduplicação:`, dedupError);
+        }
+
+        if (existingSent) {
+          console.log(`⚠️ Mensagem duplicada detectada (hash: ${deduplicationHash.substring(0, 8)}...) - marcando como SENT sem enviar`);
+          
+          await supabase
+            .from("broadcast_queue")
+            .update({
+              status: "sent",
+              deduplication_hash: deduplicationHash,
+              sent_at: new Date().toISOString(),
+              processing_lock_until: null,
+            })
+            .eq("id", item.id);
+
+          processed++;
+          continue;
         }
 
         // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Buscar status mais recente da campanha ANTES de processar
@@ -193,11 +262,46 @@ serve(async (req) => {
           if (!message) {
             throw new Error("Mensagem não configurada");
           }
-          personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
-        } else {
-          // Aplicar personalização de variáveis mesmo em mensagens pré-personalizadas
-          personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
+          personalizedMessage = message;
         }
+        
+        // Substituir todas as tags dinâmicas disponíveis
+        // Suporta: {nome}, {empresa}, {nome_empresa}, {email}, {cpf}, {cnpj}, e campos customizados
+        const replacements: Record<string, string> = {
+          nome: item.name || "",
+          empresa: item.empresa || "",
+          nome_empresa: item.nome_empresa || item.empresa || "",
+          email: item.email || "",
+          cpf: item.cpf || "",
+          cnpj: item.cnpj || "",
+        };
+        
+        // Adicionar campos customizados do JSONB
+        if (item.custom_fields && typeof item.custom_fields === 'object') {
+          Object.entries(item.custom_fields).forEach(([key, value]) => {
+            replacements[key] = String(value || "");
+          });
+        }
+        
+        // Aplicar todas as substituições
+        personalizedMessage = personalizedMessage.replace(/\{(\w+)\}/gi, (match, key) => {
+          const normalizedKey = key.toLowerCase();
+          return replacements[normalizedKey] !== undefined ? replacements[normalizedKey] : match;
+        });
+
+        // Atualizar hash de deduplicação e marcar como SENDING
+        const sendingStartedAt = new Date().toISOString();
+        await supabase
+          .from("broadcast_queue")
+          .update({
+            status: "sending",
+            deduplication_hash: deduplicationHash,
+            sending_started_at: sendingStartedAt,
+            attempted_instance_id: activeInstanceId,
+            send_attempts: (item.send_attempts || 0) + 1,
+            last_attempt_at: sendingStartedAt,
+          })
+          .eq("id", item.id);
 
         // Limpar api_url e construir endpoint correto usando a instância do item
         let baseUrl = instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
@@ -243,12 +347,13 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // Marcar como enviado
+        // Marcar como enviado e liberar lock
         const { error: updateError } = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
+            processing_lock_until: null, // Liberar lock
           })
           .eq("id", item.id);
 
@@ -280,8 +385,8 @@ serve(async (req) => {
         console.error(`❌ Erro ao processar ${item.phone}:`, error.message);
         
         // Registrar falha nas métricas
-        if (item.instance) {
-          const metrics = getOrCreateMetrics(item.instance.instance_name);
+        if (instance) {
+          const metrics = getOrCreateMetrics(instance.instance_name);
           metrics.messagesFailed++;
           metrics.consecutiveFailures++;
           if (metrics.consecutiveFailures > metrics.maxConsecutiveFailures) {
@@ -306,12 +411,13 @@ serve(async (req) => {
           }
         }
         
-        // Marcar como falha
+        // Marcar como falha e liberar lock
         await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
+            processing_lock_until: null, // Liberar lock
           })
           .eq("id", item.id);
 

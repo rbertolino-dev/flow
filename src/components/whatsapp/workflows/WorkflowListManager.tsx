@@ -29,7 +29,7 @@ import {
   LeadOption,
 } from "@/types/workflows";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
-import { Plus, Trash2, Edit, Eye, Users, ArrowLeft, Edit2 } from "lucide-react";
+import { Plus, Trash2, Edit, Eye, Users, ArrowLeft, Edit2, Upload, FileText, Download } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -40,6 +40,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
+import { parseCSVFile, generateCSVTemplate, type ParsedCSVContact } from "@/lib/csvParser";
 
 interface WorkflowListManagerProps {
   open: boolean;
@@ -88,6 +89,15 @@ export function WorkflowListManager({
   const [editingContactCompany, setEditingContactCompany] = useState<string>("");
   const [editingContactCpfCnpj, setEditingContactCpfCnpj] = useState<string>("");
   const [editingContactNotes, setEditingContactNotes] = useState<string>("");
+  
+  // Estados para upload CSV
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvParseResult, setCsvParseResult] = useState<{
+    contacts: ParsedCSVContact[];
+    columns: string[];
+    errors: string[];
+  } | null>(null);
+  const [isProcessingCSV, setIsProcessingCSV] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -106,6 +116,39 @@ export function WorkflowListManager({
     setManualPhone("");
     setSelectedList(null);
     setSearchContact("");
+    setCsvFile(null);
+    setCsvParseResult(null);
+  };
+  
+  const handleProcessCSV = async (file: File) => {
+    setIsProcessingCSV(true);
+    try {
+      const text = await file.text();
+      const result = parseCSVFile(text, { hasHeader: true });
+      setCsvParseResult(result);
+      
+      if (result.errors.length > 0) {
+        toast({
+          title: "CSV processado com avisos",
+          description: `${result.contacts.length} contato(s) válido(s), ${result.errors.length} erro(s) encontrado(s)`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "CSV processado com sucesso!",
+          description: `${result.contacts.length} contato(s) encontrado(s)`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao processar CSV",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+      setCsvParseResult(null);
+    } finally {
+      setIsProcessingCSV(false);
+    }
   };
 
   const selectedLead = useMemo(
@@ -380,56 +423,175 @@ export function WorkflowListManager({
               <CardHeader>
                 <CardTitle className="text-sm">Adicionar Contatos</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Adicionar por Lead */}
-                <div className="flex gap-2">
-                  <Select
-                    value={selectedLeadId}
-                    onValueChange={setSelectedLeadId}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Escolher cliente do funil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {leadOptions.map((lead) => (
-                        <SelectItem key={lead.id} value={lead.id}>
-                          {lead.name} • {lead.phone}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleAddLead}
-                    disabled={!selectedLeadId}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Adicionar Manual */}
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Telefone"
-                    value={manualPhone}
-                    onChange={(e) => setManualPhone(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Nome (opcional)"
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleAddManual}
-                  disabled={!manualPhone}
-                  className="w-full"
-                >
-                  Adicionar Contato Manual
-                </Button>
+              <CardContent>
+                <Tabs defaultValue="manual" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="manual">Manual</TabsTrigger>
+                    <TabsTrigger value="csv">Upload CSV</TabsTrigger>
+                    <TabsTrigger value="lead">Do Funil</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="manual" className="space-y-3 mt-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Telefone"
+                        value={manualPhone}
+                        onChange={(e) => setManualPhone(e.target.value)}
+                      />
+                      <Input
+                        placeholder="Nome (opcional)"
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddManual}
+                      disabled={!manualPhone}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Contato Manual
+                    </Button>
+                  </TabsContent>
+                  
+                  <TabsContent value="csv" className="space-y-3 mt-4">
+                    <div className="space-y-2">
+                      <Label>Upload de Arquivo CSV</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept=".csv"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setCsvFile(file);
+                              handleProcessCSV(file);
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const template = generateCSVTemplate();
+                            const blob = new Blob([template], { type: 'text/csv' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'template_lista_contatos.csv';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Template
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Formato: telefone, nome, empresa, nome_empresa, email, etc.
+                      </p>
+                    </div>
+                    
+                    {isProcessingCSV && (
+                      <div className="text-sm text-muted-foreground">
+                        Processando CSV...
+                      </div>
+                    )}
+                    
+                    {csvParseResult && (
+                      <div className="space-y-2">
+                        {csvParseResult.errors.length > 0 && (
+                          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-sm">
+                            <p className="font-medium text-destructive mb-1">Erros encontrados:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {csvParseResult.errors.slice(0, 5).map((error, i) => (
+                                <li key={i} className="text-xs">{error}</li>
+                              ))}
+                              {csvParseResult.errors.length > 5 && (
+                                <li className="text-xs">... e mais {csvParseResult.errors.length - 5} erro(s)</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="p-3 bg-muted rounded text-sm">
+                          <p className="font-medium mb-1">
+                            ✅ {csvParseResult.contacts.length} contato(s) processado(s)
+                          </p>
+                          {csvParseResult.columns.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Colunas detectadas: {csvParseResult.columns.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            const workflowContacts: WorkflowListContact[] = csvParseResult.contacts.map(contact => ({
+                              phone: contact.phone,
+                              name: contact.name,
+                              lead_id: undefined,
+                              custom_data: {
+                                empresa: contact.empresa,
+                                nome_empresa: contact.nome_empresa,
+                                email: contact.email,
+                                cpf: contact.cpf,
+                                cnpj: contact.cnpj,
+                                ...Object.fromEntries(
+                                  Object.entries(contact).filter(([key]) => 
+                                    !['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
+                                  )
+                                ),
+                              },
+                            }));
+                            setContacts([...contacts, ...workflowContacts]);
+                            setCsvFile(null);
+                            setCsvParseResult(null);
+                            toast({
+                              title: "Contatos adicionados!",
+                              description: `${workflowContacts.length} contato(s) do CSV foram adicionados à lista`,
+                            });
+                          }}
+                          className="w-full"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar {csvParseResult.contacts.length} Contato(s) à Lista
+                        </Button>
+                      </div>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="lead" className="space-y-3 mt-4">
+                    <div className="flex gap-2">
+                      <Select
+                        value={selectedLeadId}
+                        onValueChange={setSelectedLeadId}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Escolher cliente do funil" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {leadOptions.map((lead) => (
+                            <SelectItem key={lead.id} value={lead.id}>
+                              {lead.name} • {lead.phone}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddLead}
+                        disabled={!selectedLeadId}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
 
