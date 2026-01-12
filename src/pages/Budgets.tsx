@@ -1122,6 +1122,22 @@ export default function Budgets() {
           }}
         />
         
+        <EditBudgetDialog
+          open={showEditDialog}
+          onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) {
+              setSelectedBudget(null);
+            }
+          }}
+          budget={selectedBudget}
+          onSuccess={() => {
+            refetch();
+            setShowEditDialog(false);
+            setSelectedBudget(null);
+          }}
+        />
+        
         {/* Dialog opcional para aprovar orçamento recém-criado */}
         {newlyCreatedBudgetId && (
           <Dialog open={!!newlyCreatedBudgetId} onOpenChange={(open) => {
