@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit2, Trash2, FileText, X } from "lucide-react";
+import { Plus, Edit2, Trash2, FileText, X, Image as ImageIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +31,13 @@ interface Template {
   message_variations?: string[];
   min_delay_seconds: number;
   max_delay_seconds: number;
+  image_url?: string;
   created_at: string;
 }
+
+const BUCKET_ID = "whatsapp-workflow-media";
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 interface BroadcastCampaignTemplateManagerProps {
   organizationId: string;
@@ -58,10 +63,14 @@ export function BroadcastCampaignTemplateManager({
     description: "",
     customMessage: "",
     messageVariations: [] as string[],
+    imageUrl: null as string | null,
   });
 
   const [bulkVariationsDialogOpen, setBulkVariationsDialogOpen] = useState(false);
   const [bulkVariationsText, setBulkVariationsText] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (organizationId) {
@@ -129,6 +138,7 @@ export function BroadcastCampaignTemplateManager({
         message_template_id: null,
         custom_message: formData.customMessage?.trim() || null,
         message_variations: validVariations.length > 0 ? validVariations : null,
+        image_url: formData.imageUrl || null,
         min_delay_seconds: 30,
         max_delay_seconds: 60,
       };
@@ -179,7 +189,9 @@ export function BroadcastCampaignTemplateManager({
       description: template.description || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
+      imageUrl: template.image_url || null,
     });
+    setImagePreview(template.image_url || null);
     setDialogOpen(true);
   };
 
@@ -218,8 +230,116 @@ export function BroadcastCampaignTemplateManager({
       description: "",
       customMessage: "",
       messageVariations: [],
+      imageUrl: null,
     });
     setEditingTemplate(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast({
+        title: "Tipo de arquivo inválido",
+        description: "Apenas imagens (JPEG, PNG, WEBP) são permitidas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar tamanho
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: "Arquivo muito grande",
+        description: `O arquivo deve ter no máximo ${MAX_FILE_SIZE / 1024 / 1024}MB.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Criar preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload
+    await uploadImage(file);
+  };
+
+  const uploadImage = async (file: File) => {
+    if (!organizationId) {
+      toast({
+        title: "Erro",
+        description: "Organização não encontrada",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+      const filePath = `${organizationId}/broadcast-templates/${fileName}`;
+
+      // Upload para Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_ID)
+        .upload(filePath, file, {
+          upsert: false,
+          cacheControl: '86400', // 24 horas
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Obter URL pública
+      const { data: publicUrlData } = supabase.storage
+        .from(BUCKET_ID)
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+      setFormData(prev => ({
+        ...prev,
+        imageUrl: publicUrl,
+      }));
+
+      toast({
+        title: "Upload concluído",
+        description: "Imagem carregada com sucesso",
+      });
+    } catch (error: any) {
+      console.error('Erro no upload:', error);
+      toast({
+        title: "Erro no upload",
+        description: error.message || "Falha ao fazer upload do arquivo",
+        variant: "destructive",
+      });
+      setImagePreview(null);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: null,
+    }));
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleDialogClose = (open: boolean) => {
@@ -270,6 +390,54 @@ export function BroadcastCampaignTemplateManager({
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="image">Imagem (Opcional)</Label>
+                <div className="space-y-2">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-48 object-cover rounded-lg border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleRemoveImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                      <ImageIcon className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                      <Label htmlFor="image-upload" className="cursor-pointer">
+                        <span className="text-sm text-muted-foreground">
+                          Clique para fazer upload de uma imagem
+                        </span>
+                        <Input
+                          id="image-upload"
+                          type="file"
+                          accept={ALLOWED_IMAGE_TYPES.join(',')}
+                          onChange={handleImageSelect}
+                          ref={fileInputRef}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        JPEG, PNG ou WEBP (máx. 5MB)
+                      </p>
+                    </div>
+                  )}
+                  {uploadingImage && (
+                    <p className="text-sm text-muted-foreground">Fazendo upload...</p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -519,6 +687,11 @@ export function BroadcastCampaignTemplateManager({
                         {template.message_variations && template.message_variations.length > 0 && (
                           <Badge variant="outline" className="text-xs">
                             💬 {template.message_variations.length} variações
+                          </Badge>
+                        )}
+                        {template.image_url && (
+                          <Badge variant="outline" className="text-xs">
+                            🖼️ Com imagem
                           </Badge>
                         )}
                         <Badge variant="outline" className="text-xs">

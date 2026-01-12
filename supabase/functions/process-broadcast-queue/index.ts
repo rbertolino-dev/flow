@@ -30,6 +30,7 @@ serve(async (req) => {
           id,
           status,
           custom_message,
+          image_url,
           message_template:message_templates(content),
           current_active_instance_id,
           instance_id
@@ -309,8 +310,31 @@ serve(async (req) => {
           baseUrl = baseUrl.slice(0, -8); // Remove '/manager' se existir
         }
         
-        const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
-        console.log(`📤 Enviando para ${item.phone} via ${instance.instance_name} (${evolutionUrl})`);
+        // Verificar se há imagem na campanha
+        const imageUrl = campaign.image_url;
+        
+        let evolutionUrl: string;
+        let payload: any;
+        
+        if (imageUrl) {
+          // Enviar mensagem com imagem
+          evolutionUrl = `${baseUrl}/message/sendMedia/${instance.instance_name}`;
+          payload = {
+            number: item.phone,
+            mediatype: 'image',
+            media: imageUrl,
+            caption: personalizedMessage || '',
+          };
+          console.log(`🖼️ Enviando mensagem com imagem para ${item.phone} via ${instance.instance_name}`);
+        } else {
+          // Enviar mensagem de texto simples
+          evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
+          payload = {
+            number: item.phone,
+            text: personalizedMessage,
+          };
+          console.log(`📤 Enviando mensagem de texto para ${item.phone} via ${instance.instance_name}`);
+        }
 
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
@@ -323,10 +347,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
             apikey: instance.api_key,
           },
-          body: JSON.stringify({
-            number: item.phone,
-            text: personalizedMessage,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const responseTime = Date.now() - startTime;
