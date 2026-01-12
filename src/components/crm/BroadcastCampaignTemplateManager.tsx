@@ -175,7 +175,15 @@ export function BroadcastCampaignTemplateManager({
           .update(templateData)
           .eq("id", editingTemplate.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [Template] Erro ao atualizar:', error);
+          throw error;
+        }
+        
+        console.log('✅ [Template] Template atualizado com sucesso:', {
+          id: editingTemplate.id,
+          image_url: templateData.image_url,
+        });
 
         toast({
           title: "Template atualizado!",
@@ -183,13 +191,22 @@ export function BroadcastCampaignTemplateManager({
         });
       } else {
         // Para novo template, garantir que image_url seja incluído
-        if (!templateData.image_url) {
+        if (templateData.image_url === undefined) {
           templateData.image_url = null;
         }
         
-        const { error } = await supabase
+        // LOG para debug
+        console.log('💾 [Template] Criando novo template:', {
+          name: templateData.name,
+          image_url: templateData.image_url,
+          formData_imageUrl: formData.imageUrl,
+        });
+        
+        const { data: campaign, error } = await supabase
           .from("broadcast_campaign_templates")
-          .insert(templateData);
+          .insert(templateData)
+          .select()
+          .single();
 
         if (error) {
           console.error('❌ [Template] Erro ao criar:', error);

@@ -1292,20 +1292,33 @@ export default function BroadcastCampaigns() {
         }
         
         // Converter contatos do CSV para formato esperado
-        contacts = csvResult.contacts.map(contact => ({
-          phone: contact.phone,
-          name: contact.name,
-          empresa: contact.empresa,
-          nome_empresa: contact.nome_empresa,
-          email: contact.email,
-          cpf: contact.cpf,
-          cnpj: contact.cnpj,
-          custom_fields: Object.fromEntries(
-            Object.entries(contact).filter(([key]) => 
-              !['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
-            )
-          ),
-        }));
+        contacts = csvResult.contacts.map(contact => {
+          const mappedContact = {
+            phone: contact.phone,
+            name: contact.name,
+            empresa: contact.empresa,
+            nome_empresa: contact.nome_empresa,
+            email: contact.email,
+            cpf: contact.cpf,
+            cnpj: contact.cnpj,
+            custom_fields: Object.fromEntries(
+              Object.entries(contact).filter(([key]) => 
+                !['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
+              )
+            ),
+          };
+          
+          // LOG para debug quando empresa está presente
+          if (mappedContact.empresa || mappedContact.nome_empresa) {
+            console.log('📋 [CSV] Contato com empresa:', {
+              phone: mappedContact.phone,
+              empresa: mappedContact.empresa,
+              nome_empresa: mappedContact.nome_empresa,
+            });
+          }
+          
+          return mappedContact;
+        });
       } else if (importMode === "list" && selectedListId) {
         // Se for lista do funil, usar contatos diretamente sem revalidar
         const selectedList = lists.find(l => l.id === selectedListId);
