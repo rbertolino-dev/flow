@@ -152,6 +152,12 @@ export function BroadcastCampaignTemplateManager({
       }
 
       if (editingTemplate) {
+        // Garantir que image_url seja incluído mesmo se não tiver nova imagem
+        // Se não tiver nova imagem, manter a existente
+        if (!templateData.image_url && editingTemplate.image_url) {
+          templateData.image_url = editingTemplate.image_url;
+        }
+        
         const { error } = await supabase
           .from("broadcast_campaign_templates")
           .update(templateData)
