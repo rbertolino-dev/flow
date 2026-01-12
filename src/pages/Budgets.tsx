@@ -635,6 +635,18 @@ export default function Budgets() {
                 onSend={handleSend}
                 onDownload={handleDownload}
                 onDelete={handleDelete}
+                onEdit={(budget) => {
+                  setSelectedBudget(budget);
+                  setShowEditDialog(true);
+                }}
+                onApprove={async (budget) => {
+                  try {
+                    await approveBudget(budget.id);
+                    refetch();
+                  } catch (error) {
+                    console.error('Erro ao aprovar orçamento:', error);
+                  }
+                }}
               />
             )}
           </TabsContent>

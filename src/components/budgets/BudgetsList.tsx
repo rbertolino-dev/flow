@@ -2,7 +2,7 @@ import { Budget } from '@/types/budget';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Download, Send, RefreshCw, Trash2, Loader2, Edit } from 'lucide-react';
+import { Eye, Download, Send, RefreshCw, Trash2, Loader2, Edit, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { differenceInDays } from 'date-fns';
 
@@ -15,6 +15,7 @@ interface BudgetsListProps {
   onDownload: (budget: Budget) => void;
   onDelete: (budget: Budget) => void;
   onEdit?: (budget: Budget) => void;
+  onApprove?: (budget: Budget) => void;
 }
 
 export function BudgetsList({
@@ -26,6 +27,7 @@ export function BudgetsList({
   onDownload,
   onDelete,
   onEdit,
+  onApprove,
 }: BudgetsListProps) {
   const getStatus = (budget: Budget) => {
     if (!budget.expires_at) return { label: 'Válido', variant: 'default' as const };
@@ -117,6 +119,17 @@ export function BudgetsList({
                         title="Editar"
                       >
                         <Edit className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {onApprove && !budget.approved && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onApprove(budget)}
+                        title="Aprovar orçamento"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      >
+                        <Check className="w-4 h-4" />
                       </Button>
                     )}
                     <Button
