@@ -1121,7 +1121,7 @@ export default function Budgets() {
           }}
         />
         
-        {/* Dialog para aprovar orçamento recém-criado */}
+        {/* Dialog opcional para aprovar orçamento recém-criado */}
         {newlyCreatedBudgetId && (
           <Dialog open={!!newlyCreatedBudgetId} onOpenChange={(open) => {
             if (!open) setNewlyCreatedBudgetId(null);
@@ -1130,7 +1130,7 @@ export default function Budgets() {
               <DialogHeader>
                 <DialogTitle>Orçamento criado com sucesso!</DialogTitle>
                 <DialogDescription>
-                  Deseja marcar este orçamento como aprovado?
+                  Deseja marcar este orçamento como aprovado agora? Você também pode aprovar depois usando o botão na lista.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -1138,7 +1138,7 @@ export default function Budgets() {
                   variant="outline"
                   onClick={() => setNewlyCreatedBudgetId(null)}
                 >
-                  Não, obrigado
+                  Aprovar depois
                 </Button>
                 <Button
                   onClick={async () => {
@@ -1153,7 +1153,7 @@ export default function Budgets() {
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  Sim, aprovar
+                  Sim, aprovar agora
                 </Button>
               </DialogFooter>
             </DialogContent>
