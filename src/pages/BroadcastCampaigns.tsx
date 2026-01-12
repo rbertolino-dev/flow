@@ -1122,11 +1122,20 @@ export default function BroadcastCampaigns() {
       });
 
     } catch (error: any) {
-      toast({
-        title: "Erro ao validar contatos",
-        description: error.message,
-        variant: "destructive",
-      });
+      // Tratar erro de instância desconectada com mensagem clara
+      if (error.message?.includes("DESCONECTADA") || error.message?.includes("Connection Closed")) {
+        toast({
+          title: "⚠️ Instância WhatsApp Desconectada",
+          description: error.message || "A instância WhatsApp está desconectada. Conecte a instância antes de validar contatos.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao validar contatos",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setValidatingContacts(false);
     }

@@ -274,6 +274,27 @@ export async function validateWhatsAppNumbers(
           console.warn("⚠️ Validação WhatsApp indisponível neste canal Evolution - todos números serão aceitos");
           return { validated: validContacts, rejected: contacts.filter(c => !c.valid) };
         }
+        
+        // Detectar erro 428 (Precondition Required) com "Connection Closed" - instância desconectada
+        if (resp.status === 428 || resp.status === 400) {
+          let errorMessage = preview;
+          try {
+            const errorData = JSON.parse(preview);
+            errorMessage = errorData?.output?.payload?.message || errorData?.message || preview;
+          } catch {
+            // Se não conseguir parsear, usar preview como está
+          }
+          
+          if (errorMessage?.includes("Connection Closed") || errorMessage?.includes("connection closed") || 
+              errorMessage?.includes("Precondition Required") || preview.includes("Connection Closed")) {
+            throw new Error(
+              `A instância WhatsApp "${evolutionConfig.instance_name}" está DESCONECTADA. ` +
+              `Conecte a instância antes de validar contatos. ` +
+              `Status: ${resp.status} - ${errorMessage || preview.slice(0, 100)}`
+            );
+          }
+        }
+        
         throw new Error(`Evolution API retornou erro: ${resp.status}${preview ? ` - ${preview.slice(0,120)}` : ''}`);
       }
 
