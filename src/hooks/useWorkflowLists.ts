@@ -48,7 +48,18 @@ export function useWorkflowLists() {
 
       const lists = (data || []).map(list => ({
         ...list,
-        contacts: Array.isArray(list.contacts) ? list.contacts as any[] : []
+        contacts: Array.isArray(list.contacts) 
+          ? (list.contacts as any[]).map(contact => ({
+              ...contact,
+              // Garantir que campos dinâmicos sejam parseados corretamente
+              empresa: contact.empresa || null,
+              nome_empresa: contact.nome_empresa || null,
+              email: contact.email || null,
+              cpf: contact.cpf || null,
+              cnpj: contact.cnpj || null,
+              custom_fields: contact.custom_fields || null,
+            }))
+          : []
       })) as unknown as WorkflowList[];
       return lists;
     },

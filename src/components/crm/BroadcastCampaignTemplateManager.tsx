@@ -143,11 +143,12 @@ export function BroadcastCampaignTemplateManager({
       };
 
       // Incluir image_url apenas se tiver valor (evita sobrescrever com null)
+      // Se estiver editando e não tiver nova imagem, manter a existente
       if (formData.imageUrl) {
         templateData.image_url = formData.imageUrl;
-      } else if (editingTemplate && !formData.imageUrl) {
-        // Se estiver editando e não tiver imagem, manter a existente ou null
-        templateData.image_url = null;
+      } else if (editingTemplate) {
+        // Se estiver editando e não tiver nova imagem, manter a existente
+        templateData.image_url = editingTemplate.image_url || null;
       }
 
       if (editingTemplate) {
