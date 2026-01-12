@@ -1484,11 +1484,39 @@ export default function BroadcastCampaigns() {
         });
       }
 
-      const { error: queueError } = await supabase
-        .from("broadcast_queue")
-        .insert(queueItems);
+      // Validar queueItems antes de inserir
+      const validQueueItems = queueItems.filter(item => {
+        // Verificar campos obrigatórios
+        if (!item.campaign_id || !item.organization_id || !item.instance_id || !item.phone) {
+          console.warn("⚠️ Item inválido na fila (campos obrigatórios faltando):", item);
+          return false;
+        }
+        // Validar que phone está no formato correto
+        if (!item.phone.startsWith('+')) {
+          console.warn("⚠️ Item inválido na fila (phone sem formato internacional):", item.phone);
+          return false;
+        }
+        return true;
+      });
 
-      if (queueError) throw queueError;
+      if (validQueueItems.length === 0) {
+        throw new Error("Nenhum item válido para inserir na fila. Verifique os dados dos contatos.");
+      }
+
+      if (validQueueItems.length < queueItems.length) {
+        console.warn(`⚠️ ${queueItems.length - validQueueItems.length} itens foram removidos por validação`);
+      }
+
+      const { error: queueError, data: insertedData } = await supabase
+        .from("broadcast_queue")
+        .insert(validQueueItems)
+        .select();
+
+      if (queueError) {
+        console.error("❌ Erro ao inserir na broadcast_queue:", queueError);
+        console.error("❌ Dados que causaram erro:", validQueueItems.slice(0, 3)); // Mostrar apenas primeiros 3 para não poluir log
+        throw new Error(`Erro ao criar fila de envio: ${queueError.message || queueError.code || 'Erro desconhecido'}`);
+      }
 
       const instanceCount = newCampaign.sendingMethod === "single" 
         ? 1

@@ -240,6 +240,10 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       });
 
       if (!response.ok) {
+        // Tratar erro 404 (instância não encontrada) de forma específica
+        if (response.status === 404) {
+          throw new Error(`Instância "${instance.instance_name}" não encontrada na Evolution API. A instância pode ter sido removida ou o nome está incorreto.`);
+        }
         throw new Error(`HTTP ${response.status}`);
       }
 
@@ -294,6 +298,15 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
             })
             .eq('id', instance.id);
         }
+      }
+      
+      // Tratar erro 404 (instância não encontrada) com mensagem clara
+      if (error?.message?.includes("não encontrada") || error?.message?.includes("404")) {
+        toast({
+          title: "⚠️ Instância não encontrada",
+          description: error.message || `A instância "${instance.instance_name}" não foi encontrada na Evolution API. Verifique se a instância existe ou se o nome está correto.`,
+          variant: "destructive",
+        });
       }
       
       // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
