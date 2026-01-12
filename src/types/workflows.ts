@@ -17,6 +17,13 @@ export interface WorkflowListContact {
   name?: string | null;
   instance_id?: string | null;
   variables?: Record<string, string>;
+  // Campos dinâmicos para personalização
+  empresa?: string | null;
+  nome_empresa?: string | null;
+  email?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  custom_fields?: Record<string, string> | null;
 }
 
 export interface WorkflowList {

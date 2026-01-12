@@ -138,10 +138,17 @@ export function BroadcastCampaignTemplateManager({
         message_template_id: null,
         custom_message: formData.customMessage?.trim() || null,
         message_variations: validVariations.length > 0 ? validVariations : null,
-        image_url: formData.imageUrl || null,
         min_delay_seconds: 30,
         max_delay_seconds: 60,
       };
+
+      // Incluir image_url apenas se tiver valor (evita sobrescrever com null)
+      if (formData.imageUrl) {
+        templateData.image_url = formData.imageUrl;
+      } else if (editingTemplate && !formData.imageUrl) {
+        // Se estiver editando e não tiver imagem, manter a existente ou null
+        templateData.image_url = null;
+      }
 
       if (editingTemplate) {
         const { error } = await supabase

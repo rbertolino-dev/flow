@@ -945,7 +945,7 @@ export default function BroadcastCampaigns() {
       if (isFromFunilList && selectedList) {
         const totalContacts = selectedList.contacts.length;
         
-        // Normalizar telefones para o formato correto
+        // Normalizar telefones para o formato correto e preservar TODOS os dados dinâmicos
         const validContacts = selectedList.contacts.map(contact => {
           let phone = contact.phone || '';
           
@@ -963,7 +963,15 @@ export default function BroadcastCampaigns() {
           return {
             phone,
             name: contact.name || undefined,
-            valid: true
+            valid: true,
+            // Preservar TODOS os dados dinâmicos da lista salva
+            empresa: contact.empresa || undefined,
+            nome_empresa: contact.nome_empresa || undefined,
+            email: contact.email || undefined,
+            cpf: contact.cpf || undefined,
+            cnpj: contact.cnpj || undefined,
+            custom_fields: contact.custom_fields || undefined,
+            lead_id: contact.lead_id || undefined,
           };
         });
         
@@ -1266,22 +1274,17 @@ export default function BroadcastCampaigns() {
                 }
               }
               
-              // Extrair campos customizados se existirem
-              const customData = contact.custom_data || {};
-              
+              // Preservar TODOS os dados dinâmicos da lista salva
               return {
                 phone,
                 name: contact.name || undefined,
-                empresa: customData.empresa,
-                nome_empresa: customData.nome_empresa,
-                email: customData.email,
-                cpf: customData.cpf,
-                cnpj: customData.cnpj,
-                custom_fields: Object.fromEntries(
-                  Object.entries(customData).filter(([key]) => 
-                    !['empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
-                  )
-                ),
+                // Usar campos diretos do contato (já salvos corretamente)
+                empresa: contact.empresa || undefined,
+                nome_empresa: contact.nome_empresa || undefined,
+                email: contact.email || undefined,
+                cpf: contact.cpf || undefined,
+                cnpj: contact.cnpj || undefined,
+                custom_fields: contact.custom_fields || undefined,
               };
             });
           } else {

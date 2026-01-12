@@ -530,23 +530,27 @@ export function WorkflowListManager({
                         <Button
                           type="button"
                           onClick={() => {
-                            const workflowContacts: WorkflowListContact[] = csvParseResult.contacts.map(contact => ({
-                              phone: contact.phone,
-                              name: contact.name,
-                              lead_id: undefined,
-                              custom_data: {
-                                empresa: contact.empresa,
-                                nome_empresa: contact.nome_empresa,
-                                email: contact.email,
-                                cpf: contact.cpf,
-                                cnpj: contact.cnpj,
-                                ...Object.fromEntries(
-                                  Object.entries(contact).filter(([key]) => 
-                                    !['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)
-                                  )
-                                ),
-                              },
-                            }));
+                            const workflowContacts: WorkflowListContact[] = csvParseResult.contacts.map(contact => {
+                              // Extrair campos customizados (todos exceto os campos padrão)
+                              const customFields: Record<string, string> = {};
+                              Object.entries(contact).forEach(([key, value]) => {
+                                if (!['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key) && value) {
+                                  customFields[key] = String(value);
+                                }
+                              });
+
+                              return {
+                                phone: contact.phone,
+                                name: contact.name,
+                                lead_id: undefined,
+                                empresa: contact.empresa || null,
+                                nome_empresa: contact.nome_empresa || null,
+                                email: contact.email || null,
+                                cpf: contact.cpf || null,
+                                cnpj: contact.cnpj || null,
+                                custom_fields: Object.keys(customFields).length > 0 ? customFields : null,
+                              };
+                            });
                             setContacts([...contacts, ...workflowContacts]);
                             setCsvFile(null);
                             setCsvParseResult(null);
@@ -776,15 +780,135 @@ export function WorkflowListManager({
                       .map((contact, index) => (
                         <div
                           key={`${contact.phone}-${index}`}
-                          className="rounded-md border px-3 py-2"
+                          className="flex items-center justify-between rounded-md border px-3 py-2"
                         >
-                          <p className="text-sm font-medium">{contact.name || contact.phone}</p>
-                          <p className="text-xs text-muted-foreground">{contact.phone}</p>
-                          {contact.lead_id && (
-                            <Badge variant="secondary" className="text-xs mt-1">
-                              Cliente do funil
-                            </Badge>
-                          )}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{contact.name || contact.phone}</p>
+                            <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {contact.lead_id && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Cliente do funil
+                                </Badge>
+                              )}
+                              {contact.empresa && (
+                                <Badge variant="outline" className="text-xs">
+                                  Empresa: {contact.empresa}
+                                </Badge>
+                              )}
+                              {contact.email && (
+                                <Badge variant="outline" className="text-xs">
+                                  Email
+                                </Badge>
+                              )}
+                              {(contact.cpf || contact.cnpj) && (
+                                <Badge variant="outline" className="text-xs">
+                                  CPF/CNPJ
+                                </Badge>
+                              )}
+                              {contact.custom_fields && Object.keys(contact.custom_fields).length > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {Object.keys(contact.custom_fields).length} campo(s) customizado(s)
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 ml-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                try {
+                                  if (contact.lead_id) {
+                                    // Buscar dados completos do lead
+                                    const { data: leadData, error } = await supabase
+                                      .from("leads")
+                                      .select("id, name, phone, email, company, cpf_cnpj, notes")
+                                      .eq("id", contact.lead_id)
+                                      .maybeSingle();
+                                    
+                                    if (error) {
+                                      console.error("Erro ao buscar lead:", error);
+                                      toast({
+                                        title: "Erro ao carregar dados",
+                                        description: error.message || "Não foi possível carregar os dados do cliente.",
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    
+                                    if (leadData) {
+                                      setEditingContactLeadId(leadData.id);
+                                      setEditingContactName(leadData.name || "");
+                                      setEditingContactPhone(leadData.phone || "");
+                                      setEditingContactEmail(leadData.email || "");
+                                      setEditingContactCompany(leadData.company || "");
+                                      setEditingContactCpfCnpj(leadData.cpf_cnpj || "");
+                                      setEditingContactNotes(leadData.notes || "");
+                                      setShowEditContactDialog(true);
+                                    } else {
+                                      toast({
+                                        title: "Cliente não encontrado",
+                                        description: "Não foi possível encontrar os dados do cliente.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } else {
+                                    // Mostrar dados do contato (mesmo sem lead_id)
+                                    const contactData = {
+                                      name: contact.name || contact.phone,
+                                      phone: contact.phone,
+                                      email: contact.email || "Não informado",
+                                      empresa: contact.empresa || "Não informado",
+                                      nome_empresa: contact.nome_empresa || "Não informado",
+                                      cpf: contact.cpf || "Não informado",
+                                      cnpj: contact.cnpj || "Não informado",
+                                      custom_fields: contact.custom_fields || {},
+                                    };
+                                    
+                                    // Criar mensagem com todos os dados
+                                    const dataLines = [
+                                      `Nome: ${contactData.name}`,
+                                      `Telefone: ${contactData.phone}`,
+                                      contactData.email !== "Não informado" ? `Email: ${contactData.email}` : null,
+                                      contactData.empresa !== "Não informado" ? `Empresa: ${contactData.empresa}` : null,
+                                      contactData.nome_empresa !== "Não informado" ? `Nome da Empresa: ${contactData.nome_empresa}` : null,
+                                      contactData.cpf !== "Não informado" ? `CPF: ${contactData.cpf}` : null,
+                                      contactData.cnpj !== "Não informado" ? `CNPJ: ${contactData.cnpj}` : null,
+                                    ].filter(Boolean);
+                                    
+                                    const customFieldsText = contact.custom_fields && Object.keys(contact.custom_fields).length > 0
+                                      ? '\n\nCampos customizados:\n' + Object.entries(contact.custom_fields)
+                                          .map(([key, value]) => `${key}: ${value}`)
+                                          .join('\n')
+                                      : '';
+                                    
+                                    toast({
+                                      title: "Dados do contato",
+                                      description: (
+                                        <div className="space-y-1 text-xs whitespace-pre-line">
+                                          {dataLines.join('\n')}
+                                          {customFieldsText}
+                                        </div>
+                                      ),
+                                      duration: 10000,
+                                    });
+                                  }
+                                } catch (error: any) {
+                                  console.error("Erro ao buscar dados:", error);
+                                  toast({
+                                    title: "Erro ao carregar dados",
+                                    description: error.message || "Não foi possível carregar os dados.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              title="Ver dados do contato"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                   </div>
