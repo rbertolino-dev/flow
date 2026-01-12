@@ -1494,20 +1494,45 @@ export default function BroadcastCampaigns() {
         });
       }
 
-      // Validar queueItems antes de inserir
-      const validQueueItems = queueItems.filter(item => {
+      // Validar e normalizar queueItems antes de inserir
+      const validQueueItems = queueItems.map(item => {
         // Verificar campos obrigatórios
         if (!item.campaign_id || !item.organization_id || !item.instance_id || !item.phone) {
           console.warn("⚠️ Item inválido na fila (campos obrigatórios faltando):", item);
-          return false;
+          return null;
         }
-        // Validar que phone está no formato correto
-        if (!item.phone.startsWith('+')) {
-          console.warn("⚠️ Item inválido na fila (phone sem formato internacional):", item.phone);
-          return false;
+        
+        // Normalizar telefone: adicionar + se começar com 55 mas não tiver +
+        let normalizedPhone = item.phone;
+        if (!normalizedPhone.startsWith('+')) {
+          // Se começa com 55, adicionar +
+          if (normalizedPhone.startsWith('55')) {
+            normalizedPhone = '+' + normalizedPhone;
+          } else {
+            // Se não começa com 55, verificar se é número brasileiro (10 ou 11 dígitos)
+            const digits = normalizedPhone.replace(/\D/g, '');
+            if (digits.length === 10 || digits.length === 11) {
+              // Verificar se DDD é válido (11-99)
+              const ddd = parseInt(digits.substring(0, 2));
+              if (ddd >= 11 && ddd <= 99) {
+                normalizedPhone = '+55' + digits;
+              } else {
+                console.warn("⚠️ Item inválido na fila (phone sem formato internacional e DDD inválido):", item.phone);
+                return null;
+              }
+            } else {
+              console.warn("⚠️ Item inválido na fila (phone sem formato internacional):", item.phone);
+              return null;
+            }
+          }
         }
-        return true;
-      });
+        
+        // Retornar item com telefone normalizado
+        return {
+          ...item,
+          phone: normalizedPhone
+        };
+      }).filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (validQueueItems.length === 0) {
         throw new Error("Nenhum item válido para inserir na fila. Verifique os dados dos contatos.");
