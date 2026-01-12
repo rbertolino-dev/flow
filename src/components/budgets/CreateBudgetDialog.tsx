@@ -23,7 +23,7 @@ import { broadcastRefreshEvent } from '@/utils/forceRefreshAfterMutation';
 interface CreateBudgetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
+  onSuccess?: (budgetId?: string) => void;
   defaultLeadId?: string;
 }
 
@@ -284,7 +284,7 @@ export function CreateBudgetDialog({
     };
 
     createBudget(formData, {
-      onSuccess: () => {
+      onSuccess: (budget) => {
         // Reset form
         setLeadId('');
         setSelectedLead(null);
@@ -300,7 +300,7 @@ export function CreateBudgetDialog({
         setHeaderColor('#3b82f6');
         setLogoUrl('');
         onOpenChange(false);
-        onSuccess?.();
+        onSuccess?.(budget?.id);
       },
     });
   };

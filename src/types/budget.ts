@@ -70,6 +70,12 @@ export interface Budget {
   created_at: string;
   updated_at: string;
   created_by?: string;
+  approved?: boolean; // Indica se o orçamento foi aprovado
+  creator?: {
+    id: string;
+    email?: string;
+    full_name?: string;
+  };
   lead?: {
     id: string;
     name: string;

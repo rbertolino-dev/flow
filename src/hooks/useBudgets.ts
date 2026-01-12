@@ -95,10 +95,18 @@ export function useBudgets(filters?: BudgetFilters) {
         .from('budgets')
         .select(`
           *,
-          lead:leads(id, name, phone, email, company)
+          lead:leads(id, name, phone, email, company),
+          creator:profiles!budgets_created_by_fkey(id, email, full_name)
         `)
-        .eq('organization_id', activeOrgId)
-        .order('created_at', { ascending: false });
+        .eq('organization_id', activeOrgId);
+
+      // Por padrão, carregar apenas 25 orçamentos mais recentes do mês atual
+      // A menos que haja filtros de data específicos
+      if (!filters?.date_from && !filters?.date_to) {
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        query = query.gte('created_at', firstDayOfMonth.toISOString());
+      }
 
       if (filters?.lead_id) {
         query = query.eq('lead_id', filters.lead_id);
@@ -127,6 +135,9 @@ export function useBudgets(filters?: BudgetFilters) {
       if (filters?.expires_to) {
         query = query.lte('expires_at', filters.expires_to);
       }
+
+      // Ordenar por data de criação (mais recente primeiro) e limitar a 25
+      query = query.order('created_at', { ascending: false }).limit(25);
 
       const { data, error } = await query;
 
@@ -439,12 +450,142 @@ export function useBudgets(filters?: BudgetFilters) {
     }
   };
 
+  const approveBudget = async (budgetId: string) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+
+    try {
+      // @ts-ignore - Tabela budgets existe
+      const { error } = await supabase
+        .from('budgets')
+        .update({ approved: true })
+        .eq('id', budgetId)
+        .eq('organization_id', activeOrgId);
+
+      if (error) throw error;
+
+      // Atualizar na lista local
+      setBudgets((prev) =>
+        prev.map((b) => (b.id === budgetId ? { ...b, approved: true } : b))
+      );
+
+      toast({
+        title: 'Orçamento aprovado',
+        description: 'Orçamento marcado como aprovado com sucesso',
+      });
+    } catch (error: any) {
+      console.error('Erro ao aprovar orçamento:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao aprovar orçamento',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const updateBudget = async (budgetId: string, budgetData: Partial<BudgetFormData>) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+
+    try {
+      // Calcular novos totais se produtos/serviços foram alterados
+      let updateData: any = {};
+
+      if (budgetData.products !== undefined || budgetData.services !== undefined) {
+        const products = budgetData.products || [];
+        const services = budgetData.services || [];
+        const subtotalProducts = products.reduce((sum, p) => sum + (p.subtotal || p.price * (p.quantity || 1)), 0);
+        const subtotalServices = services.reduce((sum, s) => sum + (s.subtotal || s.price * (s.quantity || 1)), 0);
+        const additions = budgetData.additions || 0;
+        const total = subtotalProducts + subtotalServices + additions;
+
+        updateData = {
+          products: products,
+          services: services,
+          subtotal_products: subtotalProducts,
+          subtotal_services: subtotalServices,
+          additions: additions,
+          total: total,
+        };
+      }
+
+      if (budgetData.paymentMethods !== undefined) {
+        updateData.payment_methods = budgetData.paymentMethods;
+      }
+
+      if (budgetData.validityDays !== undefined) {
+        updateData.validity_days = budgetData.validityDays;
+        const expiresAt = addDays(new Date(), budgetData.validityDays);
+        updateData.expires_at = format(expiresAt, 'yyyy-MM-dd');
+      }
+
+      if (budgetData.deliveryDate !== undefined) {
+        updateData.delivery_date = budgetData.deliveryDate ? format(budgetData.deliveryDate, 'yyyy-MM-dd') : null;
+      }
+
+      if (budgetData.deliveryLocation !== undefined) {
+        updateData.delivery_location = budgetData.deliveryLocation || null;
+      }
+
+      if (budgetData.observations !== undefined) {
+        updateData.observations = budgetData.observations || null;
+      }
+
+      if (budgetData.headerColor !== undefined) {
+        updateData.header_color = budgetData.headerColor || null;
+      }
+
+      if (budgetData.logoUrl !== undefined) {
+        updateData.logo_url = budgetData.logoUrl || null;
+      }
+
+      if (budgetData.backgroundImageUrl !== undefined) {
+        updateData.background_image_url = budgetData.backgroundImageUrl || null;
+      }
+
+      // @ts-ignore - Tabela budgets existe
+      const { data: updatedBudget, error } = await supabase
+        .from('budgets')
+        .update(updateData)
+        .eq('id', budgetId)
+        .eq('organization_id', activeOrgId)
+        .select(`
+          *,
+          lead:leads(id, name, phone, email, company),
+          creator:profiles!budgets_created_by_fkey(id, email, full_name)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      // Regenerar PDF automaticamente após atualização
+      await regenerateBudgetPDF(budgetId);
+
+      toast({
+        title: 'Orçamento atualizado',
+        description: 'Orçamento atualizado e PDF regenerado com sucesso',
+      });
+
+      await fetchBudgets();
+      return updatedBudget as Budget;
+    } catch (error: any) {
+      console.error('Erro ao atualizar orçamento:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao atualizar orçamento',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   return {
     budgets,
     loading,
     createBudget,
     regenerateBudgetPDF,
     deleteBudget,
+    approveBudget,
+    updateBudget,
     refetch: fetchBudgets,
   };
 }

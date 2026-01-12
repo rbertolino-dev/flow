@@ -42,15 +42,21 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
   }, [budgets, dateFrom, dateTo]);
 
   // Calcular status dos orçamentos
-  const { expired, expiringSoon, valid } = useMemo(() => {
+  const { expired, expiringSoon, valid, approved } = useMemo(() => {
     const now = new Date();
     const oneWeekFromNow = addDays(now, 7);
     
     let expiredCount = 0;
     let expiringSoonCount = 0;
     let validCount = 0;
+    let approvedCount = 0;
 
     budgetsInPeriod.forEach((budget) => {
+      // Contar aprovados
+      if (budget.approved) {
+        approvedCount++;
+      }
+
       if (!budget.expires_at) {
         validCount++;
         return;
@@ -74,6 +80,7 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
       expired: expiredCount,
       expiringSoon: expiringSoonCount,
       valid: validCount,
+      approved: approvedCount,
     };
   }, [budgetsInPeriod]);
 
@@ -103,8 +110,8 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
-        {/* Total de orçamentos e valor total - Design moderno */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Total de orçamentos, valor total e aprovados - Design moderno */}
+        <div className="grid grid-cols-3 gap-2">
           <div className="p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-800/30">
             <p className="text-[11px] font-medium text-blue-700 dark:text-blue-300 mb-1">
               Total
@@ -119,6 +126,14 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
             </p>
             <p className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{formattedTotalValue}</p>
             <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">orçado</p>
+          </div>
+          <div className="p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border border-green-200/50 dark:border-green-800/30">
+            <p className="text-[11px] font-medium text-green-700 dark:text-green-300 mb-1 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              Aprovados
+            </p>
+            <p className="text-xl font-bold text-green-900 dark:text-green-100">{approved}</p>
+            <p className="text-[10px] text-green-600/70 dark:text-green-400/70 mt-0.5">no período</p>
           </div>
         </div>
 

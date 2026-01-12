@@ -59,11 +59,13 @@ export default function Budgets() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showCreateServiceDialog, setShowCreateServiceDialog] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [newlyCreatedBudgetId, setNewlyCreatedBudgetId] = useState<string | null>(null);
   
   // Filtros de orçamentos
   const [budgetClientFilter, setBudgetClientFilter] = useState<string>('all');
@@ -101,7 +103,7 @@ export default function Budgets() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const { budgets, loading, regenerateBudgetPDF, deleteBudget, refetch } = useBudgets({
+  const { budgets, loading, regenerateBudgetPDF, deleteBudget, approveBudget, updateBudget, refetch } = useBudgets({
     search: searchQuery || undefined,
     lead_id: budgetClientFilter !== 'all' ? budgetClientFilter : undefined,
     expired_only: budgetStatusFilter === 'expired',
@@ -1098,11 +1100,53 @@ export default function Budgets() {
         <CreateBudgetDialog
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          onSuccess={() => {
+          onSuccess={(budgetId) => {
+            if (budgetId) {
+              setNewlyCreatedBudgetId(budgetId);
+            }
             refetch();
             setShowCreateDialog(false);
           }}
         />
+        
+        {/* Dialog para aprovar orçamento recém-criado */}
+        {newlyCreatedBudgetId && (
+          <Dialog open={!!newlyCreatedBudgetId} onOpenChange={(open) => {
+            if (!open) setNewlyCreatedBudgetId(null);
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Orçamento criado com sucesso!</DialogTitle>
+                <DialogDescription>
+                  Deseja marcar este orçamento como aprovado?
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setNewlyCreatedBudgetId(null)}
+                >
+                  Não, obrigado
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      await approveBudget(newlyCreatedBudgetId);
+                      setNewlyCreatedBudgetId(null);
+                      refetch();
+                    } catch (error) {
+                      console.error('Erro ao aprovar orçamento:', error);
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Sim, aprovar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
           <DialogContent aria-describedby="send-budget-description">

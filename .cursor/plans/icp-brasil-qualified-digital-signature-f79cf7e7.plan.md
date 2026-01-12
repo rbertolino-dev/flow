@@ -1,4 +1,45 @@
-<!-- f79cf7e7-66d9-41d1-9442-4fdbdb0c482a a9dca89a-2921-4a60-bcaf-832f34ddcfbf -->
+---
+name: Assinatura Digital Qualificada Simplificada com Validação CPF
+overview: ""
+todos:
+  - id: 57608a52-b376-435a-a1d1-bd95f4fd2494
+    content: Criar migration SQL para tabela contract_qualified_signatures com todos os campos obrigatórios ICP-Brasil
+    status: pending
+  - id: 8a3bfdb4-b0ad-4751-9f09-93d81174eec9
+    content: Adicionar tipos TypeScript para ICPBrasilCertificate e QualifiedSignature em src/types/contract.ts
+    status: pending
+  - id: 10630d63-d18d-44ff-96f2-d9b6a3985d10
+    content: Implementar biblioteca de leitura de certificados (A1 e A3) em src/lib/icpBrasilCertificate.ts
+    status: pending
+  - id: 22d2f028-96a7-4a92-ad16-58c973fd2387
+    content: Criar validador de certificados ICP-Brasil com verificação OCSP em src/lib/certificateValidator.ts
+    status: pending
+  - id: 1ca2c9bb-c656-4dde-a096-95b1958249e5
+    content: Implementar assinatura PAdES em PDFs em src/lib/padesSigner.ts
+    status: pending
+  - id: 4c1ede3b-b6c0-4d44-b0cc-8847c4e943f2
+    content: Criar componente QualifiedSignatureDialog para interface de assinatura qualificada
+    status: pending
+  - id: 134c754f-51fb-4c2c-bb36-6f75277a5e88
+    content: Criar hook useQualifiedSignatures para gerenciar assinaturas qualificadas
+    status: pending
+  - id: b93b32d0-20ec-4e08-9cef-effb82072d4a
+    content: Criar componente QualifiedSignatureView para exibir informações de assinaturas qualificadas
+    status: pending
+  - id: 68b82feb-2210-478a-b1ce-72488d5ae21c
+    content: Integrar opção de assinatura qualificada no ContractSignatureDialog existente
+    status: pending
+  - id: c3c198f0-5bc1-41c8-b1cc-727047fea29c
+    content: Modificar PDF generator para incluir assinaturas PAdES quando houver assinaturas qualificadas
+    status: pending
+  - id: 219fcf6b-4b1f-4fb5-98ff-03777ac25ed9
+    content: Criar edge function para validação de certificados no servidor (opcional, para cache)
+    status: pending
+  - id: 016fbea5-2878-46f7-933d-d2e4f1af29b0
+    content: Adicionar indicadores visuais de assinatura qualificada na lista de contratos e visualizador
+    status: pending
+---
+
 # Assinatura Digital Qualificada Simplificada com Validação CPF
 
 ## Objetivo
@@ -519,18 +560,3 @@ sequenceDiagram
 6. Exibição de badge e informações
 7. Geração de PDF com assinatura qualificada
 8. Máscara de CPF no input
-
-### To-dos
-
-- [ ] Criar migration SQL para tabela contract_qualified_signatures com todos os campos obrigatórios ICP-Brasil
-- [ ] Adicionar tipos TypeScript para ICPBrasilCertificate e QualifiedSignature em src/types/contract.ts
-- [ ] Implementar biblioteca de leitura de certificados (A1 e A3) em src/lib/icpBrasilCertificate.ts
-- [ ] Criar validador de certificados ICP-Brasil com verificação OCSP em src/lib/certificateValidator.ts
-- [ ] Implementar assinatura PAdES em PDFs em src/lib/padesSigner.ts
-- [ ] Criar componente QualifiedSignatureDialog para interface de assinatura qualificada
-- [ ] Criar hook useQualifiedSignatures para gerenciar assinaturas qualificadas
-- [ ] Criar componente QualifiedSignatureView para exibir informações de assinaturas qualificadas
-- [ ] Integrar opção de assinatura qualificada no ContractSignatureDialog existente
-- [ ] Modificar PDF generator para incluir assinaturas PAdES quando houver assinaturas qualificadas
-- [ ] Criar edge function para validação de certificados no servidor (opcional, para cache)
-- [ ] Adicionar indicadores visuais de assinatura qualificada na lista de contratos e visualizador

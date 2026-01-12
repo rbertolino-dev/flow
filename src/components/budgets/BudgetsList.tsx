@@ -2,7 +2,7 @@ import { Budget } from '@/types/budget';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Download, Send, RefreshCw, Trash2, Loader2 } from 'lucide-react';
+import { Eye, Download, Send, RefreshCw, Trash2, Loader2, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { differenceInDays } from 'date-fns';
 
@@ -14,6 +14,7 @@ interface BudgetsListProps {
   onSend: (budget: Budget) => void;
   onDownload: (budget: Budget) => void;
   onDelete: (budget: Budget) => void;
+  onEdit?: (budget: Budget) => void;
 }
 
 export function BudgetsList({
@@ -24,6 +25,7 @@ export function BudgetsList({
   onSend,
   onDownload,
   onDelete,
+  onEdit,
 }: BudgetsListProps) {
   const getStatus = (budget: Budget) => {
     if (!budget.expires_at) return { label: 'Válido', variant: 'default' as const };
@@ -60,6 +62,7 @@ export function BudgetsList({
             <TableHead>Validade</TableHead>
             <TableHead>Total</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Criado por</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -82,7 +85,19 @@ export function BudgetsList({
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(budget.total || 0)}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={status.variant}>{status.label}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                    {budget.approved && (
+                      <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                        Aprovado
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground">
+                    {budget.creator?.full_name || budget.creator?.email || 'N/A'}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
@@ -94,6 +109,16 @@ export function BudgetsList({
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
+                    {onEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEdit(budget)}
+                        title="Editar"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
