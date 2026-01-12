@@ -142,22 +142,19 @@ export function BroadcastCampaignTemplateManager({
         max_delay_seconds: 60,
       };
 
-      // Incluir image_url apenas se tiver valor (evita sobrescrever com null)
-      // Se estiver editando e não tiver nova imagem, manter a existente
+      // LÓGICA SIMPLIFICADA E CORRIGIDA PARA SALVAR IMAGEM
+      // Se tiver nova imagem, usar ela. Se não tiver e estiver editando, manter a existente.
       if (formData.imageUrl) {
         templateData.image_url = formData.imageUrl;
-      } else if (editingTemplate) {
+      } else if (editingTemplate && editingTemplate.image_url) {
         // Se estiver editando e não tiver nova imagem, manter a existente
-        templateData.image_url = editingTemplate.image_url || null;
+        templateData.image_url = editingTemplate.image_url;
+      } else {
+        // Se não tiver imagem nova nem existente, usar null
+        templateData.image_url = null;
       }
 
       if (editingTemplate) {
-        // Garantir que image_url seja incluído mesmo se não tiver nova imagem
-        // Se não tiver nova imagem, manter a existente
-        if (!templateData.image_url && editingTemplate.image_url) {
-          templateData.image_url = editingTemplate.image_url;
-        }
-        
         const { error } = await supabase
           .from("broadcast_campaign_templates")
           .update(templateData)

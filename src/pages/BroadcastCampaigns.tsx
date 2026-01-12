@@ -35,6 +35,7 @@ import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { StatusMediaUpload } from "@/components/whatsapp/StatusMediaUpload";
+import { replaceBroadcastTemplateTags } from "@/lib/broadcastTemplateUtils";
 import { 
   isTimeInWindow, 
   calculateEstimatedTimeWithWindow, 
@@ -507,6 +508,14 @@ export default function BroadcastCampaigns() {
     instanceId?: string;
     messageVariation?: string;
     estimatedTime?: Date;
+    // Campos dinâmicos para visualização
+    empresa?: string;
+    nome_empresa?: string;
+    email?: string;
+    cpf?: string;
+    cnpj?: string;
+    custom_fields?: Record<string, any>;
+    lead_id?: string;
   }>>([]);
   const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -1434,7 +1443,18 @@ export default function BroadcastCampaigns() {
           contacts.forEach((contact, index) => {
             // Rotacionar entre as variações de mensagem
             const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-            const personalizedMessage = messagesToUse[messageIndex];
+            const messageTemplate = messagesToUse[messageIndex];
+            
+            // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
+            const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, {
+              nome: contact.name || "",
+              empresa: contact.empresa || contact.nome_empresa || "",
+              nome_empresa: contact.nome_empresa || contact.empresa || "",
+              email: contact.email || "",
+              cpf: contact.cpf || "",
+              cnpj: contact.cnpj || "",
+              ...(contact.custom_fields || {}),
+            });
 
             // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
             const queueItem: any = {
@@ -1469,7 +1489,18 @@ export default function BroadcastCampaigns() {
         queueItems = contacts.map((contact, index) => {
           // Rotacionar entre as variações de mensagem
           const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-          const personalizedMessage = messagesToUse[messageIndex];
+          const messageTemplate = messagesToUse[messageIndex];
+          
+          // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
+          const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, {
+            nome: contact.name || "",
+            empresa: contact.empresa || contact.nome_empresa || "",
+            nome_empresa: contact.nome_empresa || contact.empresa || "",
+            email: contact.email || "",
+            cpf: contact.cpf || "",
+            cnpj: contact.cnpj || "",
+            ...(contact.custom_fields || {}),
+          });
 
           // Rotacionar entre as instâncias (quando método é "rotate")
           const instanceIndex = index % instancesForRotation.length;
