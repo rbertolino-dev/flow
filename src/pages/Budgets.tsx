@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BudgetsList } from '@/components/budgets/BudgetsList';
 import { BudgetViewer } from '@/components/budgets/BudgetViewer';
 import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
+import { EditBudgetDialog } from '@/components/budgets/EditBudgetDialog';
 import { useBudgets } from '@/hooks/useBudgets';
 import { Budget, Service, type Budget as BudgetType } from '@/types/budget';
 import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp } from 'lucide-react';

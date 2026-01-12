@@ -93,11 +93,26 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
     }, 0);
   }, [budgetsInPeriod]);
 
+  // Calcular total em reais dos orçamentos aprovados no período
+  const approvedValue = useMemo(() => {
+    return budgetsInPeriod
+      .filter(budget => budget.approved)
+      .reduce((sum, budget) => {
+        return sum + (budget.total || 0);
+      }, 0);
+  }, [budgetsInPeriod]);
+
   // Formatar valor em reais
   const formattedTotalValue = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   }).format(totalValue);
+
+  // Formatar valor em reais dos aprovados
+  const formattedApprovedValue = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(approvedValue);
 
   return (
     <Card className="border-0 shadow-sm bg-gradient-to-br from-background to-muted/20">
@@ -111,7 +126,7 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
         {/* Total de orçamentos, valor total e aprovados - Design moderno */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <div className="p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-800/30">
             <p className="text-[11px] font-medium text-blue-700 dark:text-blue-300 mb-1">
               Total
@@ -127,13 +142,25 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
             <p className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{formattedTotalValue}</p>
             <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">orçado</p>
           </div>
+        </div>
+        
+        {/* Aprovados - quantidade e valor */}
+        <div className="grid grid-cols-2 gap-2">
           <div className="p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border border-green-200/50 dark:border-green-800/30">
             <p className="text-[11px] font-medium text-green-700 dark:text-green-300 mb-1 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
               Aprovados
             </p>
             <p className="text-xl font-bold text-green-900 dark:text-green-100">{approved}</p>
-            <p className="text-[10px] text-green-600/70 dark:text-green-400/70 mt-0.5">no período</p>
+            <p className="text-[10px] text-green-600/70 dark:text-green-400/70 mt-0.5">orçamentos</p>
+          </div>
+          <div className="p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border border-green-200/50 dark:border-green-800/30">
+            <p className="text-[11px] font-medium text-green-700 dark:text-green-300 mb-1 flex items-center gap-1">
+              <DollarSign className="w-3 h-3" />
+              Valor Aprovado
+            </p>
+            <p className="text-lg font-bold text-green-900 dark:text-green-100">{formattedApprovedValue}</p>
+            <p className="text-[10px] text-green-600/70 dark:text-green-400/70 mt-0.5">aprovado</p>
           </div>
         </div>
 
