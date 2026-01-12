@@ -1430,7 +1430,8 @@ export default function BroadcastCampaigns() {
             const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
             const personalizedMessage = messagesToUse[messageIndex];
 
-            queueItems.push({
+            // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
+            const queueItem: any = {
               campaign_id: campaign.id,
               organization_id: activeOrgId,
               instance_id: instanceId,
@@ -1438,15 +1439,19 @@ export default function BroadcastCampaigns() {
               name: contact.name,
               personalized_message: personalizedMessage,
               status: "pending",
-              empresa: contact.empresa,
-              nome_empresa: contact.nome_empresa,
-              email: contact.email,
-              cpf: contact.cpf,
-              cnpj: contact.cnpj,
-              custom_fields: contact.custom_fields && Object.keys(contact.custom_fields).length > 0 
-                ? contact.custom_fields 
-                : null,
-            });
+            };
+            
+            // Adicionar campos opcionais apenas se tiverem valor
+            if (contact.empresa) queueItem.empresa = contact.empresa;
+            if (contact.nome_empresa) queueItem.nome_empresa = contact.nome_empresa;
+            if (contact.email) queueItem.email = contact.email;
+            if (contact.cpf) queueItem.cpf = contact.cpf;
+            if (contact.cnpj) queueItem.cnpj = contact.cnpj;
+            if (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) {
+              queueItem.custom_fields = contact.custom_fields;
+            }
+            
+            queueItems.push(queueItem);
           });
         });
       } else {
@@ -1464,7 +1469,8 @@ export default function BroadcastCampaigns() {
           const instanceIndex = index % instancesForRotation.length;
           const assignedInstanceId = instancesForRotation[instanceIndex];
 
-          return {
+          // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
+          const queueItem: any = {
             campaign_id: campaign.id,
             organization_id: activeOrgId,
             instance_id: assignedInstanceId,
@@ -1472,15 +1478,19 @@ export default function BroadcastCampaigns() {
             name: contact.name,
             personalized_message: personalizedMessage,
             status: "pending",
-            empresa: contact.empresa,
-            nome_empresa: contact.nome_empresa,
-            email: contact.email,
-            cpf: contact.cpf,
-            cnpj: contact.cnpj,
-            custom_fields: contact.custom_fields && Object.keys(contact.custom_fields).length > 0 
-              ? contact.custom_fields 
-              : null,
           };
+          
+          // Adicionar campos opcionais apenas se tiverem valor
+          if (contact.empresa) queueItem.empresa = contact.empresa;
+          if (contact.nome_empresa) queueItem.nome_empresa = contact.nome_empresa;
+          if (contact.email) queueItem.email = contact.email;
+          if (contact.cpf) queueItem.cpf = contact.cpf;
+          if (contact.cnpj) queueItem.cnpj = contact.cnpj;
+          if (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) {
+            queueItem.custom_fields = contact.custom_fields;
+          }
+          
+          return queueItem;
         });
       }
 
