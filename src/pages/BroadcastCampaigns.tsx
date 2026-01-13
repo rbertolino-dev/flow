@@ -3345,10 +3345,12 @@ export default function BroadcastCampaigns() {
                       id="minDelay"
                       type="number"
                       min="10"
-                      value={newCampaign.minDelay}
-                      onChange={(e) =>
-                        setNewCampaign({ ...newCampaign, minDelay: parseInt(e.target.value) })
-                      }
+                      value={newCampaign.minDelay || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numValue = value === '' ? 30 : parseInt(value, 10);
+                        setNewCampaign({ ...newCampaign, minDelay: isNaN(numValue) ? 30 : numValue });
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -3357,10 +3359,12 @@ export default function BroadcastCampaigns() {
                       id="maxDelay"
                       type="number"
                       min="10"
-                      value={newCampaign.maxDelay}
-                      onChange={(e) =>
-                        setNewCampaign({ ...newCampaign, maxDelay: parseInt(e.target.value) })
-                      }
+                      value={newCampaign.maxDelay || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numValue = value === '' ? 60 : parseInt(value, 10);
+                        setNewCampaign({ ...newCampaign, maxDelay: isNaN(numValue) ? 60 : numValue });
+                      }}
                     />
                   </div>
                 </div>
@@ -3400,8 +3404,12 @@ export default function BroadcastCampaigns() {
                             onChange={(e) => {
                               const [hours, minutes] = e.target.value.split(":");
                               const newDate = new Date(newCampaign.scheduledStart!);
-                              newDate.setHours(parseInt(hours), parseInt(minutes));
-                              setNewCampaign({ ...newCampaign, scheduledStart: newDate });
+                              const hoursNum = parseInt(hours || '0', 10);
+                              const minutesNum = parseInt(minutes || '0', 10);
+                              if (!isNaN(hoursNum) && !isNaN(minutesNum)) {
+                                newDate.setHours(hoursNum, minutesNum);
+                                setNewCampaign({ ...newCampaign, scheduledStart: newDate });
+                              }
                             }}
                             className="mt-1"
                           />
