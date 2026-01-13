@@ -4705,6 +4705,25 @@ export default function BroadcastCampaigns() {
           instances={instances}
           onSaveList={saveList}
           onDeleteList={deleteList}
+          onDirectSend={(contacts) => {
+            // Converter contatos para formato de texto colado
+            const contactsText = contacts.map(c => {
+              const parts = [c.name || c.phone, c.phone];
+              if (c.empresa) parts.push(c.empresa);
+              if (c.nome_empresa && c.nome_empresa !== c.empresa) parts.push(c.nome_empresa);
+              return parts.join(',');
+            }).join('\n');
+            
+            setPastedList(contactsText);
+            setImportMode("paste");
+            setValidationResult(null);
+            setCreateDialogOpen(true);
+            
+            toast({
+              title: "Contatos prontos para disparo!",
+              description: `${contacts.length} contato(s) carregado(s). Selecione o template e valide os contatos.`,
+            });
+          }}
         />
       </CRMLayout>
       {reconnectingInstance && (

@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { parseCSVFile, generateCSVTemplate, type ParsedCSVContact } from "@/lib/csvParser";
+import { parseTextList, generateTextListExample, type ParsedTextContact } from "@/lib/textListParser";
 import { broadcastLogger } from "@/lib/broadcastLogger";
 
 interface WorkflowListManagerProps {
@@ -57,6 +58,7 @@ interface WorkflowListManagerProps {
     contacts: WorkflowListContact[];
   }) => Promise<any>;
   onDeleteList: (listId: string) => Promise<any>;
+  onDirectSend?: (contacts: WorkflowListContact[]) => void; // Callback para disparar direto
 }
 
 export function WorkflowListManager({
@@ -67,6 +69,7 @@ export function WorkflowListManager({
   instances,
   onSaveList,
   onDeleteList,
+  onDirectSend,
 }: WorkflowListManagerProps) {
   const [view, setView] = useState<"main" | "create" | "edit" | "view">("main");
   const [selectedList, setSelectedList] = useState<WorkflowList | null>(null);
@@ -99,6 +102,15 @@ export function WorkflowListManager({
     errors: string[];
   } | null>(null);
   const [isProcessingCSV, setIsProcessingCSV] = useState(false);
+  
+  // Estados para colar lista
+  const [pastedText, setPastedText] = useState("");
+  const [textParseResult, setTextParseResult] = useState<{
+    contacts: ParsedTextContact[];
+    errors: string[];
+  } | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [directSendMode, setDirectSendMode] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -426,8 +438,9 @@ export function WorkflowListManager({
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="manual" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="manual">Manual</TabsTrigger>
+                    <TabsTrigger value="paste">Colar Lista</TabsTrigger>
                     <TabsTrigger value="csv">Upload CSV</TabsTrigger>
                     <TabsTrigger value="lead">Do Funil</TabsTrigger>
                   </TabsList>
@@ -455,6 +468,123 @@ export function WorkflowListManager({
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar Contato Manual
                     </Button>
+                  </TabsContent>
+                  
+                  <TabsContent value="paste" className="space-y-3 mt-4">
+                    <div className="space-y-2">
+                      <Label>Cole a lista de contatos (nome, telefone, empresa)</Label>
+                      <Textarea
+                        placeholder={`Exemplo:\nJoão Silva, 11999999999, Empresa ABC\nMaria Santos, 11888888888, Empresa XYZ\n\nFormato: nome, telefone, empresa (separados por vírgula, ponto-e-vírgula ou tab)`}
+                        value={pastedText}
+                        onChange={(e) => {
+                          setPastedText(e.target.value);
+                          if (e.target.value.trim()) {
+                            const result = parseTextList(e.target.value);
+                            setTextParseResult(result);
+                            setShowPreview(true);
+                          } else {
+                            setTextParseResult(null);
+                            setShowPreview(false);
+                          }
+                        }}
+                        rows={8}
+                        className="font-mono text-sm"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const example = generateTextListExample();
+                            setPastedText(example);
+                            const result = parseTextList(example);
+                            setTextParseResult(result);
+                            setShowPreview(true);
+                          }}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Ver Exemplo
+                        </Button>
+                        {textParseResult && textParseResult.contacts.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const workflowContacts: WorkflowListContact[] = textParseResult.contacts.map(contact => ({
+                                phone: contact.phone,
+                                name: contact.name || contact.phone,
+                                lead_id: undefined,
+                                empresa: contact.empresa || null,
+                                nome_empresa: contact.nome_empresa || contact.empresa || null,
+                                email: contact.email || null,
+                                variables: {},
+                              }));
+                              setContacts([...contacts, ...workflowContacts]);
+                              setPastedText("");
+                              setTextParseResult(null);
+                              setShowPreview(false);
+                              toast({
+                                title: "Contatos adicionados!",
+                                description: `${workflowContacts.length} contato(s) foram adicionados à lista`,
+                              });
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Adicionar {textParseResult.contacts.length} Contato(s)
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Formato aceito: nome, telefone, empresa (separados por vírgula, ponto-e-vírgula, tab ou espaço)
+                      </p>
+                    </div>
+                    
+                    {textParseResult && (
+                      <div className="space-y-2">
+                        {textParseResult.errors.length > 0 && (
+                          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-sm">
+                            <p className="font-medium text-destructive mb-1">Erros encontrados:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {textParseResult.errors.slice(0, 5).map((error, i) => (
+                                <li key={i} className="text-xs">{error}</li>
+                              ))}
+                              {textParseResult.errors.length > 5 && (
+                                <li className="text-xs">... e mais {textParseResult.errors.length - 5} erro(s)</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        {textParseResult.contacts.length > 0 && (
+                          <div className="p-3 bg-muted rounded text-sm">
+                            <p className="font-medium mb-2">
+                              ✅ {textParseResult.contacts.length} contato(s) processado(s)
+                            </p>
+                            {showPreview && (
+                              <ScrollArea className="h-[200px] mt-2">
+                                <div className="space-y-1">
+                                  {textParseResult.contacts.slice(0, 10).map((contact, i) => (
+                                    <div key={i} className="text-xs p-2 bg-background rounded border">
+                                      <p className="font-medium">{contact.name || contact.phone}</p>
+                                      <p className="text-muted-foreground">{contact.phone}</p>
+                                      {contact.empresa && (
+                                        <p className="text-muted-foreground">Empresa: {contact.empresa}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {textParseResult.contacts.length > 10 && (
+                                    <p className="text-xs text-muted-foreground text-center py-2">
+                                      ... e mais {textParseResult.contacts.length - 10} contato(s)
+                                    </p>
+                                  )}
+                                </div>
+                              </ScrollArea>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </TabsContent>
                   
                   <TabsContent value="csv" className="space-y-3 mt-4">
@@ -721,6 +851,29 @@ export function WorkflowListManager({
               >
                 Cancelar
               </Button>
+              {onDirectSend && contacts.length > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (contacts.length === 0) {
+                      toast({
+                        title: "Nenhum contato",
+                        description: "Adicione pelo menos um contato antes de disparar",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    onDirectSend(contacts);
+                    resetForm();
+                    setView("main");
+                    onOpenChange(false);
+                  }}
+                  className="flex-1"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Disparar Direto ({contacts.length})
+                </Button>
+              )}
               <Button
                 onClick={handleSave}
                 disabled={!name.trim() || contacts.length === 0 || isSaving}
