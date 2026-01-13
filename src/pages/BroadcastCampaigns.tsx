@@ -1340,6 +1340,21 @@ export default function BroadcastCampaigns() {
         // Se for lista do funil, usar contatos diretamente sem revalidar
         const selectedList = lists.find(l => l.id === selectedListId);
         if (selectedList) {
+          // LOG CRÍTICO: Verificar dados da lista antes de processar
+          broadcastLogger.debug('LISTA_SALVA_LOAD', 'Carregando lista salva', {
+            listId: selectedListId,
+            listName: selectedList.name,
+            totalContacts: selectedList.contacts.length,
+            firstContactSample: selectedList.contacts[0] ? {
+              phone: selectedList.contacts[0].phone,
+              name: selectedList.contacts[0].name,
+              empresa: selectedList.contacts[0].empresa,
+              nome_empresa: selectedList.contacts[0].nome_empresa,
+              email: selectedList.contacts[0].email,
+              hasCustomFields: !!selectedList.contacts[0].custom_fields,
+            } : null,
+          });
+          
           const allFromFunil = selectedList.contacts.length > 0 && 
             selectedList.contacts.every(contact => contact.lead_id);
           
@@ -1374,12 +1389,13 @@ export default function BroadcastCampaigns() {
               
               // LOG para debug quando empresa está presente
               if (contact.empresa || contact.nome_empresa) {
-                console.log('📋 [Lista Salva] Contato com empresa:', {
+                broadcastLogger.debug('LISTA_SALVA_CONTATO', 'Contato com empresa da lista salva', {
                   phone: contactData.phone,
                   empresa: contactData.empresa,
                   nome_empresa: contactData.nome_empresa,
                   original_empresa: contact.empresa,
                   original_nome_empresa: contact.nome_empresa,
+                  contactObject: contact,
                 });
               }
               
