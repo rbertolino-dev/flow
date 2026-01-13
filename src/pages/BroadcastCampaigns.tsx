@@ -36,6 +36,8 @@ import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator"
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { StatusMediaUpload } from "@/components/whatsapp/StatusMediaUpload";
 import { replaceBroadcastTemplateTags } from "@/lib/broadcastTemplateUtils";
+import { broadcastLogger } from "@/lib/broadcastLogger";
+import { validateContactData, validateMessageTemplate, validateTemplateAgainstContactData } from "@/lib/broadcastValidators";
 import { 
   isTimeInWindow, 
   calculateEstimatedTimeWithWindow, 
@@ -1539,6 +1541,26 @@ export default function BroadcastCampaigns() {
             const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
             const messageTemplate = messagesToUse[messageIndex];
             
+            // VALIDAÇÃO: Validar dados do contato antes de substituir tags
+            const contactValidation = validateContactData(contact);
+            if (!contactValidation.valid) {
+              broadcastLogger.error('TAG_REPLACEMENT', 'Dados de contato inválidos', {
+                phone: contact.phone,
+                error: contactValidation.error,
+              });
+              // Continuar mesmo com erro (não bloquear campanha inteira)
+            }
+
+            // VALIDAÇÃO: Validar template de mensagem
+            const templateValidation = validateMessageTemplate(messageTemplate);
+            if (!templateValidation.valid) {
+              broadcastLogger.error('TAG_REPLACEMENT', 'Template de mensagem inválido', {
+                phone: contact.phone,
+                error: templateValidation.error,
+              });
+              // Continuar mesmo com erro
+            }
+
             // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
             // CRÍTICO: Usar ?? ao invés de || para preservar valores null/undefined
             // Se empresa for null/undefined, usar string vazia apenas na substituição
@@ -1552,31 +1574,21 @@ export default function BroadcastCampaigns() {
               cnpj: contact.cnpj ?? "",
               ...(contact.custom_fields || {}),
             };
-            
-            // LOG EXTENSIVO para debug
-            if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
-              console.log('🏷️ [Tag Empresa] ANTES da substituição:', {
+
+            // VALIDAÇÃO: Verificar se template tem dados necessários
+            const templateDataValidation = validateTemplateAgainstContactData(messageTemplate, contactDataForTags);
+            if (!templateDataValidation.valid) {
+              broadcastLogger.warn('TAG_REPLACEMENT', 'Tags sem dados no contato', {
                 phone: contact.phone,
-                messageTemplate,
-                contact_empresa: contact.empresa,
-                contact_nome_empresa: contact.nome_empresa,
-                contactDataForTags,
-                empresa_final: contactDataForTags.empresa,
-                nome_empresa_final: contactDataForTags.nome_empresa,
+                missingTags: templateDataValidation.details?.missingTags,
+                availableTags: templateDataValidation.details?.availableTags,
               });
             }
             
             const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
             
-            // LOG após substituição
-            if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
-              console.log('✅ [Tag Empresa] DEPOIS da substituição:', {
-                phone: contact.phone,
-                original: messageTemplate,
-                personalized: personalizedMessage,
-                empresa_usada: contactDataForTags.empresa,
-              });
-            }
+            // LOG centralizado de substituição de tags
+            broadcastLogger.logTagReplacement(contact.phone, messageTemplate, contactDataForTags, personalizedMessage);
 
             // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
             const queueItem: any = {
@@ -1603,7 +1615,7 @@ export default function BroadcastCampaigns() {
             if (newCampaign.imageUrl) {
               queueItem.image_url = newCampaign.imageUrl;
               queueItem.media_type = 'image';
-              console.log('🖼️ [Queue Item] Adicionando imagem ao item:', {
+              broadcastLogger.debug('QUEUE_ITEM', 'Adicionando imagem ao item da fila', {
                 phone: contact.phone,
                 image_url: newCampaign.imageUrl,
               });
@@ -1636,30 +1648,10 @@ export default function BroadcastCampaigns() {
             ...(contact.custom_fields || {}),
           };
           
-          // LOG EXTENSIVO para debug
-          if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
-            console.log('🏷️ [Tag Empresa] ANTES da substituição (single/rotate):', {
-              phone: contact.phone,
-              messageTemplate,
-              contact_empresa: contact.empresa,
-              contact_nome_empresa: contact.nome_empresa,
-              contactDataForTags,
-              empresa_final: contactDataForTags.empresa,
-              nome_empresa_final: contactDataForTags.nome_empresa,
-            });
-          }
-          
           const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
           
-          // LOG após substituição
-          if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
-            console.log('✅ [Tag Empresa] DEPOIS da substituição (single/rotate):', {
-              phone: contact.phone,
-              original: messageTemplate,
-              personalized: personalizedMessage,
-              empresa_usada: contactDataForTags.empresa,
-            });
-          }
+          // LOG centralizado de substituição de tags
+          broadcastLogger.logTagReplacement(contact.phone, messageTemplate, contactDataForTags, personalizedMessage);
 
           // Rotacionar entre as instâncias (quando método é "rotate")
           const instanceIndex = index % instancesForRotation.length;

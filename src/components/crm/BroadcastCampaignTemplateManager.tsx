@@ -19,6 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { broadcastLogger } from "@/lib/broadcastLogger";
+import { validateImageUrl, validateImageFile } from "@/lib/broadcastValidators";
 
 interface Template {
   id: string;
@@ -90,7 +92,7 @@ export function BroadcastCampaignTemplateManager({
       if (error) throw error;
       
       // Parse message_variations from JSON e garantir que image_url seja preservado
-      const parsedData = (data || []).map(template => {
+      const parsedData = await Promise.all((data || []).map(async (template) => {
         const parsed = {
           ...template,
           message_variations: Array.isArray(template.message_variations) 
@@ -100,21 +102,36 @@ export function BroadcastCampaignTemplateManager({
           image_url: template.image_url || null,
         };
         
-        // LOG para debug
-        if (template.image_url) {
-          console.log('🖼️ [Template] Carregado do banco:', {
+        // VALIDAÇÃO 3: Verificar se image_url existe e é acessível ao carregar
+        if (parsed.image_url) {
+          broadcastLogger.debug('TEMPLATE_LOAD', `Carregando template com imagem`, {
             id: template.id,
             name: template.name,
-            image_url: template.image_url,
+            image_url: parsed.image_url,
           });
+
+          // Validar URL (não bloqueia, apenas loga)
+          const imageValidation = await validateImageUrl(parsed.image_url);
+          if (!imageValidation.valid) {
+            broadcastLogger.warn('TEMPLATE_LOAD', `URL de imagem pode não ser acessível`, {
+              templateId: template.id,
+              image_url: parsed.image_url,
+              error: imageValidation.error,
+            });
+          }
         }
         
         return parsed;
-      });
+      }));
       
       setTemplates(parsedData as Template[]);
+      broadcastLogger.info('TEMPLATE_LOAD', `Carregados ${parsedData.length} templates`, {
+        templatesWithImage: parsedData.filter(t => t.image_url).length,
+      });
     } catch (error: any) {
-      console.error('❌ [Template] Erro ao carregar:', error);
+      broadcastLogger.error('TEMPLATE_LOAD', 'Erro ao carregar templates', {
+        organizationId,
+      }, error);
       toast({
         title: "Erro ao carregar templates",
         description: error.message,
@@ -139,6 +156,26 @@ export function BroadcastCampaignTemplateManager({
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
+
+      // VALIDAÇÃO 1: Validar URL de imagem antes de salvar
+      if (formData.imageUrl) {
+        const imageValidation = await validateImageUrl(formData.imageUrl);
+        if (!imageValidation.valid) {
+          broadcastLogger.error('TEMPLATE_SAVE', 'Validação de imagem falhou', {
+            imageUrl: formData.imageUrl,
+            error: imageValidation.error,
+          });
+          toast({
+            title: "Erro na imagem",
+            description: imageValidation.error || "URL de imagem inválida",
+            variant: "destructive",
+          });
+          return;
+        }
+        broadcastLogger.debug('TEMPLATE_SAVE', 'URL de imagem validada', {
+          imageUrl: formData.imageUrl,
+        });
+      }
 
       // Preparar message_variations como JSONB válido
       // Filtrar variações vazias e garantir que seja um array válido
@@ -175,15 +212,9 @@ export function BroadcastCampaignTemplateManager({
       if (templateData.image_url === undefined) {
         templateData.image_url = null;
       }
-      
-      // LOG para debug
-      console.log('💾 [Template] Salvando template:', {
-        name: templateData.name,
-        image_url: templateData.image_url,
-        editing: !!editingTemplate,
-        formData_imageUrl: formData.imageUrl,
-        editingTemplate_image_url: editingTemplate?.image_url,
-      });
+
+      const action = editingTemplate ? 'update' : 'create';
+      const templateId = editingTemplate?.id || null;
 
       if (editingTemplate) {
         const { error } = await supabase
@@ -192,14 +223,50 @@ export function BroadcastCampaignTemplateManager({
           .eq("id", editingTemplate.id);
 
         if (error) {
-          console.error('❌ [Template] Erro ao atualizar:', error);
+          broadcastLogger.logTemplateSave(action, templateId, {
+            name: templateData.name,
+            image_url: templateData.image_url,
+            hasImage: !!templateData.image_url,
+            success: false,
+            error,
+          });
           throw error;
         }
-        
-        console.log('✅ [Template] Template atualizado com sucesso:', {
-          id: editingTemplate.id,
-          image_url: templateData.image_url,
-        });
+
+        // VALIDAÇÃO 2: Buscar template recém-salvo do banco para verificar
+        const { data: savedTemplate, error: fetchError } = await supabase
+          .from("broadcast_campaign_templates")
+          .select("image_url")
+          .eq("id", editingTemplate.id)
+          .single();
+
+        if (fetchError) {
+          broadcastLogger.warn('TEMPLATE_SAVE', 'Não foi possível verificar template salvo', {
+            templateId: editingTemplate.id,
+            error: fetchError,
+          });
+        } else {
+          // Comparar image_url salvo com esperado
+          if (savedTemplate.image_url !== templateData.image_url) {
+            broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
+              templateId: editingTemplate.id,
+              expected: templateData.image_url,
+              saved: savedTemplate.image_url,
+            });
+            toast({
+              title: "Aviso",
+              description: "Template salvo, mas imagem pode não ter sido salva corretamente. Verifique.",
+              variant: "destructive",
+            });
+          } else {
+            broadcastLogger.logTemplateSave(action, editingTemplate.id, {
+              name: templateData.name,
+              image_url: templateData.image_url,
+              hasImage: !!templateData.image_url,
+              success: true,
+            });
+          }
+        }
 
         toast({
           title: "Template atualizado!",
@@ -211,13 +278,6 @@ export function BroadcastCampaignTemplateManager({
           templateData.image_url = null;
         }
         
-        // LOG para debug
-        console.log('💾 [Template] Criando novo template:', {
-          name: templateData.name,
-          image_url: templateData.image_url,
-          formData_imageUrl: formData.imageUrl,
-        });
-        
         const { data: campaign, error } = await supabase
           .from("broadcast_campaign_templates")
           .insert(templateData)
@@ -225,14 +285,38 @@ export function BroadcastCampaignTemplateManager({
           .single();
 
         if (error) {
-          console.error('❌ [Template] Erro ao criar:', error);
+          broadcastLogger.logTemplateSave(action, null, {
+            name: templateData.name,
+            image_url: templateData.image_url,
+            hasImage: !!templateData.image_url,
+            success: false,
+            error,
+          });
           throw error;
         }
-        
-        console.log('✅ [Template] Template criado com sucesso:', {
-          id: campaign?.id,
-          image_url: templateData.image_url,
-        });
+
+        // VALIDAÇÃO 2: Verificar template recém-criado
+        if (campaign) {
+          if (campaign.image_url !== templateData.image_url) {
+            broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
+              templateId: campaign.id,
+              expected: templateData.image_url,
+              saved: campaign.image_url,
+            });
+            toast({
+              title: "Aviso",
+              description: "Template criado, mas imagem pode não ter sido salva corretamente. Verifique.",
+              variant: "destructive",
+            });
+          } else {
+            broadcastLogger.logTemplateSave(action, campaign.id, {
+              name: templateData.name,
+              image_url: templateData.image_url,
+              hasImage: !!templateData.image_url,
+              success: true,
+            });
+          }
+        }
 
         toast({
           title: "Template criado!",
@@ -244,6 +328,9 @@ export function BroadcastCampaignTemplateManager({
       resetForm();
       fetchTemplates();
     } catch (error: any) {
+      broadcastLogger.error('TEMPLATE_SAVE', 'Erro geral ao salvar template', {
+        error: error.message,
+      }, error);
       toast({
         title: "Erro ao salvar template",
         description: error.message,
@@ -334,25 +421,28 @@ export function BroadcastCampaignTemplateManager({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tipo
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    // VALIDAÇÃO: Usar validador centralizado
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      broadcastLogger.logImageUpload('validate', {
+        fileName: file.name,
+        fileSize: file.size,
+        success: false,
+        error: validation.error,
+      });
       toast({
-        title: "Tipo de arquivo inválido",
-        description: "Apenas imagens (JPEG, PNG, WEBP) são permitidas.",
+        title: "Arquivo inválido",
+        description: validation.error || "Arquivo não é válido",
         variant: "destructive",
       });
       return;
     }
 
-    // Validar tamanho
-    if (file.size > MAX_FILE_SIZE) {
-      toast({
-        title: "Arquivo muito grande",
-        description: `O arquivo deve ter no máximo ${MAX_FILE_SIZE / 1024 / 1024}MB.`,
-        variant: "destructive",
-      });
-      return;
-    }
+    broadcastLogger.logImageUpload('validate', {
+      fileName: file.name,
+      fileSize: file.size,
+      success: true,
+    });
 
     // Criar preview
     const reader = new FileReader();
@@ -367,6 +457,9 @@ export function BroadcastCampaignTemplateManager({
 
   const uploadImage = async (file: File) => {
     if (!organizationId) {
+      broadcastLogger.error('IMAGE_UPLOAD', 'Organização não encontrada', {
+        fileName: file.name,
+      });
       toast({
         title: "Erro",
         description: "Organização não encontrada",
@@ -382,6 +475,12 @@ export function BroadcastCampaignTemplateManager({
       const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
       const filePath = `${organizationId}/broadcast-templates/${fileName}`;
 
+      broadcastLogger.debug('IMAGE_UPLOAD', 'Iniciando upload de imagem', {
+        fileName: file.name,
+        fileSize: file.size,
+        filePath,
+      });
+
       // Upload para Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_ID)
@@ -391,6 +490,12 @@ export function BroadcastCampaignTemplateManager({
         });
 
       if (uploadError) {
+        broadcastLogger.logImageUpload('upload', {
+          fileName: file.name,
+          fileSize: file.size,
+          success: false,
+          error: uploadError,
+        });
         throw uploadError;
       }
 
