@@ -89,16 +89,32 @@ export function BroadcastCampaignTemplateManager({
 
       if (error) throw error;
       
-      // Parse message_variations from JSON
-      const parsedData = (data || []).map(template => ({
-        ...template,
-        message_variations: Array.isArray(template.message_variations) 
-          ? template.message_variations 
-          : []
-      }));
+      // Parse message_variations from JSON e garantir que image_url seja preservado
+      const parsedData = (data || []).map(template => {
+        const parsed = {
+          ...template,
+          message_variations: Array.isArray(template.message_variations) 
+            ? template.message_variations 
+            : [],
+          // CRÍTICO: Garantir que image_url seja preservado do banco
+          image_url: template.image_url || null,
+        };
+        
+        // LOG para debug
+        if (template.image_url) {
+          console.log('🖼️ [Template] Carregado do banco:', {
+            id: template.id,
+            name: template.name,
+            image_url: template.image_url,
+          });
+        }
+        
+        return parsed;
+      });
       
       setTemplates(parsedData as Template[]);
     } catch (error: any) {
+      console.error('❌ [Template] Erro ao carregar:', error);
       toast({
         title: "Erro ao carregar templates",
         description: error.message,
@@ -239,15 +255,34 @@ export function BroadcastCampaignTemplateManager({
   };
 
   const handleEditTemplate = (template: Template) => {
+    console.log('📝 [Template] Editando template:', {
+      id: template.id,
+      name: template.name,
+      image_url: template.image_url,
+      hasImage: !!template.image_url,
+    });
+    
     setEditingTemplate(template);
+    
+    // CRÍTICO: Garantir que image_url seja carregado corretamente
+    const imageUrl = template.image_url || null;
+    
     setFormData({
       name: template.name,
       description: template.description || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
-      imageUrl: template.image_url || null,
+      imageUrl: imageUrl, // Usar valor direto do template
     });
-    setImagePreview(template.image_url || null);
+    
+    // CRÍTICO: Setar preview também
+    setImagePreview(imageUrl);
+    
+    console.log('✅ [Template] FormData e Preview setados:', {
+      imageUrl,
+      imagePreview: imageUrl,
+    });
+    
     setDialogOpen(true);
   };
 

@@ -31,7 +31,8 @@ serve(async (req) => {
           status,
           custom_message,
           image_url,
-          message_template:message_templates(content),
+          media_type,
+          message_template:message_templates(content, image_url, media_type),
           current_active_instance_id,
           instance_id
         ),
@@ -285,10 +286,21 @@ serve(async (req) => {
         }
         
         // Aplicar todas as substituições
+        const originalMessage = personalizedMessage;
         personalizedMessage = personalizedMessage.replace(/\{(\w+)\}/gi, (match, key) => {
           const normalizedKey = key.toLowerCase();
           return replacements[normalizedKey] !== undefined ? replacements[normalizedKey] : match;
         });
+        
+        // LOG para debug quando houver tags substituídas
+        if (originalMessage !== personalizedMessage) {
+          console.log(`🏷️ [process-broadcast-queue] Tags substituídas:`, {
+            phone: item.phone,
+            original: originalMessage.substring(0, 100),
+            personalized: personalizedMessage.substring(0, 100),
+            replacements: Object.keys(replacements).filter(k => replacements[k]),
+          });
+        }
 
         // Atualizar hash de deduplicação e marcar como SENDING
         const sendingStartedAt = new Date().toISOString();
@@ -310,30 +322,46 @@ serve(async (req) => {
           baseUrl = baseUrl.slice(0, -8); // Remove '/manager' se existir
         }
         
-        // Verificar se há imagem na campanha
-        const imageUrl = campaign.image_url;
+        // CRÍTICO: Verificar imagem primeiro no item (pode ter sido definida individualmente),
+        // depois na campanha, depois no template da campanha
+        // A mensagem personalizada (com tags já substituídas) será usada no caption
+        const imageUrl = item.image_url || campaign.image_url || campaign.message_template?.image_url;
+        const mediaType = item.media_type || campaign.media_type || campaign.message_template?.media_type || 'image';
         
         let evolutionUrl: string;
         let payload: any;
         
         if (imageUrl) {
-          // Enviar mensagem com imagem
+          // Enviar mensagem com imagem usando sendMedia endpoint
+          // O caption contém o texto personalizado (com tags já substituídas)
           evolutionUrl = `${baseUrl}/message/sendMedia/${instance.instance_name}`;
           payload = {
             number: item.phone,
-            mediatype: 'image',
+            mediatype: mediaType,
             media: imageUrl,
-            caption: personalizedMessage || '',
+            caption: personalizedMessage || '', // CRÍTICO: Usar mensagem personalizada no caption
           };
-          console.log(`🖼️ Enviando mensagem com imagem para ${item.phone} via ${instance.instance_name}`);
+          console.log(`🖼️ [process-broadcast-queue] Enviando mensagem com mídia:`, {
+            to: item.phone,
+            instance: instance.instance_name,
+            mediaType,
+            imageUrl,
+            captionLength: personalizedMessage?.length || 0,
+            captionPreview: personalizedMessage?.substring(0, 50) || '',
+          });
         } else {
           // Enviar mensagem de texto simples
           evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
           payload = {
             number: item.phone,
-            text: personalizedMessage,
+            text: personalizedMessage, // Mensagem personalizada (com tags já substituídas)
           };
-          console.log(`📤 Enviando mensagem de texto para ${item.phone} via ${instance.instance_name}`);
+          console.log(`📝 [process-broadcast-queue] Enviando mensagem de texto:`, {
+            to: item.phone,
+            instance: instance.instance_name,
+            messageLength: personalizedMessage?.length || 0,
+            messagePreview: personalizedMessage?.substring(0, 50) || '',
+          });
         }
 
         // Obter métricas da instância

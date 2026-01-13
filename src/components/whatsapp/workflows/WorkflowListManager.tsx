@@ -820,7 +820,21 @@ export function WorkflowListManager({
                               size="icon"
                               onClick={async () => {
                                 try {
+                                  console.log('👁️ [Visualizar Contato] Clicado:', {
+                                    lead_id: contact.lead_id,
+                                    phone: contact.phone,
+                                    name: contact.name,
+                                    empresa: contact.empresa,
+                                    nome_empresa: contact.nome_empresa,
+                                    email: contact.email,
+                                    cpf: contact.cpf,
+                                    cnpj: contact.cnpj,
+                                    custom_fields: contact.custom_fields,
+                                  });
+                                  
                                   if (contact.lead_id) {
+                                    console.log('🔍 [Visualizar Lead] Buscando lead no banco:', contact.lead_id);
+                                    
                                     // Buscar dados completos do lead
                                     const { data: leadData, error } = await supabase
                                       .from("leads")
@@ -829,7 +843,7 @@ export function WorkflowListManager({
                                       .maybeSingle();
                                     
                                     if (error) {
-                                      console.error("Erro ao buscar lead:", error);
+                                      console.error("❌ [Visualizar Lead] Erro ao buscar:", error);
                                       toast({
                                         title: "Erro ao carregar dados",
                                         description: error.message || "Não foi possível carregar os dados do cliente.",
@@ -839,6 +853,7 @@ export function WorkflowListManager({
                                     }
                                     
                                     if (leadData) {
+                                      console.log('✅ [Visualizar Lead] Dados carregados:', leadData);
                                       setEditingContactLeadId(leadData.id);
                                       setEditingContactName(leadData.name || "");
                                       setEditingContactPhone(leadData.phone || "");
@@ -848,6 +863,7 @@ export function WorkflowListManager({
                                       setEditingContactNotes(leadData.notes || "");
                                       setShowEditContactDialog(true);
                                     } else {
+                                      console.warn('⚠️ [Visualizar Lead] Lead não encontrado:', contact.lead_id);
                                       toast({
                                         title: "Cliente não encontrado",
                                         description: "Não foi possível encontrar os dados do cliente.",
@@ -856,16 +872,20 @@ export function WorkflowListManager({
                                     }
                                   } else {
                                     // Mostrar dados do contato (mesmo sem lead_id)
+                                    console.log('📋 [Visualizar Contato] Mostrando dados do contato (sem lead_id)');
+                                    
                                     const contactData = {
                                       name: contact.name || contact.phone,
                                       phone: contact.phone,
-                                      email: contact.email || "Não informado",
-                                      empresa: contact.empresa || "Não informado",
-                                      nome_empresa: contact.nome_empresa || "Não informado",
-                                      cpf: contact.cpf || "Não informado",
-                                      cnpj: contact.cnpj || "Não informado",
+                                      email: contact.email ?? "Não informado",
+                                      empresa: contact.empresa ?? "Não informado",
+                                      nome_empresa: contact.nome_empresa ?? "Não informado",
+                                      cpf: contact.cpf ?? "Não informado",
+                                      cnpj: contact.cnpj ?? "Não informado",
                                       custom_fields: contact.custom_fields || {},
                                     };
+                                    
+                                    console.log('📋 [Visualizar Contato] Dados preparados:', contactData);
                                     
                                     // Criar mensagem com todos os dados
                                     const dataLines = [
@@ -896,7 +916,7 @@ export function WorkflowListManager({
                                     });
                                   }
                                 } catch (error: any) {
-                                  console.error("Erro ao buscar dados:", error);
+                                  console.error("❌ [Visualizar] Erro geral:", error);
                                   toast({
                                     title: "Erro ao carregar dados",
                                     description: error.message || "Não foi possível carregar os dados.",

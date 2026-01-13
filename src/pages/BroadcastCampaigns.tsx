@@ -552,7 +552,18 @@ export default function BroadcastCampaigns() {
   const [selectedCampaignTemplate, setSelectedCampaignTemplate] = useState<Template | null>(null);
 
   const handleTemplateSelectFromManager = (template: Template) => {
+    console.log('📋 [Template] Selecionado do manager:', {
+      id: template.id,
+      name: template.name,
+      image_url: template.image_url,
+      hasImage: !!template.image_url,
+    });
+    
     setSelectedCampaignTemplate(template);
+    
+    // CRÍTICO: Garantir que image_url seja carregado corretamente
+    const imageUrl = template.image_url || null;
+    
     setNewCampaign({
       name: template.name,
       instanceId: template.instance_id || "",
@@ -562,17 +573,20 @@ export default function BroadcastCampaigns() {
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
-      imageUrl: template.image_url || null,
+      imageUrl: imageUrl, // Usar valor direto do template
       minDelay: template.min_delay_seconds,
       maxDelay: template.max_delay_seconds,
       scheduledStart: undefined,
       fromTemplate: true,
       useLatamValidator: false,
     });
+    
+    console.log('✅ [Template] Campanha configurada com imageUrl:', imageUrl);
+    
     setCreateDialogOpen(true);
     toast({
       title: "Template carregado!",
-      description: `Template "${template.name}" carregado com ${template.message_variations?.length || 0} variação(ões)`,
+      description: `Template "${template.name}" carregado com ${template.message_variations?.length || 0} variação(ões)${imageUrl ? ' e imagem' : ''}`,
     });
   };
 
@@ -1342,18 +1356,31 @@ export default function BroadcastCampaigns() {
                 }
               }
               
-              // Preservar TODOS os dados dinâmicos da lista salva
-              return {
+              // CRÍTICO: Usar ?? ao invés de || para preservar valores null/undefined
+              // Isso garante que se empresa for null no banco, não vire undefined
+              const contactData = {
                 phone,
-                name: contact.name || undefined,
-                // Usar campos diretos do contato (já salvos corretamente)
-                empresa: contact.empresa || undefined,
-                nome_empresa: contact.nome_empresa || undefined,
-                email: contact.email || undefined,
-                cpf: contact.cpf || undefined,
-                cnpj: contact.cnpj || undefined,
-                custom_fields: contact.custom_fields || undefined,
+                name: contact.name ?? undefined,
+                empresa: contact.empresa ?? undefined, // Usar ?? para preservar null
+                nome_empresa: contact.nome_empresa ?? undefined,
+                email: contact.email ?? undefined,
+                cpf: contact.cpf ?? undefined,
+                cnpj: contact.cnpj ?? undefined,
+                custom_fields: contact.custom_fields ?? undefined,
               };
+              
+              // LOG para debug quando empresa está presente
+              if (contact.empresa || contact.nome_empresa) {
+                console.log('📋 [Lista Salva] Contato com empresa:', {
+                  phone: contactData.phone,
+                  empresa: contactData.empresa,
+                  nome_empresa: contactData.nome_empresa,
+                  original_empresa: contact.empresa,
+                  original_nome_empresa: contact.nome_empresa,
+                });
+              }
+              
+              return contactData;
             });
           } else {
             // Lista mista: converter para texto e validar
@@ -1428,11 +1455,19 @@ export default function BroadcastCampaigns() {
         message_template_id: newCampaign.templateId || null,
         custom_message: newCampaign.customMessage || null,
         image_url: newCampaign.imageUrl || null,
+        media_type: newCampaign.imageUrl ? 'image' : null,
         min_delay_seconds: newCampaign.minDelay,
         max_delay_seconds: newCampaign.maxDelay,
         total_contacts: contacts.length,
         status: "draft",
       };
+      
+      console.log('💾 [Campanha] Salvando campanha:', {
+        name: campaignData.name,
+        image_url: campaignData.image_url,
+        media_type: campaignData.media_type,
+        hasImage: !!newCampaign.imageUrl,
+      });
 
       // Tentar inserir com sending_method primeiro
       campaignData.sending_method = newCampaign.sendingMethod || "single";
@@ -1505,28 +1540,43 @@ export default function BroadcastCampaigns() {
             const messageTemplate = messagesToUse[messageIndex];
             
             // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
+            // CRÍTICO: Usar ?? ao invés de || para preservar valores null/undefined
+            // Se empresa for null/undefined, usar string vazia apenas na substituição
             const contactDataForTags = {
-              nome: contact.name || "",
-              empresa: contact.empresa || contact.nome_empresa || "",
-              nome_empresa: contact.nome_empresa || contact.empresa || "",
-              email: contact.email || "",
-              cpf: contact.cpf || "",
-              cnpj: contact.cnpj || "",
+              nome: contact.name ?? "",
+              // CRÍTICO: Se empresa for null/undefined, tentar nome_empresa, senão string vazia
+              empresa: (contact.empresa ?? contact.nome_empresa) ?? "",
+              nome_empresa: (contact.nome_empresa ?? contact.empresa) ?? "",
+              email: contact.email ?? "",
+              cpf: contact.cpf ?? "",
+              cnpj: contact.cnpj ?? "",
               ...(contact.custom_fields || {}),
             };
             
-            // LOG para debug
+            // LOG EXTENSIVO para debug
             if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
-              console.log('🏷️ [Tag Empresa] Substituindo tags:', {
+              console.log('🏷️ [Tag Empresa] ANTES da substituição:', {
                 phone: contact.phone,
                 messageTemplate,
-                contactData: contactDataForTags,
-                empresa: contact.empresa,
-                nome_empresa: contact.nome_empresa,
+                contact_empresa: contact.empresa,
+                contact_nome_empresa: contact.nome_empresa,
+                contactDataForTags,
+                empresa_final: contactDataForTags.empresa,
+                nome_empresa_final: contactDataForTags.nome_empresa,
               });
             }
             
             const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
+            
+            // LOG após substituição
+            if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
+              console.log('✅ [Tag Empresa] DEPOIS da substituição:', {
+                phone: contact.phone,
+                original: messageTemplate,
+                personalized: personalizedMessage,
+                empresa_usada: contactDataForTags.empresa,
+              });
+            }
 
             // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
             const queueItem: any = {
@@ -1549,6 +1599,16 @@ export default function BroadcastCampaigns() {
               queueItem.custom_fields = contact.custom_fields;
             }
             
+            // CRÍTICO: Adicionar image_url e media_type se disponível na campanha
+            if (newCampaign.imageUrl) {
+              queueItem.image_url = newCampaign.imageUrl;
+              queueItem.media_type = 'image';
+              console.log('🖼️ [Queue Item] Adicionando imagem ao item:', {
+                phone: contact.phone,
+                image_url: newCampaign.imageUrl,
+              });
+            }
+            
             queueItems.push(queueItem);
           });
         });
@@ -1564,28 +1624,42 @@ export default function BroadcastCampaigns() {
           const messageTemplate = messagesToUse[messageIndex];
           
           // SUBSTITUIR TAGS ANTES DE SALVAR - CRÍTICO PARA FUNCIONAR
+          // CRÍTICO: Usar ?? ao invés de || para preservar valores null/undefined
           const contactDataForTags = {
-            nome: contact.name || "",
-            empresa: contact.empresa || contact.nome_empresa || "",
-            nome_empresa: contact.nome_empresa || contact.empresa || "",
-            email: contact.email || "",
-            cpf: contact.cpf || "",
-            cnpj: contact.cnpj || "",
+            nome: contact.name ?? "",
+            // CRÍTICO: Se empresa for null/undefined, tentar nome_empresa, senão string vazia
+            empresa: (contact.empresa ?? contact.nome_empresa) ?? "",
+            nome_empresa: (contact.nome_empresa ?? contact.empresa) ?? "",
+            email: contact.email ?? "",
+            cpf: contact.cpf ?? "",
+            cnpj: contact.cnpj ?? "",
             ...(contact.custom_fields || {}),
           };
           
-          // LOG para debug
+          // LOG EXTENSIVO para debug
           if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
-            console.log('🏷️ [Tag Empresa] Substituindo tags:', {
+            console.log('🏷️ [Tag Empresa] ANTES da substituição (single/rotate):', {
               phone: contact.phone,
               messageTemplate,
-              contactData: contactDataForTags,
-              empresa: contact.empresa,
-              nome_empresa: contact.nome_empresa,
+              contact_empresa: contact.empresa,
+              contact_nome_empresa: contact.nome_empresa,
+              contactDataForTags,
+              empresa_final: contactDataForTags.empresa,
+              nome_empresa_final: contactDataForTags.nome_empresa,
             });
           }
           
           const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
+          
+          // LOG após substituição
+          if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
+            console.log('✅ [Tag Empresa] DEPOIS da substituição (single/rotate):', {
+              phone: contact.phone,
+              original: messageTemplate,
+              personalized: personalizedMessage,
+              empresa_usada: contactDataForTags.empresa,
+            });
+          }
 
           // Rotacionar entre as instâncias (quando método é "rotate")
           const instanceIndex = index % instancesForRotation.length;
@@ -1610,6 +1684,16 @@ export default function BroadcastCampaigns() {
           if (contact.cnpj) queueItem.cnpj = contact.cnpj;
           if (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) {
             queueItem.custom_fields = contact.custom_fields;
+          }
+          
+          // CRÍTICO: Adicionar image_url e media_type se disponível na campanha
+          if (newCampaign.imageUrl) {
+            queueItem.image_url = newCampaign.imageUrl;
+            queueItem.media_type = 'image';
+            console.log('🖼️ [Queue Item] Adicionando imagem ao item (single/rotate):', {
+              phone: contact.phone,
+              image_url: newCampaign.imageUrl,
+            });
           }
           
           return queueItem;
