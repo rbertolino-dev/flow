@@ -85,3 +85,95 @@ export function validateTemplate(
   };
 }
 
+/**
+ * Extrai todas as tags dinâmicas de um template (formato {variavel})
+ * Suporta tanto {variavel} quanto {{variavel}} para compatibilidade
+ * 
+ * @param template Template da mensagem
+ * @returns Array com os nomes das tags encontradas (em minúsculas)
+ */
+export function extractDynamicTags(template: string): string[] {
+  const tags: string[] = [];
+  
+  // Procurar por {variavel} (formato usado em broadcast)
+  const singleBraceRegex = /\{(\w+)\}/g;
+  let match;
+  while ((match = singleBraceRegex.exec(template)) !== null) {
+    const tag = match[1].toLowerCase();
+    if (!tags.includes(tag)) {
+      tags.push(tag);
+    }
+  }
+  
+  // Procurar por {{variavel}} (formato usado em contratos)
+  const doubleBraceRegex = /\{\{(\w+)\}\}/g;
+  while ((match = doubleBraceRegex.exec(template)) !== null) {
+    const tag = match[1].toLowerCase();
+    if (!tags.includes(tag)) {
+      tags.push(tag);
+    }
+  }
+  
+  return tags;
+}
+
+/**
+ * Valida se os campos do CSV/lista correspondem às tags do template
+ * 
+ * @param template Template da mensagem com tags dinâmicas
+ * @param csvFields Array com nomes das colunas do CSV
+ * @returns Objeto com validação, tags faltando, campos disponíveis e avisos
+ */
+export function validateTemplateAgainstCSVFields(
+  template: string,
+  csvFields: string[]
+): {
+  valid: boolean;
+  missingTags: string[];
+  availableFields: string[];
+  warnings: string[];
+} {
+  const templateTags = extractDynamicTags(template);
+  const normalizedCSVFields = csvFields.map(f => f.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''));
+  
+  const missingTags: string[] = [];
+  const availableFields: string[] = [];
+  const warnings: string[] = [];
+  
+  // Mapear tags para campos CSV possíveis
+  const tagToFieldMap: Record<string, string[]> = {
+    'nome': ['nome', 'name', 'cliente', 'contato'],
+    'empresa': ['empresa', 'company', 'companhia'],
+    'nome_empresa': ['nome_empresa', 'nome_da_empresa', 'company_name', 'razao_social', 'razao'],
+    'email': ['email', 'e_mail', 'correio', 'e-mail'],
+    'cpf': ['cpf'],
+    'cnpj': ['cnpj'],
+  };
+  
+  for (const tag of templateTags) {
+    // Tags obrigatórias que precisam estar no CSV
+    const possibleFields = tagToFieldMap[tag] || [tag];
+    const found = possibleFields.some(field => 
+      normalizedCSVFields.includes(field) || 
+      normalizedCSVFields.some(csvField => csvField.includes(field) || field.includes(csvField))
+    );
+    
+    if (!found) {
+      // nome é opcional (pode ser vazio), mas outros campos são importantes
+      if (tag !== 'nome') {
+        missingTags.push(tag);
+      } else {
+        warnings.push(`Tag {${tag}} encontrada no template, mas campo correspondente não encontrado no CSV`);
+      }
+    } else {
+      availableFields.push(tag);
+    }
+  }
+  
+  return {
+    valid: missingTags.length === 0,
+    missingTags,
+    availableFields,
+    warnings,
+  };
+}

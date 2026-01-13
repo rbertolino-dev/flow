@@ -47,6 +47,18 @@ export function replaceBroadcastTemplateTags(
   result = result.replace(/\{\{?(\w+)\}?\}/gi, (match, key) => {
     const normalizedKey = key.toLowerCase();
     const replacement = replacements[normalizedKey];
+    
+    // LOG CRÍTICO para debug da tag {empresa}
+    if (normalizedKey === 'empresa') {
+      console.log('🔍 [replaceBroadcastTemplateTags] Substituindo tag {empresa}:', {
+        match,
+        normalizedKey,
+        replacement,
+        availableReplacements: Object.keys(replacements),
+        contactData,
+      });
+    }
+    
     return replacement !== undefined ? replacement : match;
   });
 

@@ -246,12 +246,21 @@ export function BroadcastCampaignTemplateManager({
             error: fetchError,
           });
         } else {
-          // Comparar image_url salvo com esperado
-          if (savedTemplate.image_url !== templateData.image_url) {
+          // Comparar image_url salvo com esperado (normalizar para comparação)
+          const normalizeUrl = (url: string | null | undefined) => {
+            if (!url) return null;
+            return url.trim().replace(/\/+$/, ''); // Remove trailing slashes
+          };
+          const expectedUrl = normalizeUrl(templateData.image_url);
+          const savedUrl = normalizeUrl(savedTemplate.image_url);
+          
+          if (expectedUrl !== savedUrl) {
             broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
               templateId: editingTemplate.id,
               expected: templateData.image_url,
               saved: savedTemplate.image_url,
+              normalizedExpected: expectedUrl,
+              normalizedSaved: savedUrl,
             });
             toast({
               title: "Aviso",
@@ -297,11 +306,21 @@ export function BroadcastCampaignTemplateManager({
 
         // VALIDAÇÃO 2: Verificar template recém-criado
         if (campaign) {
-          if (campaign.image_url !== templateData.image_url) {
+          // Normalizar URLs para comparação
+          const normalizeUrl = (url: string | null | undefined) => {
+            if (!url) return null;
+            return url.trim().replace(/\/+$/, ''); // Remove trailing slashes
+          };
+          const expectedUrl = normalizeUrl(templateData.image_url);
+          const savedUrl = normalizeUrl(campaign.image_url);
+          
+          if (expectedUrl !== savedUrl) {
             broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
               templateId: campaign.id,
               expected: templateData.image_url,
               saved: campaign.image_url,
+              normalizedExpected: expectedUrl,
+              normalizedSaved: savedUrl,
             });
             toast({
               title: "Aviso",

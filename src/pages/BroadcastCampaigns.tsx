@@ -987,16 +987,17 @@ export default function BroadcastCampaigns() {
           
           return {
             phone,
-            name: contact.name || undefined,
+            name: contact.name ?? undefined,
             valid: true,
-            // Preservar TODOS os dados dinâmicos da lista salva
-            empresa: contact.empresa || undefined,
-            nome_empresa: contact.nome_empresa || undefined,
-            email: contact.email || undefined,
-            cpf: contact.cpf || undefined,
-            cnpj: contact.cnpj || undefined,
-            custom_fields: contact.custom_fields || undefined,
-            lead_id: contact.lead_id || undefined,
+            // CRÍTICO: Preservar TODOS os dados dinâmicos da lista salva usando ?? ao invés de ||
+            // Isso garante que valores null/undefined sejam preservados corretamente
+            empresa: contact.empresa ?? undefined,
+            nome_empresa: contact.nome_empresa ?? undefined,
+            email: contact.email ?? undefined,
+            cpf: contact.cpf ?? undefined,
+            cnpj: contact.cnpj ?? undefined,
+            custom_fields: contact.custom_fields ?? undefined,
+            lead_id: contact.lead_id ?? undefined,
           };
         });
         
@@ -1574,6 +1575,18 @@ export default function BroadcastCampaigns() {
               cnpj: contact.cnpj ?? "",
               ...(contact.custom_fields || {}),
             };
+            
+            // LOG CRÍTICO para debug da tag {empresa}
+            if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
+              broadcastLogger.debug('TAG_EMPRESA_DEBUG', 'Dados antes da substituição', {
+                phone: contact.phone,
+                contact_empresa: contact.empresa,
+                contact_nome_empresa: contact.nome_empresa,
+                contactDataForTags_empresa: contactDataForTags.empresa,
+                contactDataForTags_nome_empresa: contactDataForTags.nome_empresa,
+                template: messageTemplate,
+              });
+            }
 
             // VALIDAÇÃO: Verificar se template tem dados necessários
             const templateDataValidation = validateTemplateAgainstContactData(messageTemplate, contactDataForTags);
@@ -1647,6 +1660,18 @@ export default function BroadcastCampaigns() {
             cnpj: contact.cnpj ?? "",
             ...(contact.custom_fields || {}),
           };
+          
+          // LOG CRÍTICO para debug da tag {empresa}
+          if (messageTemplate.includes('{empresa}') || messageTemplate.includes('{{empresa}}')) {
+            broadcastLogger.debug('TAG_EMPRESA_DEBUG', 'Dados antes da substituição (single/rotate)', {
+              phone: contact.phone,
+              contact_empresa: contact.empresa,
+              contact_nome_empresa: contact.nome_empresa,
+              contactDataForTags_empresa: contactDataForTags.empresa,
+              contactDataForTags_nome_empresa: contactDataForTags.nome_empresa,
+              template: messageTemplate,
+            });
+          }
           
           const personalizedMessage = replaceBroadcastTemplateTags(messageTemplate, contactDataForTags);
           
@@ -4488,15 +4513,27 @@ export default function BroadcastCampaigns() {
                                 );
                                 
                                 // Preparar dados para substituição de tags e visualização
+                                // CRÍTICO: Usar ?? para preservar valores null/undefined corretamente
                                 const contactData = {
-                                  nome: contact.name || "",
-                                  empresa: contact.empresa || contact.nome_empresa || "",
-                                  nome_empresa: contact.nome_empresa || contact.empresa || "",
-                                  email: contact.email || "",
-                                  cpf: contact.cpf || "",
-                                  cnpj: contact.cnpj || "",
+                                  nome: contact.name ?? "",
+                                  empresa: (contact.empresa ?? contact.nome_empresa) ?? "",
+                                  nome_empresa: (contact.nome_empresa ?? contact.empresa) ?? "",
+                                  email: contact.email ?? "",
+                                  cpf: contact.cpf ?? "",
+                                  cnpj: contact.cnpj ?? "",
                                   ...(contact.custom_fields || {}),
                                 };
+                                
+                                // LOG para debug quando empresa está presente
+                                if (contact.messageVariation && (contact.messageVariation.includes('{empresa}') || contact.messageVariation.includes('{{empresa}}'))) {
+                                  broadcastLogger.debug('PREVIEW_TAG_EMPRESA', 'Dados para preview', {
+                                    phone: contact.phone,
+                                    contact_empresa: contact.empresa,
+                                    contact_nome_empresa: contact.nome_empresa,
+                                    contactData_empresa: contactData.empresa,
+                                    template: contact.messageVariation,
+                                  });
+                                }
                                 
                                 // Substituir tags na mensagem para preview
                                 const messagePreview = contact.messageVariation 
