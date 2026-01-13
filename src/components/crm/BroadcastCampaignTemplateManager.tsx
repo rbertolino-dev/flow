@@ -34,6 +34,8 @@ interface Template {
   min_delay_seconds: number;
   max_delay_seconds: number;
   image_url?: string;
+  message_block_1?: string;
+  message_block_2?: string;
   created_at: string;
 }
 
@@ -64,6 +66,8 @@ export function BroadcastCampaignTemplateManager({
     name: "",
     description: "",
     customMessage: "",
+    messageBlock1: "", // Primeiro bloco de mensagem
+    messageBlock2: "", // Segundo bloco de mensagem
     messageVariations: [] as string[],
     imageUrl: null as string | null,
   });
@@ -92,14 +96,16 @@ export function BroadcastCampaignTemplateManager({
       if (error) throw error;
       
       // Parse message_variations from JSON e garantir que image_url seja preservado
-      const parsedData = await Promise.all((data || []).map(async (template) => {
-        const parsed = {
+      const parsedData = await Promise.all((data || []).map(async (template: any) => {
+        const parsed: Template = {
           ...template,
           message_variations: Array.isArray(template.message_variations) 
             ? template.message_variations 
             : [],
           // CRÍTICO: Garantir que image_url seja preservado do banco
           image_url: template.image_url || null,
+          message_block_1: template.message_block_1 || null,
+          message_block_2: template.message_block_2 || null,
         };
         
         // VALIDAÇÃO 3: Verificar se image_url existe e é acessível ao carregar
@@ -181,6 +187,55 @@ export function BroadcastCampaignTemplateManager({
       // Filtrar variações vazias e garantir que seja um array válido
       const validVariations = formData.messageVariations.filter(v => v && v.trim().length > 0);
       
+      // CRÍTICO: Preparar mensagens - combinar messageBlock1 e messageBlock2
+      // Se há variações, usar variações; senão, usar messageBlock1 (ou customMessage como fallback)
+      let finalCustomMessage: string | null = null;
+      let finalMessageVariations: string[] | null = null;
+      
+      if (validVariations.length > 0) {
+        // Se há variações, usar elas
+        finalMessageVariations = validVariations;
+      } else {
+        // Se não há variações, usar messageBlock1 ou customMessage
+        const messageBlock1 = formData.messageBlock1?.trim() || formData.customMessage?.trim() || "";
+        const messageBlock2 = formData.messageBlock2?.trim() || "";
+        
+        // Combinar blocos: se tiver 2 blocos, combinar com 2 quebras de linha
+        if (messageBlock1) {
+          if (messageBlock2) {
+            finalCustomMessage = `${messageBlock1}\n\n${messageBlock2}`;
+          } else {
+            finalCustomMessage = messageBlock1;
+          }
+        }
+      }
+      
+      // CRÍTICO: Garantir que pelo menos uma mensagem seja salva
+      if (!finalCustomMessage && !finalMessageVariations) {
+        toast({
+          title: "Mensagem obrigatória",
+          description: "Por favor, preencha pelo menos uma mensagem no primeiro bloco",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // LÓGICA CORRIGIDA E GARANTIDA PARA SALVAR IMAGEM
+      // SEMPRE incluir image_url no templateData (não pode ser omitido)
+      // CRÍTICO: Usar formData.imageUrl primeiro (pode ser nova imagem ou existente carregada)
+      let imageUrlToSave: string | null = null;
+      if (formData.imageUrl && formData.imageUrl.trim() !== '') {
+        // Se tiver imagem no formData (nova ou existente), usar ela
+        imageUrlToSave = formData.imageUrl.trim();
+      } else if (editingTemplate && editingTemplate.image_url) {
+        // Se estiver editando e não tiver nova imagem no formData, manter a existente
+        imageUrlToSave = editingTemplate.image_url;
+      } else {
+        // Se não tiver imagem, usar null explicitamente
+        imageUrlToSave = null;
+      }
+      
       const templateData: any = {
         organization_id: organizationId,
         user_id: user.id,
@@ -189,30 +244,26 @@ export function BroadcastCampaignTemplateManager({
         instance_id: null,
         instance_name: null,
         message_template_id: null,
-        custom_message: formData.customMessage?.trim() || null,
-        message_variations: validVariations.length > 0 ? validVariations : null,
+        custom_message: finalCustomMessage,
+        message_variations: finalMessageVariations,
+        // CRÍTICO: Salvar blocos de mensagem separadamente para uso futuro
+        message_block_1: formData.messageBlock1?.trim() || formData.customMessage?.trim() || null,
+        message_block_2: formData.messageBlock2?.trim() || null,
+        image_url: imageUrlToSave, // CRÍTICO: Sempre incluir image_url
         min_delay_seconds: 30,
         max_delay_seconds: 60,
       };
-
-      // LÓGICA CORRIGIDA E GARANTIDA PARA SALVAR IMAGEM
-      // SEMPRE incluir image_url no templateData (não pode ser omitido)
-      // CRÍTICO: Usar formData.imageUrl primeiro (pode ser nova imagem ou existente carregada)
-      if (formData.imageUrl && formData.imageUrl.trim() !== '') {
-        // Se tiver imagem no formData (nova ou existente), usar ela
-        templateData.image_url = formData.imageUrl.trim();
-      } else if (editingTemplate && editingTemplate.image_url) {
-        // Se estiver editando e não tiver nova imagem no formData, manter a existente
-        templateData.image_url = editingTemplate.image_url;
-      } else {
-        // Se não tiver imagem, usar null explicitamente
-        templateData.image_url = null;
-      }
       
-      // GARANTIR que image_url está sempre presente no objeto (não pode ser undefined)
-      if (templateData.image_url === undefined) {
-        templateData.image_url = null;
-      }
+      // LOG CRÍTICO: Verificar o que está sendo salvo
+      broadcastLogger.debug('TEMPLATE_SAVE', 'Dados que serão salvos', {
+        name: templateData.name,
+        custom_message: templateData.custom_message,
+        message_block_1: templateData.message_block_1,
+        message_block_2: templateData.message_block_2,
+        message_variations: templateData.message_variations,
+        image_url: templateData.image_url,
+        hasVariations: validVariations.length > 0,
+      });
       
       // LOG CRÍTICO antes de salvar
       broadcastLogger.debug('TEMPLATE_SAVE', 'Preparando para salvar template com image_url', {
@@ -255,7 +306,7 @@ export function BroadcastCampaignTemplateManager({
         }
         
         // LOG CRÍTICO: Verificar resposta do UPDATE
-        const savedImageUrl = updateData?.[0]?.image_url;
+        const savedImageUrl = (updateData?.[0] as any)?.image_url;
         broadcastLogger.debug('TEMPLATE_SAVE', 'Resposta do UPDATE do Supabase', {
           templateId: editingTemplate.id,
           updateData,
@@ -293,6 +344,9 @@ export function BroadcastCampaignTemplateManager({
           });
         }
 
+        // CRÍTICO: Recarregar template atualizado para garantir sincronização
+        await fetchTemplates();
+        
         toast({
           title: "Template atualizado!",
           description: "O template foi atualizado com sucesso",
@@ -328,13 +382,13 @@ export function BroadcastCampaignTemplateManager({
             return url.trim().replace(/\/+$/, ''); // Remove trailing slashes
           };
           const expectedUrl = normalizeUrl(templateData.image_url);
-          const savedUrl = normalizeUrl(campaign.image_url);
+          const savedUrl = normalizeUrl((campaign as any).image_url);
           
           if (expectedUrl !== savedUrl) {
             broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
               templateId: campaign.id,
               expected: templateData.image_url,
-              saved: campaign.image_url,
+              saved: (campaign as any).image_url,
               normalizedExpected: expectedUrl,
               normalizedSaved: savedUrl,
             });
@@ -353,15 +407,18 @@ export function BroadcastCampaignTemplateManager({
           }
         }
 
+        // CRÍTICO: Recarregar templates para garantir que novo template aparece
+        await fetchTemplates();
+        
         toast({
           title: "Template criado!",
           description: "O template foi criado com sucesso",
         });
       }
 
+      // CRÍTICO: Só fechar e resetar após confirmar que salvou
       setDialogOpen(false);
       resetForm();
-      fetchTemplates();
     } catch (error: any) {
       broadcastLogger.error('TEMPLATE_SAVE', 'Erro geral ao salvar template', {
         error: error.message,
@@ -389,11 +446,19 @@ export function BroadcastCampaignTemplateManager({
     // CRÍTICO: Garantir que image_url seja carregado corretamente
     const imageUrl = template.image_url || null;
     
+    // CRÍTICO: Carregar dados do template corretamente
+    // Se há message_variations, usar elas; senão, usar custom_message ou message_block_1
+    const hasVariations = template.message_variations && template.message_variations.length > 0;
+    const messageBlock1 = (template as any).message_block_1 || (hasVariations ? "" : (template.custom_message || ""));
+    const messageBlock2 = (template as any).message_block_2 || "";
+    
     setFormData({
       name: template.name,
       description: template.description || "",
-      customMessage: template.custom_message || "",
+      customMessage: hasVariations ? "" : (template.custom_message || ""),
       messageVariations: template.message_variations || [],
+      messageBlock1: messageBlock1,
+      messageBlock2: messageBlock2,
       imageUrl: imageUrl, // Usar valor direto do template
     });
     
@@ -442,6 +507,8 @@ export function BroadcastCampaignTemplateManager({
       name: "",
       description: "",
       customMessage: "",
+      messageBlock1: "",
+      messageBlock2: "",
       messageVariations: [],
       imageUrl: null,
     });
@@ -674,19 +741,22 @@ export function BroadcastCampaignTemplateManager({
                 </div>
               </div>
 
+              {/* Bloco 1 de Mensagem - Obrigatório */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="customMessage">Mensagem Personalizada *</Label>
+                  <Label htmlFor="messageBlock1">Primeiro Bloco de Mensagem *</Label>
                   {formData.messageVariations.length === 0 && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        if (formData.customMessage.trim()) {
+                        const messageToAdd = formData.messageBlock1?.trim() || formData.customMessage?.trim() || "";
+                        if (messageToAdd) {
                           setFormData({
                             ...formData,
-                            messageVariations: [formData.customMessage],
+                            messageVariations: [messageToAdd],
+                            messageBlock1: "",
                             customMessage: "",
                           });
                         }
@@ -699,13 +769,37 @@ export function BroadcastCampaignTemplateManager({
                 </div>
 
                 {formData.messageVariations.length === 0 ? (
-                  <Textarea
-                    id="customMessage"
-                    placeholder="Digite sua mensagem personalizada..."
-                    value={formData.customMessage}
-                    onChange={(e) => setFormData({ ...formData, customMessage: e.target.value })}
-                    rows={4}
-                  />
+                  <div className="space-y-3">
+                    <Textarea
+                      id="messageBlock1"
+                      placeholder="Digite o primeiro bloco de mensagem..."
+                      value={formData.messageBlock1 || formData.customMessage || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          messageBlock1: value,
+                          customMessage: value, // Manter compatibilidade
+                        });
+                      }}
+                      rows={4}
+                    />
+                    
+                    {/* Bloco 2 de Mensagem - Opcional */}
+                    <div className="space-y-2">
+                      <Label htmlFor="messageBlock2">Segundo Bloco de Mensagem (Opcional)</Label>
+                      <Textarea
+                        id="messageBlock2"
+                        placeholder="Digite o segundo bloco de mensagem (será enviado após o primeiro)..."
+                        value={formData.messageBlock2}
+                        onChange={(e) => setFormData({ ...formData, messageBlock2: e.target.value })}
+                        rows={4}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        O segundo bloco será enviado após o primeiro, separado por 2 quebras de linha.
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
