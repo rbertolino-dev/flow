@@ -288,11 +288,12 @@ export function BroadcastCampaignTemplateManager({
           image_url_value: templateData.image_url,
         });
         
+        // CRÍTICO: Selecionar todos os campos para verificar o que foi salvo
         const { error, data: updateData } = await supabase
           .from("broadcast_campaign_templates")
           .update(templateData)
           .eq("id", editingTemplate.id)
-          .select("image_url"); // CRÍTICO: Retornar image_url para verificar
+          .select("*"); // CRÍTICO: Retornar todos os campos para verificar
 
         if (error) {
           broadcastLogger.logTemplateSave(action, templateId, {
@@ -302,16 +303,60 @@ export function BroadcastCampaignTemplateManager({
             success: false,
             error,
           });
+          
+          // LOG DETALHADO do erro para debug
+          console.error('❌ [Template] Erro ao atualizar template:', {
+            error,
+            errorCode: error.code,
+            errorMessage: error.message,
+            errorDetails: error.details,
+            errorHint: error.hint,
+            templateId: editingTemplate.id,
+            templateData,
+          });
+          
           throw error;
         }
         
         // LOG CRÍTICO: Verificar resposta do UPDATE
-        const savedImageUrl = (updateData?.[0] as any)?.image_url;
+        if (!updateData || updateData.length === 0) {
+          const errorMsg = 'UPDATE retornou vazio - template pode não ter sido atualizado';
+          console.error('❌ [Template]', errorMsg, {
+            templateId: editingTemplate.id,
+            templateData,
+          });
+          throw new Error(errorMsg);
+        }
+        
+        const savedTemplate = updateData[0] as any;
+        const savedImageUrl = savedTemplate?.image_url;
+        const savedName = savedTemplate?.name;
+        const savedCustomMessage = savedTemplate?.custom_message;
+        const savedMessageBlock1 = savedTemplate?.message_block_1;
+        const savedMessageBlock2 = savedTemplate?.message_block_2;
+        
+        // LOG DETALHADO da resposta para debug
+        console.log('✅ [Template] Template atualizado com sucesso:', {
+          id: editingTemplate.id,
+          name: savedName,
+          image_url: savedImageUrl,
+          custom_message: savedCustomMessage,
+          message_block_1: savedMessageBlock1,
+          message_block_2: savedMessageBlock2,
+          savedFields: Object.keys(savedTemplate),
+        });
+        
         broadcastLogger.debug('TEMPLATE_SAVE', 'Resposta do UPDATE do Supabase', {
           templateId: editingTemplate.id,
           updateData,
           savedImageUrl,
+          savedName,
+          savedCustomMessage,
+          savedMessageBlock1,
+          savedMessageBlock2,
           expectedImageUrl: templateData.image_url,
+          expectedName: templateData.name,
+          expectedCustomMessage: templateData.custom_message,
         });
 
         // VALIDAÇÃO 2: Comparar image_url salvo com esperado (usar resposta do UPDATE)
