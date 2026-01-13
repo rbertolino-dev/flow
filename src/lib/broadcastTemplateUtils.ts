@@ -27,19 +27,24 @@ export function replaceBroadcastTemplateTags(
   let result = template;
 
   // Mapeamento de tags padrão
+  // CRÍTICO: Usar ?? ao invés de || para garantir que null/undefined virem string vazia
+  // Mesma lógica da tag {nome} que funciona corretamente
   const replacements: Record<string, string> = {
-    nome: contactData.nome || "",
-    empresa: contactData.empresa || contactData.nome_empresa || "",
-    nome_empresa: contactData.nome_empresa || contactData.empresa || "",
-    email: contactData.email || "",
-    cpf: contactData.cpf || "",
-    cnpj: contactData.cnpj || "",
+    nome: contactData.nome ?? "",
+    // CRÍTICO: Usar ?? para empresa (mesma lógica de nome)
+    // Se empresa for null/undefined, tentar nome_empresa, senão string vazia
+    empresa: (contactData.empresa ?? contactData.nome_empresa) ?? "",
+    nome_empresa: (contactData.nome_empresa ?? contactData.empresa) ?? "",
+    email: contactData.email ?? "",
+    cpf: contactData.cpf ?? "",
+    cnpj: contactData.cnpj ?? "",
   };
 
   // Adicionar campos customizados
+  // CRÍTICO: Usar ?? ao invés de || para garantir que null/undefined virem string vazia
   Object.entries(contactData).forEach(([key, value]) => {
     if (!['nome', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)) {
-      replacements[key] = value || "";
+      replacements[key] = value ?? "";
     }
   });
 
@@ -54,12 +59,18 @@ export function replaceBroadcastTemplateTags(
         match,
         normalizedKey,
         replacement,
+        replacementType: typeof replacement,
+        replacementLength: replacement?.length,
         availableReplacements: Object.keys(replacements),
+        contactData_empresa: contactData.empresa,
+        contactData_nome_empresa: contactData.nome_empresa,
         contactData,
       });
     }
     
-    return replacement !== undefined ? replacement : match;
+    // CRÍTICO: Se replacement for undefined, retornar string vazia ao invés de match
+    // Isso garante que tags sem dados sejam removidas (não ficam no texto)
+    return replacement !== undefined ? replacement : "";
   });
 
   return result;

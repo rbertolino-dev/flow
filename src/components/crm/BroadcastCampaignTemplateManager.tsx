@@ -197,11 +197,12 @@ export function BroadcastCampaignTemplateManager({
 
       // LÓGICA CORRIGIDA E GARANTIDA PARA SALVAR IMAGEM
       // SEMPRE incluir image_url no templateData (não pode ser omitido)
-      if (formData.imageUrl) {
+      // CRÍTICO: Usar formData.imageUrl primeiro (pode ser nova imagem ou existente carregada)
+      if (formData.imageUrl && formData.imageUrl.trim() !== '') {
         // Se tiver imagem no formData (nova ou existente), usar ela
-        templateData.image_url = formData.imageUrl;
+        templateData.image_url = formData.imageUrl.trim();
       } else if (editingTemplate && editingTemplate.image_url) {
-        // Se estiver editando e não tiver nova imagem, manter a existente
+        // Se estiver editando e não tiver nova imagem no formData, manter a existente
         templateData.image_url = editingTemplate.image_url;
       } else {
         // Se não tiver imagem, usar null explicitamente
@@ -212,15 +213,35 @@ export function BroadcastCampaignTemplateManager({
       if (templateData.image_url === undefined) {
         templateData.image_url = null;
       }
+      
+      // LOG CRÍTICO antes de salvar
+      broadcastLogger.debug('TEMPLATE_SAVE', 'Preparando para salvar template com image_url', {
+        formData_imageUrl: formData.imageUrl,
+        editingTemplate_image_url: editingTemplate?.image_url,
+        final_image_url: templateData.image_url,
+        action: editingTemplate ? 'update' : 'create',
+      });
 
       const action = editingTemplate ? 'update' : 'create';
       const templateId = editingTemplate?.id || null;
 
       if (editingTemplate) {
-        const { error } = await supabase
+        // LOG CRÍTICO: Verificar o que está sendo enviado para o Supabase
+        broadcastLogger.debug('TEMPLATE_SAVE', 'Enviando UPDATE para Supabase', {
+          templateId: editingTemplate.id,
+          templateData: {
+            ...templateData,
+            image_url: templateData.image_url, // Garantir que está presente
+          },
+          image_url_type: typeof templateData.image_url,
+          image_url_value: templateData.image_url,
+        });
+        
+        const { error, data: updateData } = await supabase
           .from("broadcast_campaign_templates")
           .update(templateData)
-          .eq("id", editingTemplate.id);
+          .eq("id", editingTemplate.id)
+          .select("image_url"); // CRÍTICO: Retornar image_url para verificar
 
         if (error) {
           broadcastLogger.logTemplateSave(action, templateId, {
@@ -232,49 +253,44 @@ export function BroadcastCampaignTemplateManager({
           });
           throw error;
         }
+        
+        // LOG CRÍTICO: Verificar resposta do UPDATE
+        const savedImageUrl = updateData?.[0]?.image_url;
+        broadcastLogger.debug('TEMPLATE_SAVE', 'Resposta do UPDATE do Supabase', {
+          templateId: editingTemplate.id,
+          updateData,
+          savedImageUrl,
+          expectedImageUrl: templateData.image_url,
+        });
 
-        // VALIDAÇÃO 2: Buscar template recém-salvo do banco para verificar
-        const { data: savedTemplate, error: fetchError } = await supabase
-          .from("broadcast_campaign_templates")
-          .select("image_url")
-          .eq("id", editingTemplate.id)
-          .single();
-
-        if (fetchError) {
-          broadcastLogger.warn('TEMPLATE_SAVE', 'Não foi possível verificar template salvo', {
+        // VALIDAÇÃO 2: Comparar image_url salvo com esperado (usar resposta do UPDATE)
+        const normalizeUrl = (url: string | null | undefined) => {
+          if (!url) return null;
+          return url.trim().replace(/\/+$/, ''); // Remove trailing slashes
+        };
+        const expectedUrl = normalizeUrl(templateData.image_url);
+        const savedUrl = normalizeUrl(savedImageUrl);
+        
+        if (expectedUrl !== savedUrl) {
+          broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
             templateId: editingTemplate.id,
-            error: fetchError,
+            expected: templateData.image_url,
+            saved: savedImageUrl,
+            normalizedExpected: expectedUrl,
+            normalizedSaved: savedUrl,
+          });
+          toast({
+            title: "Aviso",
+            description: "Template salvo, mas imagem pode não ter sido salva corretamente. Verifique.",
+            variant: "destructive",
           });
         } else {
-          // Comparar image_url salvo com esperado (normalizar para comparação)
-          const normalizeUrl = (url: string | null | undefined) => {
-            if (!url) return null;
-            return url.trim().replace(/\/+$/, ''); // Remove trailing slashes
-          };
-          const expectedUrl = normalizeUrl(templateData.image_url);
-          const savedUrl = normalizeUrl(savedTemplate.image_url);
-          
-          if (expectedUrl !== savedUrl) {
-            broadcastLogger.error('TEMPLATE_SAVE', 'image_url não corresponde ao esperado', {
-              templateId: editingTemplate.id,
-              expected: templateData.image_url,
-              saved: savedTemplate.image_url,
-              normalizedExpected: expectedUrl,
-              normalizedSaved: savedUrl,
-            });
-            toast({
-              title: "Aviso",
-              description: "Template salvo, mas imagem pode não ter sido salva corretamente. Verifique.",
-              variant: "destructive",
-            });
-          } else {
-            broadcastLogger.logTemplateSave(action, editingTemplate.id, {
-              name: templateData.name,
-              image_url: templateData.image_url,
-              hasImage: !!templateData.image_url,
-              success: true,
-            });
-          }
+          broadcastLogger.logTemplateSave(action, editingTemplate.id, {
+            name: templateData.name,
+            image_url: templateData.image_url,
+            hasImage: !!templateData.image_url,
+            success: true,
+          });
         }
 
         toast({
