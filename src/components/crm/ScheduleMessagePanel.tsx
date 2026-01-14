@@ -5,8 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Clock, Send, X, Trash2, Image as ImageIcon } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar, Clock, Send, X, Trash2, Image as ImageIcon, Repeat, Link2 } from "lucide-react";
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
+import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
@@ -22,6 +26,8 @@ interface ScheduleMessagePanelProps {
 
 export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: ScheduleMessagePanelProps) {
   const { scheduledMessages, scheduleMessage, cancelScheduledMessage, deleteScheduledMessage } = useScheduledMessages(leadId);
+  const { hasFeature } = useOrganizationFeatures();
+  const { toast } = useToast();
   
   const [instanceId, setInstanceId] = useState<string>("");
   const [message, setMessage] = useState<string>("");
@@ -30,6 +36,23 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [mediaUrl, setMediaUrl] = useState<string>("");
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'document'>('image');
   const [isScheduling, setIsScheduling] = useState(false);
+  
+  // Campos de repetição
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatPeriod, setRepeatPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [repeatCount, setRepeatCount] = useState<number>(1);
+  
+  // Campos de combo
+  const [isCombo, setIsCombo] = useState(false);
+  const [comboMessage, setComboMessage] = useState<string>("");
+  const [comboDelayDays, setComboDelayDays] = useState<number>(1);
+  const [comboMediaUrl, setComboMediaUrl] = useState<string>("");
+  const [comboMediaType, setComboMediaType] = useState<'image' | 'video' | 'document'>('image');
+  
+  // Dialog de cancelamento
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelMessageId, setCancelMessageId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>("");
 
   // Filtrar apenas instâncias conectadas
   const connectedInstances = useMemo(() => 
@@ -38,7 +61,27 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   );
 
   const handleSchedule = async () => {
+    // Validar feature habilitada
+    if (!hasFeature('scheduled_messages')) {
+      toast({
+        title: "Funcionalidade não disponível",
+        description: "A funcionalidade de mensagens agendadas não está habilitada para sua organização.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!instanceId || !message.trim() || !scheduledDate || !scheduledTime) {
+      return;
+    }
+
+    // Validar combo
+    if (isCombo && !comboMessage.trim()) {
+      toast({
+        title: "Mensagem combo incompleta",
+        description: "Preencha a mensagem da segunda parte do combo.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -53,6 +96,14 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
         scheduledFor,
         mediaUrl: mediaUrl || undefined,
         mediaType: mediaUrl ? mediaType : undefined,
+        repeatEnabled: repeatEnabled,
+        repeatPeriod: repeatEnabled ? repeatPeriod : undefined,
+        repeatCount: repeatEnabled ? repeatCount : undefined,
+        isCombo: isCombo,
+        comboMessage: isCombo ? comboMessage : undefined,
+        comboDelayDays: isCombo ? comboDelayDays : undefined,
+        comboMediaUrl: isCombo && comboMediaUrl ? comboMediaUrl : undefined,
+        comboMediaType: isCombo && comboMediaUrl ? comboMediaType : undefined,
       });
 
       // Limpar formulário
@@ -61,8 +112,34 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       setScheduledTime("");
       setMediaUrl("");
       setMediaType('image');
+      setRepeatEnabled(false);
+      setRepeatCount(1);
+      setIsCombo(false);
+      setComboMessage("");
+      setComboDelayDays(1);
+      setComboMediaUrl("");
+      setComboMediaType('image');
     } finally {
       setIsScheduling(false);
+    }
+  };
+
+  const handleCancelClick = (messageId: string) => {
+    setCancelMessageId(messageId);
+    setCancelReason("");
+    setCancelDialogOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelMessageId) return;
+
+    try {
+      await cancelScheduledMessage(cancelMessageId, cancelReason || undefined);
+      setCancelDialogOpen(false);
+      setCancelMessageId(null);
+      setCancelReason("");
+    } catch (error) {
+      // Erro já tratado no hook
     }
   };
 
@@ -192,6 +269,123 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
           </div>
         </div>
 
+        {/* Repetição */}
+        <div className="border-t pt-4 space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="repeat-enabled"
+              checked={repeatEnabled}
+              onCheckedChange={(checked) => setRepeatEnabled(checked as boolean)}
+            />
+            <Label htmlFor="repeat-enabled" className="flex items-center gap-2 cursor-pointer">
+              <Repeat className="h-4 w-4" />
+              Repetir mensagem
+            </Label>
+          </div>
+
+          {repeatEnabled && (
+            <div className="space-y-3 pl-6 border-l-2">
+              <div>
+                <Label htmlFor="repeat-period">Período de Repetição</Label>
+                <Select value={repeatPeriod} onValueChange={(value) => setRepeatPeriod(value as any)}>
+                  <SelectTrigger id="repeat-period">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Diariamente</SelectItem>
+                    <SelectItem value="weekly">Semanalmente</SelectItem>
+                    <SelectItem value="monthly">Mensalmente (mesmo dia do mês)</SelectItem>
+                    <SelectItem value="yearly">Anualmente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="repeat-count">Quantas vezes repetir</Label>
+                <Input
+                  id="repeat-count"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={repeatCount}
+                  onChange={(e) => setRepeatCount(parseInt(e.target.value) || 1)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  A mensagem será repetida sempre no mesmo dia que foi agendada
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mensagem Combo */}
+        <div className="border-t pt-4 space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="is-combo"
+              checked={isCombo}
+              onCheckedChange={(checked) => setIsCombo(checked as boolean)}
+            />
+            <Label htmlFor="is-combo" className="flex items-center gap-2 cursor-pointer">
+              <Link2 className="h-4 w-4" />
+              Mensagem em Combo
+            </Label>
+          </div>
+
+          {isCombo && (
+            <div className="space-y-3 pl-6 border-l-2">
+              <div>
+                <Label htmlFor="combo-message">Segunda Mensagem</Label>
+                <Textarea
+                  id="combo-message"
+                  value={comboMessage}
+                  onChange={(e) => setComboMessage(e.target.value)}
+                  placeholder="Digite a segunda mensagem do combo..."
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="combo-delay-days">Enviar após quantos dias?</Label>
+                <Input
+                  id="combo-delay-days"
+                  type="number"
+                  min="1"
+                  value={comboDelayDays}
+                  onChange={(e) => setComboDelayDays(parseInt(e.target.value) || 1)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="combo-media-type" className="text-sm">Tipo de Mídia (Opcional)</Label>
+                <Select
+                  value={comboMediaType}
+                  onValueChange={(value) => setComboMediaType(value as 'image' | 'video' | 'document')}
+                >
+                  <SelectTrigger id="combo-media-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Imagem</SelectItem>
+                    <SelectItem value="video">Vídeo</SelectItem>
+                    <SelectItem value="document">Documento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="combo-media-url" className="text-sm">URL da Mídia (Opcional)</Label>
+                <Input
+                  id="combo-media-url"
+                  placeholder="https://exemplo.com/imagem.jpg"
+                  value={comboMediaUrl}
+                  onChange={(e) => setComboMediaUrl(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         <Button
           onClick={handleSchedule}
           disabled={!instanceId || !message.trim() || !scheduledDate || !scheduledTime || isScheduling}
@@ -231,11 +425,40 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                         <span>{msg.media_type}: {msg.media_url}</span>
                       </div>
                     )}
+                    {msg.repeat_enabled && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Repeat className="h-3 w-3" />
+                        <span>
+                          Repetição: {msg.repeat_period === 'daily' ? 'Diária' : 
+                                     msg.repeat_period === 'weekly' ? 'Semanal' :
+                                     msg.repeat_period === 'monthly' ? 'Mensal' :
+                                     msg.repeat_period === 'yearly' ? 'Anual' : ''}
+                          {msg.repeat_count && ` (${msg.repeat_count}x)`}
+                        </span>
+                      </div>
+                    )}
+                    {msg.is_combo_message && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
+                        <Link2 className="h-3 w-3" />
+                        <span>Mensagem combo (após {msg.combo_delay_days} dia{msg.combo_delay_days !== 1 ? 's' : ''})</span>
+                      </div>
+                    )}
+                    {msg.parent_message_id && !msg.is_combo_message && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Repeat className="h-3 w-3" />
+                        <span>Mensagem repetida</span>
+                      </div>
+                    )}
+                    {msg.cancel_reason && (
+                      <div className="mt-2 text-xs text-red-600">
+                        <strong>Motivo do cancelamento:</strong> {msg.cancel_reason}
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => cancelScheduledMessage(msg.id)}
+                    onClick={() => handleCancelClick(msg.id)}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -275,6 +498,35 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                         <span>{msg.media_type}: {msg.media_url}</span>
                       </div>
                     )}
+                    {msg.repeat_enabled && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Repeat className="h-3 w-3" />
+                        <span>
+                          Repetição: {msg.repeat_period === 'daily' ? 'Diária' : 
+                                     msg.repeat_period === 'weekly' ? 'Semanal' :
+                                     msg.repeat_period === 'monthly' ? 'Mensal' :
+                                     msg.repeat_period === 'yearly' ? 'Anual' : ''}
+                          {msg.repeat_count && ` (${msg.repeat_count}x)`}
+                        </span>
+                      </div>
+                    )}
+                    {msg.is_combo_message && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
+                        <Link2 className="h-3 w-3" />
+                        <span>Mensagem combo (após {msg.combo_delay_days} dia{msg.combo_delay_days !== 1 ? 's' : ''})</span>
+                      </div>
+                    )}
+                    {msg.parent_message_id && !msg.is_combo_message && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Repeat className="h-3 w-3" />
+                        <span>Mensagem repetida</span>
+                      </div>
+                    )}
+                    {msg.cancel_reason && (
+                      <div className="mt-2 text-xs text-red-600">
+                        <strong>Motivo do cancelamento:</strong> {msg.cancel_reason}
+                      </div>
+                    )}
                     {msg.error_message && (
                       <p className="text-xs text-red-600 mt-1">Erro: {msg.error_message}</p>
                     )}
@@ -294,6 +546,38 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
           </div>
         </div>
       )}
+
+      {/* Dialog de Cancelamento */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar Mensagem Agendada</DialogTitle>
+            <DialogDescription>
+              Deseja cancelar esta mensagem agendada? Você pode informar um motivo (opcional).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="cancel-reason">Motivo do Cancelamento (Opcional)</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Ex: Cliente solicitou cancelamento..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+              Não Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmCancel}>
+              Confirmar Cancelamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
