@@ -317,6 +317,34 @@ export default function Settings() {
 
           {hasEvolutionAccess && (
             <TabsContent value="evolution" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
+              {/* Card de Nova Instância - Primeiro elemento visual */}
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+                        <Plus className="h-5 w-5 text-primary" />
+                        Nova Instância WhatsApp
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm mt-1">
+                        Configure uma nova conexão com o WhatsApp para começar a usar o sistema
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      onClick={() => {
+                        setEditingConfig(null);
+                        setDialogOpen(true);
+                      }} 
+                      size="default" 
+                      className="w-full sm:w-auto bg-primary hover:bg-primary/90"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Criar Nova Instância
+                    </Button>
+                  </div>
+                </CardHeader>
+              </Card>
+
               <EvolutionApiDiagnostics />
               
               <WhatsAppNumberValidator configs={configs} />
@@ -367,20 +395,11 @@ export default function Settings() {
 
             <Card>
               <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-                  <div>
-                    <CardTitle className="text-lg sm:text-xl">Instâncias WhatsApp</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm mt-1">
-                      Gerencie suas conexões com o WhatsApp
-                    </CardDescription>
-                  </div>
-                  <Button onClick={() => {
-                    setEditingConfig(null);
-                    setDialogOpen(true);
-                  }} size="sm" className="w-full sm:w-auto">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova Instância
-                  </Button>
+                <div>
+                  <CardTitle className="text-lg sm:text-xl">Instâncias WhatsApp</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm mt-1">
+                    Gerencie suas conexões com o WhatsApp
+                  </CardDescription>
                 </div>
               </CardHeader>
               <CardContent>

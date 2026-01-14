@@ -40,7 +40,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   // Campos de repetição
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [repeatPeriod, setRepeatPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
-  const [repeatCount, setRepeatCount] = useState<number>(1);
+  const [repeatDuration, setRepeatDuration] = useState<number>(1); // Duração em dias/semanas/meses/anos
   
   // Campos de combo
   const [isCombo, setIsCombo] = useState(false);
@@ -98,7 +98,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
         mediaType: mediaUrl ? mediaType : undefined,
         repeatEnabled: repeatEnabled,
         repeatPeriod: repeatEnabled ? repeatPeriod : undefined,
-        repeatCount: repeatEnabled ? repeatCount : undefined,
+        repeatDuration: repeatEnabled ? repeatDuration : undefined,
         isCombo: isCombo,
         comboMessage: isCombo ? comboMessage : undefined,
         comboDelayDays: isCombo ? comboDelayDays : undefined,
@@ -113,7 +113,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       setMediaUrl("");
       setMediaType('image');
       setRepeatEnabled(false);
-      setRepeatCount(1);
+      setRepeatDuration(1);
       setIsCombo(false);
       setComboMessage("");
       setComboDelayDays(1);
@@ -301,17 +301,25 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
               </div>
 
               <div>
-                <Label htmlFor="repeat-count">Quantas vezes repetir</Label>
+                <Label htmlFor="repeat-duration">
+                  {repeatPeriod === 'daily' && 'Repetir por quantos dias?'}
+                  {repeatPeriod === 'weekly' && 'Repetir por quantas semanas?'}
+                  {repeatPeriod === 'monthly' && 'Repetir por quantos meses?'}
+                  {repeatPeriod === 'yearly' && 'Repetir por quantos anos?'}
+                </Label>
                 <Input
-                  id="repeat-count"
+                  id="repeat-duration"
                   type="number"
                   min="1"
-                  max="100"
-                  value={repeatCount}
-                  onChange={(e) => setRepeatCount(parseInt(e.target.value) || 1)}
+                  max={repeatPeriod === 'daily' ? 365 : repeatPeriod === 'weekly' ? 52 : repeatPeriod === 'monthly' ? 24 : 10}
+                  value={repeatDuration}
+                  onChange={(e) => setRepeatDuration(parseInt(e.target.value) || 1)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  A mensagem será repetida sempre no mesmo dia que foi agendada
+                  {repeatPeriod === 'daily' && 'A mensagem será enviada diariamente pelo período especificado'}
+                  {repeatPeriod === 'weekly' && 'A mensagem será enviada semanalmente pelo período especificado'}
+                  {repeatPeriod === 'monthly' && 'A mensagem será enviada mensalmente no mesmo dia do mês pelo período especificado'}
+                  {repeatPeriod === 'yearly' && 'A mensagem será enviada anualmente no mesmo dia pelo período especificado'}
                 </p>
               </div>
             </div>

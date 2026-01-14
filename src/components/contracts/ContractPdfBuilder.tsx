@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, Minus, Plus, Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { TestVersionBadge, TestVersionBanner } from '@/components/shared/TestVersionBadge';
 
 // Import dinâmico do react-pdf para evitar erros de inicialização
 let Document: any, Page: any, pdfjs: any;
@@ -756,13 +757,25 @@ export function ContractPdfBuilder({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Configurar Posições de Assinatura no PDF</DialogTitle>
-          <DialogDescription>
-            Faça upload do PDF e clique onde deseja posicionar as assinaturas
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <DialogTitle className="flex items-center gap-2">
+                Configurar Posições de Assinatura no PDF
+                <TestVersionBadge size="sm" />
+              </DialogTitle>
+              <DialogDescription>
+                Faça upload do PDF e clique onde deseja posicionar as assinaturas
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Banner de versão em teste */}
+          <TestVersionBanner 
+            message="Esta funcionalidade está em versão de teste. Pode conter inconsistências e está sujeita a mudanças."
+          />
+          
           {/* Upload de PDF */}
           {!pdfUrl && (
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">

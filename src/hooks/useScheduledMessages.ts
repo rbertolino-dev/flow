@@ -75,7 +75,7 @@ export function useScheduledMessages(leadId?: string) {
       // Campos de repetição
       repeatEnabled?: boolean;
       repeatPeriod?: 'daily' | 'weekly' | 'monthly' | 'yearly';
-      repeatCount?: number;
+      repeatDuration?: number; // Duração em dias/semanas/meses/anos dependendo do período
       // Campos de combo
       isCombo?: boolean;
       comboMessage?: string;
@@ -93,21 +93,43 @@ export function useScheduledMessages(leadId?: string) {
       const originalDate = params.scheduledFor;
       const originalDateOnly = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
 
+      // Calcular data final para repeat_until
+      let repeatUntil: string | null = null;
+      if (params.repeatEnabled && params.repeatPeriod && params.repeatDuration) {
+        const endDate = new Date(originalDate);
+        switch (params.repeatPeriod) {
+          case 'daily':
+            endDate.setDate(endDate.getDate() + (params.repeatDuration || 0));
+            break;
+          case 'weekly':
+            endDate.setDate(endDate.getDate() + ((params.repeatDuration || 0) * 7));
+            break;
+          case 'monthly':
+            endDate.setMonth(endDate.getMonth() + (params.repeatDuration || 0));
+            break;
+          case 'yearly':
+            endDate.setFullYear(endDate.getFullYear() + (params.repeatDuration || 0));
+            break;
+        }
+        repeatUntil = endDate.toISOString();
+      }
+
       // Criar primeira mensagem
       const firstMessageData: any = {
-        organization_id: organizationId,
-        user_id: user.id,
-        lead_id: params.leadId,
-        instance_id: params.instanceId,
-        phone: params.phone,
-        message: params.message,
-        scheduled_for: params.scheduledFor.toISOString(),
-        media_url: params.mediaUrl || null,
-        media_type: params.mediaType || null,
-        repeat_enabled: params.repeatEnabled || false,
-        repeat_period: params.repeatPeriod || null,
-        repeat_count: params.repeatCount || null,
-        original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
+          organization_id: organizationId,
+          user_id: user.id,
+          lead_id: params.leadId,
+          instance_id: params.instanceId,
+          phone: params.phone,
+          message: params.message,
+          scheduled_for: params.scheduledFor.toISOString(),
+          media_url: params.mediaUrl || null,
+          media_type: params.mediaType || null,
+          repeat_enabled: params.repeatEnabled || false,
+          repeat_period: params.repeatPeriod || null,
+          repeat_count: null, // Será calculado e atualizado após criar as repetições
+          repeat_until: repeatUntil,
+          original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
       };
 
       const { data: firstMessage, error: firstError } = await supabase
@@ -120,51 +142,85 @@ export function useScheduledMessages(leadId?: string) {
 
       let parentMessageId = firstMessage.id;
 
-      // Se repetição está habilitada, criar mensagens repetidas
-      if (params.repeatEnabled && params.repeatPeriod && params.repeatCount) {
+      // Se repetição está habilitada, criar mensagens repetidas baseado na duração
+      if (params.repeatEnabled && params.repeatPeriod && params.repeatDuration) {
         const repeatMessages: any[] = [];
-        const repeatCount = Math.min(params.repeatCount, 100); // Limitar a 100 repetições
+        const duration = params.repeatDuration;
+        let currentDate = new Date(originalDate);
+        const endDate = new Date(originalDate);
+        
+        // Calcular data final baseado no período e duração
+        switch (params.repeatPeriod) {
+          case 'daily':
+            endDate.setDate(endDate.getDate() + duration);
+            break;
+          case 'weekly':
+            endDate.setDate(endDate.getDate() + (duration * 7));
+            break;
+          case 'monthly':
+            endDate.setMonth(endDate.getMonth() + duration);
+            break;
+          case 'yearly':
+            endDate.setFullYear(endDate.getFullYear() + duration);
+            break;
+        }
 
-        for (let i = 1; i <= repeatCount; i++) {
-          let nextDate = new Date(originalDate);
+        // Calcular quantas repetições serão criadas (limitar a 1000 para segurança)
+        let iteration = 0;
+        const maxIterations = 1000;
+        
+        while (currentDate < endDate && iteration < maxIterations) {
+          iteration++;
           
+          // Avançar para próxima data baseado no período
           switch (params.repeatPeriod) {
             case 'daily':
-              nextDate.setDate(nextDate.getDate() + i);
+              currentDate.setDate(currentDate.getDate() + 1);
               break;
             case 'weekly':
-              nextDate.setDate(nextDate.getDate() + (i * 7));
+              currentDate.setDate(currentDate.getDate() + 7);
               break;
             case 'monthly':
               // Repetir sempre no mesmo dia do mês
-              nextDate.setMonth(nextDate.getMonth() + i);
+              currentDate.setMonth(currentDate.getMonth() + 1);
               // Garantir que o dia não ultrapasse o último dia do mês
-              const lastDayOfMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
               if (originalDate.getDate() > lastDayOfMonth) {
-                nextDate.setDate(lastDayOfMonth);
+                currentDate.setDate(lastDayOfMonth);
               } else {
-                nextDate.setDate(originalDate.getDate());
+                currentDate.setDate(originalDate.getDate());
               }
               break;
             case 'yearly':
-              nextDate.setFullYear(nextDate.getFullYear() + i);
+              currentDate.setFullYear(currentDate.getFullYear() + 1);
               break;
           }
 
-          repeatMessages.push({
-            organization_id: organizationId,
-            user_id: user.id,
-            lead_id: params.leadId,
-            instance_id: params.instanceId,
-            phone: params.phone,
-            message: params.message,
-            scheduled_for: nextDate.toISOString(),
-            media_url: params.mediaUrl || null,
-            media_type: params.mediaType || null,
-            repeat_enabled: false, // Mensagens repetidas não repetem novamente
-            original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
-            parent_message_id: parentMessageId, // Todas apontam para a primeira
-          });
+          // Se ainda não passou da data final, criar mensagem
+          if (currentDate < endDate) {
+            repeatMessages.push({
+              organization_id: organizationId,
+              user_id: user.id,
+              lead_id: params.leadId,
+              instance_id: params.instanceId,
+              phone: params.phone,
+              message: params.message,
+              scheduled_for: new Date(currentDate).toISOString(),
+              media_url: params.mediaUrl || null,
+              media_type: params.mediaType || null,
+              repeat_enabled: false, // Mensagens repetidas não repetem novamente
+              original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
+              parent_message_id: parentMessageId, // Todas apontam para a primeira
+            });
+          }
+        }
+
+        // Atualizar repeat_count na primeira mensagem com o número real de repetições
+        if (repeatMessages.length > 0) {
+          await supabase
+            .from('scheduled_messages')
+            .update({ repeat_count: repeatMessages.length })
+            .eq('id', parentMessageId);
         }
 
         if (repeatMessages.length > 0) {

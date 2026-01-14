@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, X, FileText, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { TestVersionBadge, TestVersionBanner } from '@/components/shared/TestVersionBadge';
 
 interface CreateContractDialogProps {
   open: boolean;
@@ -314,12 +315,15 @@ export function CreateContractDialog({
               <button
                 type="button"
                 onClick={() => setCreationMode('upload')}
-                className={`p-4 border-2 rounded-lg transition-all ${
+                className={`p-4 border-2 rounded-lg transition-all relative ${
                   creationMode === 'upload'
                     ? 'border-primary bg-primary/5 shadow-md'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
+                <div className="absolute top-2 right-2">
+                  <TestVersionBadge size="sm" />
+                </div>
                 <Upload className={`w-8 h-8 mx-auto mb-2 ${creationMode === 'upload' ? 'text-primary' : 'text-gray-400'}`} />
                 <div className="font-semibold">Upload de PDF</div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -364,8 +368,15 @@ export function CreateContractDialog({
 
           {/* Opções específicas do modo upload */}
           {creationMode === 'upload' && (
-            <div className="space-y-2">
-              <Label htmlFor="pdf-upload">Arquivo PDF *</Label>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pdf-upload">Arquivo PDF *</Label>
+                <TestVersionBadge size="sm" />
+              </div>
+              <TestVersionBanner 
+                message="Esta funcionalidade está em versão de teste. Pode conter inconsistências e está sujeita a mudanças."
+                className="mb-2"
+              />
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                 {pdfFile ? (
                   <div className="space-y-2">
