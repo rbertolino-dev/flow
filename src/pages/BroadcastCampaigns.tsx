@@ -1673,26 +1673,24 @@ export default function BroadcastCampaigns() {
             // LOG centralizado de substituição de tags
             broadcastLogger.logTagReplacement(contact.phone, messageTemplate, contactDataForTags, personalizedMessage);
 
-            // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
+            // Construir objeto com todos os campos (incluindo null para evitar erro de schema cache)
+            // CRÍTICO: Sempre incluir campos mesmo que sejam null para garantir que schema cache reconheça
             const queueItem: any = {
               campaign_id: campaign.id,
               organization_id: activeOrgId,
               instance_id: instanceId,
               phone: contact.phone,
-              name: contact.name,
+              name: contact.name ?? null,
               personalized_message: personalizedMessage,
               status: "pending",
+              // CRÍTICO: Sempre incluir campos dinâmicos (mesmo que null) para evitar erro de schema cache
+              empresa: contact.empresa ?? null,
+              nome_empresa: contact.nome_empresa ?? null,
+              email: contact.email ?? null,
+              cpf: contact.cpf ?? null,
+              cnpj: contact.cnpj ?? null,
+              custom_fields: (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) ? contact.custom_fields : null,
             };
-            
-            // Adicionar campos opcionais apenas se tiverem valor
-            if (contact.empresa) queueItem.empresa = contact.empresa;
-            if (contact.nome_empresa) queueItem.nome_empresa = contact.nome_empresa;
-            if (contact.email) queueItem.email = contact.email;
-            if (contact.cpf) queueItem.cpf = contact.cpf;
-            if (contact.cnpj) queueItem.cnpj = contact.cnpj;
-            if (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) {
-              queueItem.custom_fields = contact.custom_fields;
-            }
             
             // CRÍTICO: Adicionar image_url e media_type se disponível na campanha
             if (newCampaign.imageUrl) {
@@ -1752,26 +1750,24 @@ export default function BroadcastCampaigns() {
           const instanceIndex = index % instancesForRotation.length;
           const assignedInstanceId = instancesForRotation[instanceIndex];
 
-          // Construir objeto apenas com campos que têm valor (evita erro de schema cache)
+          // Construir objeto com todos os campos (incluindo null para evitar erro de schema cache)
+          // CRÍTICO: Sempre incluir campos mesmo que sejam null para garantir que schema cache reconheça
           const queueItem: any = {
             campaign_id: campaign.id,
             organization_id: activeOrgId,
             instance_id: assignedInstanceId,
             phone: contact.phone,
-            name: contact.name,
+            name: contact.name ?? null,
             personalized_message: personalizedMessage,
             status: "pending",
+            // CRÍTICO: Sempre incluir campos dinâmicos (mesmo que null) para evitar erro de schema cache
+            empresa: contact.empresa ?? null,
+            nome_empresa: contact.nome_empresa ?? null,
+            email: contact.email ?? null,
+            cpf: contact.cpf ?? null,
+            cnpj: contact.cnpj ?? null,
+            custom_fields: (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) ? contact.custom_fields : null,
           };
-          
-          // Adicionar campos opcionais apenas se tiverem valor
-          if (contact.empresa) queueItem.empresa = contact.empresa;
-          if (contact.nome_empresa) queueItem.nome_empresa = contact.nome_empresa;
-          if (contact.email) queueItem.email = contact.email;
-          if (contact.cpf) queueItem.cpf = contact.cpf;
-          if (contact.cnpj) queueItem.cnpj = contact.cnpj;
-          if (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) {
-            queueItem.custom_fields = contact.custom_fields;
-          }
           
           // CRÍTICO: Adicionar image_url e media_type se disponível na campanha
           if (newCampaign.imageUrl) {
