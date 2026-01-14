@@ -1147,45 +1147,64 @@ export default function BroadcastCampaigns() {
         lead_id?: string;
       }> = [];
       
-      if (newCampaign.sendingMethod === "separate") {
-        instancesForRotation.forEach(instanceId => {
-          validation.whatsappValidated.forEach((contact, index) => {
-            const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-            // Preservar dados dinâmicos do contato validado
-            const contactData = contact as any;
-            simulationList.push({
-              phone: contact.phone,
-              name: contact.name,
-              instanceId: instanceId,
-              messageVariation: messagesToUse[messageIndex],
-              empresa: contactData.empresa,
-              nome_empresa: contactData.nome_empresa,
-              email: contactData.email,
-              cpf: contactData.cpf,
-              cnpj: contactData.cnpj,
-              custom_fields: contactData.custom_fields,
-              lead_id: contactData.lead_id,
+        if (newCampaign.sendingMethod === "separate") {
+          instancesForRotation.forEach(instanceId => {
+            validation.whatsappValidated.forEach((contact, index) => {
+              const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+              // Preservar dados dinâmicos do contato validado
+              const contactData = contact as any;
+              
+              // CRÍTICO: Garantir que name seja sempre string (não undefined/null)
+              const contactName = contact.name || "";
+              
+              simulationList.push({
+                phone: contact.phone,
+                name: contactName, // CRÍTICO: Usar contactName ao invés de contact.name
+                instanceId: instanceId,
+                messageVariation: messagesToUse[messageIndex],
+                empresa: contactData.empresa ?? null,
+                nome_empresa: contactData.nome_empresa ?? null,
+                email: contactData.email ?? null,
+                cpf: contactData.cpf ?? null,
+                cnpj: contactData.cnpj ?? null,
+                custom_fields: contactData.custom_fields ?? null,
+                lead_id: contactData.lead_id ?? null,
+              });
             });
           });
-        });
       } else {
         validation.whatsappValidated.forEach((contact, index) => {
           const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
           const instanceIndex = index % instancesForRotation.length;
           // Preservar dados dinâmicos do contato validado
           const contactData = contact as any;
+          
+          // CRÍTICO: Garantir que name seja sempre string (não undefined/null)
+          const contactName = contact.name || "";
+          
+          // LOG para debug
+          console.log('🔍 [SIMULACAO_LIST] Adicionando contato à simulationList:', {
+            phone: contact.phone,
+            contact_name: contact.name,
+            contact_nameType: typeof contact.name,
+            contactName,
+            contactData_empresa: contactData.empresa,
+            contactData_nome_empresa: contactData.nome_empresa,
+            contactData,
+          });
+          
           simulationList.push({
             phone: contact.phone,
-            name: contact.name,
+            name: contactName, // CRÍTICO: Usar contactName ao invés de contact.name
             instanceId: instancesForRotation[instanceIndex],
             messageVariation: messagesToUse[messageIndex],
-            empresa: contactData.empresa,
-            nome_empresa: contactData.nome_empresa,
-            email: contactData.email,
-            cpf: contactData.cpf,
-            cnpj: contactData.cnpj,
-            custom_fields: contactData.custom_fields,
-            lead_id: contactData.lead_id,
+            empresa: contactData.empresa ?? null,
+            nome_empresa: contactData.nome_empresa ?? null,
+            email: contactData.email ?? null,
+            cpf: contactData.cpf ?? null,
+            cnpj: contactData.cnpj ?? null,
+            custom_fields: contactData.custom_fields ?? null,
+            lead_id: contactData.lead_id ?? null,
           });
         });
       }
@@ -1215,11 +1234,11 @@ export default function BroadcastCampaigns() {
           variant: "destructive",
         });
       } else {
-        toast({
-          title: "Erro ao validar contatos",
-          description: error.message,
-          variant: "destructive",
-        });
+      toast({
+        title: "Erro ao validar contatos",
+        description: error.message,
+        variant: "destructive",
+      });
       }
     } finally {
       setValidatingContacts(false);
@@ -1498,10 +1517,10 @@ export default function BroadcastCampaigns() {
         } else {
           // Nota: Para paste/CSV simples sem preview, não temos campos adicionais aqui
           // Campos dinâmicos só estão disponíveis quando vem de CSV processado ou lista com custom_data
-          contacts = validation.whatsappValidated.map(c => ({
-            phone: c.phone,
-            name: c.name
-          }));
+        contacts = validation.whatsappValidated.map(c => ({
+          phone: c.phone,
+          name: c.name
+        }));
         }
       }
 
@@ -3458,7 +3477,7 @@ export default function BroadcastCampaigns() {
                               const minutesNum = parseInt(minutes || '0', 10);
                               if (!isNaN(hoursNum) && !isNaN(minutesNum)) {
                                 newDate.setHours(hoursNum, minutesNum);
-                                setNewCampaign({ ...newCampaign, scheduledStart: newDate });
+                              setNewCampaign({ ...newCampaign, scheduledStart: newDate });
                               }
                             }}
                             className="mt-1"
@@ -3548,12 +3567,12 @@ export default function BroadcastCampaigns() {
                   </div>
                 ) : importMode === "paste" ? (
                   <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="pastedList">Lista de Contatos *</Label>
-                      <Textarea
-                        id="pastedList"
+                  <div className="space-y-2">
+                    <Label htmlFor="pastedList">Lista de Contatos *</Label>
+                    <Textarea
+                      id="pastedList"
                         placeholder="Cole sua lista aqui (um por linha)&#10;Exemplos aceitos:&#10;João Silva, 11999999999, Empresa ABC&#10;11999999999, Maria Santos, Empresa XYZ&#10;Pedro Costa - 11988887777 - Minha Empresa"
-                        value={pastedList}
+                      value={pastedList}
                         onChange={(e) => {
                           setPastedList(e.target.value);
                           // Limpar preview quando texto mudar
@@ -3562,10 +3581,10 @@ export default function BroadcastCampaigns() {
                             setPastedContactsErrors([]);
                           }
                         }}
-                        rows={8}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground">
+                      rows={8}
+                      className="font-mono text-sm"
+                    />
+                     <p className="text-xs text-muted-foreground">
                         Formatos aceitos: nome, telefone, empresa (separados por vírgula, ponto-e-vírgula, tab ou espaço)
                       </p>
                     </div>
@@ -4842,8 +4861,10 @@ export default function BroadcastCampaigns() {
                                 
                                 // Preparar dados para substituição de tags e visualização
                                 // CRÍTICO: Usar ?? para preservar valores null/undefined corretamente
+                                // Garantir que nome seja sempre string (não undefined/null)
+                                const contactName = contact.name || "";
                                 const contactData = {
-                                  nome: contact.name ?? "",
+                                  nome: contactName,
                                   empresa: (contact.empresa ?? contact.nome_empresa) ?? "",
                                   nome_empresa: (contact.nome_empresa ?? contact.empresa) ?? "",
                                   email: contact.email ?? "",
@@ -4851,6 +4872,19 @@ export default function BroadcastCampaigns() {
                                   cnpj: contact.cnpj ?? "",
                                   ...(contact.custom_fields || {}),
                                 };
+                                
+                                // LOG CRÍTICO para debug da substituição de tags na simulação
+                                console.log('🔍 [SIMULACAO_PREVIEW] Dados do contato na simulação:', {
+                                  phone: contact.phone,
+                                  contact_name: contact.name,
+                                  contact_nameType: typeof contact.name,
+                                  contactName,
+                                  contact_empresa: contact.empresa,
+                                  contact_nome_empresa: contact.nome_empresa,
+                                  contactData,
+                                  hasMessageVariation: !!contact.messageVariation,
+                                  messageVariation: contact.messageVariation,
+                                });
                                 
                                 // LOG para debug quando empresa está presente
                                 if (contact.messageVariation && (contact.messageVariation.includes('{empresa}') || contact.messageVariation.includes('{{empresa}}'))) {
@@ -4864,9 +4898,23 @@ export default function BroadcastCampaigns() {
                                 }
                                 
                                 // Substituir tags na mensagem para preview
-                                const messagePreview = contact.messageVariation 
-                                  ? replaceBroadcastTemplateTags(contact.messageVariation, contactData)
-                                  : "";
+                                // CRÍTICO: Sempre substituir tags, mesmo que contactData tenha valores vazios
+                                let messagePreview = "";
+                                if (contact.messageVariation) {
+                                  console.log('🔍 [SIMULACAO_SUBSTITUICAO] Antes de substituir:', {
+                                    messageVariation: contact.messageVariation,
+                                    contactData,
+                                    hasNome: !!contactData.nome,
+                                    nomeLength: contactData.nome.length,
+                                  });
+                                  
+                                  messagePreview = replaceBroadcastTemplateTags(contact.messageVariation, contactData);
+                                  
+                                  console.log('🔍 [SIMULACAO_SUBSTITUICAO] Após substituir:', {
+                                    messagePreview,
+                                    originalMessage: contact.messageVariation,
+                                  });
+                                }
                                 
                                 return (
                                   <div key={`${contact.phone}-${contact.instanceId}-${index}`} className="p-3 hover:bg-muted/50 transition-colors">
