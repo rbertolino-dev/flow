@@ -38,6 +38,7 @@ import { StatusMediaUpload } from "@/components/whatsapp/StatusMediaUpload";
 import { replaceBroadcastTemplateTags } from "@/lib/broadcastTemplateUtils";
 import { broadcastLogger } from "@/lib/broadcastLogger";
 import { validateContactData, validateMessageTemplate, validateTemplateAgainstContactData } from "@/lib/broadcastValidators";
+import { parseTextList, ParsedTextContact } from "@/lib/textListParser";
 import { 
   isTimeInWindow, 
   calculateEstimatedTimeWithWindow, 
@@ -486,6 +487,8 @@ export default function BroadcastCampaigns() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [pastedList, setPastedList] = useState("");
   const [importMode, setImportMode] = useState<"csv" | "paste" | "list">("csv");
+  const [parsedPastedContacts, setParsedPastedContacts] = useState<ParsedTextContact[]>([]);
+  const [pastedContactsErrors, setPastedContactsErrors] = useState<string[]>([]);
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const [logsInstanceFilter, setLogsInstanceFilter] = useState<string>("all");
   const [logsSortOrder, setLogsSortOrder] = useState<"asc" | "desc">("asc");
@@ -1420,6 +1423,23 @@ export default function BroadcastCampaigns() {
               .join('\n');
           }
         }
+      } else if (importMode === "paste") {
+        // Se temos contatos parseados do preview, usar eles diretamente
+        if (parsedPastedContacts.length > 0) {
+          // Converter contatos parseados para o formato de texto para validação
+          text = parsedPastedContacts
+            .map(contact => {
+              const parts = [contact.phone];
+              if (contact.name) parts.push(contact.name);
+              if (contact.empresa) parts.push(contact.empresa);
+              if (contact.nome_empresa && contact.nome_empresa !== contact.empresa) parts.push(contact.nome_empresa);
+              if (contact.email) parts.push(contact.email);
+              return parts.join(',');
+            })
+            .join('\n');
+        } else {
+          text = pastedList;
+        }
       } else {
         text = pastedList;
       }
@@ -1443,12 +1463,46 @@ export default function BroadcastCampaigns() {
         }, newCampaign.useLatamValidator);
 
         // Usar apenas os contatos validados com WhatsApp
-        // Nota: Para paste/CSV simples, não temos campos adicionais aqui
-        // Campos dinâmicos só estão disponíveis quando vem de CSV processado ou lista com custom_data
-        contacts = validation.whatsappValidated.map(c => ({
-          phone: c.phone,
-          name: c.name
-        }));
+        // Se temos contatos parseados do preview, preservar os dados adicionais (empresa, email, etc.)
+        if (importMode === "paste" && parsedPastedContacts.length > 0) {
+          // Criar mapa de telefone -> contato parseado para preservar dados
+          const parsedMap = new Map<string, ParsedTextContact>();
+          parsedPastedContacts.forEach(contact => {
+            // Normalizar telefone para comparação (remover + e espaços)
+            const normalizedPhone = contact.phone.replace(/\D/g, '');
+            parsedMap.set(normalizedPhone, contact);
+          });
+          
+          // Mapear contatos validados preservando dados do parse
+          contacts = validation.whatsappValidated.map(c => {
+            const normalizedPhone = c.phone.replace(/\D/g, '');
+            const parsedContact = parsedMap.get(normalizedPhone);
+            
+            if (parsedContact) {
+              // Preservar todos os dados do contato parseado
+              return {
+                phone: c.phone,
+                name: parsedContact.name ?? c.name,
+                empresa: parsedContact.empresa,
+                nome_empresa: parsedContact.nome_empresa ?? parsedContact.empresa,
+                email: parsedContact.email,
+              };
+            }
+            
+            // Fallback: usar apenas dados da validação
+            return {
+              phone: c.phone,
+              name: c.name
+            };
+          });
+        } else {
+          // Nota: Para paste/CSV simples sem preview, não temos campos adicionais aqui
+          // Campos dinâmicos só estão disponíveis quando vem de CSV processado ou lista com custom_data
+          contacts = validation.whatsappValidated.map(c => ({
+            phone: c.phone,
+            name: c.name
+          }));
+        }
       }
 
       // Criar campanha
@@ -3497,19 +3551,195 @@ export default function BroadcastCampaigns() {
                     </p>
                   </div>
                 ) : importMode === "paste" ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="pastedList">Lista de Contatos *</Label>
-                    <Textarea
-                      id="pastedList"
-                      placeholder="Cole sua lista aqui (um por linha)&#10;Formato: telefone,nome ou apenas telefone&#10;Exemplo:&#10;5511999999999,João Silva&#10;5511888888888,Maria Santos&#10;5511777777777"
-                      value={pastedList}
-                      onChange={(e) => setPastedList(e.target.value)}
-                      rows={8}
-                      className="font-mono text-sm"
-                    />
-                     <p className="text-xs text-muted-foreground">
-                      Formato aceito: telefone,nome (opcional). Um contato por linha.
-                    </p>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="pastedList">Lista de Contatos *</Label>
+                      <Textarea
+                        id="pastedList"
+                        placeholder="Cole sua lista aqui (um por linha)&#10;Exemplos aceitos:&#10;João Silva, 11999999999, Empresa ABC&#10;11999999999, Maria Santos, Empresa XYZ&#10;Pedro Costa - 11988887777 - Minha Empresa"
+                        value={pastedList}
+                        onChange={(e) => {
+                          setPastedList(e.target.value);
+                          // Limpar preview quando texto mudar
+                          if (parsedPastedContacts.length > 0) {
+                            setParsedPastedContacts([]);
+                            setPastedContactsErrors([]);
+                          }
+                        }}
+                        rows={8}
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Formatos aceitos: nome, telefone, empresa (separados por vírgula, ponto-e-vírgula, tab ou espaço)
+                      </p>
+                    </div>
+                    
+                    {/* Botão Visualizar */}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          if (!pastedList.trim()) {
+                            toast({
+                              title: "Texto vazio",
+                              description: "Cole a lista de contatos antes de visualizar",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          
+                          const result = parseTextList(pastedList);
+                          setParsedPastedContacts(result.contacts);
+                          setPastedContactsErrors(result.errors);
+                          
+                          const validCount = result.contacts.length;
+                          const errorCount = result.errors.length;
+                          
+                          if (errorCount > 0) {
+                            toast({
+                              title: "Erros encontrados",
+                              description: `${errorCount} linha(s) com erro. ${validCount} contato(s) válido(s).`,
+                              variant: "destructive",
+                            });
+                          } else {
+                            toast({
+                              title: "Contatos parseados",
+                              description: `${validCount} contato(s) encontrado(s) e pronto(s) para uso`,
+                            });
+                          }
+                        }}
+                        disabled={!pastedList.trim()}
+                        className="flex-1"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Visualizar
+                      </Button>
+                      {parsedPastedContacts.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setParsedPastedContacts([]);
+                            setPastedContactsErrors([]);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Preview dos Contatos Parseados */}
+                    {parsedPastedContacts.length > 0 && (
+                      <div className="space-y-2 border rounded-lg p-3 bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm font-medium">
+                              Preview ({parsedPastedContacts.length} contatos)
+                            </Label>
+                            <Badge variant="secondary" className="text-xs">
+                              {parsedPastedContacts.length}
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        {/* Erros se houver */}
+                        {pastedContactsErrors.length > 0 && (
+                          <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs">
+                            <div className="font-medium text-destructive mb-1">Erros encontrados:</div>
+                            <ul className="list-disc list-inside space-y-0.5 text-destructive/80">
+                              {pastedContactsErrors.slice(0, 5).map((error, idx) => (
+                                <li key={idx}>{error}</li>
+                              ))}
+                              {pastedContactsErrors.length > 5 && (
+                                <li>... e mais {pastedContactsErrors.length - 5} erro(s)</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {/* Lista de Contatos */}
+                        <ScrollArea className="max-h-[300px] border rounded p-2">
+                          <div className="space-y-2">
+                            {parsedPastedContacts.map((contact, index) => {
+                              // Preparar dados para substituição de tags
+                              const contactData = {
+                                nome: contact.name ?? "",
+                                empresa: contact.empresa ?? contact.nome_empresa ?? "",
+                                nome_empresa: contact.nome_empresa ?? contact.empresa ?? "",
+                                email: contact.email ?? "",
+                                phone: contact.phone ?? "",
+                              };
+                              
+                              // Se tiver template selecionado, mostrar preview da mensagem com tags substituídas
+                              const selectedTemplate = templates.find(t => t.id === newCampaign.templateId);
+                              let previewMessage = "";
+                              if (selectedTemplate) {
+                                const messageToUse = selectedTemplate.message_variations && selectedTemplate.message_variations.length > 0
+                                  ? selectedTemplate.message_variations[0]
+                                  : selectedTemplate.custom_message || "";
+                                previewMessage = replaceBroadcastTemplateTags(messageToUse, contactData);
+                              }
+                              
+                              return (
+                                <div key={index} className="p-2.5 bg-background rounded border text-xs space-y-1.5">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 space-y-1">
+                                      {contact.name && (
+                                        <div className="font-medium text-foreground">
+                                          👤 {contact.name}
+                                        </div>
+                                      )}
+                                      <div className="text-muted-foreground">
+                                        📞 {contact.phone}
+                                      </div>
+                                      {contact.empresa && (
+                                        <div className="text-muted-foreground">
+                                          🏢 {contact.empresa}
+                                        </div>
+                                      )}
+                                      {contact.email && (
+                                        <div className="text-muted-foreground">
+                                          ✉️ {contact.email}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {contact.name && (
+                                        <Badge variant="outline" className="text-xs">Nome</Badge>
+                                      )}
+                                      {contact.empresa && (
+                                        <Badge variant="outline" className="text-xs">Empresa</Badge>
+                                      )}
+                                      {contact.email && (
+                                        <Badge variant="outline" className="text-xs">Email</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Preview da mensagem com tags substituídas */}
+                                  {previewMessage && selectedTemplate && (
+                                    <div className="mt-2 pt-2 border-t">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">
+                                        Preview da mensagem:
+                                      </div>
+                                      <div className="p-2 bg-muted/50 rounded text-xs whitespace-pre-wrap break-words">
+                                        {previewMessage}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                        
+                        <p className="text-xs text-muted-foreground pt-2 border-t">
+                          ℹ️ Os dados acima serão usados para substituir as tags dinâmicas do template ({'{'}nome{'}'}, {'{'}empresa{'}'}, etc.)
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">

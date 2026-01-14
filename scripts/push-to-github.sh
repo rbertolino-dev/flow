@@ -6,11 +6,28 @@ cd /root/kanban-buzz-95241
 echo "=== Push para GitHub ==="
 echo ""
 
-# Verificar se token foi fornecido
-if [ -z "$1" ]; then
-    echo "❌ ERRO: Token não fornecido"
+# Tentar carregar token do arquivo de credenciais
+if [ -f "scripts/.github-credentials" ]; then
+    source scripts/.github-credentials
+    if [ -n "$GITHUB_TOKEN" ]; then
+        TOKEN="$GITHUB_TOKEN"
+        echo "✅ Token carregado do arquivo de credenciais"
+        echo ""
+    fi
+fi
+
+# Se token ainda não foi definido, verificar se foi passado como parâmetro
+if [ -z "$TOKEN" ] && [ -n "$1" ]; then
+    TOKEN="$1"
+fi
+
+# Se ainda não tem token, mostrar erro
+if [ -z "$TOKEN" ]; then
+    echo "❌ ERRO: Token não encontrado"
     echo ""
-    echo "Uso: ./scripts/push-to-github.sh SEU_TOKEN_AQUI"
+    echo "Opções:"
+    echo "1. Usar arquivo scripts/.github-credentials (recomendado)"
+    echo "2. Passar token como parâmetro: ./scripts/push-to-github.sh SEU_TOKEN_AQUI"
     echo ""
     echo "Para criar um token:"
     echo "1. Acesse: https://github.com/settings/tokens"
@@ -18,14 +35,10 @@ if [ -z "$1" ]; then
     echo "3. Dê um nome (ex: 'kanban-buzz-push')"
     echo "4. Marque a opção 'repo' (acesso completo aos repositórios)"
     echo "5. Clique em 'Generate token'"
-    echo "6. Copie o token e use neste script"
+    echo "6. Copie o token e adicione em scripts/.github-credentials"
     echo ""
-    echo "Exemplo:"
-    echo "  ./scripts/push-to-github.sh ghp_xxxxxxxxxxxxxxxxxxxx"
     exit 1
 fi
-
-TOKEN="$1"
 
 echo "📤 Fazendo push para GitHub..."
 echo ""

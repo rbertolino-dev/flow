@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .last-deploy
+
+# Credenciais (não versionar)
+scripts/.ssh-credentials
+scripts/.github-credentials
