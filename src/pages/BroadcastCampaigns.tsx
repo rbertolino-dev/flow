@@ -507,6 +507,14 @@ export default function BroadcastCampaigns() {
     whatsappValid: number;
     whatsappInvalid: number;
   } | null>(null);
+  const [rejectedContacts, setRejectedContacts] = useState<Array<{
+    phone: string;
+    name?: string;
+    reason: string; // 'invalid_format' | 'no_whatsapp' | 'other'
+    empresa?: string;
+    nome_empresa?: string;
+    email?: string;
+  }>>([]);
   const [validatedContactsList, setValidatedContactsList] = useState<Array<{
     phone: string;
     name?: string;
@@ -675,6 +683,7 @@ export default function BroadcastCampaigns() {
       setPastedList(contactsList);
       setImportMode("paste");
       setValidationResult(null);
+      setRejectedContacts([]);
       setSelectedCampaignTemplate(null);
       setCreateDialogOpen(true);
 
@@ -917,6 +926,7 @@ export default function BroadcastCampaigns() {
     try {
       setValidatingContacts(true);
       setValidationResult(null);
+      setRejectedContacts([]);
 
       // Ler contatos
       let text: string;
@@ -1076,6 +1086,7 @@ export default function BroadcastCampaigns() {
           whatsappValid: totalContacts,
           whatsappInvalid: 0
         });
+        setRejectedContacts([]);
         
         toast({
           title: "Lista do funil validada!",
@@ -1114,6 +1125,65 @@ export default function BroadcastCampaigns() {
       const invalidFormatted = validation.invalidContacts.length;
       const whatsappValid = validation.whatsappValidated.length;
       const whatsappInvalid = validation.whatsappRejected.length;
+
+      // Preparar lista de contatos removidos com motivos
+      const rejectedList: Array<{
+        phone: string;
+        name?: string;
+        reason: string;
+        empresa?: string;
+        nome_empresa?: string;
+        email?: string;
+      }> = [];
+
+      // Contatos com formato inválido
+      validation.invalidContacts.forEach(contact => {
+        rejectedList.push({
+          phone: contact.phone || 'N/A',
+          name: contact.name,
+          reason: 'invalid_format',
+          empresa: (contact as any).empresa,
+          nome_empresa: (contact as any).nome_empresa,
+          email: (contact as any).email,
+        });
+      });
+
+      // Contatos sem WhatsApp (formato válido mas sem WhatsApp)
+      validation.whatsappRejected.forEach(contact => {
+        // Só adicionar se não for um contato com formato inválido (já foi adicionado acima)
+        const isInvalidFormat = validation.invalidContacts.some(ic => ic.phone === contact.phone);
+        if (!isInvalidFormat) {
+          rejectedList.push({
+            phone: contact.phone || 'N/A',
+            name: contact.name,
+            reason: 'no_whatsapp',
+            empresa: (contact as any).empresa,
+            nome_empresa: (contact as any).nome_empresa,
+            email: (contact as any).email,
+          });
+        }
+      });
+
+      // Se temos contatos parseados do modo "paste", preservar dados adicionais
+      if (importMode === "paste" && parsedPastedContacts.length > 0) {
+        const parsedMap = new Map<string, ParsedTextContact>();
+        parsedPastedContacts.forEach(contact => {
+          const normalizedPhone = contact.phone.replace(/\D/g, '');
+          parsedMap.set(normalizedPhone, contact);
+        });
+
+        rejectedList.forEach(rejected => {
+          const normalizedPhone = rejected.phone.replace(/\D/g, '');
+          const parsedContact = parsedMap.get(normalizedPhone);
+          if (parsedContact) {
+            rejected.empresa = parsedContact.empresa || rejected.empresa;
+            rejected.nome_empresa = parsedContact.nome_empresa || rejected.nome_empresa;
+            rejected.email = parsedContact.email || rejected.email;
+          }
+        });
+      }
+
+      setRejectedContacts(rejectedList);
 
       setValidationResult({
         total: totalParsed,
@@ -1938,6 +2008,7 @@ export default function BroadcastCampaigns() {
       setImportMode("csv");
       setValidationResult(null);
       setValidatedContactsList([]);
+      setRejectedContacts([]);
       fetchCampaigns();
     } catch (error: any) {
       toast({
@@ -3961,6 +4032,50 @@ export default function BroadcastCampaigns() {
                     <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
                       ℹ️ Apenas números válidos com WhatsApp ativo serão incluídos na campanha
                     </p>
+                    {rejectedContacts.length > 0 && (
+                      <div className="mt-4 pt-4 border-t">
+                        <details className="group">
+                          <summary className="cursor-pointer flex items-center gap-2 text-sm font-medium text-destructive hover:text-destructive/80">
+                            <XCircle className="h-4 w-4" />
+                            Ver {rejectedContacts.length} contato(s) removido(s)
+                            <span className="ml-auto text-xs text-muted-foreground group-open:hidden">(clique para expandir)</span>
+                          </summary>
+                          <div className="mt-3 space-y-2 max-h-[300px] overflow-y-auto">
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Contatos que foram removidos durante a validação:
+                            </p>
+                            {rejectedContacts.map((contact, index) => (
+                              <div key={index} className="p-2 bg-muted/50 rounded border text-xs">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <div className="font-medium">{contact.phone}</div>
+                                    {contact.name && (
+                                      <div className="text-muted-foreground">Nome: {contact.name}</div>
+                                    )}
+                                    {contact.empresa && (
+                                      <div className="text-muted-foreground">Empresa: {contact.empresa}</div>
+                                    )}
+                                    {contact.email && (
+                                      <div className="text-muted-foreground">Email: {contact.email}</div>
+                                    )}
+                                  </div>
+                                  <Badge 
+                                    variant={contact.reason === 'invalid_format' ? 'destructive' : 'secondary'}
+                                    className="text-xs"
+                                  >
+                                    {contact.reason === 'invalid_format' 
+                                      ? 'Formato inválido' 
+                                      : contact.reason === 'no_whatsapp'
+                                      ? 'Sem WhatsApp'
+                                      : 'Removido'}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -3969,6 +4084,7 @@ export default function BroadcastCampaigns() {
                   setCreateDialogOpen(false);
                   setValidationResult(null);
                   setValidatedContactsList([]);
+                  setRejectedContacts([]);
                 }}>
                   Cancelar
                 </Button>
@@ -4057,6 +4173,7 @@ export default function BroadcastCampaigns() {
                             whatsappValid: totalContacts,
                             whatsappInvalid: 0
                           });
+                          setRejectedContacts([]);
                           
                           toast({
                             title: "Validação pulada!",
@@ -5108,6 +5225,7 @@ export default function BroadcastCampaigns() {
             setPastedList(contactsText);
             setImportMode("paste");
             setValidationResult(null);
+            setRejectedContacts([]);
             setCreateDialogOpen(true);
             
             toast({
