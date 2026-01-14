@@ -3673,7 +3673,7 @@ export default function BroadcastCampaigns() {
                               };
                               
                               // Se tiver template selecionado, mostrar preview da mensagem com tags substituídas
-                              const selectedTemplate = templates.find(t => t.id === newCampaign.templateId);
+                              const selectedTemplate = campaignTemplates.find(t => t.id === newCampaign.templateId);
                               let previewMessage = "";
                               if (selectedTemplate) {
                                 const messageToUse = selectedTemplate.message_variations && selectedTemplate.message_variations.length > 0
