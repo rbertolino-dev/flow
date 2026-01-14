@@ -53,6 +53,22 @@ export function replaceBroadcastTemplateTags(
     const normalizedKey = key.toLowerCase();
     const replacement = replacements[normalizedKey];
     
+    // LOG CRÍTICO para debug da tag {nome}
+    if (normalizedKey === 'nome') {
+      console.log('🔍 [replaceBroadcastTemplateTags] Substituindo tag {nome}:', {
+        match,
+        normalizedKey,
+        replacement,
+        replacementType: typeof replacement,
+        replacementLength: replacement?.length,
+        replacementValue: replacement,
+        availableReplacements: Object.keys(replacements),
+        contactData_nome: contactData.nome,
+        contactData_nomeType: typeof contactData.nome,
+        contactData,
+      });
+    }
+    
     // LOG CRÍTICO para debug da tag {empresa}
     if (normalizedKey === 'empresa') {
       console.log('🔍 [replaceBroadcastTemplateTags] Substituindo tag {empresa}:', {

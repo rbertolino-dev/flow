@@ -3664,22 +3664,100 @@ export default function BroadcastCampaigns() {
                           <div className="space-y-2">
                             {parsedPastedContacts.map((contact, index) => {
                               // Preparar dados para substituição de tags
+                              // CRÍTICO: Garantir que nome não seja undefined/null
+                              // Se contact.name for undefined/null, usar string vazia explicitamente
+                              const contactName = contact.name || "";
                               const contactData = {
-                                nome: contact.name ?? "",
+                                nome: contactName,
                                 empresa: contact.empresa ?? contact.nome_empresa ?? "",
                                 nome_empresa: contact.nome_empresa ?? contact.empresa ?? "",
                                 email: contact.email ?? "",
                                 phone: contact.phone ?? "",
                               };
                               
+                              // LOG CRÍTICO para debug
+                              console.log('🔍 [PREVIEW_CONTATO] Dados do contato parseado:', {
+                                index,
+                                contactName: contact.name,
+                                contactNameType: typeof contact.name,
+                                contactData_nome: contactData.nome,
+                                contactData_nomeType: typeof contactData.nome,
+                                contactData_nomeLength: contactData.nome.length,
+                                contactPhone: contact.phone,
+                                contactEmpresa: contact.empresa,
+                              });
+                              
                               // Se tiver template selecionado, mostrar preview da mensagem com tags substituídas
-                              const selectedTemplate = campaignTemplates.find(t => t.id === newCampaign.templateId);
+                              // CRÍTICO: Verificar tanto selectedCampaignTemplate quanto newCampaign.templateId
+                              const selectedTemplate = selectedCampaignTemplate 
+                                ? selectedCampaignTemplate 
+                                : (newCampaign.templateId ? campaignTemplates.find(t => t.id === newCampaign.templateId) : null);
+                              
+                              // LOG para debug do template
+                              if (selectedTemplate) {
+                                console.log('🔍 [PREVIEW_TEMPLATE] Template encontrado:', {
+                                  templateId: selectedTemplate.id,
+                                  templateName: selectedTemplate.name,
+                                  hasMessageVariations: !!selectedTemplate.message_variations,
+                                  hasCustomMessage: !!selectedTemplate.custom_message,
+                                  hasMessageBlock1: !!(selectedTemplate as any).message_block_1,
+                                  hasMessageBlock2: !!(selectedTemplate as any).message_block_2,
+                                });
+                              } else {
+                                console.log('⚠️ [PREVIEW_TEMPLATE] Nenhum template selecionado:', {
+                                  hasSelectedCampaignTemplate: !!selectedCampaignTemplate,
+                                  newCampaignTemplateId: newCampaign.templateId,
+                                  campaignTemplatesCount: campaignTemplates.length,
+                                });
+                              }
+                              
                               let previewMessage = "";
                               if (selectedTemplate) {
-                                const messageToUse = selectedTemplate.message_variations && selectedTemplate.message_variations.length > 0
-                                  ? selectedTemplate.message_variations[0]
-                                  : selectedTemplate.custom_message || "";
-                                previewMessage = replaceBroadcastTemplateTags(messageToUse, contactData);
+                                // CRÍTICO: Verificar message_block_1 e message_block_2 primeiro (novos campos)
+                                let messageToUse = "";
+                                
+                                if ((selectedTemplate as any).message_block_1 || (selectedTemplate as any).message_block_2) {
+                                  // Usar blocos de mensagem se existirem
+                                  const block1 = (selectedTemplate as any).message_block_1 || "";
+                                  const block2 = (selectedTemplate as any).message_block_2 || "";
+                                  messageToUse = block1 + (block2 ? `\n\n${block2}` : "");
+                                } else if (selectedTemplate.message_variations && selectedTemplate.message_variations.length > 0) {
+                                  // Usar primeira variação se existir
+                                  messageToUse = selectedTemplate.message_variations[0];
+                                } else if (selectedTemplate.custom_message) {
+                                  // Usar mensagem customizada
+                                  messageToUse = selectedTemplate.custom_message;
+                                }
+                                
+                                // LOG para debug antes da substituição
+                                if (messageToUse) {
+                                  const hasNomeTag = messageToUse.includes('{nome}') || messageToUse.includes('{{nome}}');
+                                  const hasEmpresaTag = messageToUse.includes('{empresa}') || messageToUse.includes('{{empresa}}');
+                                  
+                                  console.log('🔍 [PREVIEW_SUBSTITUICAO] Antes de substituir tags:', {
+                                    messageToUse,
+                                    hasNomeTag,
+                                    hasEmpresaTag,
+                                    contactData,
+                                    contactName,
+                                  });
+                                  
+                                  previewMessage = replaceBroadcastTemplateTags(messageToUse, contactData);
+                                  
+                                  // LOG após substituição
+                                  console.log('🔍 [PREVIEW_SUBSTITUICAO] Após substituir tags:', {
+                                    previewMessage,
+                                    originalMessage: messageToUse,
+                                    contactData,
+                                  });
+                                }
+                              } else if (newCampaign.customMessage) {
+                                // Se não tiver template mas tiver mensagem customizada, usar ela
+                                console.log('🔍 [PREVIEW_CUSTOM] Usando mensagem customizada:', {
+                                  customMessage: newCampaign.customMessage,
+                                  contactData,
+                                });
+                                previewMessage = replaceBroadcastTemplateTags(newCampaign.customMessage, contactData);
                               }
                               
                               return (
