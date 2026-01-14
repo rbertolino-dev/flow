@@ -5003,7 +5003,7 @@ export default function BroadcastCampaigns() {
                                         {messagePreview && (
                                           <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded border">
                                             <span className="font-medium">Mensagem personalizada:</span>
-                                            <p className="mt-1 whitespace-pre-wrap line-clamp-3">
+                                            <p className="mt-1 whitespace-pre-wrap break-words">
                                               {messagePreview}
                                             </p>
                                           </div>
