@@ -1132,6 +1132,20 @@ export default function BroadcastCampaigns() {
         ? [newCampaign.instanceId]
         : newCampaign.instanceIds;
       
+      // CRÍTICO: Criar mapa de telefone -> contato parseado para preservar dados do modo "paste"
+      const parsedMap = new Map<string, ParsedTextContact>();
+      if (importMode === "paste" && parsedPastedContacts.length > 0) {
+        parsedPastedContacts.forEach(contact => {
+          // Normalizar telefone para comparação (remover + e espaços)
+          const normalizedPhone = contact.phone.replace(/\D/g, '');
+          parsedMap.set(normalizedPhone, contact);
+        });
+        console.log('🔍 [SIMULACAO_MAP] Criado mapa de contatos parseados:', {
+          totalParsed: parsedPastedContacts.length,
+          mapSize: parsedMap.size,
+        });
+      }
+      
       const simulationList: Array<{
         phone: string;
         name?: string;
@@ -1151,24 +1165,40 @@ export default function BroadcastCampaigns() {
           instancesForRotation.forEach(instanceId => {
             validation.whatsappValidated.forEach((contact, index) => {
               const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-              // Preservar dados dinâmicos do contato validado
-              const contactData = contact as any;
               
-              // CRÍTICO: Garantir que name seja sempre string (não undefined/null)
-              const contactName = contact.name || "";
+              // CRÍTICO: Mesclar dados do contato validado com dados do contato parseado (se disponível)
+              const normalizedPhone = contact.phone.replace(/\D/g, '');
+              const parsedContact = parsedMap.get(normalizedPhone);
+              
+              // Usar dados do contato parseado se disponível, senão usar dados do contato validado
+              const contactName = parsedContact?.name || contact.name || "";
+              const contactEmpresa = parsedContact?.empresa || (contact as any).empresa || null;
+              const contactNomeEmpresa = parsedContact?.nome_empresa || parsedContact?.empresa || (contact as any).nome_empresa || null;
+              const contactEmail = parsedContact?.email || (contact as any).email || null;
+              const contactCpf = parsedContact?.cpf || (contact as any).cpf || null;
+              const contactCnpj = parsedContact?.cnpj || (contact as any).cnpj || null;
+              
+              console.log('🔍 [SIMULACAO_LIST_SEPARATE] Adicionando contato:', {
+                phone: contact.phone,
+                normalizedPhone,
+                hasParsedContact: !!parsedContact,
+                contactName,
+                contactEmpresa,
+                contactNomeEmpresa,
+              });
               
               simulationList.push({
                 phone: contact.phone,
-                name: contactName, // CRÍTICO: Usar contactName ao invés de contact.name
+                name: contactName,
                 instanceId: instanceId,
                 messageVariation: messagesToUse[messageIndex],
-                empresa: contactData.empresa ?? null,
-                nome_empresa: contactData.nome_empresa ?? null,
-                email: contactData.email ?? null,
-                cpf: contactData.cpf ?? null,
-                cnpj: contactData.cnpj ?? null,
-                custom_fields: contactData.custom_fields ?? null,
-                lead_id: contactData.lead_id ?? null,
+                empresa: contactEmpresa,
+                nome_empresa: contactNomeEmpresa,
+                email: contactEmail,
+                cpf: contactCpf,
+                cnpj: contactCnpj,
+                custom_fields: parsedContact?.custom_fields || (contact as any).custom_fields || null,
+                lead_id: (contact as any).lead_id ?? null,
               });
             });
           });
@@ -1176,35 +1206,44 @@ export default function BroadcastCampaigns() {
         validation.whatsappValidated.forEach((contact, index) => {
           const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
           const instanceIndex = index % instancesForRotation.length;
-          // Preservar dados dinâmicos do contato validado
-          const contactData = contact as any;
           
-          // CRÍTICO: Garantir que name seja sempre string (não undefined/null)
-          const contactName = contact.name || "";
+          // CRÍTICO: Mesclar dados do contato validado com dados do contato parseado (se disponível)
+          const normalizedPhone = contact.phone.replace(/\D/g, '');
+          const parsedContact = parsedMap.get(normalizedPhone);
+          
+          // Usar dados do contato parseado se disponível, senão usar dados do contato validado
+          const contactName = parsedContact?.name || contact.name || "";
+          const contactEmpresa = parsedContact?.empresa || (contact as any).empresa || null;
+          const contactNomeEmpresa = parsedContact?.nome_empresa || parsedContact?.empresa || (contact as any).nome_empresa || null;
+          const contactEmail = parsedContact?.email || (contact as any).email || null;
+          const contactCpf = parsedContact?.cpf || (contact as any).cpf || null;
+          const contactCnpj = parsedContact?.cnpj || (contact as any).cnpj || null;
           
           // LOG para debug
           console.log('🔍 [SIMULACAO_LIST] Adicionando contato à simulationList:', {
             phone: contact.phone,
+            normalizedPhone,
+            hasParsedContact: !!parsedContact,
+            parsedContact_name: parsedContact?.name,
             contact_name: contact.name,
-            contact_nameType: typeof contact.name,
             contactName,
-            contactData_empresa: contactData.empresa,
-            contactData_nome_empresa: contactData.nome_empresa,
-            contactData,
+            contactEmpresa,
+            contactNomeEmpresa,
+            contactEmail,
           });
           
           simulationList.push({
             phone: contact.phone,
-            name: contactName, // CRÍTICO: Usar contactName ao invés de contact.name
+            name: contactName,
             instanceId: instancesForRotation[instanceIndex],
             messageVariation: messagesToUse[messageIndex],
-            empresa: contactData.empresa ?? null,
-            nome_empresa: contactData.nome_empresa ?? null,
-            email: contactData.email ?? null,
-            cpf: contactData.cpf ?? null,
-            cnpj: contactData.cnpj ?? null,
-            custom_fields: contactData.custom_fields ?? null,
-            lead_id: contactData.lead_id ?? null,
+            empresa: contactEmpresa,
+            nome_empresa: contactNomeEmpresa,
+            email: contactEmail,
+            cpf: contactCpf,
+            cnpj: contactCnpj,
+            custom_fields: parsedContact?.custom_fields || (contact as any).custom_fields || null,
+            lead_id: (contact as any).lead_id ?? null,
           });
         });
       }
