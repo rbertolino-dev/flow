@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Lead } from "@/types/lead";
+import { useState, useEffect, useMemo } from "react";
+import { Lead, CallQueueItem } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { MessageSquare, Phone, Calendar, ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
@@ -12,6 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LeadsListViewProps {
   leads: Lead[];
@@ -22,6 +23,14 @@ interface LeadsListViewProps {
   onLeadSelect: (leadId: string) => void;
   onSelectAll: (stageId: string, select: boolean) => void;
   filteredStages?: string[];
+  filterInstance?: string;
+  filterCreatedDateStart?: string;
+  filterCreatedDateEnd?: string;
+  filterReturnDateStart?: string;
+  filterReturnDateEnd?: string;
+  filterInCallQueue?: boolean;
+  filterTags?: string[];
+  callQueue?: CallQueueItem[];
 }
 
 export function LeadsListView({
@@ -33,12 +42,21 @@ export function LeadsListView({
   onLeadSelect,
   onSelectAll,
   filteredStages,
+  filterInstance = "all",
+  filterCreatedDateStart = "",
+  filterCreatedDateEnd = "",
+  filterReturnDateStart = "",
+  filterReturnDateEnd = "",
+  filterInCallQueue = false,
+  filterTags = [],
+  callQueue = [],
 }: LeadsListViewProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   // ✅ CORREÇÃO: Adicionar opções de ordenação por nome e valor
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'value-asc' | 'value-desc'>('newest');
+  const [leadsInCallQueue, setLeadsInCallQueue] = useState<Set<string>>(new Set());
 
   const toggleStageCollapse = (stageId: string) => {
     setCollapsedStages(prev => {
@@ -78,41 +96,125 @@ export function LeadsListView({
     };
   }, [onRefetch]);
 
+  // ✅ NOVO: Buscar leads que estão na fila de ligação
+  useEffect(() => {
+    const fetchCallQueueLeads = async () => {
+      const { data } = await supabase
+        .from('call_queue')
+        .select('lead_id')
+        .eq('status', 'pending');
+      
+      if (data) {
+        setLeadsInCallQueue(new Set(data.map(item => item.lead_id)));
+      }
+    };
+
+    fetchCallQueueLeads();
+
+    // ✅ OTIMIZAÇÃO: Manter apenas realtime da call_queue
+    const channel = supabase
+      .channel('call-queue-changes-list-view')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_queue'
+        },
+        () => fetchCallQueueLeads()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // ✅ NOVO: Aplicar filtros aos leads (mesma lógica do KanbanBoard)
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      // Filtro de instância
+      if (filterInstance && filterInstance !== "all") {
+        if (lead.sourceInstanceId !== filterInstance) return false;
+      }
+
+      // Filtro de data de criação
+      if (filterCreatedDateStart) {
+        const startDate = new Date(filterCreatedDateStart);
+        startDate.setHours(0, 0, 0, 0);
+        if (new Date(lead.createdAt) < startDate) return false;
+      }
+      if (filterCreatedDateEnd) {
+        const endDate = new Date(filterCreatedDateEnd);
+        endDate.setHours(23, 59, 59, 999);
+        if (new Date(lead.createdAt) > endDate) return false;
+      }
+
+      // Filtro de data de retorno
+      if (filterReturnDateStart && lead.returnDate) {
+        const startDate = new Date(filterReturnDateStart);
+        startDate.setHours(0, 0, 0, 0);
+        if (new Date(lead.returnDate) < startDate) return false;
+      }
+      if (filterReturnDateEnd && lead.returnDate) {
+        const endDate = new Date(filterReturnDateEnd);
+        endDate.setHours(23, 59, 59, 999);
+        if (new Date(lead.returnDate) > endDate) return false;
+      }
+
+      // Filtro de fila de ligação
+      if (filterInCallQueue) {
+        if (!leadsInCallQueue.has(lead.id)) return false;
+      }
+
+      // Filtro de etiquetas
+      if (filterTags.length > 0) {
+        const leadTagIds = lead.tags?.map(tag => tag.id) || [];
+        const hasAnyTag = filterTags.some(tagId => leadTagIds.includes(tagId));
+        if (!hasAnyTag) return false;
+      }
+
+      return true;
+    });
+  }, [leads, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
+
   // Agrupar leads por etapa e ordenar conforme seleção
-  const leadsByStage = stages.map(stage => ({
-    stage,
-    leads: leads
-      .filter(lead => lead.stageId === stage.id)
-      .sort((a, b) => {
-        // ✅ CORREÇÃO: Implementar todas as opções de ordenação
-        switch (sortOrder) {
-          case 'newest':
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          case 'oldest':
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          case 'name-asc':
-            return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
-          case 'name-desc':
-            return b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' });
-          case 'value-asc':
-            const valueA = a.value || 0;
-            const valueB = b.value || 0;
-            return valueA - valueB;
-          case 'value-desc':
-            const valueA2 = a.value || 0;
-            const valueB2 = b.value || 0;
-            return valueB2 - valueA2;
-          default:
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
-      }),
-  })).filter(group => {
-    // Filtrar por etapas selecionadas se houver filtro
-    if (filteredStages && filteredStages.length > 0) {
-      return filteredStages.includes(group.stage.id);
-    }
-    return true;
-  });
+  const leadsByStage = useMemo(() => {
+    return stages.map(stage => ({
+      stage,
+      leads: filteredLeads
+        .filter(lead => lead.stageId === stage.id)
+        .sort((a, b) => {
+          // ✅ CORREÇÃO: Implementar todas as opções de ordenação
+          switch (sortOrder) {
+            case 'newest':
+              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            case 'oldest':
+              return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+            case 'name-asc':
+              return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+            case 'name-desc':
+              return b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' });
+            case 'value-asc':
+              const valueA = a.value || 0;
+              const valueB = b.value || 0;
+              return valueA - valueB;
+            case 'value-desc':
+              const valueA2 = a.value || 0;
+              const valueB2 = b.value || 0;
+              return valueB2 - valueA2;
+            default:
+              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          }
+        }),
+    })).filter(group => {
+      // Filtrar por etapas selecionadas se houver filtro
+      if (filteredStages && filteredStages.length > 0) {
+        return filteredStages.includes(group.stage.id);
+      }
+      return true;
+    });
+  }, [filteredLeads, stages, sortOrder, filteredStages]);
 
   return (
     <>

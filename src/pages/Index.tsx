@@ -489,6 +489,14 @@ const Index = () => {
                 onLeadSelect={handleLeadSelect}
                 onSelectAll={handleSelectAll}
                 filteredStages={selectedStages.length > 0 ? selectedStages : undefined}
+                filterInstance={filterInstance}
+                filterCreatedDateStart={filterCreatedDateStart}
+                filterCreatedDateEnd={filterCreatedDateEnd}
+                filterReturnDateStart={filterReturnDateStart}
+                filterReturnDateEnd={filterReturnDateEnd}
+                filterInCallQueue={filterInCallQueue}
+                filterTags={selectedTags}
+                callQueue={callQueue}
               />
             ) : (
               <CalendarView
