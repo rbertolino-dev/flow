@@ -19,15 +19,67 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const body = await req.json();
-    console.log('📋 [send-whatsapp-message] Body recebido:', JSON.stringify(body, null, 2));
+    // Parse do body com tratamento de erro
+    let body: any;
+    try {
+      body = await req.json();
+      console.log('📋 [send-whatsapp-message] Body recebido:', JSON.stringify(body, null, 2));
+    } catch (parseError: any) {
+      console.error('❌ [send-whatsapp-message] Erro ao fazer parse do body:', {
+        message: parseError.message,
+        stack: parseError.stack
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao processar requisição',
+          details: 'Body inválido ou não é JSON válido',
+          hint: parseError.message
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
     const { instanceId, phone, message, leadId, mediaUrl, mediaType } = body;
 
-    if (!instanceId || !phone || !message) {
-      console.error('❌ [send-whatsapp-message] Parâmetros faltando:', { instanceId, phone, message });
+    // Validação de parâmetros obrigatórios
+    if (!instanceId) {
+      console.error('❌ [send-whatsapp-message] instanceId faltando');
       return new Response(
-        JSON.stringify({ error: 'Parâmetros obrigatórios: instanceId, phone, message' }),
+        JSON.stringify({ 
+          error: 'Parâmetro obrigatório faltando',
+          details: 'instanceId é obrigatório'
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!phone) {
+      console.error('❌ [send-whatsapp-message] phone faltando');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Parâmetro obrigatório faltando',
+          details: 'phone é obrigatório'
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!message || (typeof message === 'string' && !message.trim())) {
+      console.error('❌ [send-whatsapp-message] message faltando ou vazio');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Parâmetro obrigatório faltando',
+          details: 'message é obrigatório e não pode estar vazio'
+        }),
         { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -224,14 +276,37 @@ serve(async (req) => {
     console.log('🔗 [send-whatsapp-message] URL da Evolution:', evolutionUrl);
     console.log('📤 [send-whatsapp-message] Enviando payload para Evolution:', JSON.stringify(payload, null, 2));
 
-    const evolutionResponse = await fetch(evolutionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': config.api_key || '',
-      },
-      body: JSON.stringify(payload),
-    });
+    // Fazer requisição para Evolution API com tratamento de erro de rede
+    let evolutionResponse: Response;
+    try {
+      evolutionResponse = await fetch(evolutionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': config.api_key || '',
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (fetchError: any) {
+      console.error('❌ [send-whatsapp-message] Erro de rede ao chamar Evolution API:', {
+        message: fetchError.message,
+        stack: fetchError.stack,
+        name: fetchError.name,
+        url: evolutionUrl
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro de conexão com Evolution API',
+          details: fetchError.message || 'Não foi possível conectar à Evolution API',
+          hint: 'Verifique se a URL da API está correta e se o servidor está acessível'
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
     const responseStatus = evolutionResponse.status;
     console.log(`📊 [send-whatsapp-message] Status da Evolution API: ${responseStatus}`);
