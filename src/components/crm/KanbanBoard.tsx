@@ -130,8 +130,11 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         const matchesName = lead.name.toLowerCase().includes(query);
         const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
         const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+        // ✅ CORREÇÃO: Buscar também por nome da empresa e e-mail
+        const matchesCompany = lead.company?.toLowerCase().includes(query) || false;
+        const matchesEmail = lead.email?.toLowerCase().includes(query) || false;
         
-        if (!matchesName && !matchesPhone && !matchesTags) return false;
+        if (!matchesName && !matchesPhone && !matchesTags && !matchesCompany && !matchesEmail) return false;
       }
 
       // Filtro de instância
