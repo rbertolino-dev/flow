@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
-import { MessageSquare, Inbox, Search, Tag, User, CheckCircle, X, Zap, MessageCircle } from "lucide-react";
+import { MessageSquare, Inbox, Search, Tag, User, CheckCircle, X, Zap, MessageCircle, AlertCircle, Target, Users, BarChart3, Settings } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useChatwootChats } from "@/hooks/useChatwootChats";
 import { useChatwootConversations } from "@/hooks/useChatwootConversations";
@@ -51,6 +51,7 @@ export default function UnifiedMessages() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
   const [selectedSource, setSelectedSource] = useState<'all' | 'evolution' | 'chatwoot'>('all');
+  const [activeTab, setActiveTab] = useState('all');
   const isMobile = useIsMobile();
 
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -182,9 +183,40 @@ export default function UnifiedMessages() {
     <AuthGuard>
       <CRMLayout activeView="unified-messages" onViewChange={handleViewChange}>
         <div className="h-screen flex flex-col bg-background">
-          <div className="flex-1 flex overflow-hidden">
-            {/* Sidebar com lista unificada */}
-            <div className={`${isMobile ? (selectedConversation ? 'hidden' : 'w-full') : 'w-96'} border-r border-border bg-card flex flex-col`}>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+            {/* Abas de navegação */}
+            <div className="border-b border-border bg-card px-4 pt-4">
+              <TabsList className="grid w-full grid-cols-6 mb-4">
+                <TabsTrigger value="all" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Todos os Leads
+                </TabsTrigger>
+                <TabsTrigger value="attention" className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Leads que Precisam Atenção
+                </TabsTrigger>
+                <TabsTrigger value="my-dashboard" className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Meu Painel
+                </TabsTrigger>
+                <TabsTrigger value="sellers" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Atividades por Vendedor
+                </TabsTrigger>
+                <TabsTrigger value="reports" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Relatórios
+                </TabsTrigger>
+                <TabsTrigger value="config" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Configuração
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="all" className="flex-1 flex overflow-hidden m-0">
+              <div className="flex-1 flex overflow-hidden">
+                {/* Sidebar com lista unificada */}
+                <div className={`${isMobile ? (selectedConversation ? 'hidden' : 'w-full') : 'w-96'} border-r border-border bg-card flex flex-col`}>
               {/* Header */}
               <div className="p-4 border-b border-border space-y-3">
                 <div className="flex items-center justify-between">
@@ -415,6 +447,58 @@ export default function UnifiedMessages() {
               )}
             </div>
           </div>
+            </TabsContent>
+            
+            <TabsContent value="attention" className="flex-1 flex overflow-hidden m-0">
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center text-muted-foreground">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <h3 className="text-lg font-semibold mb-2">Leads que Precisam Atenção</h3>
+                  <p className="text-sm">Funcionalidade em desenvolvimento</p>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="my-dashboard" className="flex-1 flex overflow-hidden m-0">
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center text-muted-foreground">
+                  <Target className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <h3 className="text-lg font-semibold mb-2">Meu Painel</h3>
+                  <p className="text-sm">Funcionalidade em desenvolvimento</p>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="sellers" className="flex-1 flex overflow-hidden m-0">
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <h3 className="text-lg font-semibold mb-2">Atividades por Vendedor</h3>
+                  <p className="text-sm">Funcionalidade em desenvolvimento</p>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="reports" className="flex-1 flex overflow-hidden m-0">
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <h3 className="text-lg font-semibold mb-2">Relatórios</h3>
+                  <p className="text-sm">Funcionalidade em desenvolvimento</p>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="config" className="flex-1 flex overflow-hidden m-0">
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center text-muted-foreground">
+                  <Settings className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <h3 className="text-lg font-semibold mb-2">Configuração</h3>
+                  <p className="text-sm">Funcionalidade em desenvolvimento</p>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </CRMLayout>
     </AuthGuard>
