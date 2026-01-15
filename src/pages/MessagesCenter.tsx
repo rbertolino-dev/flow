@@ -1,177 +1,56 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
-import { MessageSquare, Search, Zap, MessageCircle, CheckCircle, X, Tag, User, Inbox, AlertCircle, Filter } from "lucide-react";
-import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { useChatwootChats } from "@/hooks/useChatwootChats";
-import { useChatwootConversations } from "@/hooks/useChatwootConversations";
-import { useChatwootConfig } from "@/hooks/useChatwootConfig";
-import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
-import { useAllEvolutionChats } from "@/hooks/useAllEvolutionChats";
-import { useLeadsByPhones } from "@/hooks/useLeadByPhone";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Avatar } from "@/components/ui/avatar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDebounce } from "@/hooks/use-debounce";
-import { ChatwootChatWindow } from "@/components/whatsapp/ChatwootChatWindow";
-import { ChatWindow } from "@/components/whatsapp/ChatWindow";
-import { EvolutionChatWindow } from "@/components/whatsapp/EvolutionChatWindow";
-import { formatDistanceToNow } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { MessageSquare, Bell, Calendar, Phone, Mail, Building2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { useToast } from "@/hooks/use-toast";
+import { Lead } from "@/types/lead";
 
-interface UnifiedConversation {
+interface ScheduledMessage {
   id: string;
-  name: string;
+  lead_id: string;
+  instance_id: string;
   phone: string;
-  lastMessage: string;
-  timestamp: Date;
-  unreadCount: number;
-  source: 'evolution' | 'chatwoot';
-  sourceInstanceId: string;
-  sourceInstanceName: string;
-  inboxId?: number;
-  conversationId?: string;
-  labels?: any[];
-  assignee?: any;
-  status?: string;
-  meta?: any;
+  message: string;
+  media_url?: string | null;
+  scheduled_for: string;
+  sent_at?: string | null;
+  status: 'pending' | 'sent' | 'failed' | 'cancelled';
+  created_at: string;
+  lead?: {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string;
+    company?: string;
+  };
+  instance?: {
+    id: string;
+    instance_name: string;
+  };
+}
+
+interface EvolutionInstance {
+  id: string;
+  instance_name: string;
+  is_connected: boolean;
 }
 
 export default function MessagesCenter() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
-  const { config: chatwootConfig } = useChatwootConfig(activeOrgId);
-  const { data: chatwootInboxes } = useChatwootChats(activeOrgId);
-  const { configs: evolutionConfigs } = useEvolutionConfigs();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedConversation, setSelectedConversation] = useState<UnifiedConversation | null>(null);
-  const [activeTab, setActiveTab] = useState('all');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'evolution' | 'chatwoot'>('all');
-  const isMobile = useIsMobile();
-
-  const debouncedSearch = useDebounce(searchQuery, 300);
-
-  const chatwootInboxesList = Array.isArray(chatwootInboxes) ? chatwootInboxes : [];
-  
-  const { data: chatwootConversations, isLoading: chatwootLoading } = useChatwootConversations(
-    activeOrgId,
-    chatwootInboxesList[0]?.id || null
-  );
-
-  const { chats: allEvolutionChats, loading: evolutionLoading } = useAllEvolutionChats(evolutionConfigs);
-
-  const allConversations = useMemo(() => {
-    const conversations: UnifiedConversation[] = [];
-
-    if (chatwootConversations && chatwootInboxesList[0]) {
-      const inbox = chatwootInboxesList[0];
-      chatwootConversations.forEach((conv: any) => {
-        const phone = conv.meta?.sender?.phone_number || conv.meta?.sender?.identifier || '';
-        const normalizedPhone = phone.replace(/\D/g, '');
-        
-        if (!normalizedPhone) return;
-        
-        conversations.push({
-          id: `chatwoot_${conv.id}`,
-          name: conv.meta?.sender?.name || 'Sem nome',
-          phone: normalizedPhone,
-          lastMessage: conv.messages?.[0]?.content || 'Sem mensagens',
-          timestamp: conv.timestamp ? new Date(conv.timestamp * 1000) : new Date(conv.created_at || Date.now()),
-          unreadCount: conv.unread_count || 0,
-          source: 'chatwoot',
-          sourceInstanceId: `chatwoot_${activeOrgId}`,
-          sourceInstanceName: `Chatwoot - ${inbox.name}`,
-          inboxId: inbox.id,
-          conversationId: conv.id?.toString(),
-          labels: conv.labels || [],
-          assignee: conv.assignee,
-          status: conv.status,
-          meta: conv.meta,
-        });
-      });
-    }
-
-    if (allEvolutionChats && allEvolutionChats.length > 0) {
-      allEvolutionChats.forEach((chat) => {
-        const remoteJid = chat.remoteJid || '';
-        const phone = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
-        
-        if (!phone || remoteJid.includes('@lid')) return;
-
-        conversations.push({
-          id: `evolution_${chat.instanceId}_${remoteJid}`,
-          name: chat.name || phone,
-          phone: phone,
-          lastMessage: chat.lastMessage || 'Sem mensagens',
-          timestamp: chat.lastMessageTime || new Date(),
-          unreadCount: chat.unreadCount || 0,
-          source: 'evolution',
-          sourceInstanceId: chat.instanceId,
-          sourceInstanceName: chat.instanceName,
-          meta: { remoteJid },
-        });
-      });
-    }
-
-    return conversations.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [chatwootConversations, allEvolutionChats, chatwootInboxesList, activeOrgId]);
-
-  const phoneNumbers = useMemo(() => {
-    return allConversations
-      .map(conv => conv.phone)
-      .filter(p => p.length > 0);
-  }, [allConversations]);
-
-  const { data: leadsMap } = useLeadsByPhones(phoneNumbers);
-
-  const stats = useMemo(() => {
-    const total = allConversations.length;
-    const unread = allConversations.filter(c => c.unreadCount > 0).length;
-    const withLead = allConversations.filter(c => leadsMap?.[c.phone]).length;
-    const withoutLead = total - withLead;
-    const whatsapp = allConversations.filter(c => c.source === 'evolution').length;
-    const chatwoot = allConversations.filter(c => c.source === 'chatwoot').length;
-    
-    return { total, unread, withLead, withoutLead, whatsapp, chatwoot };
-  }, [allConversations, leadsMap]);
-
-  const filteredConversations = useMemo(() => {
-    let filtered = allConversations;
-
-    if (activeTab === 'unread') {
-      filtered = filtered.filter(conv => conv.unreadCount > 0);
-    } else if (activeTab === 'with-lead') {
-      filtered = filtered.filter(conv => leadsMap?.[conv.phone]);
-    } else if (activeTab === 'without-lead') {
-      filtered = filtered.filter(conv => !leadsMap?.[conv.phone]);
-    } else if (activeTab === 'whatsapp') {
-      filtered = filtered.filter(conv => conv.source === 'evolution');
-    } else if (activeTab === 'chatwoot') {
-      filtered = filtered.filter(conv => conv.source === 'chatwoot');
-    }
-
-    if (sourceFilter !== 'all') {
-      filtered = filtered.filter(conv => conv.source === sourceFilter);
-    }
-
-    if (debouncedSearch.trim()) {
-      const query = debouncedSearch.toLowerCase();
-      filtered = filtered.filter(conv => {
-        return conv.name.toLowerCase().includes(query) ||
-               conv.phone.includes(query) ||
-               conv.lastMessage.toLowerCase().includes(query) ||
-               conv.sourceInstanceName.toLowerCase().includes(query);
-      });
-    }
-
-    return filtered;
-  }, [allConversations, activeTab, sourceFilter, debouncedSearch, leadsMap]);
+  const { toast } = useToast();
+  const [messages, setMessages] = useState<ScheduledMessage[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [instances, setInstances] = useState<EvolutionInstance[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "broadcast") {
@@ -185,291 +64,489 @@ export default function MessagesCenter() {
     }
   };
 
-  const handleSelectConversation = (conv: UnifiedConversation) => {
-    setSelectedConversation(conv);
-  };
+  // Buscar instâncias da organização
+  useEffect(() => {
+    if (!activeOrgId) return;
 
-  const isLoading = chatwootLoading || evolutionLoading;
+    const fetchInstances = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('evolution_config')
+          .select('id, instance_name, is_connected')
+          .eq('organization_id', activeOrgId)
+          .order('instance_name', { ascending: true });
+
+        if (error) throw error;
+        setInstances(data || []);
+      } catch (error: any) {
+        console.error('Erro ao buscar instâncias:', error);
+        toast({
+          title: "Erro ao carregar instâncias",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchInstances();
+  }, [activeOrgId, toast]);
+
+  // Buscar mensagens enviadas
+  useEffect(() => {
+    if (!activeOrgId) return;
+
+    const fetchMessages = async () => {
+      try {
+        setLoading(true);
+        
+        const { data: messagesData, error: messagesError } = await supabase
+          .from('scheduled_messages')
+          .select('*')
+          .eq('organization_id', activeOrgId)
+          .eq('status', 'sent')
+          .order('sent_at', { ascending: false })
+          .limit(1000);
+
+        if (messagesError) throw messagesError;
+
+        if (!messagesData || messagesData.length === 0) {
+          setMessages([]);
+          setLoading(false);
+          return;
+        }
+
+        // Buscar leads relacionados
+        const leadIds = [...new Set(messagesData.map(m => m.lead_id).filter(Boolean))];
+        const { data: leadsData } = await supabase
+          .from('leads')
+          .select('id, name, phone, email, company')
+          .in('id', leadIds);
+
+        // Buscar instâncias relacionadas
+        const instanceIds = [...new Set(messagesData.map(m => m.instance_id).filter(Boolean))];
+        const { data: instancesData } = await supabase
+          .from('evolution_config')
+          .select('id, instance_name')
+          .in('id', instanceIds);
+
+        // Criar mapas para lookup rápido
+        const leadsMap = new Map((leadsData || []).map(l => [l.id, l]));
+        const instancesMap = new Map((instancesData || []).map(i => [i.id, i]));
+
+        // Combinar dados
+        const messagesWithRelations = messagesData.map(msg => ({
+          ...msg,
+          lead: msg.lead_id ? leadsMap.get(msg.lead_id) : null,
+          instance: msg.instance_id ? instancesMap.get(msg.instance_id) : null,
+        }));
+
+        setMessages(messagesWithRelations);
+      } catch (error: any) {
+        console.error('Erro ao buscar mensagens:', error);
+        toast({
+          title: "Erro ao carregar mensagens",
+          description: error.message || 'Erro desconhecido',
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [activeOrgId, toast]);
+
+  // Buscar leads com data de retorno
+  useEffect(() => {
+    if (!activeOrgId) return;
+
+    const fetchLeadsWithReturn = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('leads')
+          .select(`
+            *,
+            stage:pipeline_stages(id, name, color),
+            tags:lead_tags(
+              tag:tags(id, name, color)
+            )
+          `)
+          .eq('organization_id', activeOrgId)
+          .not('return_date', 'is', null)
+          .order('return_date', { ascending: true })
+          .limit(1000);
+
+        if (error) throw error;
+
+        // Transformar dados para o formato Lead
+        const transformedLeads: Lead[] = (data || []).map((lead: any) => ({
+          id: lead.id,
+          name: lead.name || '',
+          phone: lead.phone || '',
+          email: lead.email || null,
+          company: lead.company || null,
+          value: lead.value || null,
+          status: lead.status || 'new',
+          assignedTo: lead.assigned_to || 'Não atribuído',
+          lastContact: lead.last_contact ? new Date(lead.last_contact) : null,
+          returnDate: lead.return_date ? new Date(lead.return_date) : null,
+          notes: lead.notes || null,
+          stageId: lead.stage_id || null,
+          createdAt: lead.created_at ? new Date(lead.created_at) : new Date(),
+          tags: lead.tags?.map((lt: any) => lt.tag).filter(Boolean) || [],
+          stage: lead.stage ? {
+            id: lead.stage.id,
+            name: lead.stage.name,
+            color: lead.stage.color,
+          } : null,
+        }));
+
+        setLeads(transformedLeads);
+      } catch (error: any) {
+        console.error('Erro ao buscar leads:', error);
+        toast({
+          title: "Erro ao carregar leads",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchLeadsWithReturn();
+  }, [activeOrgId, toast]);
+
+  // Agrupar mensagens por instância
+  const messagesByInstance = useMemo(() => {
+    const grouped: Record<string, ScheduledMessage[]> = {};
+    
+    messages.forEach((msg) => {
+      const instanceId = msg.instance_id || 'unknown';
+      if (!grouped[instanceId]) {
+        grouped[instanceId] = [];
+      }
+      grouped[instanceId].push(msg);
+    });
+
+    return grouped;
+  }, [messages]);
+
+  // Agrupar leads por instância (baseado na última mensagem enviada)
+  const leadsByInstance = useMemo(() => {
+    const grouped: Record<string, Lead[]> = {};
+    
+    // Primeiro, criar um mapa de lead_id -> instance_id baseado nas mensagens
+    const leadInstanceMap: Record<string, string> = {};
+    messages.forEach((msg) => {
+      if (msg.lead_id && msg.instance_id) {
+        // Se o lead já tem uma instância, manter a mais recente
+        if (!leadInstanceMap[msg.lead_id] || 
+            (msg.sent_at && messages.find(m => m.lead_id === msg.lead_id && m.instance_id === leadInstanceMap[msg.lead_id])?.sent_at && 
+             new Date(msg.sent_at) > new Date(messages.find(m => m.lead_id === msg.lead_id && m.instance_id === leadInstanceMap[msg.lead_id])?.sent_at || ''))) {
+          leadInstanceMap[msg.lead_id] = msg.instance_id;
+        }
+      }
+    });
+
+    // Agrupar leads por instância
+    leads.forEach((lead) => {
+      const instanceId = leadInstanceMap[lead.id] || 'unknown';
+      if (!grouped[instanceId]) {
+        grouped[instanceId] = [];
+      }
+      grouped[instanceId].push(lead);
+    });
+
+    // Se houver leads sem mensagens, colocar em "unknown"
+    if (!grouped['unknown']) {
+      grouped['unknown'] = [];
+    }
+
+    return grouped;
+  }, [leads, messages]);
+
+  // Obter nome da instância
+  const getInstanceName = (instanceId: string) => {
+    if (instanceId === 'unknown') return 'Sem instância';
+    const instance = instances.find(i => i.id === instanceId);
+    return instance?.instance_name || 'Instância desconhecida';
+  };
 
   return (
     <AuthGuard>
       <CRMLayout activeView="messages-center" onViewChange={handleViewChange}>
-        <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/30">
-          {/* Header fixo com gradiente */}
+        <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/30 overflow-auto">
+          {/* Header fixo com gradiente moderno */}
           <div className="sticky top-0 z-50 border-b bg-gradient-to-r from-primary/5 via-background to-background backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
             <div className="px-6 py-5">
-              <div className="flex items-center justify-between gap-4 mb-5">
-                <div>
-                  <h1 className="text-3xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <MessageSquare className="h-5 w-5 text-primary" />
-                    </div>
-                    Central de Mensagens
-                  </h1>
-                  <p className="text-sm text-muted-foreground mt-2 font-medium">
-                    {filteredConversations.length} conversa{filteredConversations.length !== 1 ? 's' : ''} disponível{filteredConversations.length !== 1 ? 'eis' : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nome, telefone ou mensagem..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 h-10 bg-background/80 border-border/50 focus:bg-background"
-                    />
+              <div className="mb-4">
+                <h1 className="text-3xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-primary" />
                   </div>
-                  <Button
-                    variant="outline"
-                    size="default"
-                    onClick={() => setSourceFilter(sourceFilter === 'all' ? 'evolution' : sourceFilter === 'evolution' ? 'chatwoot' : 'all')}
-                    className="h-10 px-4 bg-background/80 border-border/50"
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    {sourceFilter === 'all' ? 'Todas' : sourceFilter === 'evolution' ? 'WhatsApp' : 'Chatwoot'}
-                  </Button>
-                </div>
+                  Central de Mensagens
+                </h1>
+                <p className="text-sm text-muted-foreground mt-2 font-medium">
+                  Visualize todas as mensagens enviadas e leads com data de retorno, organizados por instância
+                </p>
               </div>
+            </div>
+          </div>
 
-              {/* Abas principais com design moderno */}
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-6 h-12 p-1 bg-muted/30 rounded-lg border border-border/50">
-                  <TabsTrigger value="all" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/20 rounded-md transition-all">
-                    <Inbox className="h-4 w-4" />
-                    <span className="font-semibold text-sm">Todas</span>
-                    {stats.total > 0 && (
-                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-primary/10 text-primary">
-                        {stats.total}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="unread" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/20 rounded-md transition-all">
-                    <AlertCircle className="h-4 w-4 text-orange-500" />
-                    <span className="font-semibold text-sm">Não Lidas</span>
-                    {stats.unread > 0 && (
-                      <Badge variant="default" className="ml-auto h-5 px-2 text-xs font-bold bg-orange-500 text-white">
-                        {stats.unread}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="with-lead" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-green-500/20 rounded-md transition-all">
-                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    <span className="font-semibold text-sm">Com Lead</span>
-                    {stats.withLead > 0 && (
-                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
-                        {stats.withLead}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="without-lead" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-gray-500/20 rounded-md transition-all">
-                    <X className="h-4 w-4 text-gray-500" />
-                    <span className="font-semibold text-sm">Sem Lead</span>
-                    {stats.withoutLead > 0 && (
-                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold">
-                        {stats.withoutLead}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="whatsapp" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-green-500/20 rounded-md transition-all">
-                    <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    <span className="font-semibold text-sm">WhatsApp</span>
-                    {stats.whatsapp > 0 && (
-                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-green-500/10 text-green-700 dark:text-green-400">
-                        {stats.whatsapp}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="chatwoot" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-blue-500/20 rounded-md transition-all">
-                    <MessageCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <span className="font-semibold text-sm">Chatwoot</span>
-                    {stats.chatwoot > 0 && (
-                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                        {stats.chatwoot}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* Conteúdo das abas */}
-                <div className="flex-1 flex overflow-hidden mt-0">
-                  <div className={`${isMobile ? (selectedConversation ? 'hidden' : 'w-full') : 'w-[420px]'} border-r border-border/50 bg-gradient-to-b from-card to-card/50 flex flex-col shadow-sm`}>
-                    {isLoading ? (
-                      <div className="flex-1 flex items-center justify-center">
-                        <p className="text-muted-foreground">Carregando...</p>
-                      </div>
-                    ) : filteredConversations.length > 0 ? (
-                      <ScrollArea className="flex-1">
-                        <div className="divide-y divide-border">
-                          {filteredConversations.map((conv) => {
-                            const lead = leadsMap?.[conv.phone];
-                            const hasLead = !!lead;
-                            const isSelected = selectedConversation?.id === conv.id;
-
-                            return (
-                              <div
-                                key={conv.id}
-                                onClick={() => handleSelectConversation(conv)}
-                                className={cn(
-                                  "p-5 cursor-pointer transition-all duration-200 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent border-l-4 border-transparent group",
-                                  isSelected && "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-l-primary shadow-sm"
-                                )}
-                              >
-                                <div className="flex items-start gap-4">
-                                  <Avatar className={cn(
-                                    "h-12 w-12 flex-shrink-0 ring-2 ring-offset-2 ring-offset-background transition-all",
-                                    isSelected && "ring-primary shadow-md scale-105"
-                                  )} style={{
-                                    ringColor: isSelected ? 'hsl(var(--primary))' : 'transparent'
-                                  }}>
-                                    <div className={cn(
-                                      "h-full w-full flex items-center justify-center font-bold text-base transition-all",
-                                      isSelected 
-                                        ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg" 
-                                        : "bg-gradient-to-br from-muted to-muted/80 text-foreground group-hover:from-primary/20 group-hover:to-primary/10"
-                                    )}>
-                                      {conv.name.charAt(0).toUpperCase() || '?'}
-                                    </div>
-                                  </Avatar>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-3 mb-2">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2.5 mb-1.5">
-                                          <span className={cn(
-                                            "font-bold text-base truncate transition-colors",
-                                            conv.unreadCount > 0 ? "text-foreground" : "text-foreground/90",
-                                            isSelected && "text-primary"
-                                          )}>
-                                            {conv.name}
-                                          </span>
-                                          {conv.unreadCount > 0 && (
-                                            <Badge variant="default" className="h-6 px-2 text-xs font-bold shrink-0 bg-orange-500 hover:bg-orange-600 shadow-sm animate-pulse">
-                                              {conv.unreadCount}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <Badge 
-                                            variant="outline" 
-                                            className={cn(
-                                              "h-4 px-1.5 text-[10px] font-medium",
-                                              conv.source === 'evolution' 
-                                                ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" 
-                                                : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
-                                            )}
-                                          >
-                                            {conv.source === 'evolution' ? (
-                                              <><Zap className="h-3 w-3 mr-0.5" /> WhatsApp</>
-                                            ) : (
-                                              <><MessageCircle className="h-3 w-3 mr-0.5" /> Chatwoot</>
-                                            )}
-                                          </Badge>
-                                          {hasLead && (
-                                            <Badge variant="outline" className="h-4 px-1.5 text-[10px] bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-                                              <CheckCircle className="h-3 w-3 mr-0.5" />
-                                              Lead
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex flex-col items-end gap-0.5 shrink-0">
-                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                          {formatDistanceToNow(conv.timestamp, { addSuffix: true, locale: ptBR })}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <p className={cn(
-                                      "text-sm line-clamp-2 mb-2",
-                                      conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
-                                    )}>
-                                      {conv.lastMessage}
-                                    </p>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      {conv.source === 'chatwoot' && conv.labels && conv.labels.length > 0 && (
+          {/* Conteúdo principal */}
+          <div className="flex-1 px-6 py-6 space-y-8">
+            {/* Seção: Mensagens Enviadas */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                  </div>
+                  Mensagens Enviadas
+                </h2>
+              </div>
+              {loading ? (
+                <Card className="border-border/50 shadow-lg">
+                  <CardContent className="p-8">
+                    <div className="text-center text-muted-foreground">Carregando mensagens...</div>
+                  </CardContent>
+                </Card>
+              ) : Object.keys(messagesByInstance).length === 0 ? (
+                <Card className="border-border/50 shadow-lg">
+                  <CardContent className="p-8">
+                    <div className="text-center text-muted-foreground">Nenhuma mensagem enviada encontrada</div>
+                  </CardContent>
+                </Card>
+              ) : (
+                Object.entries(messagesByInstance).map(([instanceId, instanceMessages]) => (
+                  <Card key={instanceId} className="border-border/50 shadow-lg hover:shadow-xl transition-shadow">
+                    <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent border-b border-border/50">
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="text-lg font-bold">{getInstanceName(instanceId)}</span>
+                        <Badge variant="secondary" className="bg-primary/10 text-primary font-bold">
+                          {instanceMessages.length} mensagens
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ScrollArea className="h-[400px]">
+                        <div className="p-4 space-y-3">
+                          {instanceMessages.map((msg) => (
+                            <Card key={msg.id} className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-all bg-gradient-to-r from-card to-card/50">
+                              <CardContent className="p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 space-y-3">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {msg.lead ? (
                                         <>
-                                          {conv.labels.slice(0, 2).map((label: any) => (
-                                            <Badge
-                                              key={label.id || label}
-                                              variant="outline"
-                                              className="h-4 px-1.5 text-[10px]"
-                                              style={{
-                                                backgroundColor: `${label.color || '#3b82f6'}15`,
-                                                borderColor: label.color || '#3b82f6',
-                                                color: label.color || '#3b82f6',
-                                              }}
-                                            >
-                                              <Tag className="h-2.5 w-2.5 mr-0.5" />
-                                              {label.title || label}
-                                            </Badge>
-                                          ))}
+                                          <span className="font-bold text-base">{msg.lead.name}</span>
+                                          <Badge variant="outline" className="text-xs font-medium bg-primary/5 border-primary/20">
+                                            <Phone className="h-3 w-3 mr-1" />
+                                            {msg.lead.phone}
+                                          </Badge>
                                         </>
-                                      )}
-                                      {conv.source === 'chatwoot' && conv.assignee && (
-                                        <Badge variant="outline" className="h-4 px-1.5 text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20">
-                                          <User className="h-2.5 w-2.5 mr-0.5" />
-                                          {conv.assignee.name || conv.assignee.email || 'Atribuído'}
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs font-medium">
+                                          <Phone className="h-3 w-3 mr-1" />
+                                          {msg.phone}
                                         </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-foreground/90 leading-relaxed bg-muted/30 p-3 rounded-lg border border-border/50">
+                                      {msg.message}
+                                    </p>
+                                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                                      <span className="flex items-center gap-1.5 font-medium">
+                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                        Enviada em {msg.sent_at ? format(new Date(msg.sent_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'N/A'}
+                                      </span>
+                                      {msg.lead?.company && (
+                                        <span className="flex items-center gap-1.5">
+                                          <Building2 className="h-4 w-4" />
+                                          {msg.lead.company}
+                                        </span>
                                       )}
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              </CardContent>
+                            </Card>
+                          ))}
                         </div>
                       </ScrollArea>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center">
-                        <div className="text-center text-muted-foreground">
-                          <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                          <p className="text-sm">
-                            {searchQuery.trim() 
-                              ? "Nenhuma conversa encontrada" 
-                              : "Nenhuma conversa disponível"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
 
-                  {/* Área de mensagens */}
-                  <div className={`${isMobile ? (selectedConversation ? 'w-full' : 'hidden') : 'flex-1'} flex flex-col bg-background`}>
-                    {selectedConversation ? (
-                      selectedConversation.source === 'chatwoot' ? (
-                        <ChatwootChatWindow
-                          organizationId={activeOrgId!}
-                          conversationId={selectedConversation.conversationId!}
-                          contactName={selectedConversation.name}
-                          onBack={() => setSelectedConversation(null)}
-                        />
-                      ) : selectedConversation.source === 'evolution' && selectedConversation.sourceInstanceId && selectedConversation.meta?.remoteJid ? (
-                        <EvolutionChatWindow
-                          instanceId={selectedConversation.sourceInstanceId}
-                          remoteJid={selectedConversation.meta.remoteJid}
-                          contactName={selectedConversation.name}
-                          onBack={() => setSelectedConversation(null)}
-                        />
-                      ) : (
-                        <ChatWindow
-                          phone={selectedConversation.phone}
-                          contactName={selectedConversation.name}
-                          onBack={() => setSelectedConversation(null)}
-                        />
-                      )
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-center text-muted-foreground max-w-md px-4">
+            {/* Seção: Leads com Retorno */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  Leads com Retorno
+                </h2>
+              </div>
+              {Object.keys(leadsByInstance).length === 0 ? (
+                <Card className="border-border/50 shadow-lg">
+                  <CardContent className="p-8">
+                    <div className="text-center text-muted-foreground">Nenhum lead com data de retorno encontrado</div>
+                  </CardContent>
+                </Card>
+              ) : (
+                Object.entries(leadsByInstance).map(([instanceId, instanceLeads]) => (
+                  <Card key={instanceId} className="border-border/50 shadow-lg hover:shadow-xl transition-shadow">
+                    <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent border-b border-border/50">
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="text-lg font-bold">{getInstanceName(instanceId)}</span>
+                        <Badge variant="secondary" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold">
+                          {instanceLeads.length} leads
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ScrollArea className="h-[400px]">
+                        <div className="p-4 space-y-3">
+                          {instanceLeads.map((lead) => (
+                            <Card key={lead.id} className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-r from-card to-card/50">
+                              <CardContent className="p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 space-y-3">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-bold text-base">{lead.name}</span>
+                                      <Badge variant="outline" className="text-xs font-medium bg-primary/5 border-primary/20">
+                                        <Phone className="h-3 w-3 mr-1" />
+                                        {lead.phone}
+                                      </Badge>
+                                      {lead.returnDate && (
+                                        <Badge 
+                                          variant={new Date(lead.returnDate) < new Date() ? "destructive" : "default"} 
+                                          className="text-xs font-bold"
+                                        >
+                                          <Calendar className="h-3 w-3 mr-1" />
+                                          {format(new Date(lead.returnDate), "dd/MM/yyyy", { locale: ptBR })}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                                      {lead.email && (
+                                        <span className="flex items-center gap-1.5">
+                                          <Mail className="h-4 w-4" />
+                                          {lead.email}
+                                        </span>
+                                      )}
+                                      {lead.company && (
+                                        <span className="flex items-center gap-1.5">
+                                          <Building2 className="h-4 w-4" />
+                                          {lead.company}
+                                        </span>
+                                      )}
+                                      {lead.value && (
+                                        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                                          R$ {lead.value.toLocaleString('pt-BR')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {lead.stage && (
+                                      <Badge 
+                                        variant="outline"
+                                        className="text-xs font-medium"
+                                        style={{ 
+                                          borderColor: lead.stage.color,
+                                          color: lead.stage.color,
+                                          backgroundColor: `${lead.stage.color}10`
+                                        }}
+                                      >
+                                        {lead.stage.name}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+
+            {/* Seção: Notificações */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                    <Bell className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  Notificações
+                </h2>
+              </div>
+              <Card className="border-border/50 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-yellow-500/5 to-transparent border-b border-border/50">
+                  <CardTitle>Status das Mensagens e Leads</CardTitle>
+                  <CardDescription>
+                    Acompanhe o status das mensagens enviadas e leads que precisam de atenção
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-5 border rounded-lg bg-gradient-to-r from-green-500/5 to-transparent hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                          <CheckCircle2 className="h-6 w-6 text-green-500" />
+                        </div>
                         <div>
-                          <MessageSquare className="h-24 w-24 mx-auto mb-4 opacity-20" />
-                          <h2 className="text-2xl font-semibold mb-2">Selecione uma conversa</h2>
-                          <p className="text-sm">
-                            Escolha uma conversa da lista para visualizar as mensagens
-                          </p>
+                          <div className="font-bold text-base">Mensagens Enviadas</div>
+                          <div className="text-sm text-muted-foreground">
+                            {messages.filter(m => m.status === 'sent').length} mensagens enviadas com sucesso
+                          </div>
                         </div>
                       </div>
-                    )}
+                      <Badge variant="default" className="bg-green-500 text-white font-bold text-sm px-3 py-1">
+                        {messages.filter(m => m.status === 'sent').length}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between p-5 border rounded-lg bg-gradient-to-r from-red-500/5 to-transparent hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                          <XCircle className="h-6 w-6 text-red-500" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-base">Mensagens com Falha</div>
+                          <div className="text-sm text-muted-foreground">
+                            Mensagens que não puderam ser enviadas
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant="destructive" className="font-bold text-sm px-3 py-1">
+                        {messages.filter(m => m.status === 'failed').length}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between p-5 border rounded-lg bg-gradient-to-r from-yellow-500/5 to-transparent hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                          <AlertCircle className="h-6 w-6 text-yellow-500" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-base">Leads com Retorno Vencido</div>
+                          <div className="text-sm text-muted-foreground">
+                            Leads que precisam de atenção
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:text-yellow-400 font-bold text-sm px-3 py-1">
+                        {leads.filter(l => l.returnDate && new Date(l.returnDate) < new Date()).length}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              </Tabs>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
