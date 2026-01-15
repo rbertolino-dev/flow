@@ -20,7 +20,8 @@ import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useFlowTriggers } from "@/hooks/useFlowTriggers";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
-import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload } from "lucide-react";
+import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload, MessageSquare } from "lucide-react";
+import { MessagesCenter } from "@/components/crm/MessagesCenter";
 import Settings from "./Settings";
 import { startFlowScheduler } from "@/lib/flowScheduler";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,7 @@ const Index = () => {
   useEffect(() => {
     if (location.state && (location.state as any).view) {
       const view = (location.state as any).view;
-      if (view === "kanban" || view === "calls") {
+      if (view === "kanban" || view === "calls" || view === "messages-center") {
         setActiveView(view);
       }
       // Limpa o state para evitar que seja aplicado novamente
@@ -203,6 +204,12 @@ const Index = () => {
         syncInfo={{ lastSync, nextSync, isSyncing }}
       >
       <OnboardingBanner />
+      {activeView === "messages-center" && (
+        <div className="h-full bg-background flex flex-col">
+          <MessagesCenter />
+        </div>
+      )}
+
       {activeView === "kanban" && (
         <div className="h-full bg-background flex flex-col">
           <div className="p-3 sm:p-4 lg:p-6 border-b border-border space-y-3 sm:space-y-4">
@@ -221,6 +228,10 @@ const Index = () => {
                 <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="flex-1 sm:flex-none">
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="sm:inline">Importar</span>
+                </Button>
+                <Button onClick={() => setActiveView("messages-center" as CRMView)} size="sm" variant="outline" className="flex-1 sm:flex-none">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  <span className="sm:inline">Central de Mensagens</span>
                 </Button>
                 <PipelineStageManager />
                 <TagManager />
@@ -506,6 +517,14 @@ const Index = () => {
       )}
 
       {activeView === "settings" && <Settings />}
+
+      {activeView === "messages-center" && (
+        <div className="h-full bg-background flex flex-col overflow-auto">
+          <div className="p-3 sm:p-4 lg:p-6">
+            <MessagesCenter />
+          </div>
+        </div>
+      )}
       
       <CreateLeadDialog
         open={createLeadOpen}

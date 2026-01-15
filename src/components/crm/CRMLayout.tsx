@@ -36,7 +36,8 @@ export type CRMView =
   | "contracts"
   // | "digital-contracts" // REMOVIDO TEMPORARIAMENTE
   | "budgets"
-  | "employees";
+  | "employees"
+  | "messages-center";
 
 interface CRMLayoutProps {
   children: React.ReactNode;

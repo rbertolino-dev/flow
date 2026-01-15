@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useLeads } from "@/hooks/useLeads";
@@ -50,8 +51,17 @@ export default function CRM() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [salesReportOpen, setSalesReportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTab, setActiveTab] = useState("all");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Atualizar activeTab quando searchParams mudar
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedSearchFilters>({});
   const itemsPerPage = 25;
 
