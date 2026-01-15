@@ -83,25 +83,55 @@ export function MessagesCenter() {
     const fetchMessages = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        
+        // Buscar mensagens (sem joins - foreign keys podem não estar configuradas)
+        const { data: messagesData, error: messagesError } = await supabase
           .from('scheduled_messages')
-          .select(`
-            *,
-            lead:leads(id, name, phone, email, company),
-            instance:evolution_config(id, instance_name)
-          `)
+          .select('*')
           .eq('organization_id', activeOrgId)
           .eq('status', 'sent')
           .order('sent_at', { ascending: false })
           .limit(1000);
 
-        if (error) throw error;
-        setMessages(data || []);
+        if (messagesError) throw messagesError;
+
+        if (!messagesData || messagesData.length === 0) {
+          setMessages([]);
+          setLoading(false);
+          return;
+        }
+
+        // Buscar leads relacionados
+        const leadIds = [...new Set(messagesData.map(m => m.lead_id).filter(Boolean))];
+        const { data: leadsData } = await supabase
+          .from('leads')
+          .select('id, name, phone, email, company')
+          .in('id', leadIds);
+
+        // Buscar instâncias relacionadas
+        const instanceIds = [...new Set(messagesData.map(m => m.instance_id).filter(Boolean))];
+        const { data: instancesData } = await supabase
+          .from('evolution_config')
+          .select('id, instance_name')
+          .in('id', instanceIds);
+
+        // Criar mapas para lookup rápido
+        const leadsMap = new Map((leadsData || []).map(l => [l.id, l]));
+        const instancesMap = new Map((instancesData || []).map(i => [i.id, i]));
+
+        // Combinar dados
+        const messagesWithRelations = messagesData.map(msg => ({
+          ...msg,
+          lead: msg.lead_id ? leadsMap.get(msg.lead_id) : null,
+          instance: msg.instance_id ? instancesMap.get(msg.instance_id) : null,
+        }));
+
+        setMessages(messagesWithRelations);
       } catch (error: any) {
         console.error('Erro ao buscar mensagens:', error);
         toast({
           title: "Erro ao carregar mensagens",
-          description: error.message,
+          description: error.message || 'Erro desconhecido',
           variant: "destructive",
         });
       } finally {
