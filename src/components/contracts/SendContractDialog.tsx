@@ -25,7 +25,6 @@ export function SendContractDialog({
   const { toast } = useToast();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   const [sending, setSending] = useState(false);
-  const [sendMethod, setSendMethod] = useState<'whatsapp' | 'email'>('whatsapp');
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [hasBothSignatures, setHasBothSignatures] = useState(false);
   const [checkingSignatures, setCheckingSignatures] = useState(true);
@@ -55,7 +54,7 @@ export function SendContractDialog({
     // Removido: não exigir assinaturas antes de enviar
     // O contrato pode ser enviado para o cliente assinar
 
-    if (sendMethod === 'whatsapp' && !selectedInstanceId) {
+    if (!selectedInstanceId) {
       toast({
         title: 'Instância não selecionada',
         description: 'Selecione uma instância do WhatsApp para enviar o contrato.',
@@ -98,28 +97,6 @@ export function SendContractDialog({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
-      const requestBody = {
-        contract_id: contract.id,
-        send_method: sendMethod,
-        download_link: downloadLink,
-        instance_id: sendMethod === 'whatsapp' ? selectedInstanceId : null,
-        recipient_phone: sendMethod === 'whatsapp' ? contract.lead?.phone : null,
-        recipient_email: sendMethod === 'email' ? contract.lead?.email : null,
-      };
-
-      // Usar função diferente baseado no método
-      // send-contract-whatsapp já existe e está deployada
-      // send-contract-signed não existe (limite de funções atingido)
-      if (sendMethod === 'email') {
-        toast({
-          title: 'Email não disponível',
-          description: 'Envio por email ainda não está implementado. Use WhatsApp.',
-          variant: 'destructive',
-        });
-        setSaving(false);
-        return;
-      }
-      
       const functionName = 'send-contract-whatsapp';
       
       // Para WhatsApp, usar formato da função existente
@@ -130,7 +107,7 @@ export function SendContractDialog({
 
       console.log('📤 Enviando contrato:', {
         url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`,
-        method: sendMethod,
+        method: 'whatsapp',
         function: functionName,
         contract_id: contract.id,
         instance_id: selectedInstanceId,
@@ -188,7 +165,7 @@ export function SendContractDialog({
 
       toast({
         title: 'Contrato enviado',
-        description: `Contrato enviado via ${sendMethod === 'whatsapp' ? 'WhatsApp' : 'Email'} com sucesso`,
+        description: 'Contrato enviado via WhatsApp com sucesso',
       });
 
       onSuccess?.();
@@ -211,9 +188,9 @@ export function SendContractDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Enviar Contrato Assinado</DialogTitle>
+          <DialogTitle>Enviar Contrato por WhatsApp</DialogTitle>
           <DialogDescription>
-            Envie o contrato assinado para o cliente via WhatsApp ou Email
+            Envie o contrato para o cliente via WhatsApp
           </DialogDescription>
         </DialogHeader>
 
@@ -236,60 +213,36 @@ export function SendContractDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="send-method">Método de Envio</Label>
-              <Select value={sendMethod} onValueChange={(value) => setSendMethod(value as 'whatsapp' | 'email')}>
-                <SelectTrigger id="send-method">
-                  <SelectValue />
+              <Label htmlFor="instance">Instância do WhatsApp *</Label>
+              <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
+                <SelectTrigger id="instance">
+                  <SelectValue placeholder="Selecione uma instância" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
+                  {connectedInstances.length === 0 ? (
+                    <SelectItem value="" disabled>
+                      Nenhuma instância conectada
+                    </SelectItem>
+                  ) : (
+                    connectedInstances.map((config) => (
+                      <SelectItem key={config.id} value={config.id}>
+                        {config.instance_name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
-            </div>
-
-            {sendMethod === 'whatsapp' && (
-              <div className="space-y-2">
-                <Label htmlFor="instance">Instância do WhatsApp</Label>
-                <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
-                  <SelectTrigger id="instance">
-                    <SelectValue placeholder="Selecione uma instância" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {connectedInstances.length === 0 ? (
-                      <SelectItem value="" disabled>
-                        Nenhuma instância conectada
-                      </SelectItem>
-                    ) : (
-                      connectedInstances.map((config) => (
-                        <SelectItem key={config.id} value={config.id}>
-                          {config.instance_name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {connectedInstances.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Configure uma instância do WhatsApp nas configurações
-                  </p>
-                )}
-              </div>
-            )}
-
-            {sendMethod === 'email' && (
-              <div className="space-y-2">
-                <Label>Email do Cliente</Label>
-                <p className="text-sm text-muted-foreground">
-                  {contract.lead?.email || 'Email não cadastrado'}
+              {connectedInstances.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Configure uma instância do WhatsApp nas configurações
                 </p>
-                {!contract.lead?.email && (
-                  <p className="text-xs text-yellow-600">
-                    Adicione o email do cliente no cadastro do lead para enviar por email
-                  </p>
-                )}
-              </div>
-            )}
+              )}
+              {contract.lead?.phone && (
+                <p className="text-xs text-muted-foreground">
+                  Será enviado para: {contract.lead.phone}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -305,7 +258,7 @@ export function SendContractDialog({
           <Button
             type="button"
             onClick={handleSend}
-            disabled={sending || (sendMethod === 'whatsapp' && !selectedInstanceId) || (sendMethod === 'email' && !contract.lead?.email)}
+            disabled={sending || !selectedInstanceId}
           >
             {sending ? (
               <>

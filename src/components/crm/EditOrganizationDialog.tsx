@@ -70,6 +70,9 @@ export function EditOrganizationDialog({
     logo_url: "",
     address: "",
     tagline: "",
+    cnpj: "",
+    phone: "",
+    contact_email: "",
     social_media: {
       instagram: "",
       facebook: "",
@@ -93,7 +96,7 @@ export function EditOrganizationDialog({
     try {
       const { data, error } = await supabase
         .from("organizations")
-        .select("name, company_profile, state, city, tax_regime, business_type, logo_url, address, tagline, social_media")
+        .select("name, company_profile, state, city, tax_regime, business_type, logo_url, address, tagline, cnpj, phone, contact_email, social_media")
         .eq("id", organizationId)
         .single();
 
@@ -131,6 +134,9 @@ export function EditOrganizationDialog({
         logo_url: data.logo_url || "",
         address: data.address || "",
         tagline: data.tagline || "",
+        cnpj: data.cnpj || "",
+        phone: data.phone || "",
+        contact_email: data.contact_email || "",
         social_media: socialMedia,
       });
       
@@ -283,6 +289,9 @@ export function EditOrganizationDialog({
           logo_url: formData.logo_url || null,
           address: formData.address.trim() || null,
           tagline: formData.tagline.trim() || null,
+          cnpj: formData.cnpj.trim() || null,
+          phone: formData.phone.trim() || null,
+          contact_email: formData.contact_email.trim() || null,
           social_media: Object.keys(socialMediaToSave).length > 0 ? socialMediaToSave : null,
           updated_at: new Date().toISOString(),
         })

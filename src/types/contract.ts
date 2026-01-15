@@ -78,17 +78,60 @@ export interface ContractStorageConfig {
 }
 
 // Variáveis disponíveis para templates
-export const CONTRACT_VARIABLES = {
+// Divididas em: Remetente (Empresa/Organização) e Destinatário (Cliente/Lead)
+
+// Variáveis do DESTINATÁRIO (Cliente/Lead)
+export const CONTRACT_VARIABLES_DESTINATARIO = {
+  // Dados básicos
   nome: '{{nome}}',
   telefone: '{{telefone}}',
   email: '{{email}}',
   empresa: '{{empresa}}',
+  cpf_cnpj: '{{cpf_cnpj}}',
+  // Dados do funil
   valor: '{{valor}}',
+  etapa_funil: '{{etapa_funil}}',
+  status: '{{status}}',
+  produto: '{{produto}}',
+  // Dados adicionais
+  origem: '{{origem}}',
+  notas: '{{notas}}',
+  data_criacao: '{{data_criacao}}',
+  ultimo_contato: '{{ultimo_contato}}',
+} as const;
+
+// Variáveis do REMETENTE (Empresa/Organização)
+export const CONTRACT_VARIABLES_REMETENTE = {
+  // Dados básicos
+  empresa_nome: '{{empresa_nome}}',
+  empresa_endereco: '{{empresa_endereco}}',
+  empresa_cidade: '{{empresa_cidade}}',
+  empresa_estado: '{{empresa_estado}}',
+  empresa_perfil: '{{empresa_perfil}}',
+  empresa_regime_tributario: '{{empresa_regime_tributario}}',
+  empresa_tipo_negocio: '{{empresa_tipo_negocio}}',
+  empresa_tagline: '{{empresa_tagline}}',
+  // Redes sociais
+  empresa_instagram: '{{empresa_instagram}}',
+  empresa_facebook: '{{empresa_facebook}}',
+  empresa_linkedin: '{{empresa_linkedin}}',
+  empresa_twitter: '{{empresa_twitter}}',
+  empresa_youtube: '{{empresa_youtube}}',
+  empresa_website: '{{empresa_website}}',
+} as const;
+
+// Variáveis gerais do contrato
+export const CONTRACT_VARIABLES_GERAIS = {
   data_hoje: '{{data_hoje}}',
   data_vencimento: '{{data_vencimento}}',
   numero_contrato: '{{numero_contrato}}',
-  etapa_funil: '{{etapa_funil}}',
-  produto: '{{produto}}',
+} as const;
+
+// Todas as variáveis (compatibilidade com código existente)
+export const CONTRACT_VARIABLES = {
+  ...CONTRACT_VARIABLES_DESTINATARIO,
+  ...CONTRACT_VARIABLES_REMETENTE,
+  ...CONTRACT_VARIABLES_GERAIS,
 } as const;
 
 export type ContractVariableKey = keyof typeof CONTRACT_VARIABLES;

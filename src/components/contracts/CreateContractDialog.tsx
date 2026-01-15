@@ -90,7 +90,7 @@ export function CreateContractDialog({
 
   if (!open) return null;
 
-  const generateContent = (template: any, lead: any): string => {
+  const generateContent = async (template: any, lead: any): Promise<string> => {
     if (!template || !lead) {
       return '';
     }
@@ -99,17 +99,68 @@ export function CreateContractDialog({
       return `CONTRATO\n\nEntre ${lead.name || 'Cliente'} e a empresa, fica estabelecido o seguinte contrato.\n\nData: ${format(new Date(), 'dd/MM/yyyy')}\n\nValidade: ${expiresAt ? format(new Date(expiresAt), 'dd/MM/yyyy') : 'Não especificada'}`;
     }
     
+    // Buscar dados da organização (remetente)
+    let organizationData: any = null;
+    if (activeOrgId) {
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('name, address, city, state, company_profile, tax_regime, business_type, tagline, social_media')
+        .eq('id', activeOrgId)
+        .single();
+      organizationData = orgData;
+    }
+
+    // Parse social_media se for string
+    let socialMedia: any = {};
+    if (organizationData?.social_media) {
+      if (typeof organizationData.social_media === 'string') {
+        try {
+          socialMedia = JSON.parse(organizationData.social_media);
+        } catch {
+          socialMedia = {};
+        }
+      } else {
+        socialMedia = organizationData.social_media;
+      }
+    }
+    
     let content = template.content;
+    
+    // Substituir tags do DESTINATÁRIO (Cliente/Lead)
     content = content.replace(/\{\{nome\}\}/g, lead.name || '');
     content = content.replace(/\{\{telefone\}\}/g, lead.phone || '');
     content = content.replace(/\{\{email\}\}/g, lead.email || '');
     content = content.replace(/\{\{empresa\}\}/g, lead.company || '');
+    content = content.replace(/\{\{cpf_cnpj\}\}/g, lead.cpf_cnpj || '');
     content = content.replace(/\{\{valor\}\}/g, lead.value ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.value) : '');
+    content = content.replace(/\{\{etapa_funil\}\}/g, lead.status || '');
+    content = content.replace(/\{\{status\}\}/g, lead.status || '');
+    content = content.replace(/\{\{produto\}\}/g, lead.product?.name || '');
+    content = content.replace(/\{\{origem\}\}/g, lead.source || '');
+    content = content.replace(/\{\{notas\}\}/g, lead.notes || '');
+    content = content.replace(/\{\{data_criacao\}\}/g, lead.created_at ? format(new Date(lead.created_at), 'dd/MM/yyyy') : '');
+    content = content.replace(/\{\{ultimo_contato\}\}/g, lead.last_contact ? format(new Date(lead.last_contact), 'dd/MM/yyyy') : '');
+    
+    // Substituir tags do REMETENTE (Empresa/Organização)
+    content = content.replace(/\{\{empresa_nome\}\}/g, organizationData?.name || '');
+    content = content.replace(/\{\{empresa_endereco\}\}/g, organizationData?.address || '');
+    content = content.replace(/\{\{empresa_cidade\}\}/g, organizationData?.city || '');
+    content = content.replace(/\{\{empresa_estado\}\}/g, organizationData?.state || '');
+    content = content.replace(/\{\{empresa_perfil\}\}/g, organizationData?.company_profile || '');
+    content = content.replace(/\{\{empresa_regime_tributario\}\}/g, organizationData?.tax_regime || '');
+    content = content.replace(/\{\{empresa_tipo_negocio\}\}/g, organizationData?.business_type || '');
+    content = content.replace(/\{\{empresa_tagline\}\}/g, organizationData?.tagline || '');
+    content = content.replace(/\{\{empresa_instagram\}\}/g, socialMedia?.instagram || '');
+    content = content.replace(/\{\{empresa_facebook\}\}/g, socialMedia?.facebook || '');
+    content = content.replace(/\{\{empresa_linkedin\}\}/g, socialMedia?.linkedin || '');
+    content = content.replace(/\{\{empresa_twitter\}\}/g, socialMedia?.twitter || '');
+    content = content.replace(/\{\{empresa_youtube\}\}/g, socialMedia?.youtube || '');
+    content = content.replace(/\{\{empresa_website\}\}/g, socialMedia?.website || '');
+    
+    // Substituir tags GERAIS
     content = content.replace(/\{\{data_hoje\}\}/g, format(new Date(), 'dd/MM/yyyy'));
     content = content.replace(/\{\{data_vencimento\}\}/g, expiresAt ? format(new Date(expiresAt), 'dd/MM/yyyy') : '');
     content = content.replace(/\{\{numero_contrato\}\}/g, contractNumber || 'XXX-YYYYMMDD-XXXX');
-    content = content.replace(/\{\{etapa_funil\}\}/g, lead.status || '');
-    content = content.replace(/\{\{produto\}\}/g, lead.product?.name || '');
     
     return content;
   };
@@ -188,7 +239,7 @@ export function CreateContractDialog({
         if (!template) {
           throw new Error('Template não encontrado');
         }
-        content = generateContent(template, lead);
+        content = await generateContent(template, lead);
       } else {
         // Modo upload: fazer upload do PDF e criar contrato
         if (!activeOrgId) {

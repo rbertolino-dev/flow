@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useContractTemplates } from '@/hooks/useContractTemplates';
-import { CONTRACT_VARIABLES, ContractTemplate } from '@/types/contract';
+import { CONTRACT_VARIABLES, CONTRACT_VARIABLES_DESTINATARIO, CONTRACT_VARIABLES_REMETENTE, CONTRACT_VARIABLES_GERAIS, ContractTemplate } from '@/types/contract';
 import { X, Upload, Image as ImageIcon, AlertCircle, Plus, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -404,20 +404,82 @@ export function ContractTemplateEditor({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="space-y-3">
               <Label htmlFor="template-content">Conteúdo do Template *</Label>
-              <div className="flex gap-1 flex-wrap">
-                {Object.entries(CONTRACT_VARIABLES).map(([key, variable]) => (
-                  <Badge
-                    key={key}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                    onClick={() => insertVariable(variable)}
-                    title={`Inserir ${key}`}
-                  >
-                    {variable}
-                  </Badge>
-                ))}
+              
+              {/* Tags organizadas por categoria */}
+              <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                {/* Tags do Destinatário (Cliente) */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border"></div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Destinatário (Cliente)
+                    </span>
+                    <div className="h-px flex-1 bg-border"></div>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {Object.entries(CONTRACT_VARIABLES_DESTINATARIO).map(([key, variable]) => (
+                      <Badge
+                        key={key}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-500 hover:text-white border-blue-300"
+                        onClick={() => insertVariable(variable)}
+                        title={`Inserir ${key} (Cliente)`}
+                      >
+                        {variable}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tags do Remetente (Empresa) */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border"></div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Remetente (Empresa)
+                    </span>
+                    <div className="h-px flex-1 bg-border"></div>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {Object.entries(CONTRACT_VARIABLES_REMETENTE).map(([key, variable]) => (
+                      <Badge
+                        key={key}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-green-500 hover:text-white border-green-300"
+                        onClick={() => insertVariable(variable)}
+                        title={`Inserir ${key} (Empresa)`}
+                      >
+                        {variable}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tags Gerais */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border"></div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Gerais
+                    </span>
+                    <div className="h-px flex-1 bg-border"></div>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {Object.entries(CONTRACT_VARIABLES_GERAIS).map(([key, variable]) => (
+                      <Badge
+                        key={key}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
+                        onClick={() => insertVariable(variable)}
+                        title={`Inserir ${key}`}
+                      >
+                        {variable}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             <Textarea

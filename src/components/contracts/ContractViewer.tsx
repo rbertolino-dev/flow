@@ -192,10 +192,10 @@ export function ContractViewer({
                 Configurar Assinaturas
               </Button>
             )}
-            {onSend && contract.status === 'signed' && (
+            {onSend && (
               <Button variant="default" onClick={() => onSend(contract)}>
                 <Send className="w-4 h-4 mr-2" />
-                Enviar ao Cliente
+                Enviar por WhatsApp
               </Button>
             )}
             {onCancel && contract.status !== 'cancelled' && (
