@@ -1,17 +1,20 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CallQueueItem } from "@/types/lead";
-import { Phone, CheckCircle2, Clock, TrendingUp, Tag as TagIcon } from "lucide-react";
+import { Phone, CheckCircle2, Clock, TrendingUp, Tag as TagIcon, UserCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTags } from "@/hooks/useTags";
-import { format, isToday, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { format, isToday, isAfter, isBefore, startOfDay, endOfDay, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CallQueueStatsProps {
   callQueue: CallQueueItem[];
@@ -22,6 +25,16 @@ export function CallQueueStats({ callQueue }: CallQueueStatsProps) {
   const [dateFrom, setDateFrom] = useState<Date>(new Date());
   const [dateTo, setDateTo] = useState<Date>(new Date());
   const [selectedTagId, setSelectedTagId] = useState<string>("all");
+  const [responsibleIndex, setResponsibleIndex] = useState<Array<{
+    responsible: string;
+    totalCalls: number;
+    descriptions: Array<{
+      leadName: string;
+      description: string;
+      completedAt: string;
+    }>;
+  }>>([]);
+  const [loadingResponsibleIndex, setLoadingResponsibleIndex] = useState(false);
 
   // Filtrar chamadas baseado nos filtros selecionados
   const filteredCalls = callQueue.filter(call => {
@@ -82,6 +95,80 @@ export function CallQueueStats({ callQueue }: CallQueueStatsProps) {
   });
 
   const tagStats = Object.values(callsByTag).sort((a, b) => b.total - a.total);
+
+  // Buscar índice de responsáveis
+  useEffect(() => {
+    const fetchResponsibleIndex = async () => {
+      setLoadingResponsibleIndex(true);
+      try {
+        const orgId = await getUserOrganizationId();
+        if (!orgId) return;
+
+        // Data de 7 dias atrás
+        const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+
+        // Buscar todas as ligações concluídas
+        const { data: historyData, error } = await supabase
+          .from('call_queue_history')
+          .select('completed_by, call_notes, lead_name, completed_at')
+          .eq('organization_id', orgId)
+          .eq('action', 'completed')
+          .not('completed_by', 'is', null)
+          .order('completed_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Agrupar por responsável
+        const groupedByResponsible = new Map<string, {
+          totalCalls: number;
+          descriptions: Array<{
+            leadName: string;
+            description: string;
+            completedAt: string;
+          }>;
+        }>();
+
+        (historyData || []).forEach((item: any) => {
+          const responsible = item.completed_by || 'Nenhum responsável atribuído';
+          
+          if (!groupedByResponsible.has(responsible)) {
+            groupedByResponsible.set(responsible, {
+              totalCalls: 0,
+              descriptions: [],
+            });
+          }
+
+          const group = groupedByResponsible.get(responsible)!;
+          group.totalCalls += 1;
+
+          // Adicionar descrição apenas se tiver call_notes e for dos últimos 7 dias
+          if (item.call_notes && item.completed_at && new Date(item.completed_at) >= new Date(sevenDaysAgo)) {
+            group.descriptions.push({
+              leadName: item.lead_name || 'Lead sem nome',
+              description: item.call_notes,
+              completedAt: item.completed_at,
+            });
+          }
+        });
+
+        // Converter para array e ordenar por total de ligações
+        const indexArray = Array.from(groupedByResponsible.entries())
+          .map(([responsible, data]) => ({
+            responsible,
+            ...data,
+          }))
+          .sort((a, b) => b.totalCalls - a.totalCalls);
+
+        setResponsibleIndex(indexArray);
+      } catch (error: any) {
+        console.error('Erro ao buscar índice de responsáveis:', error);
+      } finally {
+        setLoadingResponsibleIndex(false);
+      }
+    };
+
+    fetchResponsibleIndex();
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -179,6 +266,72 @@ export function CallQueueStats({ callQueue }: CallQueueStatsProps) {
           >
             Limpar Filtros
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Índice de Responsáveis */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4" />
+            Índice de Responsáveis
+          </CardTitle>
+          <CardDescription>
+            Informações de cada responsável que concluiu ligações e descrições dos últimos 7 dias
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingResponsibleIndex ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+          ) : responsibleIndex.length > 0 ? (
+            <ScrollArea className="h-[400px]">
+              <div className="space-y-4">
+                {responsibleIndex.map((item, index) => (
+                  <div key={index} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-lg">{item.responsible}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Total de ligações concluídas: {item.totalCalls}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {item.descriptions.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Descrições dos últimos 7 dias ({item.descriptions.length}):
+                        </p>
+                        <div className="space-y-2">
+                          {item.descriptions.map((desc, descIndex) => (
+                            <div key={descIndex} className="bg-muted/50 rounded-md p-3 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium">{desc.leadName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(new Date(desc.completedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                </p>
+                              </div>
+                              <p className="text-sm text-foreground">{desc.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {item.descriptions.length === 0 && (
+                      <p className="text-sm text-muted-foreground italic">
+                        Nenhuma descrição adicionada nos últimos 7 dias
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum responsável encontrado com ligações concluídas
+            </p>
+          )}
         </CardContent>
       </Card>
 
