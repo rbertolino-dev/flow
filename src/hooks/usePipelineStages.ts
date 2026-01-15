@@ -553,5 +553,30 @@ export function usePipelineStages() {
     }
   };
 
-  return { stages, loading, createStage, updateStage, deleteStage, reorderStages, cleanDuplicateStages, refetch: fetchStages };
+  // ✅ NOVO: Função para contar leads em uma etapa
+  const countLeadsInStage = async (stageId: string): Promise<number> => {
+    try {
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) return 0;
+
+      const { count, error } = await (supabase as any)
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('stage_id', stageId)
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null);
+
+      if (error) {
+        console.error('Erro ao contar leads na etapa:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Erro ao contar leads na etapa:', error);
+      return 0;
+    }
+  };
+
+  return { stages, loading, createStage, updateStage, deleteStage, reorderStages, cleanDuplicateStages, refetch: fetchStages, countLeadsInStage };
 }

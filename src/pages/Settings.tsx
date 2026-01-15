@@ -15,6 +15,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useTags } from "@/hooks/useTags";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +71,7 @@ export default function Settings() {
     refetch
   } = useEvolutionConfigs();
   
-  const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages } = usePipelineStages();
+  const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
   const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
 
@@ -80,6 +90,8 @@ export default function Settings() {
   const [editingStage, setEditingStage] = useState<any>(null);
   const [stageName, setStageName] = useState("");
   const [stageColor, setStageColor] = useState("#3b82f6");
+  const [deletingStageId, setDeletingStageId] = useState<string | null>(null);
+  const [leadsCountInDeletingStage, setLeadsCountInDeletingStage] = useState<number | null>(null);
 
   // Tag management
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -130,9 +142,18 @@ export default function Settings() {
     }
   };
 
-  const handleDeleteStage = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta etapa?")) {
-      await deleteStage(id);
+  const handleDeleteStageClick = async (id: string) => {
+    // ✅ NOVO: Verificar quantos leads há na etapa antes de mostrar o dialog
+    const leadsCount = await countLeadsInStage(id);
+    setLeadsCountInDeletingStage(leadsCount);
+    setDeletingStageId(id);
+  };
+
+  const handleDeleteStage = async () => {
+    if (deletingStageId) {
+      await deleteStage(deletingStageId);
+      setDeletingStageId(null);
+      setLeadsCountInDeletingStage(null);
     }
   };
 
@@ -541,7 +562,7 @@ export default function Settings() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteStage(stage.id)}
+                            onClick={() => handleDeleteStageClick(stage.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -704,6 +725,39 @@ export default function Settings() {
           }}
         />
       )}
+
+      {/* ✅ NOVO: AlertDialog para confirmar exclusão de etapa com aviso de leads */}
+      <AlertDialog open={!!deletingStageId} onOpenChange={(open) => {
+        if (!open) {
+          setDeletingStageId(null);
+          setLeadsCountInDeletingStage(null);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta etapa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {leadsCountInDeletingStage !== null && leadsCountInDeletingStage > 0 ? (
+                <>
+                  <strong>⚠️ Atenção:</strong> Esta etapa possui <strong>{leadsCountInDeletingStage} {leadsCountInDeletingStage === 1 ? 'lead' : 'leads'}</strong> associado{leadsCountInDeletingStage === 1 ? '' : 's'}.
+                  <br /><br />
+                  Ao excluir esta etapa, todos os leads serão automaticamente movidos para a primeira etapa do funil.
+                  <br /><br />
+                  Esta ação não pode ser desfeita.
+                </>
+              ) : (
+                <>
+                  Esta ação não pode ser desfeita. A etapa será excluída permanentemente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteStage}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
         </div>
       </CRMLayout>
     </AuthGuard>

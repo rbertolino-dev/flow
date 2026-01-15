@@ -96,10 +96,11 @@ function SortableStageItem({ stage, onEdit, onDelete, isFirstStage }: SortableSt
 }
 
 export function PipelineStageManager() {
-  const { stages, createStage, updateStage, deleteStage, reorderStages, cleanDuplicateStages } = usePipelineStages();
+  const { stages, createStage, updateStage, deleteStage, reorderStages, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
   const [open, setOpen] = useState(false);
   const [editingStage, setEditingStage] = useState<string | null>(null);
   const [deletingStage, setDeletingStage] = useState<string | null>(null);
+  const [leadsCountInDeletingStage, setLeadsCountInDeletingStage] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: "", color: "#3b82f6" });
 
   const sensors = useSensors(
@@ -140,10 +141,18 @@ export function PipelineStageManager() {
     setOpen(true);
   };
 
+  const handleDeleteClick = async (stageId: string) => {
+    // ✅ NOVO: Verificar quantos leads há na etapa antes de mostrar o dialog
+    const leadsCount = await countLeadsInStage(stageId);
+    setLeadsCountInDeletingStage(leadsCount);
+    setDeletingStage(stageId);
+  };
+
   const handleDelete = async () => {
     if (deletingStage) {
       await deleteStage(deletingStage);
       setDeletingStage(null);
+      setLeadsCountInDeletingStage(null);
     }
   };
 
@@ -178,7 +187,7 @@ export function PipelineStageManager() {
                       key={stage.id}
                       stage={stage}
                       onEdit={() => handleEdit(stage)}
-                      onDelete={() => setDeletingStage(stage.id)}
+                      onDelete={() => handleDeleteClick(stage.id)}
                       isFirstStage={stage.position === 0}
                     />
                   ))}
@@ -241,13 +250,27 @@ export function PipelineStageManager() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deletingStage} onOpenChange={() => setDeletingStage(null)}>
+      <AlertDialog open={!!deletingStage} onOpenChange={() => {
+        setDeletingStage(null);
+        setLeadsCountInDeletingStage(null);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir esta etapa?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Esta etapa só pode ser excluída se não houver
-              leads vinculados a ela. A primeira etapa não pode ser excluída.
+              {leadsCountInDeletingStage !== null && leadsCountInDeletingStage > 0 ? (
+                <>
+                  <strong>⚠️ Atenção:</strong> Esta etapa possui <strong>{leadsCountInDeletingStage} {leadsCountInDeletingStage === 1 ? 'lead' : 'leads'}</strong> associado{leadsCountInDeletingStage === 1 ? '' : 's'}.
+                  <br /><br />
+                  Ao excluir esta etapa, todos os leads serão automaticamente movidos para a primeira etapa do funil.
+                  <br /><br />
+                  Esta ação não pode ser desfeita.
+                </>
+              ) : (
+                <>
+                  Esta ação não pode ser desfeita. A etapa será excluída permanentemente.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
