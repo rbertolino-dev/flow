@@ -8,7 +8,7 @@ import { KanbanSettings } from "./KanbanSettings";
 import { SalesReportDialog } from "./SalesReportDialog";
 import { FollowUpTemplateManager } from "./FollowUpTemplateManager";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, DragOverEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { usePipelineStages, PipelineStage } from "@/hooks/usePipelineStages";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useKanbanSettings } from "@/hooks/useKanbanSettings";
 import { Loader2, Upload, ChevronLeft, ChevronRight, ArrowRight, Phone, Trash2, X, ArrowDownUp, Maximize2, Minimize2, BarChart3, Send, List, Tag } from "lucide-react";
@@ -187,7 +187,12 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   }, [stages]);
 
   // Normaliza leads: se a etapa estiver ausente ou inválida, usa a primeira etapa DA ORG
+  // ✅ CORREÇÃO: Adicionar verificação de segurança para evitar erro React #310
   const normalizedLeads = useMemo(() => {
+    if (!firstStageId) {
+      // Se não há primeira etapa, retorna leads sem normalização
+      return filteredLeads;
+    }
     return filteredLeads.map(l => {
       if (!l.stageId || !stageIdSet.has(l.stageId)) {
         return { ...l, stageId: firstStageId };
@@ -233,9 +238,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   }
 
   // ✅ OTIMIZAÇÃO: Criar Map de stages para lookup O(1) ao invés de O(n)
+  // ✅ CORREÇÃO: Adicionar verificação de segurança para evitar erro React #310
   const stagesMap = useMemo(() => {
-    const map = new Map<string, typeof stages[0]>();
-    stages.forEach(stage => map.set(stage.id, stage));
+    const map = new Map<string, PipelineStage>();
+    if (stages && Array.isArray(stages) && stages.length > 0) {
+      stages.forEach(stage => {
+        if (stage && stage.id) {
+          map.set(stage.id, stage);
+        }
+      });
+    }
     return map;
   }, [stages]);
 
