@@ -416,6 +416,10 @@ serve(async (req) => {
         errorDetails = errorData?.response?.message || errorData?.error || errorText || 'Erro desconhecido na Evolution API';
       }
       
+      // Usar o status da resposta da Evolution API, mas limitar a 500 para erros internos
+      // Se for 400, manter 400; se for 500+, usar 500
+      const finalStatus = responseStatus >= 400 && responseStatus < 500 ? responseStatus : 500;
+      
       return new Response(
         JSON.stringify({ 
           error: userMessage,
@@ -425,7 +429,7 @@ serve(async (req) => {
           instanceName: config.instance_name
         }),
         { 
-          status: 500,
+          status: finalStatus,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
