@@ -37,7 +37,8 @@ export function LeadsListView({
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  // ✅ CORREÇÃO: Adicionar opções de ordenação por nome e valor
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'value-asc' | 'value-desc'>('newest');
 
   const toggleStageCollapse = (stageId: string) => {
     setCollapsedStages(prev => {
@@ -77,15 +78,33 @@ export function LeadsListView({
     };
   }, [onRefetch]);
 
-  // Agrupar leads por etapa e ordenar por data de criação
+  // Agrupar leads por etapa e ordenar conforme seleção
   const leadsByStage = stages.map(stage => ({
     stage,
     leads: leads
       .filter(lead => lead.stageId === stage.id)
       .sort((a, b) => {
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+        // ✅ CORREÇÃO: Implementar todas as opções de ordenação
+        switch (sortOrder) {
+          case 'newest':
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          case 'oldest':
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          case 'name-asc':
+            return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+          case 'name-desc':
+            return b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' });
+          case 'value-asc':
+            const valueA = a.value || 0;
+            const valueB = b.value || 0;
+            return valueA - valueB;
+          case 'value-desc':
+            const valueA2 = a.value || 0;
+            const valueB2 = b.value || 0;
+            return valueB2 - valueA2;
+          default:
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
       }),
   })).filter(group => {
     // Filtrar por etapas selecionadas se houver filtro
@@ -99,7 +118,7 @@ export function LeadsListView({
     <>
       <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
         <div className="mb-4 flex justify-end">
-          <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest') => setSortOrder(value)}>
+          <Select value={sortOrder} onValueChange={(value: 'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'value-asc' | 'value-desc') => setSortOrder(value)}>
             <SelectTrigger className="w-[180px] sm:w-[200px]">
               <ArrowDownUp className="h-4 w-4 mr-2" />
               <SelectValue />
@@ -107,6 +126,10 @@ export function LeadsListView({
             <SelectContent>
               <SelectItem value="newest">Mais recentes</SelectItem>
               <SelectItem value="oldest">Mais antigos</SelectItem>
+              <SelectItem value="name-asc">Nome A-Z</SelectItem>
+              <SelectItem value="name-desc">Nome Z-A</SelectItem>
+              <SelectItem value="value-asc">Valor Crescente</SelectItem>
+              <SelectItem value="value-desc">Valor Decrescente</SelectItem>
             </SelectContent>
           </Select>
         </div>
