@@ -340,6 +340,48 @@ serve(async (req) => {
       let userMessage = `Erro ao enviar mensagem (Status ${responseStatus})`;
       let errorDetails = errorText;
       
+      // Verificar se o número não existe no WhatsApp
+      const responseMessage = errorData?.response?.message;
+      if (Array.isArray(responseMessage) && responseMessage.length > 0) {
+        const firstMessage = responseMessage[0];
+        if (firstMessage.exists === false) {
+          userMessage = 'Número não encontrado no WhatsApp';
+          errorDetails = `O número ${firstMessage.number || phone} não está registrado no WhatsApp ou não é válido. Verifique se o número está correto e se possui WhatsApp ativo.`;
+          
+          return new Response(
+            JSON.stringify({ 
+              error: userMessage,
+              details: errorDetails,
+              status: responseStatus,
+              phone: firstMessage.number || phone,
+              exists: false
+            }),
+            { 
+              status: 400, // Retornar 400 ao invés de 500 para erro de validação
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          );
+        }
+      } else if (responseMessage && typeof responseMessage === 'object' && responseMessage.exists === false) {
+        // Caso a mensagem seja um objeto único ao invés de array
+        userMessage = 'Número não encontrado no WhatsApp';
+        errorDetails = `O número ${responseMessage.number || phone} não está registrado no WhatsApp ou não é válido. Verifique se o número está correto e se possui WhatsApp ativo.`;
+        
+        return new Response(
+          JSON.stringify({ 
+            error: userMessage,
+            details: errorDetails,
+            status: responseStatus,
+            phone: responseMessage.number || phone,
+            exists: false
+          }),
+          { 
+            status: 400, // Retornar 400 ao invés de 500 para erro de validação
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
       if (errorData?.response?.message === 'Connection Closed' || errorText.includes('Connection Closed')) {
         userMessage = 'Instância desconectada ou com problema de conexão';
         errorDetails = 'A instância do WhatsApp pode estar desconectada. Verifique o status da instância em Configurações → WhatsApp.';
@@ -366,6 +408,10 @@ serve(async (req) => {
       } else if (responseStatus === 401 || responseStatus === 403) {
         userMessage = 'Erro de autenticação na Evolution API';
         errorDetails = 'A API Key pode estar incorreta ou expirada. Verifique as configurações da instância.';
+      } else if (responseStatus === 400) {
+        // Tratamento genérico para outros erros 400
+        userMessage = 'Erro na requisição para Evolution API';
+        errorDetails = errorData?.response?.message || errorData?.error || errorText || 'Erro desconhecido na requisição';
       } else if (responseStatus === 500) {
         userMessage = 'Erro interno na Evolution API';
         errorDetails = errorData?.response?.message || errorData?.error || errorText || 'Erro desconhecido na Evolution API';
