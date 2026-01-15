@@ -275,6 +275,9 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Criar Novo Contato</DialogTitle>
+          <DialogDescription>
+            Preencha os dados do novo contato para adicioná-lo ao funil de vendas.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

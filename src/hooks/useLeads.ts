@@ -77,17 +77,20 @@ export function useLeads() {
       }
       
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
+      // ✅ CORREÇÃO: Limitar a máximo de 1000 activities para evitar erro 400
+      const maxActivitiesLimit = Math.min(leadIds.length * 5, 1000);
       const [activitiesResult, tagsResult] = await Promise.all([
         (supabase as any)
           .from('activities')
           .select('*')
           .in('lead_id', leadIds)
           .order('created_at', { ascending: false })
-          .limit(leadIds.length * 5),
+          .limit(maxActivitiesLimit),
         (supabase as any)
           .from('lead_tags')
           .select('lead_id, tag_id, tags(id, name, color)')
           .in('lead_id', leadIds)
+          .limit(5000) // ✅ CORREÇÃO: Limite máximo seguro para evitar erro 400
       ]);
 
       const allActivities = activitiesResult.data || [];

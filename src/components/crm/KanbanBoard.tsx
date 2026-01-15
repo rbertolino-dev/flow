@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Lead, LeadStatus, CallQueueItem } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -232,16 +232,24 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     );
   }
 
-  const handleDragStart = (event: any) => {
-    setActiveId(event.active.id);
-  };
+  // ✅ OTIMIZAÇÃO: Criar Map de stages para lookup O(1) ao invés de O(n)
+  const stagesMap = useMemo(() => {
+    const map = new Map<string, typeof stages[0]>();
+    stages.forEach(stage => map.set(stage.id, stage));
+    return map;
+  }, [stages]);
 
-  const handleDragOver = (event: DragOverEvent) => {
+  // ✅ OTIMIZAÇÃO: Memoizar handlers para evitar re-renders
+  const handleDragStart = useCallback((event: any) => {
+    setActiveId(event.active.id);
+  }, []);
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { over } = event;
     if (!over) return;
-  };
+  }, []);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
 
@@ -250,19 +258,30 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     const leadId = active.id as string;
     const overId = over.id as string;
     
-    // Check if we're dropping over a stage column
-    const targetStage = stages.find(s => s.id === overId);
+    // ✅ OTIMIZAÇÃO: Usar Map para lookup O(1) ao invés de find() O(n)
+    const targetStage = stagesMap.get(overId);
     if (targetStage) {
-      onLeadUpdate(leadId, targetStage.id);
+      // ✅ OTIMIZAÇÃO: Usar requestIdleCallback para não bloquear thread principal
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+          onLeadUpdate(leadId, targetStage.id);
+        });
+      } else {
+        // Fallback para navegadores sem requestIdleCallback
+        setTimeout(() => {
+          onLeadUpdate(leadId, targetStage.id);
+        }, 0);
+      }
     }
-  };
+  }, [stagesMap, onLeadUpdate]);
 
   // Normalização e correção movidas para antes do carregamento.
 
 
   const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
 
-  const handleScroll = (direction: 'left' | 'right') => {
+  // ✅ OTIMIZAÇÃO: Memoizar handleScroll
+  const handleScroll = useCallback((direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
       const scrollAmount = 400;
       scrollContainerRef.current.scrollBy({
@@ -270,9 +289,10 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         behavior: 'smooth'
       });
     }
-  };
+  }, []);
 
-  const toggleLeadSelection = (leadId: string) => {
+  // ✅ OTIMIZAÇÃO: Memoizar handlers de seleção
+  const toggleLeadSelection = useCallback((leadId: string) => {
     setSelectedLeadIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(leadId)) {
@@ -282,9 +302,9 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const toggleAllInStage = (stageId: string, leadIds: string[]) => {
+  const toggleAllInStage = useCallback((stageId: string, leadIds: string[]) => {
     setSelectedLeadIds(prev => {
       const newSet = new Set(prev);
       const allSelected = leadIds.every(id => newSet.has(id));
@@ -299,11 +319,12 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       
       return newSet;
     });
-  };
+  }, []);
 
-  const clearSelection = () => {
+  // ✅ OTIMIZAÇÃO: Memoizar clearSelection
+  const clearSelection = useCallback(() => {
     setSelectedLeadIds(new Set());
-  };
+  }, []);
 
   const handleMoveToNextStage = async () => {
     const selectedLeads = leads.filter(l => selectedLeadIds.has(l.id));
