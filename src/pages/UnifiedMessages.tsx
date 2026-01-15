@@ -203,35 +203,37 @@ export default function UnifiedMessages() {
   return (
     <AuthGuard>
       <CRMLayout activeView="unified-messages" onViewChange={handleViewChange}>
-        <div className="h-screen flex flex-col bg-background">
-          {/* Header com busca e filtros */}
-          <div className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-            <div className="px-6 py-4">
-              <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/30">
+          {/* Header fixo com gradiente */}
+          <div className="sticky top-0 z-50 border-b bg-gradient-to-r from-primary/5 via-background to-background backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
+            <div className="px-6 py-5">
+              <div className="flex items-center justify-between gap-4 mb-5">
                 <div>
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <MessageSquare className="h-6 w-6 text-primary" />
+                  <h1 className="text-3xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <MessageSquare className="h-5 w-5 text-primary" />
+                    </div>
                     Central de Mensagens
                   </h1>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {filteredConversations.length} conversa{filteredConversations.length !== 1 ? 's' : ''}
+                  <p className="text-sm text-muted-foreground mt-2 font-medium">
+                    {filteredConversations.length} conversa{filteredConversations.length !== 1 ? 's' : ''} disponível{filteredConversations.length !== 1 ? 'eis' : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative w-80">
+                <div className="flex items-center gap-3">
+                  <div className="relative w-96">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Buscar conversas..."
+                      placeholder="Buscar por nome, telefone ou mensagem..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 h-9"
+                      className="pl-10 h-10 bg-background/80 border-border/50 focus:bg-background"
                     />
                   </div>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="default"
                     onClick={() => setSourceFilter(sourceFilter === 'all' ? 'evolution' : sourceFilter === 'evolution' ? 'chatwoot' : 'all')}
-                    className="h-9"
+                    className="h-10 px-4 bg-background/80 border-border/50"
                   >
                     <Filter className="h-4 w-4 mr-2" />
                     {sourceFilter === 'all' ? 'Todas' : sourceFilter === 'evolution' ? 'WhatsApp' : 'Chatwoot'}
@@ -239,59 +241,59 @@ export default function UnifiedMessages() {
                 </div>
               </div>
 
-              {/* Abas principais */}
+              {/* Abas principais com design moderno */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-6 h-auto p-1 bg-muted/50">
-                  <TabsTrigger value="all" className="flex items-center gap-2 py-2.5 data-[state=active]:bg-background">
+                <TabsList className="grid w-full grid-cols-6 h-12 p-1 bg-muted/30 rounded-lg border border-border/50">
+                  <TabsTrigger value="all" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/20 rounded-md transition-all">
                     <Inbox className="h-4 w-4" />
-                    <span className="font-medium">Todas</span>
+                    <span className="font-semibold text-sm">Todas</span>
                     {stats.total > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-primary/10 text-primary">
                         {stats.total}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="unread" className="flex items-center gap-2 py-2.5 data-[state=active]:bg-background">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="font-medium">Não Lidas</span>
+                  <TabsTrigger value="unread" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/20 rounded-md transition-all">
+                    <AlertCircle className="h-4 w-4 text-orange-500" />
+                    <span className="font-semibold text-sm">Não Lidas</span>
                     {stats.unread > 0 && (
-                      <Badge variant="default" className="ml-1 h-5 px-1.5 text-xs">
+                      <Badge variant="default" className="ml-auto h-5 px-2 text-xs font-bold bg-orange-500 text-white">
                         {stats.unread}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="with-lead" className="flex items-center gap-2 py-2.5 data-[state=active]:bg-background">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="font-medium">Com Lead</span>
+                  <TabsTrigger value="with-lead" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-green-500/20 rounded-md transition-all">
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="font-semibold text-sm">Com Lead</span>
                     {stats.withLead > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-green-500/10 text-green-700 dark:text-green-400">
+                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
                         {stats.withLead}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="without-lead" className="flex items-center gap-2 py-2.5 data-[state=active]:bg-background">
-                    <X className="h-4 w-4" />
-                    <span className="font-medium">Sem Lead</span>
+                  <TabsTrigger value="without-lead" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-gray-500/20 rounded-md transition-all">
+                    <X className="h-4 w-4 text-gray-500" />
+                    <span className="font-semibold text-sm">Sem Lead</span>
                     {stats.withoutLead > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold">
                         {stats.withoutLead}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="whatsapp" className="flex items-center gap-2 py-2.5 data-[state=active]:bg-background">
-                    <Zap className="h-4 w-4" />
-                    <span className="font-medium">WhatsApp</span>
+                  <TabsTrigger value="whatsapp" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-green-500/20 rounded-md transition-all">
+                    <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="font-semibold text-sm">WhatsApp</span>
                     {stats.whatsapp > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-green-500/10 text-green-700 dark:text-green-400">
                         {stats.whatsapp}
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="chatwoot" className="flex items-center gap-2 py-2.5 data-[state=active]:bg-background">
-                    <MessageCircle className="h-4 w-4" />
-                    <span className="font-medium">Chatwoot</span>
+                  <TabsTrigger value="chatwoot" className="flex items-center justify-center gap-2 h-10 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-blue-500/20 rounded-md transition-all">
+                    <MessageCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="font-semibold text-sm">Chatwoot</span>
                     {stats.chatwoot > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      <Badge variant="secondary" className="ml-auto h-5 px-2 text-xs font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">
                         {stats.chatwoot}
                       </Badge>
                     )}
@@ -318,33 +320,39 @@ export default function UnifiedMessages() {
                                 key={conv.id}
                                 onClick={() => handleSelectConversation(conv)}
                                 className={cn(
-                                  "p-4 cursor-pointer transition-colors hover:bg-muted/50 border-l-4 border-transparent",
-                                  isSelected && "bg-primary/5 border-l-primary hover:bg-primary/10"
+                                  "p-5 cursor-pointer transition-all duration-200 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent border-l-4 border-transparent group",
+                                  isSelected && "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-l-primary shadow-sm"
                                 )}
                               >
-                                <div className="flex items-start gap-3">
-                                  <Avatar className="h-11 w-11 flex-shrink-0 ring-2 ring-offset-2 ring-offset-background" style={{
+                                <div className="flex items-start gap-4">
+                                  <Avatar className={cn(
+                                    "h-12 w-12 flex-shrink-0 ring-2 ring-offset-2 ring-offset-background transition-all",
+                                    isSelected && "ring-primary shadow-md scale-105"
+                                  )} style={{
                                     ringColor: isSelected ? 'hsl(var(--primary))' : 'transparent'
                                   }}>
                                     <div className={cn(
-                                      "h-full w-full flex items-center justify-center font-semibold text-sm",
-                                      isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                                      "h-full w-full flex items-center justify-center font-bold text-base transition-all",
+                                      isSelected 
+                                        ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg" 
+                                        : "bg-gradient-to-br from-muted to-muted/80 text-foreground group-hover:from-primary/20 group-hover:to-primary/10"
                                     )}>
                                       {conv.name.charAt(0).toUpperCase() || '?'}
                                     </div>
                                   </Avatar>
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-2 mb-1">
+                                    <div className="flex items-start justify-between gap-3 mb-2">
                                       <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2.5 mb-1.5">
                                           <span className={cn(
-                                            "font-semibold text-sm truncate",
-                                            conv.unreadCount > 0 && "font-bold"
+                                            "font-bold text-base truncate transition-colors",
+                                            conv.unreadCount > 0 ? "text-foreground" : "text-foreground/90",
+                                            isSelected && "text-primary"
                                           )}>
                                             {conv.name}
                                           </span>
                                           {conv.unreadCount > 0 && (
-                                            <Badge variant="default" className="h-5 px-1.5 text-xs font-bold shrink-0">
+                                            <Badge variant="default" className="h-6 px-2 text-xs font-bold shrink-0 bg-orange-500 hover:bg-orange-600 shadow-sm animate-pulse">
                                               {conv.unreadCount}
                                             </Badge>
                                           )}
