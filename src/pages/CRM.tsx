@@ -210,9 +210,7 @@ export default function CRM() {
 
             {/* Tabs para organizar as visualizações */}
             <Tabs value={activeTab} onValueChange={(value) => {
-              if (value === 'messages-center') {
-                navigate('/messages-center');
-              } else {
+              if (value !== 'messages-center') {
                 setActiveTab(value);
               }
             }} className="w-full">
@@ -237,7 +235,15 @@ export default function CRM() {
                   <BarChart3 className="h-4 w-4" />
                   Relatórios
                 </TabsTrigger>
-                <TabsTrigger value="messages-center" className="flex items-center gap-2">
+                <TabsTrigger 
+                  value="messages-center" 
+                  className="flex items-center gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate('/messages-center');
+                  }}
+                >
                   <MessageSquare className="h-4 w-4" />
                   Central de Mensagens
                 </TabsTrigger>
