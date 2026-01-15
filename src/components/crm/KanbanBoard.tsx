@@ -229,14 +229,6 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     })();
   }, [filteredLeads, stageIdSet, firstStageId, stages, onRefetch]);
 
-  if (stagesLoading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   // ✅ OTIMIZAÇÃO: Criar Map de stages para lookup O(1) ao invés de O(n)
   // ✅ CORREÇÃO: Adicionar verificação de segurança para evitar erro React #310
   const stagesMap = useMemo(() => {
@@ -622,6 +614,15 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       setIsAddingTag(false);
     }
   };
+
+  // ⚠️ IMPORTANTE: Não fazer return antes dos hooks (senão quebra regras de Hooks e dá React error #310)
+  if (stagesLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <>
