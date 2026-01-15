@@ -12,8 +12,15 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 const REDIRECT_URI = Deno.env.get('GOOGLE_REDIRECT_URI') || '';
 
 serve(async (req) => {
+  // CORS preflight - retornar status 200
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { 
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      }
+    });
   }
 
   try {
@@ -24,66 +31,122 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Obter usuário autenticado
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Não autenticado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Usuário não encontrado' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (action === 'get-auth-url') {
-      // Gerar URL de autorização do Google
-      const { lead_id, organization_id } = await req.json();
-
-      if (!lead_id || !organization_id) {
+    // Se for callback do Google (GET), não precisa de autenticação
+    if (action === 'handle-callback') {
+      // Processar callback (continua abaixo)
+    } else {
+      // Para outras ações, precisa de autenticação
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) {
         return new Response(
-          JSON.stringify({ error: 'lead_id e organization_id são obrigatórios' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Não autenticado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const state = btoa(JSON.stringify({ lead_id, organization_id, user_id: user.id }));
-      const scope = 'https://www.googleapis.com/auth/drive.file';
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${GOOGLE_CLIENT_ID}&` +
-        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-        `response_type=code&` +
-        `scope=${encodeURIComponent(scope)}&` +
-        `access_type=offline&` +
-        `prompt=consent&` +
-        `state=${state}`;
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
 
-      return new Response(
-        JSON.stringify({ auth_url: authUrl }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: 'Usuário não encontrado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (action === 'get-auth-url') {
+        // Gerar URL de autorização do Google
+        const { lead_id, organization_id } = await req.json();
+
+        if (!lead_id || !organization_id) {
+          return new Response(
+            JSON.stringify({ error: 'lead_id e organization_id são obrigatórios' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const state = btoa(JSON.stringify({ lead_id, organization_id, user_id: user.id }));
+        const scope = 'https://www.googleapis.com/auth/drive.file';
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${GOOGLE_CLIENT_ID}&` +
+          `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+          `response_type=code&` +
+          `scope=${encodeURIComponent(scope)}&` +
+          `access_type=offline&` +
+          `prompt=consent&` +
+          `state=${state}`;
+
+        return new Response(
+          JSON.stringify({ auth_url: authUrl }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     if (action === 'handle-callback') {
-      // Processar callback do Google OAuth
-      const { code, state } = await req.json();
+      // Processar callback do Google OAuth (pode vir via GET ou POST)
+      let code = url.searchParams.get('code');
+      let state = url.searchParams.get('state');
+      
+      // Se não vier via GET, tentar via POST
+      if (!code || !state) {
+        try {
+          const body = await req.json();
+          code = body.code || code;
+          state = body.state || state;
+        } catch {
+          // Ignorar se não for JSON
+        }
+      }
 
       if (!code || !state) {
         return new Response(
-          JSON.stringify({ error: 'code e state são obrigatórios' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          `
+          <!DOCTYPE html>
+          <html>
+          <head><title>Erro</title></head>
+          <body>
+            <h1>Erro na autenticação</h1>
+            <p>Código ou estado não encontrado. Tente novamente.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'GOOGLE_DRIVE_OAUTH_ERROR', error: 'Código ou estado não encontrado' }, '*');
+                setTimeout(() => window.close(), 2000);
+              }
+            </script>
+          </body>
+          </html>
+          `,
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' } }
         );
       }
 
       // Decodificar state
-      const stateData = JSON.parse(atob(state));
+      let stateData: any;
+      try {
+        stateData = JSON.parse(atob(state));
+      } catch {
+        return new Response(
+          `
+          <!DOCTYPE html>
+          <html>
+          <head><title>Erro</title></head>
+          <body>
+            <h1>Erro na autenticação</h1>
+            <p>Estado inválido. Tente novamente.</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'GOOGLE_DRIVE_OAUTH_ERROR', error: 'Estado inválido' }, '*');
+                setTimeout(() => window.close(), 2000);
+              }
+            </script>
+          </body>
+          </html>
+          `,
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+      
       const { lead_id, organization_id } = stateData;
 
       // Trocar code por tokens
@@ -121,6 +184,57 @@ serve(async (req) => {
       const expiresAt = new Date();
       expiresAt.setSeconds(expiresAt.getSeconds() + (tokens.expires_in || 3600));
 
+      // Buscar nome da organização para criar pasta
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organization_id)
+        .single();
+
+      const orgName = orgData?.name || 'Empresa';
+
+      // Criar pasta no Google Drive do cliente
+      let folderId: string | null = null;
+      try {
+        const folderName = `Contratos ${orgName}`;
+        const folderResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${tokens.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+          }),
+        });
+
+        if (folderResponse.ok) {
+          const folderData = await folderResponse.json();
+          folderId = folderData.id;
+        } else {
+          // Se falhar ao criar pasta, tentar buscar pasta existente
+          const searchResponse = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${tokens.access_token}`,
+              },
+            }
+          );
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (searchData.files && searchData.files.length > 0) {
+              folderId = searchData.files[0].id;
+            }
+          }
+        }
+      } catch (folderError) {
+        console.error('Erro ao criar/buscar pasta no Google Drive:', folderError);
+        // Continuar mesmo se falhar ao criar pasta (pode criar depois)
+      }
+
       // Salvar ou atualizar configuração do Google Drive do cliente
       const { data: existingConfig } = await supabase
         .from('client_google_drive_configs')
@@ -129,7 +243,7 @@ serve(async (req) => {
         .eq('organization_id', organization_id)
         .maybeSingle();
 
-      const configData = {
+      const configData: any = {
         lead_id,
         organization_id,
         access_token: tokens.access_token,
@@ -140,30 +254,85 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      if (existingConfig) {
-        // Atualizar configuração existente
-        const { error: updateError } = await supabase
-          .from('client_google_drive_configs')
-          .update(configData)
-          .eq('id', existingConfig.id);
-
-        if (updateError) throw updateError;
-      } else {
-        // Criar nova configuração
-        const { error: insertError } = await supabase
-          .from('client_google_drive_configs')
-          .insert(configData);
-
-        if (insertError) throw insertError;
+      // Adicionar folder_id se foi criado/encontrado
+      if (folderId) {
+        configData.google_drive_folder_id = folderId;
       }
 
+      let savedConfig: any;
+      if (existingConfig) {
+        // Atualizar configuração existente
+        const { data: updatedConfig, error: updateError } = await supabase
+          .from('client_google_drive_configs')
+          .update(configData)
+          .eq('id', existingConfig.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        savedConfig = updatedConfig;
+      } else {
+        // Criar nova configuração
+        const { data: newConfig, error: insertError } = await supabase
+          .from('client_google_drive_configs')
+          .insert(configData)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        savedConfig = newConfig;
+      }
+
+      // Retornar página HTML com postMessage (como outros OAuth)
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Google Drive conectado com sucesso',
-          email: userInfo.email,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Autenticação Concluída</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            .success { color: green; }
+            .button { 
+              display: inline-block; 
+              padding: 10px 20px; 
+              background: #007bff; 
+              color: white; 
+              text-decoration: none; 
+              border-radius: 5px; 
+              margin-top: 20px;
+            }
+          </style>
+        </head>
+        <body>
+          <h1 class="success">✓ Autenticação Concluída!</h1>
+          <p>Sua conta do Google Drive foi conectada com sucesso.</p>
+          <p>Você pode fechar esta janela e voltar para a página de Contratos.</p>
+          <a href="/contracts" class="button">Voltar para Contratos</a>
+          <script>
+            // Fechar popup se aberto em popup
+            if (window.opener) {
+              try {
+                window.opener.postMessage({ 
+                  type: 'GOOGLE_DRIVE_OAUTH_SUCCESS', 
+                  configId: '${savedConfig.id}',
+                  email: '${userInfo.email || ''}',
+                  folderId: '${folderId || ''}'
+                }, '*');
+                setTimeout(() => window.close(), 1500);
+              } catch (e) {
+                console.error('Erro ao enviar mensagem:', e);
+                setTimeout(() => window.close(), 2000);
+              }
+            }
+          </script>
+        </body>
+        </html>
+        `,
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' } 
+        }
       );
     }
 
@@ -173,9 +342,25 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error('Erro no OAuth do Google Drive:', error);
+    const errorMessage = error.message || 'Erro interno do servidor';
     return new Response(
-      JSON.stringify({ error: error.message || 'Erro interno do servidor' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Erro</title></head>
+      <body>
+        <h1>Erro na autenticação</h1>
+        <p>${errorMessage}</p>
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ type: 'GOOGLE_DRIVE_OAUTH_ERROR', error: '${errorMessage.replace(/'/g, "\\'")}' }, '*');
+            setTimeout(() => window.close(), 2000);
+          }
+        </script>
+      </body>
+      </html>
+      `,
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' } }
     );
   }
 });

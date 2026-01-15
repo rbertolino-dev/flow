@@ -63,36 +63,65 @@ export function useGoogleDriveOAuth({ leadId, organizationId, onSuccess }: UseGo
         throw new Error('Popup bloqueado. Permita popups para este site.');
       }
 
-      // Aguardar callback
-      const checkPopup = setInterval(async () => {
+      // Escutar mensagem de sucesso do popup
+      const messageListener = (event: MessageEvent) => {
+        const allowedOrigins = [window.location.origin];
+        try {
+          const supabaseOrigin = new URL(import.meta.env.VITE_SUPABASE_URL || "").origin;
+          allowedOrigins.push(supabaseOrigin);
+        } catch {
+          // ignore if env não configurado
+        }
+        
+        if (!allowedOrigins.includes(event.origin)) {
+          return;
+        }
+
+        if (event.data && event.data.type === 'GOOGLE_DRIVE_OAUTH_SUCCESS') {
+          window.removeEventListener('message', messageListener);
+          clearInterval(checkPopup);
+          if (popup && !popup.closed) {
+            popup.close();
+          }
+          
+          toast({
+            title: 'Google Drive conectado',
+            description: `Conexão com Google Drive estabelecida com sucesso${event.data.email ? ` (${event.data.email})` : ''}`,
+          });
+          onSuccess?.();
+          setLoading(false);
+        } else if (event.data && event.data.type === 'GOOGLE_DRIVE_OAUTH_ERROR') {
+          window.removeEventListener('message', messageListener);
+          clearInterval(checkPopup);
+          if (popup && !popup.closed) {
+            popup.close();
+          }
+          toast({
+            title: 'Erro na autenticação',
+            description: event.data.error || 'Erro ao conectar Google Drive',
+            variant: 'destructive',
+          });
+          setLoading(false);
+        }
+      };
+
+      window.addEventListener('message', messageListener);
+
+      // Verificar se popup foi fechado manualmente
+      const checkPopup = setInterval(() => {
         if (popup.closed) {
           clearInterval(checkPopup);
+          window.removeEventListener('message', messageListener);
           setLoading(false);
-          
-          // Verificar se conexão foi bem-sucedida
-          const { data: config } = await supabase
-            .from('client_google_drive_configs')
-            .select('id')
-            .eq('lead_id', leadId)
-            .eq('organization_id', organizationId)
-            .eq('is_active', true)
-            .maybeSingle();
-
-          if (config) {
-            toast({
-              title: 'Google Drive conectado',
-              description: 'Conexão com Google Drive estabelecida com sucesso',
-            });
-            onSuccess?.();
-          }
         }
-      }, 1000);
+      }, 500);
 
       // Timeout após 5 minutos
       setTimeout(() => {
         if (!popup.closed) {
           popup.close();
           clearInterval(checkPopup);
+          window.removeEventListener('message', messageListener);
           setLoading(false);
           toast({
             title: 'Timeout',
