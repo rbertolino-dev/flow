@@ -444,12 +444,37 @@ export function useContracts(filters?: ContractFilters) {
       // Buscar posições de assinatura definidas no builder (se houver)
       const signaturePositions = await getSignaturePositions(contractId);
 
+      // Buscar dados completos da organização para o PDF
+      let organizationData: any = null;
+      if (activeOrgId) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('name, logo_url, address, company_profile, city, state, cnpj, phone, contact_email')
+          .eq('id', activeOrgId)
+          .single();
+        
+        if (orgData) {
+          organizationData = {
+            name: orgData.name,
+            logo_url: orgData.logo_url,
+            address: orgData.address,
+            company_profile: orgData.company_profile,
+            city: orgData.city,
+            state: orgData.state,
+            cnpj: orgData.cnpj,
+            phone: orgData.phone,
+            contact_email: orgData.contact_email,
+          };
+        }
+      }
+
       // Gerar PDF com assinaturas e dados de autenticação
       const pdfBlob = await generateContractPDF({
         content: contract.content,
         contractNumber: contract.contract_number,
         leadName: contract.lead?.name,
         coverPageUrl: coverPageUrl,
+        organizationData,
         signatures: signatures?.map(sig => ({
           name: sig.signer_name,
           signatureData: sig.signature_data,

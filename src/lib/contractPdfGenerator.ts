@@ -16,6 +16,17 @@ export interface ContractPdfOptions {
   leadName?: string;
   fileName?: string;
   coverPageUrl?: string; // URL da folha de rosto (imagem de fundo)
+  organizationData?: {
+    name?: string;
+    logo_url?: string;
+    address?: string;
+    company_profile?: string;
+    city?: string;
+    state?: string;
+    cnpj?: string;
+    phone?: string;
+    contact_email?: string;
+  };
   signatures?: Array<{
     name: string;
     signatureData: string; // base64 PNG
@@ -151,6 +162,9 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
   const lineHeight = 7;
   let yPosition = margin;
 
+  const organizationData = options.organizationData;
+  const logoUrl = organizationData?.logo_url;
+
   // Adicionar folha de rosto como fundo (se fornecida)
   if (options.coverPageUrl) {
     try {
@@ -194,9 +208,71 @@ export async function generateContractPDF(options: ContractPdfOptions): Promise<
     return false;
   };
 
+  // Cabeçalho com dados da organização (se disponível)
+  if (organizationData) {
+    const headerStartY = margin;
+    let headerY = headerStartY;
+    const logoSize = 20;
+    const leftColumnX = margin;
+    const rightColumnX = pageWidth - margin;
+    const logoRightX = rightColumnX - logoSize;
+
+    // Carregar e posicionar logo (se disponível)
+    if (logoUrl) {
+      try {
+        const logoDataUrl = await loadImage(logoUrl);
+        if (logoDataUrl) {
+          const imageType = logoUrl.toLowerCase().endsWith('.png') ? 'PNG' : 'JPEG';
+          doc.addImage(logoDataUrl, imageType, logoRightX, headerStartY, logoSize, logoSize);
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar logo:', error);
+      }
+    }
+
+    // Dados da organização no topo esquerdo
+    if (organizationData.name) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 30, 30);
+      doc.text(organizationData.name, leftColumnX, headerY);
+      headerY += lineHeight * 0.9;
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+
+    if (organizationData.cnpj) {
+      doc.text(`CNPJ: ${organizationData.cnpj}`, leftColumnX, headerY);
+      headerY += lineHeight * 0.8;
+    }
+
+    if (organizationData.address) {
+      const addressLines = doc.splitTextToSize(organizationData.address, 90);
+      addressLines.forEach((line: string) => {
+        doc.text(`Endereco: ${line}`, leftColumnX, headerY);
+        headerY += lineHeight * 0.8;
+      });
+    }
+
+    if (organizationData.phone) {
+      doc.text(`Telefone: ${organizationData.phone}`, leftColumnX, headerY);
+      headerY += lineHeight * 0.8;
+    }
+
+    if (organizationData.contact_email) {
+      doc.text(`Email: ${organizationData.contact_email}`, leftColumnX, headerY);
+      headerY += lineHeight * 0.8;
+    }
+
+    yPosition = Math.max(headerY + lineHeight, margin + 30);
+  }
+
   // Título do contrato
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
   doc.text('CONTRATO', pageWidth / 2, yPosition, { align: 'center' });
   yPosition += lineHeight * 2;
 

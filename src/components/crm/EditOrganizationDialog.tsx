@@ -525,6 +525,48 @@ export function EditOrganizationDialog({
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cnpj">CNPJ</Label>
+                <Input
+                  id="cnpj"
+                  value={formData.cnpj}
+                  onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                  placeholder="XX.XXX.XXX/XXXX-XX"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Será exibido nos orçamentos e contratos
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="(XX) XXXXX-XXXX"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Será exibido nos orçamentos e contratos
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contact_email">Email de Contato</Label>
+              <Input
+                id="contact_email"
+                type="email"
+                value={formData.contact_email}
+                onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                placeholder="contato@empresa.com.br"
+              />
+              <p className="text-xs text-muted-foreground">
+                Será exibido nos orçamentos e contratos
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="tagline">Frase de Efeito</Label>
               <Input
