@@ -7,11 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, MessageSquare, Clock, PhoneCall, Calendar, User, Building2, Mail, Phone } from "lucide-react";
+import { AlertCircle, MessageSquare, Clock, PhoneCall, Calendar, User, Building2, Mail, Phone, Send } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { formatBrazilianPhone } from "@/lib/phoneUtils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useMessageTemplates } from "@/hooks/useMessageTemplates";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LeadsAttentionPanelProps {
   leads: Lead[];
@@ -29,6 +41,23 @@ export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAt
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [daysWithoutContactThreshold, setDaysWithoutContactThreshold] = useState(7);
   const [daysInQueueThreshold, setDaysInQueueThreshold] = useState(3);
+  
+  // Estados para envio de mensagem WhatsApp
+  const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
+  const [leadToMessage, setLeadToMessage] = useState<Lead | null>(null);
+  const [whatsappMessage, setWhatsappMessage] = useState<string>("");
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [isSending, setIsSending] = useState(false);
+  
+  const { configs } = useEvolutionConfigs();
+  const { templates, applyTemplate } = useMessageTemplates();
+  const { toast } = useToast();
+  
+  // Instâncias: todas do ambiente atual, com conectadas primeiro
+  const allInstances = useMemo(() => (configs || []).slice().sort((a, b) => Number(b.is_connected) - Number(a.is_connected)), [configs]);
+  const connectedInstances = useMemo(() => (configs || []).filter(c => c.is_connected === true), [configs]);
+  const hasInstances = allInstances.length > 0;
 
   // Criar mapa de leads na fila para acesso rápido
   const queueMap = useMemo(() => {
@@ -147,11 +176,116 @@ export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAt
     window.location.href = `tel:${formattedPhone}`;
   };
 
-  const handleWhatsApp = (phone: string, e: React.MouseEvent) => {
+  const handleWhatsApp = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
-    const cleanPhone = phone.replace(/\D/g, '');
-    const whatsappNumber = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    window.open(`https://wa.me/${whatsappNumber}`, '_blank');
+    setLeadToMessage(lead);
+    setWhatsappMessage("");
+    setSelectedTemplateId("");
+    setSelectedInstanceId(connectedInstances.length > 0 ? connectedInstances[0].id : allInstances.length > 0 ? allInstances[0].id : "");
+    setSendMessageDialogOpen(true);
+  };
+  
+  const handleSendWhatsApp = async () => {
+    if (!leadToMessage) return;
+    
+    if (!whatsappMessage.trim() || !selectedInstanceId) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Selecione uma instância e digite a mensagem",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSending(true);
+    
+    // Obter mídia do template selecionado (se houver)
+    const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+    const mediaUrl = selectedTemplate?.media_url || undefined;
+    const mediaType = selectedTemplate?.media_type || undefined;
+    
+    console.log('📤 [Frontend] Iniciando envio de mensagem...', {
+      instanceId: selectedInstanceId,
+      phone: leadToMessage.phone,
+      messageLength: whatsappMessage.length,
+      leadId: leadToMessage.id,
+      hasMedia: !!mediaUrl,
+      mediaType
+    });
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
+        body: {
+          instanceId: selectedInstanceId,
+          phone: leadToMessage.phone,
+          message: whatsappMessage,
+          leadId: leadToMessage.id,
+          mediaUrl,
+          mediaType,
+        },
+      });
+
+      console.log('📥 [Frontend] Resposta do edge function:', { data, error });
+
+      if (error) {
+        console.error('❌ [Frontend] Erro retornado:', error);
+        const errorMessage = error.message || 'Erro ao chamar função de envio';
+        throw new Error(errorMessage);
+      }
+
+      if (data?.error) {
+        console.error('❌ [Frontend] Erro no data:', data);
+        const errorMessage = data.error || 'Erro desconhecido';
+        const errorDetails = data.details || '';
+        throw new Error(errorDetails ? `${errorMessage}: ${errorDetails}` : errorMessage);
+      }
+
+      console.log('✅ [Frontend] Mensagem enviada com sucesso!');
+
+      toast({
+        title: "Mensagem enviada",
+        description: "A mensagem foi enviada com sucesso",
+      });
+
+      setWhatsappMessage("");
+      setSelectedTemplateId("");
+      setSendMessageDialogOpen(false);
+      setLeadToMessage(null);
+      
+      // Atualizar leads
+      onLeadUpdated?.();
+    } catch (error: any) {
+      console.error('💥 [Frontend] Erro crítico:', error);
+      
+      let errorMessage = "Erro desconhecido. Verifique os logs do console.";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      toast({
+        title: "Erro ao enviar mensagem",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+  
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (template && leadToMessage) {
+      const message = applyTemplate(template.content, {
+        nome: leadToMessage.name,
+        telefone: leadToMessage.phone,
+        empresa: leadToMessage.company || '',
+      });
+      setWhatsappMessage(message);
+    }
   };
 
   const handleEmail = (email: string, e: React.MouseEvent) => {
@@ -349,8 +483,8 @@ export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAt
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={(e) => handleWhatsApp(lead.phone, e)}
-                            title="WhatsApp"
+                            onClick={(e) => handleWhatsApp(lead, e)}
+                            title="Enviar WhatsApp"
                           >
                             <MessageSquare className="h-4 w-4" />
                           </Button>
@@ -386,6 +520,129 @@ export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAt
           }}
         />
       )}
+      
+      {/* Dialog de envio rápido de mensagem WhatsApp */}
+      <Dialog open={sendMessageDialogOpen} onOpenChange={setSendMessageDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Enviar Mensagem WhatsApp</DialogTitle>
+          </DialogHeader>
+          
+          {leadToMessage && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Para:</Label>
+                <p className="text-sm text-muted-foreground">{leadToMessage.name} - {formatBrazilianPhone(leadToMessage.phone)}</p>
+              </div>
+              
+              <div>
+                <Label htmlFor="template-select">Template (opcional)</Label>
+                <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
+                  <SelectTrigger id="template-select">
+                    <SelectValue placeholder="Selecione um template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum template</SelectItem>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="instance-select">Instância WhatsApp</Label>
+                <Select 
+                  value={selectedInstanceId} 
+                  onValueChange={setSelectedInstanceId}
+                  disabled={!hasInstances}
+                >
+                  <SelectTrigger id="instance-select">
+                    <SelectValue placeholder={
+                      !hasInstances 
+                        ? "Nenhuma instância configurada" 
+                        : "Selecione uma instância"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!hasInstances ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Configure uma instância em Configurações
+                      </div>
+                    ) : (
+                      allInstances.map((config) => (
+                        <SelectItem 
+                          key={config.id} 
+                          value={config.id}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{config.instance_name}</span>
+                            {config.is_connected ? (
+                              <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                                Conectado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-red-600 border-red-600">
+                                Desconectado
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {!hasInstances && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Vá em Configurações → WhatsApp para conectar uma instância
+                  </p>
+                )}
+                {hasInstances && connectedInstances.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Todas as instâncias estão desconectadas. Teste a conexão em Configurações.
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="whatsapp-message">Mensagem</Label>
+                <Textarea
+                  id="whatsapp-message"
+                  placeholder="Digite sua mensagem..."
+                  value={whatsappMessage}
+                  onChange={(e) => setWhatsappMessage(e.target.value)}
+                  rows={5}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSendMessageDialogOpen(false);
+                    setLeadToMessage(null);
+                    setWhatsappMessage("");
+                    setSelectedTemplateId("");
+                  }}
+                  disabled={isSending}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSendWhatsApp}
+                  disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {isSending ? 'Enviando...' : 'Enviar'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
