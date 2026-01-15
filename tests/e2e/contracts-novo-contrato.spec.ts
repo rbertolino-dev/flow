@@ -15,6 +15,9 @@ test.describe('Contratos - Botão Novo Contrato', () => {
     await page.goto('/contracts');
     await page.waitForLoadState('networkidle');
     await human.randomDelay(1000, 2000);
+
+    const canSeeNovoContrato = await page.getByRole('button', { name: /novo contrato/i }).isVisible().catch(() => false);
+    test.skip(!canSeeNovoContrato, 'Módulo de Contratos não disponível neste ambiente (sem login/feature).');
   });
 
   test('deve abrir dialog de novo contrato sem erros', async ({ page }) => {
@@ -34,8 +37,6 @@ test.describe('Contratos - Botão Novo Contrato', () => {
 
     // Procurar e clicar no botão "Novo Contrato"
     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });
-    const canSeeNovoContrato = await novoContratoButton.isVisible().catch(() => false);
-    test.skip(!canSeeNovoContrato, 'Botão "Novo Contrato" não disponível (sem login/feature/ambiente).');
     
     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });
     await human.humanClick(novoContratoButton);
@@ -121,9 +122,6 @@ test.describe('Contratos - Botão Novo Contrato', () => {
 
     // Abrir dialog
     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });
-    const canSeeNovoContrato = await novoContratoButton.isVisible().catch(() => false);
-    test.skip(!canSeeNovoContrato, 'Botão "Novo Contrato" não disponível (sem login/feature/ambiente).');
-
     await novoContratoButton.click();
     await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
     await human.randomDelay(2000, 3000);

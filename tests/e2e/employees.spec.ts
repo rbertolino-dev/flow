@@ -25,13 +25,13 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
     
     // Aguardar carregamento inicial
     await page.waitForLoadState('networkidle');
+
+    // Se a página não estiver acessível (ex: sem login/feature), pule a suíte inteira
+    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
+    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
   });
 
   test('deve exibir página de colaboradores', async ({ page }) => {
-    // Se a página não estiver acessível (ex: sem login/feature), não falhar o pipeline
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Verificar título da página
     await expect(page.getByRole('heading', { name: /colaboradores/i })).toBeVisible();
     
@@ -43,9 +43,6 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
   });
 
   test('deve abrir formulário de criação de funcionário', async ({ page }) => {
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Clicar no botão de novo funcionário
     await page.getByRole('button', { name: /novo funcionário/i }).click();
     
@@ -60,9 +57,6 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
   });
 
   test('deve validar campos obrigatórios ao criar funcionário', async ({ page }) => {
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Abrir formulário
     await page.getByRole('button', { name: /novo funcionário/i }).click();
     
@@ -74,9 +68,6 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
   });
 
   test('deve criar funcionário com dados válidos', async ({ page }) => {
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Abrir formulário
     await page.getByRole('button', { name: /novo funcionário/i }).click();
     
@@ -98,9 +89,6 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
   });
 
   test('deve filtrar funcionários por status', async ({ page }) => {
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Aguardar carregamento da lista
     await page.waitForSelector('table', { timeout: 10000 });
     
@@ -116,9 +104,6 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
   });
 
   test('deve buscar funcionário por nome', async ({ page }) => {
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Aguardar carregamento
     await page.waitForSelector('input[placeholder*="Buscar"]', { timeout: 10000 });
     
@@ -136,9 +121,6 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
   });
 
   test('deve exibir detalhes do funcionário', async ({ page }) => {
-    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
-    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
-
     // Aguardar carregamento
     await page.waitForSelector('table', { timeout: 10000 });
     
