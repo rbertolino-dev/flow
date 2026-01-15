@@ -292,10 +292,10 @@ export function useCallQueue() {
 
       // ✅ CORREÇÃO: Determinar quem concluiu a ligação
       // Se houver responsável determinado (assigned_to_user_id), usar ele como quem concluiu
-      // Caso contrário, usar o usuário atual
-      let completedByEmail = user.email || 'Usuário';
-      let completedByUserId = user.id;
-      let completedByName = user.email || 'Usuário';
+      // Se não houver responsável (null), manter como "Nenhum responsável atribuído"
+      let completedByEmail: string | null = null;
+      let completedByUserId: string | null = null;
+      let completedByName: string = 'Nenhum responsável atribuído';
 
       if (queueItem.assigned_to_user_id) {
         // Buscar dados do responsável determinado
@@ -306,15 +306,23 @@ export function useCallQueue() {
           .maybeSingle();
 
         if (!userError && assignedUser) {
-          completedByEmail = assignedUser.email || 'Responsável não determinado';
+          completedByEmail = assignedUser.email || null;
           completedByUserId = assignedUser.id;
           completedByName = assignedUser.full_name || assignedUser.email || 'Responsável não determinado';
           console.log('✅ Usando responsável determinado como quem concluiu:', completedByName);
         } else {
-          console.log('⚠️ Responsável determinado não encontrado, usando usuário atual');
+          console.log('⚠️ Responsável determinado não encontrado, mantendo como não atribuído');
+          // Manter como não atribuído se o responsável não for encontrado
+          completedByEmail = null;
+          completedByUserId = null;
+          completedByName = 'Nenhum responsável atribuído';
         }
       } else {
-        console.log('ℹ️ Nenhum responsável determinado, usando usuário atual como quem concluiu');
+        console.log('ℹ️ Nenhum responsável determinado, mantendo como não atribuído');
+        // Manter como não atribuído quando assigned_to_user_id é null
+        completedByEmail = null;
+        completedByUserId = null;
+        completedByName = 'Nenhum responsável atribuído';
       }
 
       // Se o item não tiver organização, corrige antes de atualizar (evita falha por RLS)
