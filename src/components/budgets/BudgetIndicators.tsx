@@ -116,7 +116,7 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
 
   return (
     <Card className="border-0 shadow-sm bg-gradient-to-br from-background to-muted/20">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <div className="p-1.5 rounded-md bg-primary/10">
             <Calendar className="w-4 h-4 text-primary" />
@@ -124,43 +124,46 @@ export function BudgetIndicators({ budgets, dateFrom, dateTo }: BudgetIndicators
           Indicadores
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 space-y-3">
-        {/* Total de orçamentos, valor total e aprovados - Design moderno */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-800/30">
-            <p className="text-[11px] font-medium text-blue-700 dark:text-blue-300 mb-1">
+      <CardContent className="pt-0">
+        {/* Todos os indicadores em uma linha - Design moderno e compacto */}
+        <div className="grid grid-cols-4 gap-3">
+          {/* Total de Orçamentos */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 via-blue-100/60 to-blue-50 dark:from-blue-950/40 dark:via-blue-900/30 dark:to-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
+            <p className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
               Total
             </p>
-            <p className="text-xl font-bold text-blue-900 dark:text-blue-100">{total}</p>
-            <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">orçamentos</p>
+            <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 leading-none mb-1">{total}</p>
+            <p className="text-[9px] text-blue-600/80 dark:text-blue-400/80 font-medium">orçamentos</p>
           </div>
-          <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border border-emerald-200/50 dark:border-emerald-800/30">
-            <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300 mb-1 flex items-center gap-1">
+          
+          {/* Valor Total Orçado */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 via-emerald-100/60 to-emerald-50 dark:from-emerald-950/40 dark:via-emerald-900/30 dark:to-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
+            <p className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 mb-2 uppercase tracking-wide flex items-center gap-1">
               <DollarSign className="w-3 h-3" />
               Valor Total
             </p>
-            <p className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{formattedTotalValue}</p>
-            <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">orçado</p>
+            <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 leading-none mb-1">{formattedTotalValue}</p>
+            <p className="text-[9px] text-emerald-600/80 dark:text-emerald-400/80 font-medium">orçado</p>
           </div>
-        </div>
-        
-        {/* Aprovados - quantidade e valor */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border border-green-200/50 dark:border-green-800/30">
-            <p className="text-[11px] font-medium text-green-700 dark:text-green-300 mb-1 flex items-center gap-1">
+          
+          {/* Aprovados - Quantidade */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 via-green-100/60 to-green-50 dark:from-green-950/40 dark:via-green-900/30 dark:to-green-950/40 border border-green-200/60 dark:border-green-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
+            <p className="text-[9px] font-semibold text-green-700 dark:text-green-300 mb-2 uppercase tracking-wide flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
               Aprovados
             </p>
-            <p className="text-xl font-bold text-green-900 dark:text-green-100">{approved}</p>
-            <p className="text-[10px] text-green-600/70 dark:text-green-400/70 mt-0.5">orçamentos</p>
+            <p className="text-3xl font-bold text-green-900 dark:text-green-100 leading-none mb-1">{approved}</p>
+            <p className="text-[9px] text-green-600/80 dark:text-green-400/80 font-medium">orçamentos</p>
           </div>
-          <div className="p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border border-green-200/50 dark:border-green-800/30">
-            <p className="text-[11px] font-medium text-green-700 dark:text-green-300 mb-1 flex items-center gap-1">
+          
+          {/* Valor Aprovado */}
+          <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 via-green-100/60 to-green-50 dark:from-green-950/40 dark:via-green-900/30 dark:to-green-950/40 border border-green-200/60 dark:border-green-800/40 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
+            <p className="text-[9px] font-semibold text-green-700 dark:text-green-300 mb-2 uppercase tracking-wide flex items-center gap-1">
               <DollarSign className="w-3 h-3" />
               Valor Aprovado
             </p>
-            <p className="text-lg font-bold text-green-900 dark:text-green-100">{formattedApprovedValue}</p>
-            <p className="text-[10px] text-green-600/70 dark:text-green-400/70 mt-0.5">aprovado</p>
+            <p className="text-2xl font-bold text-green-900 dark:text-green-100 leading-none mb-1">{formattedApprovedValue}</p>
+            <p className="text-[9px] text-green-600/80 dark:text-green-400/80 font-medium">aprovado</p>
           </div>
         </div>
 
