@@ -327,6 +327,47 @@ serve(async (req) => {
         errorText = `Erro ao ler resposta: ${e}`;
       }
       
+      // Verificar PRIMEIRO se o número não existe no WhatsApp (caso mais comum)
+      const responseMessage = errorData?.response?.message;
+      let isNumberNotExists = false;
+      let numberInfo: any = null;
+      
+      if (Array.isArray(responseMessage) && responseMessage.length > 0) {
+        const firstMessage = responseMessage[0];
+        if (firstMessage.exists === false) {
+          isNumberNotExists = true;
+          numberInfo = firstMessage;
+        }
+      } else if (responseMessage && typeof responseMessage === 'object' && responseMessage.exists === false) {
+        // Caso a mensagem seja um objeto único ao invés de array
+        isNumberNotExists = true;
+        numberInfo = responseMessage;
+      }
+      
+      if (isNumberNotExists && numberInfo) {
+        // Log informativo (não é erro crítico, é validação)
+        console.log('⚠️ [send-whatsapp-message] Número não existe no WhatsApp:', {
+          number: numberInfo.number || phone,
+          jid: numberInfo.jid,
+          status: responseStatus
+        });
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Número não encontrado no WhatsApp',
+            details: `O número ${numberInfo.number || phone} não está registrado no WhatsApp ou não é válido. Verifique se o número está correto e se possui WhatsApp ativo.`,
+            status: responseStatus,
+            phone: numberInfo.number || phone,
+            exists: false
+          }),
+          { 
+            status: 400, // Retornar 400 para erro de validação
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // Se não for o caso de número não existir, logar como erro
       console.error('❌ [send-whatsapp-message] Erro da Evolution API:', {
         status: responseStatus,
         statusText: evolutionResponse.statusText,
@@ -339,48 +380,6 @@ serve(async (req) => {
       // Mensagem de erro mais amigável baseada no tipo de erro
       let userMessage = `Erro ao enviar mensagem (Status ${responseStatus})`;
       let errorDetails = errorText;
-      
-      // Verificar se o número não existe no WhatsApp
-      const responseMessage = errorData?.response?.message;
-      if (Array.isArray(responseMessage) && responseMessage.length > 0) {
-        const firstMessage = responseMessage[0];
-        if (firstMessage.exists === false) {
-          userMessage = 'Número não encontrado no WhatsApp';
-          errorDetails = `O número ${firstMessage.number || phone} não está registrado no WhatsApp ou não é válido. Verifique se o número está correto e se possui WhatsApp ativo.`;
-          
-          return new Response(
-            JSON.stringify({ 
-              error: userMessage,
-              details: errorDetails,
-              status: responseStatus,
-              phone: firstMessage.number || phone,
-              exists: false
-            }),
-            { 
-              status: 400, // Retornar 400 ao invés de 500 para erro de validação
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            }
-          );
-        }
-      } else if (responseMessage && typeof responseMessage === 'object' && responseMessage.exists === false) {
-        // Caso a mensagem seja um objeto único ao invés de array
-        userMessage = 'Número não encontrado no WhatsApp';
-        errorDetails = `O número ${responseMessage.number || phone} não está registrado no WhatsApp ou não é válido. Verifique se o número está correto e se possui WhatsApp ativo.`;
-        
-        return new Response(
-          JSON.stringify({ 
-            error: userMessage,
-            details: errorDetails,
-            status: responseStatus,
-            phone: responseMessage.number || phone,
-            exists: false
-          }),
-          { 
-            status: 400, // Retornar 400 ao invés de 500 para erro de validação
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
-      }
       
       if (errorData?.response?.message === 'Connection Closed' || errorText.includes('Connection Closed')) {
         userMessage = 'Instância desconectada ou com problema de conexão';

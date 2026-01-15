@@ -402,12 +402,35 @@ export function ContractPdfBuilder({
     setNumPages(numPages);
   }, []);
 
+  // Ref para rastrear se houve movimento durante o click (para distinguir click de drag)
+  const clickStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const hasMovedRef = useRef<boolean>(false);
+
   const handlePageClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     // Não adicionar nova posição se estiver arrastando ou redimensionando
     if (isDragging || isResizing || previewMode) return;
     
-    // Não adicionar se clicou em uma posição existente
-    if ((event.target as HTMLElement).closest('.signature-position')) return;
+    // Não adicionar se clicou em uma posição existente ou em seus controles
+    const target = event.target as HTMLElement;
+    if (target.closest('.signature-position') || 
+        target.closest('.resize-handle') || 
+        target.closest('button')) {
+      return;
+    }
+
+    // Verificar se houve movimento significativo (mais de 5px) - se sim, foi um drag, não um click
+    if (clickStartRef.current) {
+      const dx = Math.abs(event.clientX - clickStartRef.current.x);
+      const dy = Math.abs(event.clientY - clickStartRef.current.y);
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > 5 || hasMovedRef.current) {
+        // Foi um drag, não um click - não criar nova posição
+        clickStartRef.current = null;
+        hasMovedRef.current = false;
+        return;
+      }
+    }
 
     if (!containerRef.current) return;
 
@@ -420,7 +443,7 @@ export function ContractPdfBuilder({
     y = snapToGridValue(y);
 
     const newPosition: SignaturePosition = {
-      id: `pos-${Date.now()}`,
+      id: `pos-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       signerType: selectedSignerType,
       pageNumber: currentPage,
       x,
@@ -434,19 +457,30 @@ export function ContractPdfBuilder({
     setPositions(newPositions);
     setSelectedPositionId(newPosition.id);
     saveToHistory(newPositions);
+    
+    // Limpar refs
+    clickStartRef.current = null;
+    hasMovedRef.current = false;
   }, [isDragging, isResizing, previewMode, zoomLevel, snapToGridValue, selectedSignerType, currentPage, positions, saveToHistory]);
 
 
   const handlePositionMouseDown = (e: React.MouseEvent, positionId: string) => {
     e.stopPropagation();
+    e.preventDefault(); // Prevenir comportamento padrão
+    
     setSelectedPositionId(positionId);
     
-    if ((e.target as HTMLElement).classList.contains('resize-handle')) {
+    // Registrar início do movimento para distinguir click de drag
+    clickStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+    hasMovedRef.current = false;
+    
+    if ((e.target as HTMLElement).closest('.resize-handle')) {
       // Iniciar redimensionamento
-      const pos = positions.find(p => p.id === positionId);
+      const pos = positionsRef.current.find(p => p.id === positionId);
       if (!pos) return;
       
       setIsResizing(true);
+      setIsDragging(false); // Garantir que não está arrastando
       setResizeStart({
         x: e.clientX,
         y: e.clientY,
@@ -456,6 +490,7 @@ export function ContractPdfBuilder({
     } else {
       // Iniciar arrastar
       setIsDragging(true);
+      setIsResizing(false); // Garantir que não está redimensionando
       setDragStart({
         x: e.clientX,
         y: e.clientY,
@@ -467,10 +502,20 @@ export function ContractPdfBuilder({
     // Cancelar qualquer animação pendente
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
     }
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current || !selectedPositionId) return;
+
+      // Marcar que houve movimento (para distinguir click de drag)
+      if (clickStartRef.current) {
+        const dx = Math.abs(e.clientX - clickStartRef.current.x);
+        const dy = Math.abs(e.clientY - clickStartRef.current.y);
+        if (dx > 5 || dy > 5) {
+          hasMovedRef.current = true;
+        }
+      }
 
       // Usar requestAnimationFrame para atualizações suaves
       if (rafIdRef.current) {
@@ -506,7 +551,15 @@ export function ContractPdfBuilder({
           }
 
           // Atualizar apenas preview durante drag (evita re-renders)
-          setPreviewPosition({ id: selectedPositionId, x: newX, y: newY, width: pos.width, height: pos.height });
+          setPreviewPosition(prev => {
+            // Só atualizar se mudou significativamente (evita updates desnecessários)
+            if (prev && prev.id === selectedPositionId) {
+              const dx = Math.abs(prev.x - newX);
+              const dy = Math.abs(prev.y - newY);
+              if (dx < 0.5 && dy < 0.5) return prev; // Não atualizar se mudança muito pequena
+            }
+            return { id: selectedPositionId, x: newX, y: newY, width: pos.width, height: pos.height };
+          });
         } else if (isResizing) {
           const deltaX = (e.clientX - resizeStart.x) / zoomLevel;
           const deltaY = (e.clientY - resizeStart.y) / zoomLevel;
@@ -515,7 +568,15 @@ export function ContractPdfBuilder({
           let newHeight = Math.max(30, snapToGridValue(resizeStart.height + deltaY));
 
           // Atualizar apenas preview durante resize (evita re-renders)
-          setPreviewPosition({ id: selectedPositionId, x: pos.x, y: pos.y, width: newWidth, height: newHeight });
+          setPreviewPosition(prev => {
+            // Só atualizar se mudou significativamente
+            if (prev && prev.id === selectedPositionId) {
+              const dw = Math.abs(prev.width - newWidth);
+              const dh = Math.abs(prev.height - newHeight);
+              if (dw < 0.5 && dh < 0.5) return prev;
+            }
+            return { id: selectedPositionId, x: pos.x, y: pos.y, width: newWidth, height: newHeight };
+          });
         }
       });
     };
@@ -534,6 +595,10 @@ export function ContractPdfBuilder({
 
       setIsDragging(false);
       setIsResizing(false);
+      
+      // Limpar refs de movimento
+      clickStartRef.current = null;
+      hasMovedRef.current = false;
       
       // Cancelar animação pendente
       if (rafIdRef.current) {
@@ -1023,6 +1088,13 @@ export function ContractPdfBuilder({
                     ref={containerRef}
                     className="relative border rounded-lg overflow-auto bg-gray-100 flex-1"
                     style={{ maxHeight: '600px' }}
+                    onMouseDown={(e) => {
+                      // Registrar início do click para distinguir de drag
+                      if (!(e.target as HTMLElement).closest('.signature-position')) {
+                        clickStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                        hasMovedRef.current = false;
+                      }
+                    }}
                     onClick={handlePageClick}
                   >
                     {/* Grid Overlay */}
@@ -1151,9 +1223,9 @@ export function ContractPdfBuilder({
                 )}
 
                     {/* Marcadores de posição */}
-                    {!previewMode && positions
-                      .filter(p => p.pageNumber === currentPage)
-                      .map((pos) => {
+                    {!previewMode && (() => {
+                      const currentPagePositions = positions.filter(p => p.pageNumber === currentPage);
+                      return currentPagePositions.map((pos) => {
                     const isSelected = selectedPositionId === pos.id;
                     const isPreview = previewPosition?.id === pos.id;
                     
@@ -1201,18 +1273,23 @@ export function ContractPdfBuilder({
                     return (
                       <div
                         key={pos.id}
-                        className={`signature-position absolute border-2 rounded cursor-move ${colors.border} ${colors.bg} ${!isSelected ? colors.hover : ''} ${isSelected ? 'shadow-lg z-10' : 'z-0'} ${isPreview ? 'transition-none' : 'transition-all duration-75'}`}
+                        className={`signature-position absolute border-2 rounded cursor-move ${colors.border} ${colors.bg} ${!isSelected ? colors.hover : ''} ${isSelected ? 'shadow-lg z-10' : 'z-0'} ${isPreview ? 'transition-none' : ''}`}
                         style={{
                           left: `${displayPos.x}px`,
                           top: `${displayPos.y}px`,
                           width: `${displayPos.width}px`,
                           height: `${displayPos.height}px`,
                           willChange: isPreview ? 'transform' : 'auto',
+                          pointerEvents: 'auto',
                         }}
                         onMouseDown={(e) => handlePositionMouseDown(e, pos.id)}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedPositionId(pos.id);
+                          e.preventDefault();
+                          // Só selecionar se não foi um drag
+                          if (!hasMovedRef.current) {
+                            setSelectedPositionId(pos.id);
+                          }
                         }}
                         title={`${signerTypeLabel} - Arraste para mover, arraste o canto para redimensionar`}
                       >
@@ -1250,7 +1327,8 @@ export function ContractPdfBuilder({
                         )}
                       </div>
                     );
-                  })}
+                  });
+                    })()}
 
                     {/* Preview Mode - Renderizar assinaturas sobre o PDF */}
                     {previewMode && positions
