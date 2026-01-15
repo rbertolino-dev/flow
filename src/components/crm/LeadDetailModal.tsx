@@ -1499,11 +1499,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
                   
                   <Button
                     onClick={() => setShowSchedulePanel(!showSchedulePanel)}
-                    variant="outline"
+                    variant={showSchedulePanel ? "default" : "outline"}
                     disabled={!hasInstances}
+                    className={showSchedulePanel ? "flex-1" : ""}
                   >
                     <Clock className="h-4 w-4 mr-2" />
-                    Agendar
+                    {showSchedulePanel ? "Ocultar Agenda" : "Agendar"}
                   </Button>
                 </div>
               </div>
