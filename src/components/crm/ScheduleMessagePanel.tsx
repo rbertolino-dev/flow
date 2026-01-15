@@ -166,21 +166,24 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const pendingMessages = scheduledMessages.filter(m => m.status === 'pending');
   const historyMessages = scheduledMessages.filter(m => m.status !== 'pending');
 
-  return (
-    <Card className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Agendar Mensagem
-        </h3>
-        {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
+  // Mensagens que podem ser enviadas agora (agendadas para hoje ou passado)
+  const now = new Date();
+  const messagesToSendNow = pendingMessages.filter(msg => {
+    const scheduledDate = new Date(msg.scheduled_for);
+    return scheduledDate <= now;
+  });
 
-      <div className="space-y-3">
+  return (
+    <div className="space-y-4">
+      {/* Card: Enviar Mensagem (Pequeno) */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-base flex items-center gap-2">
+            <Send className="h-4 w-4" />
+            Enviar Mensagem
+          </h3>
+        </div>
+        <div className="space-y-3">
         <div>
           <Label htmlFor="schedule-instance">Instância Evolution</Label>
           <Select value={instanceId} onValueChange={setInstanceId}>
@@ -197,77 +200,102 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
           </Select>
         </div>
 
-        <div>
-          <Label htmlFor="schedule-message">Mensagem</Label>
-          <Textarea
-            id="schedule-message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Digite a mensagem..."
-            rows={3}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label htmlFor="schedule-date">Data</Label>
-            <Input
-              id="schedule-date"
-              type="date"
-              value={scheduledDate}
-              onChange={(e) => setScheduledDate(e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
-            />
-          </div>
-          <div>
-            <Label htmlFor="schedule-time">Hora</Label>
-            <Input
-              id="schedule-time"
-              type="time"
-              value={scheduledTime}
-              onChange={(e) => setScheduledTime(e.target.value)}
+            <Label htmlFor="schedule-message">Mensagem</Label>
+            <Textarea
+              id="schedule-message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Digite a mensagem..."
+              rows={3}
             />
           </div>
         </div>
+      </Card>
 
-        <div className="border-t pt-4">
-          <Label className="flex items-center gap-2 mb-2">
-            <ImageIcon className="h-4 w-4" />
-            Mídia (Opcional)
-          </Label>
-          
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="schedule-media-type" className="text-sm">Tipo de Mídia</Label>
-              <Select
-                value={mediaType}
-                onValueChange={(value) => setMediaType(value as 'image' | 'video' | 'document')}
-              >
-                <SelectTrigger id="schedule-media-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">Imagem</SelectItem>
-                  <SelectItem value="video">Vídeo</SelectItem>
-                  <SelectItem value="document">Documento</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* Card: Agenda (Maior) */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-xl flex items-center gap-2">
+            <Calendar className="h-6 w-6" />
+            Agenda
+          </h3>
+          {onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Mensagens que podem ser enviadas agora */}
+        {messagesToSendNow.length > 0 && (
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <h4 className="font-medium text-sm mb-2 text-blue-900 dark:text-blue-100">
+              Mensagens Prontas para Enviar ({messagesToSendNow.length})
+            </h4>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {messagesToSendNow.map((msg) => (
+                <div key={msg.id} className="p-2 bg-white dark:bg-gray-800 rounded border border-blue-200 dark:border-blue-700">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                      <span className="text-xs text-muted-foreground">
+                        Agendada para: {formatInTimeZone(
+                          new Date(msg.scheduled_for),
+                          "America/Sao_Paulo",
+                          "dd/MM/yyyy 'às' HH:mm",
+                          { locale: ptBR }
+                        )}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleCancelClick(msg.id)}
+                      className="h-6 w-6"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
+        )}
 
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="schedule-message-agenda">Mensagem</Label>
+            <Textarea
+              id="schedule-message-agenda"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Digite a mensagem..."
+              rows={4}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="schedule-media-url" className="text-sm">URL da Mídia</Label>
+              <Label htmlFor="schedule-date">Data</Label>
               <Input
-                id="schedule-media-url"
-                placeholder="https://exemplo.com/imagem.jpg"
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
+                id="schedule-date"
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Insira a URL pública da imagem, vídeo ou documento
-              </p>
+            </div>
+            <div>
+              <Label htmlFor="schedule-time">Hora</Label>
+              <Input
+                id="schedule-time"
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+              />
             </div>
           </div>
-        </div>
 
         {/* Repetição */}
         <div className="border-t pt-4 space-y-3">
@@ -364,50 +392,25 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                 />
               </div>
 
-              <div>
-                <Label htmlFor="combo-media-type" className="text-sm">Tipo de Mídia (Opcional)</Label>
-                <Select
-                  value={comboMediaType}
-                  onValueChange={(value) => setComboMediaType(value as 'image' | 'video' | 'document')}
-                >
-                  <SelectTrigger id="combo-media-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="image">Imagem</SelectItem>
-                    <SelectItem value="video">Vídeo</SelectItem>
-                    <SelectItem value="document">Documento</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="combo-media-url" className="text-sm">URL da Mídia (Opcional)</Label>
-                <Input
-                  id="combo-media-url"
-                  placeholder="https://exemplo.com/imagem.jpg"
-                  value={comboMediaUrl}
-                  onChange={(e) => setComboMediaUrl(e.target.value)}
-                />
-              </div>
             </div>
           )}
         </div>
 
-        <Button
-          onClick={handleSchedule}
-          disabled={!instanceId || !message.trim() || !scheduledDate || !scheduledTime || isScheduling}
-          className="w-full"
-        >
-          <Clock className="h-4 w-4 mr-2" />
-          {isScheduling ? 'Agendando...' : 'Agendar Mensagem'}
-        </Button>
-      </div>
+          <Button
+            onClick={handleSchedule}
+            disabled={!instanceId || !message.trim() || !scheduledDate || !scheduledTime || isScheduling}
+            className="w-full"
+            size="lg"
+          >
+            <Clock className="h-5 w-5 mr-2" />
+            {isScheduling ? 'Agendando...' : 'Agendar Mensagem'}
+          </Button>
+        </div>
 
-      {/* Mensagens Agendadas (Pendentes) */}
-      {pendingMessages.length > 0 && (
-        <div className="space-y-2 border-t pt-4">
-          <h4 className="font-medium text-sm">Mensagens Agendadas ({pendingMessages.length})</h4>
+        {/* Mensagens Agendadas (Pendentes) */}
+        {pendingMessages.length > 0 && (
+          <div className="space-y-2 border-t pt-4 mt-6">
+            <h4 className="font-medium text-base">Mensagens Agendadas ({pendingMessages.length})</h4>
           <div className="space-y-2">
             {pendingMessages.map((msg) => (
               <div key={msg.id} className="p-3 border rounded-lg bg-muted/50">
@@ -477,10 +480,10 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
         </div>
       )}
 
-      {/* Histórico */}
-      {historyMessages.length > 0 && (
-        <div className="space-y-2 border-t pt-4">
-          <h4 className="font-medium text-sm">Histórico ({historyMessages.length})</h4>
+        {/* Histórico */}
+        {historyMessages.length > 0 && (
+          <div className="space-y-2 border-t pt-4 mt-6">
+            <h4 className="font-medium text-base">Histórico ({historyMessages.length})</h4>
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {historyMessages.map((msg) => (
               <div key={msg.id} className="p-3 border rounded-lg">
@@ -586,6 +589,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+      </Card>
+    </div>
   );
 }
