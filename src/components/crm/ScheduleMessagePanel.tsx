@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, Send, X, Trash2, Image as ImageIcon, Repeat, Link2 } from "lucide-react";
+import { Calendar, Clock, X, Trash2, Image as ImageIcon, Repeat, Link2 } from "lucide-react";
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
 import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { useToast } from "@/hooks/use-toast";
@@ -174,47 +174,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   });
 
   return (
-    <div className="space-y-4">
-      {/* Card: Enviar Mensagem (Pequeno) */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-base flex items-center gap-2">
-            <Send className="h-4 w-4" />
-            Enviar Mensagem
-          </h3>
-        </div>
-        <div className="space-y-3">
-        <div>
-          <Label htmlFor="schedule-instance">Instância Evolution</Label>
-          <Select value={instanceId} onValueChange={setInstanceId}>
-            <SelectTrigger id="schedule-instance">
-              <SelectValue placeholder="Selecione uma instância" />
-            </SelectTrigger>
-            <SelectContent>
-              {connectedInstances.map((instance) => (
-                <SelectItem key={instance.id} value={instance.id}>
-                  {instance.instance_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-          <div>
-            <Label htmlFor="schedule-message">Mensagem</Label>
-            <Textarea
-              id="schedule-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Digite a mensagem..."
-              rows={3}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* Card: Agenda (Maior) */}
-      <Card className="p-6">
+    <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-xl flex items-center gap-2">
             <Calendar className="h-6 w-6" />
@@ -265,9 +225,25 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
 
         <div className="space-y-4">
           <div>
-            <Label htmlFor="schedule-message-agenda">Mensagem</Label>
+            <Label htmlFor="schedule-instance">Instância Evolution</Label>
+            <Select value={instanceId} onValueChange={setInstanceId}>
+              <SelectTrigger id="schedule-instance">
+                <SelectValue placeholder="Selecione uma instância" />
+              </SelectTrigger>
+              <SelectContent>
+                {connectedInstances.map((instance) => (
+                  <SelectItem key={instance.id} value={instance.id}>
+                    {instance.instance_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="schedule-message">Mensagem</Label>
             <Textarea
-              id="schedule-message-agenda"
+              id="schedule-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Digite a mensagem..."
@@ -589,7 +565,6 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </Card>
-    </div>
+    </Card>
   );
 }
