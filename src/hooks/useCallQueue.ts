@@ -290,6 +290,33 @@ export function useCallQueue() {
       const newCallCount = (queueItem.leads?.call_count || 0) + 1;
       const now = new Date().toISOString();
 
+      // ✅ CORREÇÃO: Determinar quem concluiu a ligação
+      // Se houver responsável determinado (assigned_to_user_id), usar ele como quem concluiu
+      // Caso contrário, usar o usuário atual
+      let completedByEmail = user.email || 'Usuário';
+      let completedByUserId = user.id;
+      let completedByName = user.email || 'Usuário';
+
+      if (queueItem.assigned_to_user_id) {
+        // Buscar dados do responsável determinado
+        const { data: assignedUser, error: userError } = await (supabase as any)
+          .from('profiles')
+          .select('id, email, full_name')
+          .eq('id', queueItem.assigned_to_user_id)
+          .maybeSingle();
+
+        if (!userError && assignedUser) {
+          completedByEmail = assignedUser.email || 'Responsável não determinado';
+          completedByUserId = assignedUser.id;
+          completedByName = assignedUser.full_name || assignedUser.email || 'Responsável não determinado';
+          console.log('✅ Usando responsável determinado como quem concluiu:', completedByName);
+        } else {
+          console.log('⚠️ Responsável determinado não encontrado, usando usuário atual');
+        }
+      } else {
+        console.log('ℹ️ Nenhum responsável determinado, usando usuário atual como quem concluiu');
+      }
+
       // Se o item não tiver organização, corrige antes de atualizar (evita falha por RLS)
       if (!queueItem.organization_id) {
         try {
@@ -310,7 +337,7 @@ export function useCallQueue() {
               completedAt: new Date(now),
               callNotes: callNotes || c.callNotes,
               callCount: newCallCount,
-              completedBy: user.email || 'Usuário',
+              completedBy: completedByName,
             }
           : c
       ));
@@ -326,15 +353,15 @@ export function useCallQueue() {
           lead_phone: queueItem.leads?.phone || '',
           scheduled_for: queueItem.scheduled_for,
           completed_at: now,
-          completed_by: user.email || 'Usuário',
-          completed_by_user_id: user.id,
+          completed_by: completedByEmail,
+          completed_by_user_id: completedByUserId,
           status: 'completed',
           priority: queueItem.priority,
           notes: queueItem.notes,
           call_notes: callNotes,
           call_count: newCallCount,
           action: 'completed',
-          user_id: user.id,
+          user_id: completedByUserId,
         });
 
       // Update lead call count
@@ -355,7 +382,7 @@ export function useCallQueue() {
           organization_id: activeOrgId,
           type: 'call',
           content: activityContent,
-          user_name: user.email || 'Usuário',
+          user_name: completedByName,
           direction: 'outgoing',
         });
 
@@ -367,8 +394,8 @@ export function useCallQueue() {
           completed_at: now,
           call_notes: callNotes || null,
           call_count: newCallCount,
-          completed_by: user.email || 'Usuário',
-          completed_by_user_id: user.id
+          completed_by: completedByEmail,
+          completed_by_user_id: completedByUserId
         })
         .eq('id', callId);
 
