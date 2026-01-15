@@ -21,7 +21,8 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { useFlowTriggers } from "@/hooks/useFlowTriggers";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload, MessageSquare } from "lucide-react";
-import { MessagesCenter } from "@/components/crm/MessagesCenter";
+// Removido: import { MessagesCenter } from "@/components/crm/MessagesCenter";
+// Agora usamos navegação para a página /messages-center
 import Settings from "./Settings";
 import { startFlowScheduler } from "@/lib/flowScheduler";
 import { Input } from "@/components/ui/input";
@@ -204,11 +205,7 @@ const Index = () => {
         syncInfo={{ lastSync, nextSync, isSyncing }}
       >
       <OnboardingBanner />
-      {activeView === "messages-center" && (
-        <div className="h-full bg-background flex flex-col">
-          <MessagesCenter />
-        </div>
-      )}
+      {/* Removido: messages-center agora é uma página separada em /messages-center */}
 
       {activeView === "kanban" && (
         <div className="h-full bg-background flex flex-col">
@@ -526,13 +523,7 @@ const Index = () => {
 
       {activeView === "settings" && <Settings />}
 
-      {activeView === "messages-center" && (
-        <div className="h-full bg-background flex flex-col overflow-auto">
-          <div className="p-3 sm:p-4 lg:p-6">
-            <MessagesCenter />
-          </div>
-        </div>
-      )}
+      {/* Removido: messages-center agora é uma página separada em /messages-center */}
       
       <CreateLeadDialog
         open={createLeadOpen}
