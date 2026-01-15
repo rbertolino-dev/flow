@@ -13,9 +13,13 @@ export class FirebaseStorageService implements StorageService {
 
   private async getFirebaseStorage() {
     try {
-      // Importação dinâmica do Firebase Admin SDK (usando string para evitar erro de build)
-      const firebaseAdminApp = await import(/* @vite-ignore */ 'firebase-admin/app');
-      const firebaseAdminStorage = await import(/* @vite-ignore */ 'firebase-admin/storage');
+      // Importação dinâmica do Firebase Admin SDK.
+      // ⚠️ Importante: usar string NÃO literal para o Vite não tentar resolver em build/dev
+      // (isso quebrava o servidor do Playwright com "Failed to resolve import firebase-admin/app").
+      const firebaseAdminAppModule = 'firebase-admin' + '/app';
+      const firebaseAdminStorageModule = 'firebase-admin' + '/storage';
+      const firebaseAdminApp = await import(/* @vite-ignore */ firebaseAdminAppModule);
+      const firebaseAdminStorage = await import(/* @vite-ignore */ firebaseAdminStorageModule);
       const { initializeApp, getApps, cert } = firebaseAdminApp;
       const { getStorage } = firebaseAdminStorage;
 
