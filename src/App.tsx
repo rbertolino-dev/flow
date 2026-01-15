@@ -39,6 +39,7 @@ import ReconnectInstance from "./pages/ReconnectInstance";
 import NotFound from "./pages/NotFound";
 import Cadastro from "./pages/Cadastro";
 import Onboarding from "./pages/Onboarding";
+import MessagesCenter from "./pages/MessagesCenter";
 import Contracts from "./pages/Contracts";
 import ContractsNewSafe from "./pages/ContractsNewSafe";
 import BudgetsModule from "./pages/BudgetsModule";
@@ -103,6 +104,7 @@ const App = () => {
             <Route path="/agents" element={<AgentsDashboard />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/crm" element={<CRM />} />
+            <Route path="/messages-center" element={<MessagesCenter />} />
             <Route path="/gmail" element={<Gmail />} />
             <Route path="/form-builder" element={<FormBuilder />} />
             <Route path="/automation-flows" element={<AutomationFlows />} />

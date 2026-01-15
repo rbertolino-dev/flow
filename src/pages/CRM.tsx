@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { useLeads } from "@/hooks/useLeads";
@@ -40,6 +40,7 @@ import { ProductsManagement } from "@/components/crm/ProductsManagement";
 import { SellerDashboard } from "@/components/crm/SellerDashboard";
 
 export default function CRM() {
+  const navigate = useNavigate();
   const { leads, loading, refetch: refetchLeads, updateLeadStatus, deleteLead: deleteLeadHook } = useLeads();
   const { callQueue } = useCallQueue();
   const { stages } = usePipelineStages();
@@ -208,8 +209,14 @@ export default function CRM() {
             </div>
 
             {/* Tabs para organizar as visualizações */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-6 mb-6">
+            <Tabs value={activeTab} onValueChange={(value) => {
+              if (value === 'messages-center') {
+                navigate('/messages-center');
+              } else {
+                setActiveTab(value);
+              }
+            }} className="w-full">
+              <TabsList className="grid w-full grid-cols-7 mb-6">
                 <TabsTrigger value="all" className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" />
                   Todos os Leads
@@ -229,6 +236,10 @@ export default function CRM() {
                 <TabsTrigger value="reports" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   Relatórios
+                </TabsTrigger>
+                <TabsTrigger value="messages-center" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Central de Mensagens
                 </TabsTrigger>
                 <TabsTrigger value="config" className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />

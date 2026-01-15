@@ -104,6 +104,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'users': null, // sempre visível para admins
     'phonebook': 'leads',
     'unified-messages': 'whatsapp_messages',
+    'messages-center': 'whatsapp_messages',
     'attention': 'leads',
     'assistant': null,
   };
