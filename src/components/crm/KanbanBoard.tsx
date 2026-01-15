@@ -64,6 +64,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [addTagDialogOpen, setAddTagDialogOpen] = useState(false);
   const [selectedTagId, setSelectedTagId] = useState("");
   const [isAddingTag, setIsAddingTag] = useState(false);
+  // ✅ CORREÇÃO: Rastrear última etapa sobreposta durante drag para permitir soltar mesmo sem espaço visual
+  const [overStageId, setOverStageId] = useState<string | null>(null);
   
   // Criar mapa de instâncias para lookup rápido
   const instanceMap = useMemo(() => {
@@ -246,38 +248,95 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   // ✅ OTIMIZAÇÃO: Memoizar handlers para evitar re-renders
   const handleDragStart = useCallback((event: any) => {
     setActiveId(event.active.id);
+    setOverStageId(null); // Reset ao iniciar drag
   }, []);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { over } = event;
-    if (!over) return;
-  }, []);
+    if (!over) {
+      setOverStageId(null);
+      return;
+    }
+
+    const overId = over.id as string;
+    
+    // ✅ CORREÇÃO: Se sobrepor diretamente uma etapa, rastrear
+    const targetStage = stagesMap.get(overId);
+    if (targetStage) {
+      setOverStageId(targetStage.id);
+      return;
+    }
+
+    // ✅ CORREÇÃO: Se sobrepor um lead, encontrar a etapa desse lead
+    const overLead = leads.find(lead => lead.id === overId);
+    if (overLead && overLead.stageId) {
+      setOverStageId(overLead.stageId);
+      return;
+    }
+
+    // Se não encontrar, manter último estado conhecido
+  }, [stagesMap, leads]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
 
-    if (!over) return;
-
     const leadId = active.id as string;
-    const overId = over.id as string;
     
-    // ✅ OTIMIZAÇÃO: Usar Map para lookup O(1) ao invés de find() O(n)
-    const targetStage = stagesMap.get(overId);
-    if (targetStage) {
+    // ✅ CORREÇÃO: Encontrar etapa atual do lead sendo arrastado
+    const draggedLead = leads.find(lead => lead.id === leadId);
+    if (!draggedLead) {
+      setOverStageId(null);
+      return;
+    }
+
+    const currentStageId = draggedLead.stageId;
+    let targetStageId: string | null = null;
+
+    if (over) {
+      const overId = over.id as string;
+      
+      // ✅ CORREÇÃO: Tentar 1 - Verificar se sobrepôs diretamente uma etapa
+      const directStage = stagesMap.get(overId);
+      if (directStage) {
+        targetStageId = directStage.id;
+      } else {
+        // ✅ CORREÇÃO: Tentar 2 - Verificar se sobrepôs um lead e pegar etapa desse lead
+        const overLead = leads.find(lead => lead.id === overId);
+        if (overLead && overLead.stageId) {
+          targetStageId = overLead.stageId;
+        } else {
+          // ✅ CORREÇÃO: Tentar 3 - Usar última etapa rastreada durante drag (fallback)
+          if (overStageId) {
+            targetStageId = overStageId;
+          }
+        }
+      }
+    } else {
+      // ✅ CORREÇÃO: Se não houver 'over', usar última etapa rastreada
+      if (overStageId) {
+        targetStageId = overStageId;
+      }
+    }
+
+    // ✅ CORREÇÃO: Só atualizar se encontrou uma etapa diferente da atual
+    if (targetStageId && targetStageId !== currentStageId) {
       // ✅ OTIMIZAÇÃO: Usar requestIdleCallback para não bloquear thread principal
       if ('requestIdleCallback' in window) {
         requestIdleCallback(() => {
-          onLeadUpdate(leadId, targetStage.id);
+          onLeadUpdate(leadId, targetStageId);
         });
       } else {
         // Fallback para navegadores sem requestIdleCallback
         setTimeout(() => {
-          onLeadUpdate(leadId, targetStage.id);
+          onLeadUpdate(leadId, targetStageId);
         }, 0);
       }
     }
-  }, [stagesMap, onLeadUpdate]);
+
+    // Reset estado de rastreamento
+    setOverStageId(null);
+  }, [stagesMap, leads, overStageId, onLeadUpdate]);
 
   // Normalização e correção movidas para antes do carregamento.
 
