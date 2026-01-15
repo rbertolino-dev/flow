@@ -267,6 +267,12 @@ verify_jwt = true
 [functions.send-contract-reminder]
 verify_jwt = false
 
+[functions.google-drive-oauth]
+verify_jwt = false
+
+[functions.google-drive-refresh-token]
+verify_jwt = true
+
 # ========== Agendamento Público ==========
 [functions.get-availability]
 verify_jwt = false

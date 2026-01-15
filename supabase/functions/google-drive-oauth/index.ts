@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 // Google OAuth 2.0 credentials (devem estar nas variáveis de ambiente)
@@ -12,14 +14,11 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 const REDIRECT_URI = Deno.env.get('GOOGLE_REDIRECT_URI') || '';
 
 serve(async (req) => {
-  // CORS preflight - retornar status 200
+  // CORS preflight - SEMPRE retornar status 200 (antes de qualquer verificação)
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      }
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders
     });
   }
 
