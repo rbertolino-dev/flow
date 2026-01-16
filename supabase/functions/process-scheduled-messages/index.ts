@@ -157,39 +157,32 @@ serve(async (req) => {
           throw new Error('Instância não está conectada');
         }
 
-        // ✅ MELHORADO: Normalização de telefone alinhada com broadcast
-        // Broadcast usa telefone direto do banco (já normalizado), mas aqui precisamos normalizar
+        // ✅ CORREÇÃO: Normalização de telefone igual ao send-whatsapp-message (que funciona)
+        // Remover caracteres não numéricos
         let formattedPhone = message.phone.replace(/\D/g, '');
+        
+        // Se já tem @, remover o sufixo antes de normalizar
+        if (message.phone.includes('@')) {
+          formattedPhone = message.phone.split('@')[0].replace(/\D/g, '');
+        }
         
         // Aplicar modo de teste se ativo (definir antes de usar)
         const testConfig = getTestModeConfig();
         
-        // Se telefone já está no formato correto (com @), usar direto
-        let remoteJid: string;
-        if (message.phone.includes('@')) {
-          remoteJid = message.phone;
-          formattedPhone = message.phone.split('@')[0];
-        } else {
-          // ✅ CORREÇÃO: Garantir que números brasileiros tenham código do país (55)
-          // Números brasileiros têm 10 ou 11 dígitos (com DDD) e não começam com 55
-          // DDD válido: 11-99 (ex: 21, 11, 85, etc.)
-          if (!formattedPhone.startsWith('55')) {
-            const phoneLength = formattedPhone.length;
-            // Número brasileiro: 10 dígitos (DDD + 8 dígitos) ou 11 dígitos (DDD + 9 dígitos)
-            if (phoneLength === 10 || phoneLength === 11) {
-              const ddd = parseInt(formattedPhone.substring(0, 2));
-              // Verificar se DDD é válido (11-99)
-              if (ddd >= 11 && ddd <= 99) {
-                formattedPhone = '55' + formattedPhone;
-                console.log('➕ [process-scheduled-messages] Adicionado código do país 55 ao número brasileiro');
-              }
-            }
+        // ✅ CORREÇÃO: Garantir que números brasileiros tenham código do país (55)
+        // Lógica igual ao send-whatsapp-message e send-budget-whatsapp
+        if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
+          const ddd = parseInt(formattedPhone.substring(0, 2));
+          // Verificar se DDD é válido (11-99) - números brasileiros
+          if (ddd >= 11 && ddd <= 99) {
+            formattedPhone = '55' + formattedPhone;
+            console.log('➕ [process-scheduled-messages] Adicionado código do país 55 ao número brasileiro');
           }
-          
-          // Aplicar modo de teste se ativo
-          const finalPhone = applyTestMode(formattedPhone, testConfig);
-          remoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
         }
+        
+        // Aplicar modo de teste se ativo
+        const finalPhone = applyTestMode(formattedPhone, testConfig);
+        const remoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
         
         console.log('📱 [process-scheduled-messages] Telefone formatado:', { 
           original: message.phone, 
@@ -241,8 +234,11 @@ serve(async (req) => {
         const mediaUrl = message.media_url; // Para scheduled_messages, mídia vem direto da mensagem
         const mediaType = message.media_type || 'image';
 
+        // ✅ CORREÇÃO: Codificar nome da instância na URL para suportar caracteres especiais
+        const encodedInstanceName = encodeURIComponent(config.instance_name);
+        
         if (mediaUrl) {
-          evolutionUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
+          evolutionUrl = `${baseUrl}/message/sendMedia/${encodedInstanceName}`;
           payload = {
             number: remoteJid,
             mediatype: mediaType,
@@ -253,12 +249,13 @@ serve(async (req) => {
           console.log('🖼️ [process-scheduled-messages] Enviando mensagem com mídia:', {
             to: remoteJid,
             instance: config.instance_name,
+            encoded_instance: encodedInstanceName,
             mediaType,
             mediaUrl,
             captionLength: message.message?.length || 0,
           });
         } else {
-          evolutionUrl = `${baseUrl}/message/sendText/${config.instance_name}`;
+          evolutionUrl = `${baseUrl}/message/sendText/${encodedInstanceName}`;
           payload = {
             number: remoteJid,
             text: message.message,
@@ -267,6 +264,7 @@ serve(async (req) => {
           console.log('📝 [process-scheduled-messages] Enviando mensagem de texto:', {
             to: remoteJid,
             instance: config.instance_name,
+            encoded_instance: encodedInstanceName,
             messageLength: message.message?.length || 0,
           });
         }
@@ -333,27 +331,50 @@ serve(async (req) => {
             continue; // Pular para próxima mensagem
           }
           
-          // Verificar se o erro é sobre número não existente (exists: false)
-          const isExistsFalseError = typeof evolutionData === 'object' && 
-                                   Array.isArray(evolutionData.response?.message) &&
-                                   evolutionData.response.message.some((m: any) => m.exists === false);
+          // ✅ MELHORADO: Tratamento de erro exists: false igual ao send-whatsapp-message
+          const responseMessage = evolutionData?.response?.message;
+          let isNumberNotExists = false;
+          let numberInfo: any = null;
           
-          if (isExistsFalseError) {
+          // Verificar se é array de mensagens
+          if (Array.isArray(responseMessage) && responseMessage.length > 0) {
+            const firstMessage = responseMessage[0];
+            if (firstMessage.exists === false) {
+              isNumberNotExists = true;
+              numberInfo = firstMessage;
+            }
+          } else if (responseMessage && typeof responseMessage === 'object' && responseMessage.exists === false) {
+            // Caso a mensagem seja um objeto único ao invés de array
+            isNumberNotExists = true;
+            numberInfo = responseMessage;
+          }
+          
+          if (isNumberNotExists && numberInfo) {
             console.warn(`⚠️ [process-scheduled-messages] Evolution API retornou exists: false para ${remoteJid}`);
-            console.warn(`⚠️ [process-scheduled-messages] Organização: ${message.organization_id || 'N/A'}`);
-            console.warn(`⚠️ [process-scheduled-messages] Instância: ${config.instance_name} (${config.api_url})`);
-            console.warn(`⚠️ [process-scheduled-messages] Telefone original: ${message.phone}, formatado: ${formattedPhone}, remoteJid: ${remoteJid}`);
+            console.warn(`⚠️ [process-scheduled-messages] Detalhes:`, {
+              number: numberInfo.number || message.phone,
+              jid: numberInfo.jid || remoteJid,
+              original_phone: message.phone,
+              formatted_phone: formattedPhone,
+              remote_jid: remoteJid,
+              organization: message.organization_id || 'N/A',
+              instance: config.instance_name,
+              api_url: config.api_url
+            });
+            
+            // ✅ NOVO: Tentar fallback com sendMedia (às vezes é falso positivo)
+            // Algumas instâncias da Evolution API retornam exists: false incorretamente para sendText
+            // mas funcionam com sendMedia
             console.warn(`⚠️ [process-scheduled-messages] Tentando fallback com sendMedia (às vezes é falso positivo)...`);
             
-            // Tentar fallback: usar sendMedia mesmo para mensagens de texto
-            // Algumas instâncias da Evolution API retornam exists: false incorretamente
             try {
-              const fallbackUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
+              const fallbackUrl = `${baseUrl}/message/sendMedia/${encodeURIComponent(config.instance_name)}`;
               const fallbackPayload = {
                 number: remoteJid,
                 mediatype: 'text',
                 media: '',
-                caption: message.message,
+                caption: message.message || '',
+                delay: 1200,
               };
               
               console.log('🔄 [process-scheduled-messages] Tentando fallback sendMedia...');
@@ -376,18 +397,27 @@ serve(async (req) => {
               }
               
               if (fallbackResponse.ok) {
-                console.log('✅ [process-scheduled-messages] Fallback sendMedia funcionou!');
+                console.log('✅ [process-scheduled-messages] Fallback sendMedia funcionou! (era falso positivo)');
                 // Continuar com o fluxo normal de sucesso
                 evolutionData = fallbackData;
+                // Não fazer continue aqui, deixar continuar o fluxo normal abaixo
               } else {
                 // Fallback também falhou, verificar se ainda é exists: false
-                const fallbackExistsFalse = typeof fallbackData === 'object' && 
-                                          Array.isArray(fallbackData.response?.message) &&
-                                          fallbackData.response.message.some((m: any) => m.exists === false);
+                const fallbackResponseMsg = fallbackData?.response?.message;
+                let fallbackExistsFalse = false;
+                
+                if (Array.isArray(fallbackResponseMsg) && fallbackResponseMsg.length > 0) {
+                  fallbackExistsFalse = fallbackResponseMsg.some((m: any) => m.exists === false);
+                } else if (fallbackResponseMsg && typeof fallbackResponseMsg === 'object' && fallbackResponseMsg.exists === false) {
+                  fallbackExistsFalse = true;
+                }
                 
                 if (fallbackExistsFalse) {
                   // Realmente não existe, marcar como falha
-                  const invalidNumber = fallbackData.response.message.find((m: any) => m.exists === false);
+                  const invalidNumber = Array.isArray(fallbackResponseMsg) 
+                    ? fallbackResponseMsg.find((m: any) => m.exists === false)
+                    : fallbackResponseMsg;
+                  
                   console.error(`❌ [process-scheduled-messages] Número realmente não existe no WhatsApp após fallback: ${invalidNumber?.jid || remoteJid}`);
                   
                   // ✅ NOVO: Registrar falha nas métricas
