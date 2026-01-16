@@ -59,7 +59,8 @@ export function WebhookTestPanel({ config }: { config: any }) {
       const baseUrl = config.api_url.replace(/\/(manager|dashboard|app)$/, '');
       
       try {
-        const response = await fetch(`${baseUrl}/instance/connectionState/${config.instance_name}`, {
+        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+        const response = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent(config.instance_name)}`, {
           headers: { 'apikey': config.api_key },
         });
 

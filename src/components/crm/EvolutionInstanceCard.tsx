@@ -273,7 +273,8 @@ export function EvolutionInstanceCard({
                     // Se listar falhar, tentar connectionState como fallback
                     console.log(`⚠️ Erro ao listar instâncias do provider ${provider.provider_name}, tentando connectionState...`, listErr);
                     try {
-                      const testUrl = `${normalizeApiUrl(provider.api_url)}/instance/connectionState/${config.instance_name}`;
+                      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+                      const testUrl = `${normalizeApiUrl(provider.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
                       const testResponse = await fetch(testUrl, {
                         headers: { 'apikey': provider.api_key },
                         signal: AbortSignal.timeout(5000)
@@ -311,7 +312,8 @@ export function EvolutionInstanceCard({
       }
       
       const baseUrl = normalizeApiUrl(apiUrl);
-      const url = `${baseUrl}/instance/connectionState/${config.instance_name}`;
+      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+      const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
       
       console.log(`🔍 Verificando status real da instância ${config.instance_name}...`);
       console.log(`📍 API URL original: ${apiUrl}`);

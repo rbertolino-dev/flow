@@ -30,7 +30,8 @@ export async function checkInstanceHealth(
   
   try {
     const baseUrl = apiUrl.replace(/\/$/, '');
-    const url = `${baseUrl}/instance/connectionState/${instanceName}`;
+    // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+    const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(instanceName)}`;
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);

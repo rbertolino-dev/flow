@@ -83,7 +83,8 @@ export const EvolutionApiDiagnostics = () => {
 
       // Teste 2: Status da instância
       try {
-        const statusUrl = `${configs.api_url}/instance/connectionState/${configs.instance_name}`;
+        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+        const statusUrl = `${configs.api_url}/instance/connectionState/${encodeURIComponent(configs.instance_name)}`;
         const response = await fetch(statusUrl, {
           method: 'GET',
           headers: {

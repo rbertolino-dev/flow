@@ -170,13 +170,19 @@ serve(async (req) => {
           remoteJid = message.phone;
           formattedPhone = message.phone.split('@')[0];
         } else {
-          // Garantir que números brasileiros tenham código do país (55)
-          if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
-            // Verificar se parece um número brasileiro (DDD válido: 11-99)
-            const ddd = parseInt(formattedPhone.substring(0, 2));
-            if (ddd >= 11 && ddd <= 99) {
-              formattedPhone = '55' + formattedPhone;
-              console.log('➕ [process-scheduled-messages] Adicionado código do país 55');
+          // ✅ CORREÇÃO: Garantir que números brasileiros tenham código do país (55)
+          // Números brasileiros têm 10 ou 11 dígitos (com DDD) e não começam com 55
+          // DDD válido: 11-99 (ex: 21, 11, 85, etc.)
+          if (!formattedPhone.startsWith('55')) {
+            const phoneLength = formattedPhone.length;
+            // Número brasileiro: 10 dígitos (DDD + 8 dígitos) ou 11 dígitos (DDD + 9 dígitos)
+            if (phoneLength === 10 || phoneLength === 11) {
+              const ddd = parseInt(formattedPhone.substring(0, 2));
+              // Verificar se DDD é válido (11-99)
+              if (ddd >= 11 && ddd <= 99) {
+                formattedPhone = '55' + formattedPhone;
+                console.log('➕ [process-scheduled-messages] Adicionado código do país 55 ao número brasileiro');
+              }
             }
           }
           

@@ -77,7 +77,8 @@ const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string)
 const checkConnectionStatus = async (apiUrl: string, apiKey: string, instanceName: string): Promise<boolean> => {
   try {
     const base = normalizeApiUrl(apiUrl);
-    const url = `${base}/instance/connectionState/${instanceName}`;
+    // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+    const url = `${base}/instance/connectionState/${encodeURIComponent(instanceName)}`;
     
     const response = await fetch(url, {
       headers: {

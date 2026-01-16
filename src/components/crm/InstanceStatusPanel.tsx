@@ -229,7 +229,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     }
     
     const baseUrl = normalizeApiUrl(apiUrl);
-    const url = `${baseUrl}/instance/connectionState/${instance.instance_name}`;
+    // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais (espaços, parênteses, etc.)
+    const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
 
     try {
       const response = await fetch(url, {

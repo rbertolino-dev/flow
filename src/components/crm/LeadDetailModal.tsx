@@ -158,7 +158,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     await Promise.allSettled((configs || []).map(async (cfg) => {
       try {
         const base = normalizeApiUrl(cfg.api_url);
-        const url = `${base}/instance/connectionState/${cfg.instance_name}`;
+        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+        const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
         const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();

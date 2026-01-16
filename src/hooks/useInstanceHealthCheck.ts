@@ -83,7 +83,8 @@ export function useInstanceHealthCheck({
 
         try {
           const base = normalizeApiUrl(instance.api_url);
-          const url = `${base}/instance/connectionState/${instance.instance_name}`;
+          // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+          const url = `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
           
           const response = await fetch(url, {
             headers: {

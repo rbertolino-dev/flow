@@ -108,7 +108,8 @@ serve(async (req) => {
       // Verificar status diretamente após alguns segundos
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      const statusResponse = await fetch(`${normalizedUrl}/instance/connectionState/${instanceName}`, {
+      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+      const statusResponse = await fetch(`${normalizedUrl}/instance/connectionState/${encodeURIComponent(instanceName)}`, {
         headers: { 'apikey': apiKey },
       });
 

@@ -290,7 +290,8 @@ export function useEvolutionConfigs() {
       // Verificar se a instância está conectada antes de configurar webhook
       // Usar extractConnectionState para normalizar diferentes formatos de resposta
       try {
-        const connectionUrl = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${config.instance_name}`;
+        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+        const connectionUrl = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
         const connectionResponse = await fetch(connectionUrl, {
           headers: { 'apikey': config.api_key },
         });
@@ -448,7 +449,8 @@ export function useEvolutionConfigs() {
 
   const testConnection = async (config: EvolutionConfig) => {
     try {
-      const url = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${config.instance_name}`;
+      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+      const url = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
       const response = await fetch(url, {
         headers: {
           'apikey': config.api_key || '',
@@ -507,7 +509,8 @@ export function useEvolutionConfigs() {
         name: error?.name,
         stack: error?.stack,
         instance: config.instance_name,
-        url: `${normalizeApiUrl(config.api_url)}/instance/connectionState/${config.instance_name}`
+        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+        url: `${normalizeApiUrl(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`
       });
       
       toast({
@@ -523,7 +526,8 @@ export function useEvolutionConfigs() {
     const results = await Promise.allSettled(
       configs.map(async (cfg) => {
         const base = normalizeApiUrl(cfg.api_url);
-        const url = `${base}/instance/connectionState/${cfg.instance_name}`;
+        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+        const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
         try {
           const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);

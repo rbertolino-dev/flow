@@ -234,7 +234,8 @@ export function useEvolutionConfig() {
     if (!config) return { success: false, httpStatus: null, details: null } as any;
 
     try {
-      const url = buildApiPath(`/instance/connectionState/${config.instance_name}`);
+      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
+      const url = buildApiPath(`/instance/connectionState/${encodeURIComponent(config.instance_name)}`);
       const response = await fetch(url, {
         headers: {
           'apikey': config.api_key || '',
