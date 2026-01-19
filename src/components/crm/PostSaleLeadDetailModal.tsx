@@ -437,12 +437,40 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col">
+        <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b">
           <DialogTitle className="text-xl sm:text-2xl truncate">{currentLead.name}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+        <ScrollArea className="flex-1 px-6 py-4 [&>[data-radix-scroll-area-viewport]]:pr-4">
+          <style>{`
+            [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+              width: 10px;
+            }
+            [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+              background: hsl(var(--muted));
+              border-radius: 10px;
+            }
+            [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+              background: hsl(var(--muted-foreground) / 0.4);
+              border-radius: 10px;
+              border: 2px solid hsl(var(--muted));
+            }
+            [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
+              background: hsl(var(--muted-foreground) / 0.6);
+            }
+            [data-radix-scroll-area-scrollbar] {
+              width: 12px !important;
+            }
+            [data-radix-scroll-area-scrollbar] [data-radix-scroll-area-thumb] {
+              background: hsl(var(--primary) / 0.5) !important;
+              border-radius: 6px !important;
+              min-height: 40px !important;
+            }
+            [data-radix-scroll-area-scrollbar] [data-radix-scroll-area-thumb]:hover {
+              background: hsl(var(--primary) / 0.7) !important;
+            }
+          `}</style>
           <div className="space-y-4">
             {/* Informações de Contato */}
             <div className="space-y-3">
@@ -796,7 +824,23 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
               </div>
 
               {/* Lista de atividades */}
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-custom">
+                <style>{`
+                  .scrollbar-custom::-webkit-scrollbar {
+                    width: 8px;
+                  }
+                  .scrollbar-custom::-webkit-scrollbar-track {
+                    background: hsl(var(--muted));
+                    border-radius: 8px;
+                  }
+                  .scrollbar-custom::-webkit-scrollbar-thumb {
+                    background: hsl(var(--muted-foreground) / 0.4);
+                    border-radius: 8px;
+                  }
+                  .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+                    background: hsl(var(--muted-foreground) / 0.6);
+                  }
+                `}</style>
                 {currentLead.activities && currentLead.activities.length > 0 ? (
                   currentLead.activities.map((activity) => (
                     <div

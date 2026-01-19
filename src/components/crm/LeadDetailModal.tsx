@@ -996,7 +996,35 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         <Separator />
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <ScrollArea className="h-full">
+          <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]]:pr-4">
+            <style>{`
+              [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+                width: 10px;
+              }
+              [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+                background: hsl(var(--muted));
+                border-radius: 10px;
+              }
+              [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+                background: hsl(var(--muted-foreground) / 0.4);
+                border-radius: 10px;
+                border: 2px solid hsl(var(--muted));
+              }
+              [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
+                background: hsl(var(--muted-foreground) / 0.6);
+              }
+              [data-radix-scroll-area-scrollbar] {
+                width: 12px !important;
+              }
+              [data-radix-scroll-area-scrollbar] [data-radix-scroll-area-thumb] {
+                background: hsl(var(--primary) / 0.5) !important;
+                border-radius: 6px !important;
+                min-height: 40px !important;
+              }
+              [data-radix-scroll-area-scrollbar] [data-radix-scroll-area-thumb]:hover {
+                background: hsl(var(--primary) / 0.7) !important;
+              }
+            `}</style>
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
