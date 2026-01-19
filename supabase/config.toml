@@ -234,6 +234,9 @@ verify_jwt = false
 [functions.bubble-sync-leads]
 verify_jwt = true
 
+[functions.bubble-usage-webhook]
+verify_jwt = false
+
 # ========== Utilitários ==========
 [functions.create-user]
 verify_jwt = true

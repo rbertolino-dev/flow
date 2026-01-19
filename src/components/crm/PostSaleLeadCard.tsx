@@ -18,6 +18,8 @@ interface PostSaleLeadCardProps {
   onDelete?: (leadId: string) => void;
   onRefetch?: () => void;
   compact?: boolean;
+  onMessageClick?: () => void;
+  onScheduleClick?: () => void;
 }
 
 export function PostSaleLeadCard({
@@ -29,7 +31,9 @@ export function PostSaleLeadCard({
   onToggleSelection,
   onDelete,
   onRefetch,
-  compact = false
+  compact = false,
+  onMessageClick,
+  onScheduleClick
 }: PostSaleLeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -43,8 +47,20 @@ export function PostSaleLeadCard({
 
   const handleWhatsAppClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const formatted = buildCopyNumber(lead.phone);
-    window.open(`https://wa.me/${formatted}`, '_blank');
+    if (onMessageClick) {
+      onMessageClick();
+    } else {
+      // Fallback: abrir WhatsApp web se não houver handler
+      const formatted = buildCopyNumber(lead.phone);
+      window.open(`https://wa.me/${formatted}`, '_blank');
+    }
+  };
+
+  const handleScheduleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onScheduleClick) {
+      onScheduleClick();
+    }
   };
 
   const handlePhoneClick = (e: React.MouseEvent) => {
@@ -177,6 +193,7 @@ export function PostSaleLeadCard({
                 variant="ghost"
                 className="h-6 px-2"
                 onClick={handleWhatsAppClick}
+                title="Enviar Mensagem WhatsApp"
               >
                 <MessageCircle className="h-3 w-3" />
               </Button>
@@ -184,7 +201,17 @@ export function PostSaleLeadCard({
                 size="sm"
                 variant="ghost"
                 className="h-6 px-2"
+                onClick={handleScheduleClick}
+                title="Agendar Mensagem"
+              >
+                <Calendar className="h-3 w-3" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2"
                 onClick={handlePhoneClick}
+                title="Ligar"
               >
                 <Phone className="h-3 w-3" />
               </Button>

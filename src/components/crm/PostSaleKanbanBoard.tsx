@@ -21,6 +21,8 @@ interface PostSaleKanbanBoardProps {
 
 export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }: PostSaleKanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<PostSaleLead | null>(null);
+  const [openModalWithMessage, setOpenModalWithMessage] = useState(false);
+  const [openModalWithSchedule, setOpenModalWithSchedule] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
@@ -169,6 +171,14 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
                   allStages={stages}
                   onStageChange={onLeadUpdate}
                   onRefetch={onRefetch}
+                  onMessageClick={(lead) => {
+                    setSelectedLead(lead);
+                    setOpenModalWithMessage(true);
+                  }}
+                  onScheduleClick={(lead) => {
+                    setSelectedLead(lead);
+                    setOpenModalWithSchedule(true);
+                  }}
                 />
               ))}
             </div>
@@ -239,7 +249,11 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
         <PostSaleLeadDetailModal
           lead={selectedLead}
           open={!!selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={() => {
+            setSelectedLead(null);
+            setOpenModalWithMessage(false);
+            setOpenModalWithSchedule(false);
+          }}
           onUpdated={() => {
             // Real-time atualiza automaticamente
             // Atualizar lead selecionado se necessário
@@ -252,6 +266,8 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
               onRefetch?.();
             }, 300);
           }}
+          initialShowMessage={openModalWithMessage}
+          initialShowSchedule={openModalWithSchedule}
         />
       )}
 

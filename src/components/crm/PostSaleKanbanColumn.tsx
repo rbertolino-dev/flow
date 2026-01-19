@@ -1,10 +1,9 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { PostSaleLead } from "@/types/postSaleLead";
+import { PostSaleLead, PostSaleStage } from "@/types/postSaleLead";
 import { PostSaleLeadCard } from "./PostSaleLeadCard";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PostSaleStage } from "@/types/postSaleLead";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface PostSaleKanbanColumnProps {
@@ -19,6 +18,8 @@ interface PostSaleKanbanColumnProps {
   onDeleteLead?: (leadId: string) => void;
   onRefetch?: () => void;
   compact?: boolean;
+  onMessageClick?: (lead: PostSaleLead) => void;
+  onScheduleClick?: (lead: PostSaleLead) => void;
 }
 
 export function PostSaleKanbanColumn({ 
@@ -32,7 +33,9 @@ export function PostSaleKanbanColumn({
   onStageChange, 
   onDeleteLead, 
   onRefetch,
-  compact = false 
+  compact = false,
+  onMessageClick,
+  onScheduleClick
 }: PostSaleKanbanColumnProps) {
   const { setNodeRef } = useDroppable({
     id: stage.id,
@@ -89,6 +92,8 @@ export function PostSaleKanbanColumn({
                 onDelete={onDeleteLead}
                 onRefetch={onRefetch}
                 compact={compact}
+                onMessageClick={() => onMessageClick?.(lead)}
+                onScheduleClick={() => onScheduleClick?.(lead)}
               />
             ))}
           </div>
