@@ -249,16 +249,9 @@ export const LeadCard = memo(function LeadCard({
             )}
           </div>
 
-          {/* ✅ Instância de origem - sempre visível */}
-          {(instanceName || lead.sourceInstanceName) && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 shrink-0">
-              <Smartphone className="h-2.5 w-2.5 mr-1" />
-              {instanceName || lead.sourceInstanceName || 'WhatsApp'}
-            </Badge>
-          )}
-
+          {/* ✅ Etiquetas - sempre visíveis e bem posicionadas */}
           {lead.tags && lead.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-1.5 mb-1">
               {lead.tags.map((tag) => (
                 <Badge
                   key={tag.id}
@@ -268,12 +261,20 @@ export const LeadCard = memo(function LeadCard({
                     borderColor: tag.color,
                     color: tag.color,
                   }}
-                  className="text-[10px] px-1 py-0"
+                  className="text-[10px] px-1.5 py-0.5 shrink-0"
                 >
                   {tag.name}
                 </Badge>
               ))}
             </div>
+          )}
+
+          {/* ✅ Instância de origem - sempre visível */}
+          {(instanceName || lead.sourceInstanceName) && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 shrink-0">
+              <Smartphone className="h-2.5 w-2.5 mr-1" />
+              {instanceName || lead.sourceInstanceName || 'WhatsApp'}
+            </Badge>
           )}
 
           <div className="flex items-center justify-between gap-2 pt-1">
@@ -468,16 +469,9 @@ export const LeadCard = memo(function LeadCard({
           )}
         </div>
 
-        {/* ✅ Instância de origem - sempre visível */}
-        {(instanceName || lead.sourceInstanceName) && (
-          <Badge variant="secondary" className="text-xs px-2 py-1 shrink-0">
-            <Smartphone className="h-3 w-3 mr-1" />
-            {instanceName || lead.sourceInstanceName || 'WhatsApp'}
-          </Badge>
-        )}
-
+        {/* ✅ Etiquetas - sempre visíveis e bem posicionadas */}
         {lead.tags && lead.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex flex-wrap gap-1.5 mt-2 mb-2">
             {lead.tags.map((tag) => (
               <Badge
                 key={tag.id}
@@ -487,12 +481,20 @@ export const LeadCard = memo(function LeadCard({
                   borderColor: tag.color,
                   color: tag.color,
                 }}
-                className="text-xs"
+                className="text-xs px-2 py-1 shrink-0"
               >
                 {tag.name}
               </Badge>
             ))}
           </div>
+        )}
+
+        {/* ✅ Instância de origem - sempre visível */}
+        {(instanceName || lead.sourceInstanceName) && (
+          <Badge variant="secondary" className="text-xs px-2 py-1 shrink-0">
+            <Smartphone className="h-3 w-3 mr-1" />
+            {instanceName || lead.sourceInstanceName || 'WhatsApp'}
+          </Badge>
         )}
 
         {lead.value && (
