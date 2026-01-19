@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Trash2, User, Clock, FileText, Loader2 } from 'lucide-react';
+import { Trash2, User, Clock, FileText, Loader2, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DeletedContract {
@@ -87,6 +87,42 @@ export function DeletedContractsList() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const restoreContract = async (contractId: string) => {
+    if (!activeOrgId) return;
+
+    if (!confirm('Tem certeza que deseja recuperar este contrato?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .update({
+          deleted_at: null,
+          deleted_by: null,
+        })
+        .eq('id', contractId)
+        .eq('organization_id', activeOrgId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Contrato recuperado',
+        description: 'O contrato foi recuperado com sucesso.',
+      });
+
+      // Recarregar lista
+      await fetchDeletedContracts();
+    } catch (error: any) {
+      console.error('Erro ao recuperar contrato:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao recuperar contrato',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -191,6 +227,17 @@ export function DeletedContractsList() {
                         {contract.content.length > 150 && '...'}
                       </div>
                     )}
+                  </div>
+                  <div className="flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => restoreContract(contract.id)}
+                      className="gap-2"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Recuperar
+                    </Button>
                   </div>
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { Contract, ContractSignature } from '@/types/contract';
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
-import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2 } from 'lucide-react';
+import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw } from 'lucide-react';
 import { GoogleDriveBackupButton } from './GoogleDriveBackupButton';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -23,6 +23,7 @@ interface ContractViewerProps {
   onEditTemplate?: (template: ContractTemplate) => void;
   onConfigureSignatures?: (contract: Contract) => void;
   onDelete?: (contract: Contract) => void;
+  onReload?: (contract: Contract) => Promise<void>;
 }
 
 export function ContractViewer({
@@ -35,9 +36,11 @@ export function ContractViewer({
   onEditTemplate,
   onConfigureSignatures,
   onDelete,
+  onReload,
 }: ContractViewerProps) {
   const { signatures, loading: signaturesLoading } = useContractSignatures(contract.id);
   const [expandedSignatures, setExpandedSignatures] = useState<Set<string>>(new Set());
+  const [reloading, setReloading] = useState(false);
 
   const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
   
@@ -51,6 +54,19 @@ export function ContractViewer({
       }
       return next;
     });
+  };
+
+  const handleReload = async () => {
+    if (!onReload) return;
+    
+    try {
+      setReloading(true);
+      await onReload(contract);
+    } catch (error) {
+      console.error('Erro ao recarregar contrato:', error);
+    } finally {
+      setReloading(false);
+    }
   };
 
   return (
@@ -161,6 +177,17 @@ export function ContractViewer({
 
           {/* Ações */}
           <div className="flex gap-2 flex-wrap">
+            {onReload && (
+              <Button 
+                variant="outline" 
+                onClick={handleReload}
+                disabled={reloading}
+                title="Recarregar contrato (útil quando template foi modificado)"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${reloading ? 'animate-spin' : ''}`} />
+                {reloading ? 'Recarregando...' : 'Recarregar Contrato'}
+              </Button>
+            )}
             {onDownload && pdfUrl && (
               <Button variant="outline" onClick={() => onDownload(contract)}>
                 <Download className="w-4 h-4 mr-2" />

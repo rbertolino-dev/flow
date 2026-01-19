@@ -222,63 +222,128 @@ serve(async (req) => {
         );
       }
 
-      // Tentar autenticar por webhook_secret, api_key OU instance_name + apikey
-      const { data: cfgBySecret, error: errBySecret } = await supabase
-        .from('evolution_config')
-        .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
-        .eq('webhook_secret', providedSecret)
-        .maybeSingle();
+      // Tentar autenticar por instance_name + webhook_secret/api_key primeiro (mais específico)
+      // Isso garante que mesmo com múltiplas instâncias usando o mesmo secret, encontramos a correta
+      let configs = null;
+      let authMethod: 'webhook_secret' | 'api_key' | 'instance_match' | 'instance_secret' | 'instance_apikey' | null = null;
+      let lastError = null;
 
-      let configs = cfgBySecret;
-      let authMethod: 'webhook_secret' | 'api_key' | 'instance_match' | null = null;
-      let lastError = errBySecret;
-
-      if (configs) {
-        authMethod = 'webhook_secret';
-      } else {
-        const { data: cfgByApiKey, error: errByApiKey } = await supabase
-          .from('evolution_config')
-          .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
-          .eq('api_key', providedSecret)
-          .maybeSingle();
-        configs = cfgByApiKey;
-        lastError = errByApiKey;
-        if (configs) {
-          authMethod = 'api_key';
-        } else {
-          // Se não encontrou por secret/api_key, tentar por instance_name (alguns deployments)
-          const { data: cfgByInstance, error: errByInstance } = await supabase
+      // 1. Tentar buscar por instance_name + webhook_secret (mais específico para múltiplas instâncias)
+      if (instance) {
+        // Se temos secret, tentar buscar por instance_name + secret primeiro
+        if (providedSecret) {
+          const { data: cfgByInstanceSecret, error: errByInstanceSecret } = await supabase
+            .from('evolution_config')
+            .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+            .eq('instance_name', instance)
+            .eq('webhook_secret', providedSecret)
+            .maybeSingle();
+          
+          if (cfgByInstanceSecret) {
+            configs = cfgByInstanceSecret;
+            authMethod = 'instance_secret';
+            console.log(`✅ Config encontrada por instance_name + webhook_secret: ${instance}`);
+          } else {
+            // 2. Tentar buscar por instance_name + api_key
+            const { data: cfgByInstanceApiKey, error: errByInstanceApiKey } = await supabase
+              .from('evolution_config')
+              .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+              .eq('instance_name', instance)
+              .eq('api_key', providedSecret)
+              .maybeSingle();
+            
+            if (cfgByInstanceApiKey) {
+              configs = cfgByInstanceApiKey;
+              authMethod = 'instance_apikey';
+              console.log(`✅ Config encontrada por instance_name + api_key: ${instance}`);
+            }
+          }
+        }
+        
+        // 3. Se não encontrou com secret, tentar buscar APENAS por instance_name (fallback)
+        // Isso resolve o problema quando Evolution API não repassa query parameters
+        if (!configs && instance) {
+          console.log(`⚠️ Secret não fornecido ou não encontrado. Tentando buscar apenas por instance_name: ${instance}`);
+          const { data: cfgByInstanceOnly, error: errByInstanceOnly } = await supabase
             .from('evolution_config')
             .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
             .eq('instance_name', instance)
             .maybeSingle();
           
-          if (cfgByInstance) {
-            configs = cfgByInstance;
-            lastError = errByInstance;
+          if (cfgByInstanceOnly) {
+            configs = cfgByInstanceOnly;
             authMethod = 'instance_match';
-            console.log(`✅ Config encontrada por instance_name: ${instance}`);
+            console.log(`✅ Config encontrada APENAS por instance_name (sem secret): ${instance}`);
+            console.log(`⚠️ ATENÇÃO: Webhook autenticado apenas por instance_name. Considere configurar secret no webhook da Evolution API.`);
+          }
+        }
+      }
+
+      // 3. Se não encontrou por instance_name + secret, tentar apenas por webhook_secret (fallback)
+      if (!configs) {
+        const { data: cfgBySecret, error: errBySecret } = await supabase
+          .from('evolution_config')
+          .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+          .eq('webhook_secret', providedSecret)
+          .maybeSingle();
+
+        if (cfgBySecret) {
+          configs = cfgBySecret;
+          authMethod = 'webhook_secret';
+          lastError = errBySecret;
+        } else {
+          // 4. Tentar buscar por api_key
+          const { data: cfgByApiKey, error: errByApiKey } = await supabase
+            .from('evolution_config')
+            .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+            .eq('api_key', providedSecret)
+            .maybeSingle();
+          
+          configs = cfgByApiKey;
+          lastError = errByApiKey;
+          if (configs) {
+            authMethod = 'api_key';
+          } else {
+            // 5. Última tentativa: buscar apenas por instance_name (alguns deployments)
+            const { data: cfgByInstance, error: errByInstance } = await supabase
+              .from('evolution_config')
+              .select('user_id, instance_name, id, organization_id, webhook_secret, api_key')
+              .eq('instance_name', instance)
+              .maybeSingle();
+            
+            if (cfgByInstance) {
+              configs = cfgByInstance;
+              lastError = errByInstance;
+              authMethod = 'instance_match';
+              console.log(`✅ Config encontrada por instance_name: ${instance}`);
+            }
           }
         }
       }
 
       if (!configs) {
-        console.error('❌ Segredo inválido para webhook:', {
+        console.error('❌ Não foi possível encontrar configuração para webhook:', {
           providedSecretPreview: providedSecret?.substring(0, 8) + '...',
           instance,
+          hasSecret: !!providedSecret,
+          hasInstance: !!instance,
         });
         
         // Tentar buscar por instance_name para debug
         const { data: debugConfig } = await supabase
           .from('evolution_config')
-          .select('instance_name, webhook_secret, api_key')
+          .select('instance_name, webhook_secret, api_key, organization_id')
           .eq('instance_name', instance)
           .maybeSingle();
         
         if (debugConfig) {
-          console.log('⚠️ Instância encontrada, mas segredo diferente:', {
+          console.log('⚠️ Instância encontrada no banco, mas autenticação falhou:', {
+            instance_name: debugConfig.instance_name,
+            hasWebhookSecret: !!debugConfig.webhook_secret,
+            hasApiKey: !!debugConfig.api_key,
             expectedSecretPreview: (debugConfig.webhook_secret || debugConfig.api_key)?.substring(0, 8) + '...',
-            receivedSecretPreview: providedSecret?.substring(0, 8) + '...'
+            receivedSecretPreview: providedSecret?.substring(0, 8) + '...',
+            organization_id: debugConfig.organization_id,
           });
         } else {
           console.log('⚠️ Instância não encontrada no banco:', instance);
@@ -286,31 +351,51 @@ serve(async (req) => {
 
         await supabaseServiceRole.from('evolution_logs').insert({
           user_id: null,
-          organization_id: null,
+          organization_id: debugConfig?.organization_id || null,
           instance,
           event,
           level: 'error',
-          message: 'Webhook com segredo inválido',
-          payload: { instance, authDebug: { providedSecretPreview: providedSecret?.substring(0,8)+'...' } },
+          message: 'Webhook não autenticado - instância não encontrada ou secret inválido',
+          payload: { 
+            instance, 
+            hasSecret: !!providedSecret,
+            hasInstance: !!instance,
+            authDebug: { 
+              providedSecretPreview: providedSecret?.substring(0,8)+'...',
+              instanceFound: !!debugConfig,
+            } 
+          },
         });
         return new Response(
-          JSON.stringify({ success: false, message: 'Invalid webhook secret' }),
+          JSON.stringify({ 
+            success: false, 
+            message: 'Invalid webhook secret or instance not found',
+            hint: 'Verifique se o webhook está configurado corretamente na Evolution API e se o instance_name corresponde ao banco de dados'
+          }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      console.log(`✅ Config encontrada via ${authMethod}: org=${configs.organization_id}, user=${configs.user_id}`);
+      console.log(`✅ Config encontrada via ${authMethod}: org=${configs.organization_id}, user=${configs.user_id}, instance=${configs.instance_name}`);
 
-      // Opcional: garantir que o nome da instância corresponda
+      // Verificar se o nome da instância corresponde (apenas aviso, não bloqueia se encontrou por instance_name)
       if (configs.instance_name && configs.instance_name !== instance) {
-        console.error('❌ Instance name mismatch para o segredo informado');
-        return new Response(
-          JSON.stringify({ success: false, message: 'Instance mismatch' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Se encontrou por instance_name + secret, não deveria ter mismatch
+        // Mas se encontrou apenas por secret, pode ser instância diferente
+        if (authMethod === 'webhook_secret' || authMethod === 'api_key') {
+          console.warn(`⚠️ Instance name mismatch: esperado "${instance}", mas encontrado "${configs.instance_name}". Usando instância encontrada.`);
+          // Não bloqueia - permite usar a instância encontrada pelo secret
+        } else {
+          // Se encontrou por instance_name mas não corresponde, é erro
+          console.error('❌ Instance name mismatch para o segredo informado');
+          return new Response(
+            JSON.stringify({ success: false, message: 'Instance mismatch' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
 
-      console.log(`✅ Config encontrada: org=${configs.organization_id}, user=${configs.user_id}`);
+      console.log(`✅ Config validada: org=${configs.organization_id}, user=${configs.user_id}, instance=${configs.instance_name}`);
 
       // Verificar se temos o número real via remoteJid (telefone normal) ou remoteJidAlt
       // Mesmo que venha como LID, se tiver número real alternativo, processar como lead
@@ -384,6 +469,39 @@ serve(async (req) => {
       // Processar telefone normal (@s.whatsapp.net)
       // NOTA: Se vier como LID mas tiver número real alternativo, usar o alternativo
       const phoneSource = hasRealPhone ? remoteJid : remoteJidAlt;
+      
+      // Verificar se temos um número válido para processar
+      if (!phoneSource) {
+        console.error('❌ Nenhum número de telefone válido encontrado:', {
+          remoteJid,
+          remoteJidAlt,
+          hasRealPhone,
+          hasRealPhoneAlt,
+          hasLID
+        });
+        
+        await supabaseServiceRole.from('evolution_logs').insert({
+          user_id: configs.user_id,
+          organization_id: configs.organization_id,
+          instance,
+          event,
+          level: 'error',
+          message: 'Webhook recebido sem número de telefone válido',
+          payload: { remoteJid, remoteJidAlt, hasRealPhone, hasRealPhoneAlt, hasLID },
+        });
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'No valid phone number found in webhook payload' 
+          }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
       let phoneNumber = phoneSource.replace('@s.whatsapp.net', '').replace(/\D/g, '');
       
       // Normalização adicional: garantir que número está limpo

@@ -311,6 +311,40 @@ export default function Contracts() {
     }
   };
 
+  const handleReloadContract = async (contract: Contract) => {
+    try {
+      toast({
+        title: 'Recarregando contrato...',
+        description: 'Regenerando PDF com as últimas alterações do template...',
+      });
+
+      const newPdfUrl = await regenerateContractPDF(contract.id);
+      
+      // Atualizar o contrato selecionado com a nova URL
+      if (selectedContract && selectedContract.id === contract.id) {
+        setSelectedContract({
+          ...selectedContract,
+          pdf_url: newPdfUrl,
+        });
+      }
+
+      // Recarregar lista de contratos
+      await refetch();
+
+      toast({
+        title: 'Contrato recarregado',
+        description: 'O PDF foi regenerado com sucesso com as últimas alterações do template.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao recarregar contrato',
+        description: error.message || 'Não foi possível regenerar o PDF. Verifique se o contrato tem conteúdo válido.',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   const handleDownload = (contract: Contract) => {
     const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
     if (pdfUrl) {
@@ -571,6 +605,7 @@ export default function Contracts() {
               onEditTemplate={handleEditTemplate}
               onConfigureSignatures={handleConfigureSignatures}
               onDelete={handleDelete}
+              onReload={handleReloadContract}
             />
           </div>
         ) : (

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from './useActiveOrganization';
 import { ContractCategory } from '@/types/contract';
 import { useToast } from './use-toast';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export function useContractCategories() {
   const { activeOrgId } = useActiveOrganization();
@@ -18,15 +19,36 @@ export function useContractCategories() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      // Buscar categorias com contagem de contratos
+      const { data: categoriesData, error: categoriesError } = await supabase
         .from('contract_categories')
         .select('*')
         .eq('organization_id', activeOrgId)
         .eq('is_active', true)
         .order('name', { ascending: true });
 
-      if (error) throw error;
-      setCategories((data || []) as ContractCategory[]);
+      if (categoriesError) throw categoriesError;
+
+      // Buscar contagem de contratos para cada categoria
+      const categoriesWithCount = await Promise.all(
+        (categoriesData || []).map(async (category) => {
+          const { count, error: countError } = await supabase
+            .from('contracts')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', activeOrgId)
+            .eq('category_id', category.id)
+            .is('deleted_at', null); // Apenas contratos não deletados
+
+          if (countError) {
+            console.error('Erro ao contar contratos:', countError);
+            return { ...category, contract_count: 0 };
+          }
+
+          return { ...category, contract_count: count || 0 };
+        })
+      );
+
+      setCategories(categoriesWithCount as ContractCategory[]);
     } catch (error: any) {
       console.error('Erro ao carregar categorias:', error);
       toast({
@@ -41,7 +63,31 @@ export function useContractCategories() {
 
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
+
+    // Configurar real-time para atualizar contagem quando contratos mudarem
+    if (!activeOrgId) return;
+
+    const contractsChannel = supabase
+      .channel('contracts-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'contracts',
+          filter: `organization_id=eq.${activeOrgId}`,
+        },
+        () => {
+          // Recarregar categorias quando contratos mudarem
+          fetchCategories();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(contractsChannel);
+    };
+  }, [fetchCategories, activeOrgId]);
 
   const createCategory = async (categoryData: {
     name: string;
