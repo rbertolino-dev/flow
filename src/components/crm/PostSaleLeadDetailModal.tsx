@@ -1,5 +1,5 @@
 import { PostSaleLead, PostSaleActivity } from "@/types/postSaleLead";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, Tag as TagIcon, ListChecks, FileText, Plus, Loader2 } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, Tag as TagIcon, ListChecks, FileText, Plus, Loader2, Send, Clock, RefreshCw, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -26,25 +26,42 @@ import { useFollowUpTemplates } from "@/hooks/useFollowUpTemplates";
 import { useLeadFollowUps } from "@/hooks/useLeadFollowUps";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useMessageTemplates } from "@/hooks/useMessageTemplates";
+import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
+import { extractConnectionState } from "@/lib/evolutionStatus";
+import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 
 interface PostSaleLeadDetailModalProps {
   lead: PostSaleLead;
   open: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  initialShowMessage?: boolean;
+  initialShowSchedule?: boolean;
 }
 
-export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: PostSaleLeadDetailModalProps) {
+export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, initialShowSchedule = false }: PostSaleLeadDetailModalProps) {
   const { tags } = useTags();
   const { updateLead, deleteLead, leads } = usePostSaleLeads();
   const { stages } = usePostSaleStages();
   const { toast } = useToast();
+  const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
+  const { templates, applyTemplate } = useMessageTemplates();
   const [notes, setNotes] = useState(lead.notes || "");
   const [value, setValue] = useState(lead.value?.toString() || "");
   const [isSaving, setIsSaving] = useState(false);
   const [currentLead, setCurrentLead] = useState<PostSaleLead>(lead);
   const [newActivity, setNewActivity] = useState("");
   const [isAddingActivity, setIsAddingActivity] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState<string>("");
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [selectedMessageTemplateId, setSelectedMessageTemplateId] = useState<string>("");
+  const [isSending, setIsSending] = useState(false);
+  const [showSchedulePanel, setShowSchedulePanel] = useState(false);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<Record<string, boolean | null>>({});
+  const messageSectionRef = useRef<HTMLDivElement>(null);
   
   // Atualizar lead local quando lead prop mudar (real-time)
   useEffect(() => {
@@ -63,15 +80,202 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
   }, [lead.id, lead.notes, lead.value, lead.activities, leads]);
   
   // Follow-up hooks
-  const { templates, loading: templatesLoading } = useFollowUpTemplates();
+  const { templates: followUpTemplates, loading: templatesLoading } = useFollowUpTemplates();
   // Para pós-venda, usar o ID do post_sale_lead diretamente (a migration permite isso)
   // Se tiver originalLeadId, usar ele (é o lead de vendas original)
   // Caso contrário, usar o id do post_sale_lead (a migration permite follow-ups em post_sale_leads)
   const leadIdForFollowUp = lead.originalLeadId || lead.id;
-  const { applyTemplate } = useLeadFollowUps(leadIdForFollowUp);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const { applyTemplate: applyFollowUpTemplate } = useLeadFollowUps(leadIdForFollowUp);
+  const [selectedFollowUpTemplateId, setSelectedFollowUpTemplateId] = useState<string>("");
   
-  const activeTemplates = templates.filter(t => t.isActive);
+  const activeTemplates = followUpTemplates.filter(t => t.isActive);
+
+  // Instâncias: todas do ambiente atual, com conectadas primeiro
+  const allInstances = useMemo(() => (configs || []).slice().sort((a, b) => Number(b.is_connected) - Number(a.is_connected)), [configs]);
+  const connectedInstances = useMemo(() => (configs || []).filter(c => c.is_connected === true), [configs]);
+  const hasInstances = allInstances.length > 0;
+
+  // Health check periódico apenas quando o modal está aberto
+  useInstanceHealthCheck({
+    instances: configs || [],
+    enabled: open, // Só verifica quando modal está aberto
+    intervalMs: 30000,
+  });
+
+  // Helpers para status ao vivo
+  const normalizeApiUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      let base = u.origin + u.pathname.replace(/\/$/, '');
+      base = base.replace(/\/(manager|dashboard|app)$/i, '');
+      return base;
+    } catch {
+      return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+    }
+  };
+
+  const computeLiveStatuses = async () => {
+    const statusMap: Record<string, boolean | null> = {};
+    await Promise.allSettled((configs || []).map(async (cfg) => {
+      try {
+        const base = normalizeApiUrl(cfg.api_url);
+        const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
+        const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        statusMap[cfg.id] = extractConnectionState(data);
+      } catch {
+        statusMap[cfg.id] = null;
+      }
+    }));
+    setLiveStatus(statusMap);
+    return statusMap;
+  };
+
+  // Atualização imediata ao abrir
+  useEffect(() => {
+    if (open) {
+      computeLiveStatuses();
+      refreshStatuses();
+    }
+  }, [open]);
+
+  // Controlar visibilidade inicial da seção de mensagem e agendamento
+  useEffect(() => {
+    if (open) {
+      if (initialShowSchedule) {
+        setShowSchedulePanel(true);
+      }
+      // Se initialShowMessage for true, fazer scroll para a seção de mensagem após um pequeno delay
+      if (initialShowMessage && messageSectionRef.current) {
+        setTimeout(() => {
+          messageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    } else {
+      // Resetar estados quando modal fechar
+      setShowSchedulePanel(false);
+    }
+  }, [open, initialShowMessage, initialShowSchedule]);
+
+  const handleRefreshStatus = async () => {
+    setIsRefreshingStatus(true);
+    try {
+      await computeLiveStatuses();
+      await refreshStatuses();
+      toast({
+        title: "Status atualizado",
+        description: "Status das instâncias atualizado com sucesso",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshingStatus(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!whatsappMessage.trim() || !selectedInstanceId) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Selecione uma instância e digite a mensagem",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSending(true);
+    
+    // Obter mídia do template selecionado (se houver)
+    const selectedTemplate = templates.find(t => t.id === selectedMessageTemplateId);
+    const mediaUrl = selectedTemplate?.media_url || undefined;
+    const mediaType = selectedTemplate?.media_type || undefined;
+    
+    console.log('📤 [Frontend] Iniciando envio de mensagem...', {
+      instanceId: selectedInstanceId,
+      phone: currentLead.phone,
+      messageLength: whatsappMessage.length,
+      leadId: currentLead.id,
+      hasMedia: !!mediaUrl,
+      mediaType
+    });
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
+        body: {
+          instanceId: selectedInstanceId,
+          phone: currentLead.phone,
+          message: whatsappMessage,
+          leadId: currentLead.id,
+          mediaUrl,
+          mediaType,
+        },
+      });
+
+      console.log('📥 [Frontend] Resposta do edge function:', { data, error });
+
+      if (error) {
+        console.error('❌ [Frontend] Erro retornado:', error);
+        const errorMessage = error.message || 'Erro ao chamar função de envio';
+        throw new Error(errorMessage);
+      }
+
+      if (data?.error) {
+        console.error('❌ [Frontend] Erro no data:', data);
+        const errorMessage = data.error || 'Erro desconhecido';
+        const errorDetails = data.details || '';
+        throw new Error(errorDetails ? `${errorMessage}: ${errorDetails}` : errorMessage);
+      }
+
+      console.log('✅ [Frontend] Mensagem enviada com sucesso!');
+
+      toast({
+        title: "Mensagem enviada",
+        description: "A mensagem foi enviada com sucesso",
+      });
+
+      setWhatsappMessage("");
+      setSelectedMessageTemplateId("");
+      
+      // Atualizar atividades do lead
+      onUpdated?.();
+    } catch (error: any) {
+      console.error('💥 [Frontend] Erro crítico:', error);
+      
+      let errorMessage = "Erro desconhecido. Verifique os logs do console.";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      toast({
+        title: "Erro ao enviar mensagem",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleMessageTemplateSelect = (templateId: string) => {
+    setSelectedMessageTemplateId(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      const message = applyTemplate(template.content, {
+        nome: currentLead.name,
+        telefone: currentLead.phone,
+        empresa: currentLead.company || '',
+      });
+      setWhatsappMessage(message);
+    }
+  };
 
   const handleSaveNotes = async () => {
     setIsSaving(true);
@@ -177,9 +381,9 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
     
     // A migration permite follow-ups tanto em leads quanto em post_sale_leads
     // Então podemos aplicar mesmo sem originalLeadId
-    const success = await applyTemplate(templateId);
+    const success = await applyFollowUpTemplate(templateId);
     if (success) {
-      setSelectedTemplateId("");
+      setSelectedFollowUpTemplateId("");
       onUpdated?.();
       // Toast já é mostrado pelo hook useLeadFollowUps
     }
@@ -348,9 +552,9 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                   <div className="space-y-2">
                     <Label htmlFor="follow-up-select">Aplicar Template de Follow-up</Label>
                     <Select
-                      value={selectedTemplateId}
+                      value={selectedFollowUpTemplateId}
                       onValueChange={(value) => {
-                        setSelectedTemplateId(value);
+                        setSelectedFollowUpTemplateId(value);
                         handleApplyFollowUp(value);
                       }}
                     >
@@ -373,6 +577,143 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated }: Post
                 <Separator />
               </>
             )}
+
+            {/* Enviar Mensagem WhatsApp */}
+            <div id="whatsapp-message-section" ref={messageSectionRef} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+                  Enviar Mensagem WhatsApp
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefreshStatus}
+                  disabled={isRefreshingStatus}
+                  className="gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Atualizar Status</span>
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="instance-select">Instância WhatsApp</Label>
+                  <Select 
+                    value={selectedInstanceId} 
+                    onValueChange={setSelectedInstanceId}
+                    disabled={!hasInstances}
+                  >
+                    <SelectTrigger id="instance-select">
+                      <SelectValue placeholder={
+                        !hasInstances 
+                          ? "Nenhuma instância configurada" 
+                          : "Selecione uma instância"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!hasInstances ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          Configure uma instância em Configurações
+                        </div>
+                      ) : (
+                        allInstances.map((config) => (
+                          <SelectItem 
+                            key={config.id} 
+                            value={config.id}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${(liveStatus[config.id] ?? config.is_connected) ? 'bg-green-500' : 'bg-red-500'}`} />
+                              {config.instance_name}
+                              {!(liveStatus[config.id] ?? config.is_connected) && (
+                                <span className="text-xs text-muted-foreground">(desconectada)</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {!hasInstances && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Vá em Configurações → WhatsApp para conectar uma instância
+                    </p>
+                  )}
+                  {hasInstances && connectedInstances.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ Todas as instâncias estão desconectadas. Teste a conexão em Configurações.
+                    </p>
+                  )}
+                </div>
+
+                {templates.length > 0 && (
+                  <div>
+                    <Label htmlFor="template-select">Template (opcional)</Label>
+                    <Select value={selectedMessageTemplateId} onValueChange={handleMessageTemplateSelect}>
+                      <SelectTrigger id="template-select">
+                        <SelectValue placeholder="Usar um template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-3 w-3" />
+                              {template.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <Label htmlFor="whatsapp-message">Mensagem</Label>
+                  <Textarea
+                    id="whatsapp-message"
+                    value={whatsappMessage}
+                    onChange={(e) => setWhatsappMessage(e.target.value)}
+                    placeholder="Digite a mensagem..."
+                    rows={4}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSendWhatsApp}
+                    disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
+                    className="flex-1"
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    {isSending ? 'Enviando...' : 'Enviar Agora'}
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setShowSchedulePanel(!showSchedulePanel)}
+                    variant={showSchedulePanel ? "default" : "outline"}
+                    disabled={!hasInstances}
+                    className={showSchedulePanel ? "flex-1" : ""}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    {showSchedulePanel ? "Ocultar Agenda" : "Agendar"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {showSchedulePanel && (
+              <>
+                <Separator />
+                <ScheduleMessagePanel 
+                  leadId={currentLead.id}
+                  leadPhone={currentLead.phone}
+                  instances={connectedInstances}
+                  onClose={() => setShowSchedulePanel(false)}
+                />
+              </>
+            )}
+
+            <Separator />
 
             {/* Etiquetas */}
             {currentLead.tags && currentLead.tags.length > 0 && (
