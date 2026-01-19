@@ -12,6 +12,8 @@ interface BudgetFilters {
   lead_id?: string;
   search?: string;
   expired_only?: boolean;
+  expiring_soon_only?: boolean;
+  approved_only?: boolean;
   date_from?: string;
   date_to?: string;
   expires_from?: string;
@@ -113,11 +115,24 @@ export function useBudgets(filters?: BudgetFilters) {
       }
 
       if (filters?.search) {
-        query = query.or(`budget_number.ilike.%${filters.search}%,observations.ilike.%${filters.search}%`);
+        // Buscar no número do orçamento, observações e nome do cliente (client_data JSONB)
+        query = query.or(`budget_number.ilike.%${filters.search}%,observations.ilike.%${filters.search}%,client_data->>name.ilike.%${filters.search}%`);
       }
 
       if (filters?.expired_only) {
         query = query.lt('expires_at', new Date().toISOString().split('T')[0]);
+      }
+
+      if (filters?.expiring_soon_only) {
+        const now = new Date();
+        const oneWeekFromNow = addDays(now, 7);
+        query = query
+          .gte('expires_at', now.toISOString().split('T')[0])
+          .lte('expires_at', oneWeekFromNow.toISOString().split('T')[0]);
+      }
+
+      if (filters?.approved_only) {
+        query = query.eq('approved', true);
       }
 
       if (filters?.date_from) {

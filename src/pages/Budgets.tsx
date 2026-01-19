@@ -74,7 +74,7 @@ export default function Budgets() {
   const [budgetDateTo, setBudgetDateTo] = useState<string>('');
   const [budgetExpiresFrom, setBudgetExpiresFrom] = useState<string>('');
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
-  const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired'>('all');
+  const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved'>('all');
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
   
   // Estados para serviços
@@ -108,6 +108,8 @@ export default function Budgets() {
     search: searchQuery || undefined,
     lead_id: budgetClientFilter !== 'all' ? budgetClientFilter : undefined,
     expired_only: budgetStatusFilter === 'expired',
+    expiring_soon_only: budgetStatusFilter === 'expiring_soon',
+    approved_only: budgetStatusFilter === 'approved',
     date_from: budgetDateFrom || undefined,
     date_to: budgetDateTo || undefined,
     expires_from: budgetExpiresFrom || undefined,
@@ -555,7 +557,7 @@ export default function Budgets() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="budget-status-filter">Status</Label>
-                        <Select value={budgetStatusFilter} onValueChange={(value: 'all' | 'valid' | 'expired') => setBudgetStatusFilter(value)}>
+                        <Select value={budgetStatusFilter} onValueChange={(value: 'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved') => setBudgetStatusFilter(value)}>
                           <SelectTrigger id="budget-status-filter">
                             <SelectValue placeholder="Todos os status" />
                           </SelectTrigger>
@@ -563,6 +565,8 @@ export default function Budgets() {
                             <SelectItem value="all">Todos os status</SelectItem>
                             <SelectItem value="valid">Válido</SelectItem>
                             <SelectItem value="expired">Expirado</SelectItem>
+                            <SelectItem value="expiring_soon">Próximo</SelectItem>
+                            <SelectItem value="approved">Aprovado</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -681,6 +685,20 @@ export default function Budgets() {
                                 handleUpdateServiceCategory(service.id, '');
                               }
                             });
+                          
+                          // Remover categoria do localStorage
+                          if (activeOrgId) {
+                            try {
+                              const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
+                              if (stored) {
+                                const existingCategories = JSON.parse(stored) as string[];
+                                const updatedCategories = existingCategories.filter(c => c !== category);
+                                localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(updatedCategories));
+                              }
+                            } catch (e) {
+                              console.error('Erro ao remover categoria do localStorage:', e);
+                            }
+                          }
                         }}
                       />
                       <ServiceBulkImport
