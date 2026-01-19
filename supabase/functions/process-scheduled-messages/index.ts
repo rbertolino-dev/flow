@@ -19,6 +19,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // ✅ DEBUG: Log detalhado antes de buscar
+    console.log('🔍 [process-scheduled-messages] Buscando mensagens agendadas...');
+    console.log('🔍 [process-scheduled-messages] Filtros:', {
+      status: 'pending',
+      scheduled_for: `<= ${new Date().toISOString()}`,
+      limit: 50
+    });
+
     // Buscar mensagens pendentes que já passaram do horário agendado
     const { data: messages, error: fetchError } = await supabase
       .from('scheduled_messages')
@@ -29,11 +37,44 @@ serve(async (req) => {
       .limit(50); // Processar no máximo 50 mensagens por vez
 
     if (fetchError) {
-      console.error('❌ Erro ao buscar mensagens:', fetchError);
+      console.error('❌ [process-scheduled-messages] Erro ao buscar mensagens:', {
+        error: fetchError,
+        code: fetchError.code,
+        message: fetchError.message,
+        details: fetchError.details,
+        hint: fetchError.hint,
+      });
       throw fetchError;
     }
 
     console.log(`📬 [process-scheduled-messages] Encontradas ${messages?.length || 0} mensagens para processar`);
+    
+    // ✅ DEBUG: Log detalhes das mensagens encontradas
+    if (messages && messages.length > 0) {
+      console.log('📋 [process-scheduled-messages] Detalhes das mensagens:', 
+        messages.map(m => ({
+          id: m.id,
+          organization_id: m.organization_id,
+          instance_id: m.instance_id,
+          phone: m.phone,
+          scheduled_for: m.scheduled_for,
+          status: m.status,
+        }))
+      );
+    } else {
+      console.log('ℹ️ [process-scheduled-messages] Nenhuma mensagem pendente encontrada. Verificando se há mensagens na tabela...');
+      
+      // ✅ DEBUG: Verificar se há mensagens na tabela (mesmo que não atendam aos critérios)
+      const { data: allMessages, error: allError } = await supabase
+        .from('scheduled_messages')
+        .select('id, status, scheduled_for, organization_id')
+        .limit(5);
+      
+      if (!allError && allMessages) {
+        console.log(`ℹ️ [process-scheduled-messages] Total de mensagens na tabela: ${allMessages.length}`);
+        console.log('ℹ️ [process-scheduled-messages] Exemplos:', allMessages);
+      }
+    }
 
     if (!messages || messages.length === 0) {
       return new Response(
