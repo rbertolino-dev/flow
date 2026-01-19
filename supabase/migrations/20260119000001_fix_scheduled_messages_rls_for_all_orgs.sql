@@ -7,11 +7,23 @@
 
 -- Garantir que função user_belongs_to_org existe
 -- Primeiro, remover função existente se tiver assinatura diferente
-DROP FUNCTION IF EXISTS public.user_belongs_to_org(UUID, UUID);
-DROP FUNCTION IF EXISTS public.user_belongs_to_org(_user_id UUID, _org_id UUID);
-DROP FUNCTION IF EXISTS public.user_belongs_to_org(_org_id UUID, _user_id UUID);
+-- Tentar todas as possíveis assinaturas
+DO $$
+BEGIN
+  -- Remover todas as versões possíveis da função
+  DROP FUNCTION IF EXISTS public.user_belongs_to_org(UUID, UUID) CASCADE;
+  DROP FUNCTION IF EXISTS public.user_belongs_to_org(_user_id UUID, _org_id UUID) CASCADE;
+  DROP FUNCTION IF EXISTS public.user_belongs_to_org(_org_id UUID, _user_id UUID) CASCADE;
+  DROP FUNCTION IF EXISTS public.user_belongs_to_org(_user_id uuid, _organization_id uuid) CASCADE;
+  DROP FUNCTION IF EXISTS public.user_belongs_to_org(_organization_id uuid, _user_id uuid) CASCADE;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Ignorar erros se função não existir
+    NULL;
+END $$;
 
 -- Criar função com assinatura correta (ordem: _user_id, _org_id)
+-- Usar nomes de parâmetros que não conflitem com versões existentes
 CREATE OR REPLACE FUNCTION public.user_belongs_to_org(_user_id UUID, _org_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
