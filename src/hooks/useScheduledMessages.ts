@@ -114,13 +114,35 @@ export function useScheduledMessages(leadId?: string) {
         repeatUntil = endDate.toISOString();
       }
 
+      // ✅ DEBUG: Validar data/hora antes de inserir
+      if (params.scheduledFor <= new Date()) {
+        throw new Error('A data e hora de agendamento deve ser no futuro');
+      }
+
+      // ✅ DEBUG: Validar telefone (deve ter apenas números)
+      const cleanPhone = params.phone.replace(/\D/g, '');
+      if (!cleanPhone || cleanPhone.length < 10) {
+        throw new Error('Telefone inválido. Deve conter pelo menos 10 dígitos');
+      }
+
+      // ✅ DEBUG: Log dados antes de inserir
+      console.log('📅 Agendando mensagem:', {
+        organizationId,
+        userId: user.id,
+        leadId: params.leadId,
+        instanceId: params.instanceId,
+        phone: cleanPhone,
+        scheduledFor: params.scheduledFor.toISOString(),
+        messageLength: params.message.length,
+      });
+
       // Criar primeira mensagem
       const firstMessageData: any = {
           organization_id: organizationId,
           user_id: user.id,
           lead_id: params.leadId,
           instance_id: params.instanceId,
-          phone: params.phone,
+          phone: cleanPhone, // ✅ Usar telefone limpo
           message: params.message,
           scheduled_for: params.scheduledFor.toISOString(),
           media_url: params.mediaUrl || null,
@@ -138,7 +160,18 @@ export function useScheduledMessages(leadId?: string) {
         .select()
         .single();
 
-      if (firstError) throw firstError;
+      if (firstError) {
+        // ✅ DEBUG: Log erro detalhado
+        console.error('❌ Erro ao agendar mensagem:', {
+          error: firstError,
+          code: firstError.code,
+          message: firstError.message,
+          details: firstError.details,
+          hint: firstError.hint,
+          data: firstMessageData,
+        });
+        throw firstError;
+      }
 
       let parentMessageId = firstMessage.id;
 
@@ -275,9 +308,32 @@ export function useScheduledMessages(leadId?: string) {
       });
     },
     onError: (error: any) => {
+      // ✅ DEBUG: Log erro completo
+      console.error('❌ Erro ao agendar mensagem (onError):', error);
+      
+      // ✅ Melhorar mensagem de erro baseada no tipo
+      let errorMessage = error.message || 'Erro desconhecido ao agendar mensagem';
+      
+      // Erros comuns e suas mensagens amigáveis
+      if (error.code === '23503') {
+        errorMessage = 'Erro de referência: Verifique se o lead, instância ou organização são válidos';
+      } else if (error.code === '23505') {
+        errorMessage = 'Mensagem duplicada: Esta mensagem já foi agendada';
+      } else if (error.code === '42501') {
+        errorMessage = 'Permissão negada: Você não tem permissão para agendar mensagens nesta organização';
+      } else if (error.message?.includes('organization')) {
+        errorMessage = 'Erro de organização: Verifique se você pertence à organização do lead';
+      } else if (error.message?.includes('RLS') || error.message?.includes('policy')) {
+        errorMessage = 'Erro de permissão: Verifique se você tem permissão para agendar mensagens';
+      } else if (error.message?.includes('futuro') || error.message?.includes('future')) {
+        errorMessage = 'Data inválida: A data de agendamento deve ser no futuro';
+      } else if (error.message?.includes('telefone') || error.message?.includes('phone')) {
+        errorMessage = 'Telefone inválido: Verifique o número do telefone';
+      }
+      
       toast({
         title: "Erro ao agendar mensagem",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     },

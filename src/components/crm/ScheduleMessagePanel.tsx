@@ -85,9 +85,21 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       return;
     }
 
+    // ✅ Validação adicional de data/hora
+    const scheduledFor = parseSaoPauloDateTime(scheduledDate, scheduledTime);
+    const now = new Date();
+    
+    if (scheduledFor <= now) {
+      toast({
+        title: "Data/hora inválida",
+        description: "A data e hora de agendamento deve ser no futuro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsScheduling(true);
     try {
-      const scheduledFor = parseSaoPauloDateTime(scheduledDate, scheduledTime);
       await scheduleMessage({
         leadId,
         instanceId,
