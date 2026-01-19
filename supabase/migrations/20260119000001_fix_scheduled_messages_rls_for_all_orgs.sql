@@ -6,6 +6,12 @@
 -- ============================================
 
 -- Garantir que função user_belongs_to_org existe
+-- Primeiro, remover função existente se tiver assinatura diferente
+DROP FUNCTION IF EXISTS public.user_belongs_to_org(UUID, UUID);
+DROP FUNCTION IF EXISTS public.user_belongs_to_org(_user_id UUID, _org_id UUID);
+DROP FUNCTION IF EXISTS public.user_belongs_to_org(_org_id UUID, _user_id UUID);
+
+-- Criar função com assinatura correta (ordem: _user_id, _org_id)
 CREATE OR REPLACE FUNCTION public.user_belongs_to_org(_user_id UUID, _org_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
