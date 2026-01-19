@@ -138,7 +138,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
       computeLiveStatuses();
       refreshStatuses();
     }
-  }, [open]);
+  }, [open, configs]);
 
   // Controlar visibilidade inicial da seção de mensagem e agendamento
   useEffect(() => {
