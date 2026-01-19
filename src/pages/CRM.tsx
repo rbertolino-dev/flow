@@ -47,6 +47,8 @@ export default function CRM() {
   const { tags, addTagToLead } = useTags();
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [openModalWithMessage, setOpenModalWithMessage] = useState(false);
+  const [openModalWithSchedule, setOpenModalWithSchedule] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -516,13 +518,33 @@ export default function CRM() {
                                       <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={() => window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank')}
+                                        onClick={() => {
+                                          setSelectedLead(lead);
+                                          setOpenModalWithMessage(true);
+                                        }}
                                       >
                                         <MessageSquare className="h-4 w-4" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      <p>Abrir WhatsApp</p>
+                                      <p>Enviar Mensagem WhatsApp</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setSelectedLead(lead);
+                                          setOpenModalWithSchedule(true);
+                                        }}
+                                      >
+                                        <Calendar className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Agendar Mensagem</p>
                                     </TooltipContent>
                                   </Tooltip>
                                   <Tooltip>
@@ -667,8 +689,14 @@ export default function CRM() {
           <LeadDetailModal
             lead={selectedLead}
             open={!!selectedLead}
-            onClose={() => setSelectedLead(null)}
+            onClose={() => {
+              setSelectedLead(null);
+              setOpenModalWithMessage(false);
+              setOpenModalWithSchedule(false);
+            }}
             onUpdated={() => refetchLeads()}
+            initialShowMessage={openModalWithMessage}
+            initialShowSchedule={openModalWithSchedule}
           />
         )}
 

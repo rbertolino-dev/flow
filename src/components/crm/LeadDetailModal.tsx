@@ -53,6 +53,8 @@ interface LeadDetailModalProps {
   open: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  initialShowMessage?: boolean;
+  initialShowSchedule?: boolean;
 }
 
 const activityIcons = {
@@ -69,7 +71,7 @@ const activityColors = {
   status_change: "text-warning",
 };
 
-export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailModalProps) {
+export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, initialShowSchedule = false }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead, refetch: refetchTags } = useTags();
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead } = useLeads();
@@ -118,6 +120,27 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
     setEditedNotes(lead.notes || "");
     setEditedCpfCnpj(lead.cpf_cnpj || "");
   }, [lead]);
+
+  // Controlar visibilidade inicial da seção de mensagem e agendamento
+  useEffect(() => {
+    if (open) {
+      if (initialShowSchedule) {
+        setShowSchedulePanel(true);
+      }
+      // Se initialShowMessage for true, fazer scroll para a seção de mensagem após um pequeno delay
+      if (initialShowMessage) {
+        setTimeout(() => {
+          const messageSection = document.getElementById('whatsapp-message-section');
+          if (messageSection) {
+            messageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      }
+    } else {
+      // Resetar estados quando modal fechar
+      setShowSchedulePanel(false);
+    }
+  }, [open, initialShowMessage, initialShowSchedule]);
 
   // Identificar listas que contêm este lead
   const leadLists = useMemo(() => {
@@ -1389,7 +1412,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated }: LeadDetailMo
             <Separator />
 
             {/* Enviar Mensagem WhatsApp */}
-            <div className="space-y-3">
+            <div id="whatsapp-message-section" className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
