@@ -76,25 +76,64 @@ export function useLeads() {
         return;
       }
       
+      // ✅ CORREÇÃO: Dividir lead IDs em lotes para evitar URL muito longa (erro 400)
+      // Limite seguro: ~100 lead IDs por lote (cada UUID tem 36 caracteres)
+      const BATCH_SIZE = 100;
+      const leadIdBatches: string[][] = [];
+      for (let i = 0; i < leadIds.length; i += BATCH_SIZE) {
+        leadIdBatches.push(leadIds.slice(i, i + BATCH_SIZE));
+      }
+
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
       // ✅ CORREÇÃO: Limitar a máximo de 1000 activities para evitar erro 400
       const maxActivitiesLimit = Math.min(leadIds.length * 5, 1000);
-      const [activitiesResult, tagsResult] = await Promise.all([
-        (supabase as any)
-          .from('activities')
-          .select('*')
-          .in('lead_id', leadIds)
-          .order('created_at', { ascending: false })
-          .limit(maxActivitiesLimit),
-        (supabase as any)
-          .from('lead_tags')
-          .select('lead_id, tag_id, tags(id, name, color)')
-          .in('lead_id', leadIds)
-          .limit(5000) // ✅ CORREÇÃO: Limite máximo seguro para evitar erro 400
+      
+      // Buscar activities e tags em lotes
+      const [activitiesResults, tagsResults] = await Promise.all([
+        Promise.all(
+          leadIdBatches.map(batch =>
+            (supabase as any)
+              .from('activities')
+              .select('*')
+              .in('lead_id', batch)
+              .order('created_at', { ascending: false })
+              .limit(Math.min(batch.length * 5, 200)) // Limite por lote
+          )
+        ),
+        Promise.all(
+          leadIdBatches.map(batch =>
+            (supabase as any)
+              .from('lead_tags')
+              .select('lead_id, tag_id, tags(id, name, color)')
+              .in('lead_id', batch)
+              .limit(500) // Limite por lote
+          )
+        )
       ]);
 
-      const allActivities = activitiesResult.data || [];
-      const allLeadTags = tagsResult.data || [];
+      // Combinar resultados de todos os lotes
+      const allActivities = activitiesResults.flatMap(r => r.data || []).slice(0, maxActivitiesLimit);
+      let allLeadTags = tagsResults.flatMap(r => r.data || []);
+
+      // ✅ FALLBACK: Se tags falharam, tentar buscar individualmente para alguns leads
+      if (allLeadTags.length === 0 && leadIds.length > 0) {
+        console.warn('⚠️ Nenhuma tag encontrada em batch, tentando fallback...');
+        // Tentar buscar tags para os primeiros 50 leads individualmente
+        const fallbackLeadIds = leadIds.slice(0, 50);
+        try {
+          const fallbackResult = await (supabase as any)
+            .from('lead_tags')
+            .select('lead_id, tag_id, tags(id, name, color)')
+            .in('lead_id', fallbackLeadIds);
+          
+          if (fallbackResult.data) {
+            allLeadTags = fallbackResult.data;
+            console.log(`✅ Fallback encontrou ${allLeadTags.length} tags`);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Erro no fallback de tags:', fallbackError);
+        }
+      }
 
       // ✅ OTIMIZAÇÃO: Group by lead_id e limitar a 5 activities por lead
       const activitiesByLead = allActivities.reduce((acc, act) => {
@@ -111,14 +150,30 @@ export function useLeads() {
         return acc;
       }, {} as Record<string, any[]>);
 
+      // ✅ DEBUG: Log tags encontradas
+      const totalTags = Object.keys(tagsByLead).length;
+      const leadsWithTags = Object.values(tagsByLead).filter(tags => tags.length > 0).length;
+      console.log(`🏷️ Tags encontradas: ${allLeadTags.length} tags para ${leadsWithTags} leads (de ${leadIds.length} leads)`);
+
       // Map leads with their activities and tags
       const leadsWithActivities = (leadsData || []).map((lead) => {
         const activities = activitiesByLead[lead.id] || [];
         const leadTags = tagsByLead[lead.id] || [];
 
+        // ✅ DEBUG: Log tags por lead (apenas primeiros 5 para não poluir console)
+        if (leadTags.length > 0 && leadsData.indexOf(lead) < 5) {
+          console.log(`🏷️ Lead ${lead.name}: ${leadTags.length} tags`, leadTags.map((lt: any) => lt.tags?.name || 'sem nome'));
+        }
+
         const statusRaw = (lead.status || '').toLowerCase();
         const statusMap: Record<string, LeadStatus> = { new: 'novo' };
         const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
+        
+        // ✅ CORREÇÃO: Processar tags corretamente (lt.tags pode ser null)
+        const processedTags = (leadTags || [])
+          .map((lt: any) => lt.tags)
+          .filter((tag: any) => tag && tag.id && tag.name); // Filtrar tags válidas
+        
         return {
           id: lead.id,
           name: lead.name,
@@ -151,7 +206,7 @@ export function useLeads() {
             timestamp: new Date(a.created_at!),
             user: a.user_name || 'Sistema',
           })),
-          tags: (leadTags || []).map((lt: any) => lt.tags).filter(Boolean),
+          tags: processedTags, // ✅ Usar tags processadas
         } as Lead;
       });
 
