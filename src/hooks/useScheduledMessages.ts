@@ -136,7 +136,8 @@ export function useScheduledMessages(leadId?: string) {
         messageLength: params.message.length,
       });
 
-      // Criar primeira mensagem
+      // ✅ SEGUIR MESMA LÓGICA DO MÓDULO DE DISPARO (que funciona)
+      // Inserir primeiro com campos básicos (igual ao que funciona)
       const firstMessageData: any = {
           organization_id: organizationId,
           user_id: user.id,
@@ -145,14 +146,18 @@ export function useScheduledMessages(leadId?: string) {
           phone: cleanPhone, // ✅ Usar telefone limpo
           message: params.message,
           scheduled_for: params.scheduledFor.toISOString(),
+          status: 'pending', // ✅ Explícito (igual ao que funciona)
           media_url: params.mediaUrl || null,
           media_type: params.mediaType || null,
-          repeat_enabled: params.repeatEnabled || false,
-          repeat_period: params.repeatPeriod || null,
-          repeat_count: null, // Será calculado e atualizado após criar as repetições
-          repeat_until: repeatUntil,
-          original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
       };
+
+      // ✅ Adicionar campos de repetição apenas se habilitado
+      if (params.repeatEnabled) {
+        firstMessageData.repeat_enabled = true;
+        firstMessageData.repeat_period = params.repeatPeriod || null;
+        firstMessageData.repeat_until = repeatUntil;
+        firstMessageData.original_scheduled_date = originalDateOnly.toISOString().split('T')[0];
+      }
 
       const { data: firstMessage, error: firstError } = await supabase
         .from('scheduled_messages')
@@ -248,12 +253,17 @@ export function useScheduledMessages(leadId?: string) {
           }
         }
 
-        // Atualizar repeat_count na primeira mensagem com o número real de repetições
+        // ✅ Atualizar repeat_count na primeira mensagem com o número real de repetições
         if (repeatMessages.length > 0) {
-          await supabase
+          const { error: updateCountError } = await supabase
             .from('scheduled_messages')
             .update({ repeat_count: repeatMessages.length })
             .eq('id', parentMessageId);
+          
+          if (updateCountError) {
+            console.warn('⚠️ Erro ao atualizar repeat_count:', updateCountError);
+            // Não falhar completamente, apenas logar
+          }
         }
 
         if (repeatMessages.length > 0) {
