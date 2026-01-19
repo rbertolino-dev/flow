@@ -60,6 +60,60 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
     [instances]
   );
 
+  // Função para formatar mensagens de erro de forma mais clara
+  const formatErrorMessage = (errorMessage: string): string => {
+    if (!errorMessage) return 'Erro desconhecido';
+
+    // Tentar parsear JSON se for um erro do Evolution API
+    try {
+      // Verificar se contém "exists":false (número não existe no WhatsApp)
+      if (errorMessage.includes('"exists":false') || errorMessage.includes("exists: false")) {
+        // Tentar extrair número do erro
+        const numberMatch = errorMessage.match(/"number":\s*"([^"]+)"/);
+        const jidMatch = errorMessage.match(/"jid":\s*"([^"]+)"/);
+        const number = numberMatch ? numberMatch[1] : (jidMatch ? jidMatch[1].split('@')[0] : 'número desconhecido');
+        
+        return `O número ${number} não existe no WhatsApp ou não está cadastrado. Verifique se o número está correto e se o contato tem WhatsApp ativo.`;
+      }
+
+      // Verificar se é erro 400 do Evolution API
+      if (errorMessage.includes('Evolution API erro 400') || errorMessage.includes('Bad Request')) {
+        return 'Erro na API do WhatsApp: Requisição inválida. Verifique se a instância está configurada corretamente.';
+      }
+
+      // Verificar se é erro de autenticação
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('autenticação')) {
+        return 'Erro de autenticação: A instância do WhatsApp não está autenticada. Verifique as configurações da instância.';
+      }
+
+      // Verificar se é erro de conexão
+      if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('timeout') || errorMessage.includes('conexão')) {
+        return 'Erro de conexão: Não foi possível conectar com a API do WhatsApp. Verifique se a instância está online.';
+      }
+
+      // Se for muito longo, tentar resumir
+      if (errorMessage.length > 200) {
+        // Tentar extrair parte relevante
+        const jsonMatch = errorMessage.match(/\{[^}]+\}/);
+        if (jsonMatch) {
+          try {
+            const errorData = JSON.parse(jsonMatch[0]);
+            if (errorData.message) {
+              return `Erro: ${errorData.message}`;
+            }
+          } catch {
+            // Ignorar erro de parse
+          }
+        }
+        return errorMessage.substring(0, 200) + '...';
+      }
+    } catch (e) {
+      // Se der erro ao processar, retornar mensagem original
+    }
+
+    return errorMessage;
+  };
+
   const handleSchedule = async () => {
     // Validar feature habilitada
     if (!hasFeature('scheduled_messages')) {
@@ -527,7 +581,10 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                       </div>
                     )}
                     {msg.error_message && (
-                      <p className="text-xs text-red-600 mt-1">Erro: {msg.error_message}</p>
+                      <div className="text-xs text-red-600 mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+                        <strong className="block mb-1">Erro:</strong>
+                        {formatErrorMessage(msg.error_message)}
+                      </div>
                     )}
                   </div>
                   {msg.status === 'cancelled' && (
@@ -548,10 +605,10 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
 
       {/* Dialog de Cancelamento */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="cancel-dialog-description">
           <DialogHeader>
             <DialogTitle>Cancelar Mensagem Agendada</DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="cancel-dialog-description">
               Deseja cancelar esta mensagem agendada? Você pode informar um motivo (opcional).
             </DialogDescription>
           </DialogHeader>
