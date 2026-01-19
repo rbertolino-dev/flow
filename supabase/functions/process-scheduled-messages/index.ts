@@ -199,35 +199,54 @@ serve(async (req) => {
         }
 
         // ✅ CORREÇÃO: Normalização de telefone igual ao send-whatsapp-message (que funciona)
+        console.log('📞 [process-scheduled-messages] Telefone original:', message.phone);
+        
         // Remover caracteres não numéricos
         let formattedPhone = message.phone.replace(/\D/g, '');
         
         // Se já tem @, remover o sufixo antes de normalizar
         if (message.phone.includes('@')) {
           formattedPhone = message.phone.split('@')[0].replace(/\D/g, '');
+          console.log('🔧 [process-scheduled-messages] Removido sufixo @ do telefone:', formattedPhone);
         }
+        
+        console.log('🔧 [process-scheduled-messages] Telefone após limpeza:', formattedPhone);
         
         // Aplicar modo de teste se ativo (definir antes de usar)
         const testConfig = getTestModeConfig();
         
         // ✅ CORREÇÃO: Garantir que números brasileiros tenham código do país (55)
         // Lógica igual ao send-whatsapp-message e send-budget-whatsapp
+        const phoneBeforeCountryCode = formattedPhone;
         if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
           const ddd = parseInt(formattedPhone.substring(0, 2));
+          console.log('🔍 [process-scheduled-messages] Verificando DDD:', { ddd, phoneLength: formattedPhone.length });
           // Verificar se DDD é válido (11-99) - números brasileiros
           if (ddd >= 11 && ddd <= 99) {
             formattedPhone = '55' + formattedPhone;
-            console.log('➕ [process-scheduled-messages] Adicionado código do país 55 ao número brasileiro');
+            console.log('➕ [process-scheduled-messages] Adicionado código do país 55 ao número brasileiro:', {
+              antes: phoneBeforeCountryCode,
+              depois: formattedPhone
+            });
+          } else {
+            console.log('⚠️ [process-scheduled-messages] DDD inválido ou não brasileiro:', ddd);
           }
+        } else {
+          console.log('ℹ️ [process-scheduled-messages] Número já tem código do país ou é muito curto:', {
+            startsWith55: formattedPhone.startsWith('55'),
+            length: formattedPhone.length
+          });
         }
         
         // Aplicar modo de teste se ativo
         const finalPhone = applyTestMode(formattedPhone, testConfig);
         const remoteJid = finalPhone.includes('@') ? finalPhone : `${finalPhone}@s.whatsapp.net`;
         
-        console.log('📱 [process-scheduled-messages] Telefone formatado:', { 
+        console.log('📱 [process-scheduled-messages] Telefone formatado final:', { 
           original: message.phone, 
-          formatted: formattedPhone, 
+          afterCleanup: phoneBeforeCountryCode,
+          formatted: formattedPhone,
+          finalPhone,
           remoteJid 
         });
 
