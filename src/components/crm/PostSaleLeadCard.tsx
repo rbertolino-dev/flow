@@ -1,12 +1,11 @@
-import { PostSaleLead } from "@/types/postSaleLead";
+import { PostSaleLead, PostSaleStage } from "@/types/postSaleLead";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, MessageCircle, Trash2, Pencil } from "lucide-react";
+import { Phone, DollarSign, MessageCircle, Trash2, Pencil, Calendar } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
-import { PostSaleStage } from "@/types/postSaleLead";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface PostSaleLeadCardProps {
