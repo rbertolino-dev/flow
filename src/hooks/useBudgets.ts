@@ -70,11 +70,17 @@ export function useBudgets(filters?: BudgetFilters) {
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             console.log('✅ Realtime: Inscrito em mudanças de orçamentos');
           } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Realtime: Erro ao se inscrever em orçamentos');
+            console.error('❌ Realtime: Erro ao se inscrever em orçamentos', err);
+            // Não bloquear a aplicação - apenas logar o erro
+            // A lista será atualizada via polling normal se Realtime falhar
+          } else if (status === 'TIMED_OUT') {
+            console.warn('⏱️ Realtime: Timeout ao se inscrever em orçamentos');
+          } else if (status === 'CLOSED') {
+            console.warn('⚠️ Realtime: Conexão fechada para orçamentos');
           }
         });
 
