@@ -128,30 +128,31 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
   };
 
   const handleContinue = async () => {
-    if (configs && configs.length > 0) {
-      setLoading(true);
-      try {
-        await markStepAsComplete('evolution');
+    setLoading(true);
+    try {
+      await markStepAsComplete('evolution');
+      
+      if (configs && configs.length > 0) {
         toast({
           title: "Evolution configurado!",
           description: `${configs.length} instância(s) configurada(s)`,
         });
-        onComplete();
-      } catch (error: any) {
+      } else {
         toast({
-          title: "Erro",
-          description: error.message || "Erro ao salvar",
-          variant: "destructive",
+          title: "Etapa concluída!",
+          description: "Você pode configurar WhatsApp depois nas integrações",
         });
-      } finally {
-        setLoading(false);
       }
-    } else {
+      
+      onComplete();
+    } catch (error: any) {
       toast({
-        title: "Nenhuma instância",
-        description: "Configure uma instância ou pule esta etapa",
+        title: "Erro",
+        description: error.message || "Erro ao salvar",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -282,7 +283,7 @@ export function EvolutionStep({ onComplete, onSkip }: EvolutionStepProps) {
         <Button
           type="button"
           onClick={handleContinue}
-          disabled={loading || !configs || configs.length === 0}
+          disabled={loading}
           className="min-w-[120px]"
         >
           {loading ? "Salvando..." : "Continuar"}

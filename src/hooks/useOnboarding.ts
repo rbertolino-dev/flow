@@ -54,14 +54,23 @@ export function useOnboarding() {
       if (orgError) throw orgError;
 
       // Buscar progresso do onboarding
-      const { data: progressData, error: progressError } = await supabase
-        .from('organization_onboarding_progress' as any)
-        .select('step_completed')
-        .eq('organization_id', organizationId);
+      let completedSteps: OnboardingStep[] = [];
+      try {
+        const { data: progressData, error: progressError } = await supabase
+          .from('organization_onboarding_progress' as any)
+          .select('step_completed')
+          .eq('organization_id', organizationId);
 
-      if (progressError) throw progressError;
-
-      const completedSteps = (progressData || []).map((p: any) => p.step_completed as OnboardingStep);
+        if (progressError) {
+          console.warn('Erro ao buscar progresso do onboarding (não crítico):', progressError);
+          // Continuar mesmo se falhar - pode ser que tabela não exista ainda
+        } else {
+          completedSteps = (progressData || []).map((p: any) => p.step_completed as OnboardingStep);
+        }
+      } catch (progressError: any) {
+        console.warn('Erro ao buscar progresso do onboarding (não crítico):', progressError);
+        // Continuar mesmo se falhar
+      }
 
       // Cast para tipo com campos de onboarding
       const orgWithOnboarding = orgData as typeof orgData & {
@@ -197,16 +206,38 @@ export function useOnboarding() {
         // Continuar mesmo se falhar - pode ser que profile já exista
       }
 
-      const { error } = await supabase
-        .from('organization_onboarding_progress' as any)
-        .upsert({
-          organization_id: organizationId,
-          user_id: user.id,
-          step_completed: step,
-          completed_at: new Date().toISOString(),
-        }, {
-          onConflict: 'organization_id,step_completed'
-        });
+      // Tentar inserir com user_id primeiro
+      let error = null;
+      try {
+        const { error: upsertError } = await supabase
+          .from('organization_onboarding_progress' as any)
+          .upsert({
+            organization_id: organizationId,
+            user_id: user.id,
+            step_completed: step,
+            completed_at: new Date().toISOString(),
+          }, {
+            onConflict: 'organization_id,step_completed'
+          });
+        error = upsertError;
+      } catch (upsertError: any) {
+        // Se falhar por user_id não existir, tentar sem user_id
+        if (upsertError?.message?.includes('user_id') || upsertError?.code === '23503') {
+          console.warn('Tentando inserir sem user_id (coluna pode não existir):', upsertError);
+          const { error: upsertError2 } = await supabase
+            .from('organization_onboarding_progress' as any)
+            .upsert({
+              organization_id: organizationId,
+              step_completed: step,
+              completed_at: new Date().toISOString(),
+            }, {
+              onConflict: 'organization_id,step_completed'
+            });
+          error = upsertError2;
+        } else {
+          error = upsertError;
+        }
+      }
 
       if (error) throw error;
 

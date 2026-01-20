@@ -97,24 +97,22 @@ export function ProductsStep({ onComplete, onSkip, businessType }: ProductsStepP
   };
 
   const handleContinue = async () => {
-    if (products.length === 0) {
-      toast({
-        title: "Nenhum produto",
-        description: "Adicione pelo menos um produto ou pule esta etapa",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
       await markStepAsComplete('products');
 
-      toast({
-        title: "Produtos configurados!",
-        description: `${products.length} produto(s) cadastrado(s)`,
-      });
+      if (products.length > 0) {
+        toast({
+          title: "Produtos configurados!",
+          description: `${products.length} produto(s) cadastrado(s)`,
+        });
+      } else {
+        toast({
+          title: "Etapa concluída!",
+          description: "Você pode adicionar produtos depois nas configurações",
+        });
+      }
 
       onComplete();
     } catch (error: any) {
@@ -249,7 +247,7 @@ export function ProductsStep({ onComplete, onSkip, businessType }: ProductsStepP
         <Button
           type="button"
           onClick={handleContinue}
-          disabled={loading || products.length === 0}
+          disabled={loading}
           className="min-w-[120px]"
         >
           {loading ? "Salvando..." : "Continuar"}
