@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useContractTemplates } from '@/hooks/useContractTemplates';
 import { CONTRACT_VARIABLES, CONTRACT_VARIABLES_DESTINATARIO, CONTRACT_VARIABLES_REMETENTE, CONTRACT_VARIABLES_GERAIS, ContractTemplate } from '@/types/contract';
-import { X, Upload, Image as ImageIcon, AlertCircle, Plus, Edit, Trash2 } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, AlertCircle, Plus, Edit, Trash2, User, Building2, Calendar, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useToast } from '@/hooks/use-toast';
@@ -404,82 +404,117 @@ export function ContractTemplateEditor({
           </div>
 
           <div className="space-y-2">
-            <div className="space-y-3">
-              <Label htmlFor="template-content">Conteúdo do Template *</Label>
+            <div className="space-y-4">
+              <Label htmlFor="template-content" className="text-base font-semibold">
+                Conteúdo do Template *
+              </Label>
               
-              {/* Tags organizadas por categoria */}
-              <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+              {/* Tags organizadas por categoria - Design Moderno */}
+              <div className="space-y-4">
                 {/* Tags do Destinatário (Cliente) */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-px flex-1 bg-border"></div>
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Destinatário (Cliente)
-                    </span>
-                    <div className="h-px flex-1 bg-border"></div>
-                  </div>
-                  <div className="flex gap-1 flex-wrap">
-                    {Object.entries(CONTRACT_VARIABLES_DESTINATARIO).map(([key, variable]) => (
-                      <Badge
-                        key={key}
-                        variant="outline"
-                        className="cursor-pointer hover:bg-blue-500 hover:text-white border-blue-300"
-                        onClick={() => insertVariable(variable)}
-                        title={`Inserir ${key} (Cliente)`}
-                      >
-                        {variable}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                <Card className="border-2 border-blue-200/50 bg-gradient-to-br from-blue-50/80 to-blue-100/40 shadow-sm hover:shadow-md transition-all">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-blue-500 text-white">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-bold text-blue-900">
+                          Destinatário (Cliente)
+                        </CardTitle>
+                        <CardDescription className="text-xs text-blue-700/80">
+                          Dados do cliente/lead
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2 flex-wrap">
+                      {Object.entries(CONTRACT_VARIABLES_DESTINATARIO).map(([key, variable]) => (
+                        <Badge
+                          key={key}
+                          variant="outline"
+                          className="cursor-pointer px-3 py-1.5 text-xs font-medium border-2 border-blue-300 bg-white text-blue-700 hover:bg-blue-500 hover:text-white hover:border-blue-500 hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                          onClick={() => insertVariable(variable)}
+                          title={`Inserir ${key} (Cliente)`}
+                        >
+                          <Sparkles className="w-3 h-3 mr-1.5" />
+                          {variable}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Tags do Remetente (Empresa) */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-px flex-1 bg-border"></div>
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Remetente (Empresa)
-                    </span>
-                    <div className="h-px flex-1 bg-border"></div>
-                  </div>
-                  <div className="flex gap-1 flex-wrap">
-                    {Object.entries(CONTRACT_VARIABLES_REMETENTE).map(([key, variable]) => (
-                      <Badge
-                        key={key}
-                        variant="outline"
-                        className="cursor-pointer hover:bg-green-500 hover:text-white border-green-300"
-                        onClick={() => insertVariable(variable)}
-                        title={`Inserir ${key} (Empresa)`}
-                      >
-                        {variable}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                <Card className="border-2 border-green-200/50 bg-gradient-to-br from-green-50/80 to-green-100/40 shadow-sm hover:shadow-md transition-all">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-green-500 text-white">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-bold text-green-900">
+                          Remetente (Empresa)
+                        </CardTitle>
+                        <CardDescription className="text-xs text-green-700/80">
+                          Dados da sua empresa
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2 flex-wrap">
+                      {Object.entries(CONTRACT_VARIABLES_REMETENTE).map(([key, variable]) => (
+                        <Badge
+                          key={key}
+                          variant="outline"
+                          className="cursor-pointer px-3 py-1.5 text-xs font-medium border-2 border-green-300 bg-white text-green-700 hover:bg-green-500 hover:text-white hover:border-green-500 hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                          onClick={() => insertVariable(variable)}
+                          title={`Inserir ${key} (Empresa)`}
+                        >
+                          <Sparkles className="w-3 h-3 mr-1.5" />
+                          {variable}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Tags Gerais */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-px flex-1 bg-border"></div>
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Gerais
-                    </span>
-                    <div className="h-px flex-1 bg-border"></div>
-                  </div>
-                  <div className="flex gap-1 flex-wrap">
-                    {Object.entries(CONTRACT_VARIABLES_GERAIS).map(([key, variable]) => (
-                      <Badge
-                        key={key}
-                        variant="outline"
-                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                        onClick={() => insertVariable(variable)}
-                        title={`Inserir ${key}`}
-                      >
-                        {variable}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                <Card className="border-2 border-purple-200/50 bg-gradient-to-br from-purple-50/80 to-purple-100/40 shadow-sm hover:shadow-md transition-all">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-purple-500 text-white">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-bold text-purple-900">
+                          Gerais
+                        </CardTitle>
+                        <CardDescription className="text-xs text-purple-700/80">
+                          Informações gerais do contrato
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2 flex-wrap">
+                      {Object.entries(CONTRACT_VARIABLES_GERAIS).map(([key, variable]) => (
+                        <Badge
+                          key={key}
+                          variant="outline"
+                          className="cursor-pointer px-3 py-1.5 text-xs font-medium border-2 border-purple-300 bg-white text-purple-700 hover:bg-purple-500 hover:text-white hover:border-purple-500 hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                          onClick={() => insertVariable(variable)}
+                          title={`Inserir ${key}`}
+                        >
+                          <Sparkles className="w-3 h-3 mr-1.5" />
+                          {variable}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
             <Textarea
