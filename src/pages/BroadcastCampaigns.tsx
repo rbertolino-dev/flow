@@ -1671,6 +1671,21 @@ export default function BroadcastCampaigns() {
         hasImage: !!newCampaign.imageUrl,
       });
 
+      // Log detalhado se campanha foi agendada
+      if (newCampaign.scheduledStart) {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        console.log('📅 [Campanha] Agendada para:', {
+          horario_local: newCampaign.scheduledStart.toLocaleString('pt-BR', { 
+            timeZone: timezone,
+            dateStyle: 'short',
+            timeStyle: 'short'
+          }),
+          horario_utc: newCampaign.scheduledStart.toISOString(),
+          timezone: timezone,
+          aguardando: newCampaign.scheduledStart > new Date() ? 'Sim (futuro)' : 'Não (passado ou agora)',
+        });
+      }
+
       // Tentar inserir com sending_method primeiro
       campaignData.sending_method = newCampaign.sendingMethod || "single";
       

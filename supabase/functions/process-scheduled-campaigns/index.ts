@@ -46,6 +46,8 @@ serve(async (req) => {
     console.log(`📋 Encontradas ${scheduledCampaigns?.length || 0} campanha(s) para iniciar`);
 
     if (!scheduledCampaigns || scheduledCampaigns.length === 0) {
+      // Logar mesmo quando não há campanhas para facilitar debug
+      console.log("ℹ️ Nenhuma campanha agendada para iniciar no momento (agora UTC:", now, ")");
       return new Response(
         JSON.stringify({ processed: 0, message: "Nenhuma campanha agendada para iniciar" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
