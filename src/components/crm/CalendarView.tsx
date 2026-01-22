@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +7,8 @@ import { format, isSameDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Phone, Mail, Building2 } from "lucide-react";
 import { LeadDetailModal } from "./LeadDetailModal";
-import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { normalizePhone } from "@/lib/phoneUtils";
 
 interface CalendarViewProps {
   leads: Lead[];
@@ -33,16 +33,20 @@ export const CalendarView = ({ leads, onLeadUpdate, searchQuery = "" }: Calendar
     return leads.filter(lead => {
       // Filtro de busca
       if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const normalizedQuery = normalizePhone(searchQuery);
-        const normalizedLeadPhone = normalizePhone(lead.phone);
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) return true; // Se query vazia após trim, mostrar todos
         
-        const matchesName = lead.name.toLowerCase().includes(query);
-        const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
+        const normalizedQuery = normalizePhone(searchQuery);
+        
+        // ✅ CORREÇÃO: Verificar valores null/undefined antes de usar métodos de string
+        const matchesName = lead.name?.toLowerCase().includes(query) || false;
+        const matchesPhone = lead.phone ? normalizePhone(lead.phone).includes(normalizedQuery) : false;
         const matchesCompany = lead.company?.toLowerCase().includes(query) || false;
         const matchesEmail = lead.email?.toLowerCase().includes(query) || false;
-        const matchesCpfCnpj = lead.cpf_cnpj?.replace(/\D/g, '').includes(normalizedQuery) || false;
-        const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+        const matchesCpfCnpj = lead.cpf_cnpj 
+          ? lead.cpf_cnpj.replace(/\D/g, '').includes(normalizedQuery) 
+          : false;
+        const matchesTags = lead.tags?.some(tag => tag.name?.toLowerCase().includes(query)) || false;
         
         if (!matchesName && !matchesPhone && !matchesCompany && !matchesEmail && !matchesCpfCnpj && !matchesTags) {
           return false;

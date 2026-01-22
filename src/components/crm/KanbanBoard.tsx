@@ -123,19 +123,25 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     return leads.filter(lead => {
       // Filtro de busca
       if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const normalizedQuery = normalizePhone(searchQuery);
-        const normalizedLeadPhone = normalizePhone(lead.phone);
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) return true; // Se query vazia após trim, mostrar todos
         
-        const matchesName = lead.name.toLowerCase().includes(query);
-        const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
-        const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
-        // ✅ CORREÇÃO: Buscar também por nome da empresa, e-mail e CPF/CNPJ
+        const normalizedQuery = normalizePhone(searchQuery);
+        
+        // ✅ CORREÇÃO: Verificar valores null/undefined antes de usar métodos de string
+        const matchesName = lead.name?.toLowerCase().includes(query) || false;
+        const matchesPhone = lead.phone ? normalizePhone(lead.phone).includes(normalizedQuery) : false;
+        const matchesTags = lead.tags?.some(tag => tag.name?.toLowerCase().includes(query)) || false;
         const matchesCompany = lead.company?.toLowerCase().includes(query) || false;
         const matchesEmail = lead.email?.toLowerCase().includes(query) || false;
-        const matchesCpfCnpj = lead.cpf_cnpj?.replace(/\D/g, '').includes(normalizedQuery) || false;
+        // ✅ CORREÇÃO: Buscar CPF/CNPJ removendo caracteres não numéricos e comparando
+        const matchesCpfCnpj = lead.cpf_cnpj 
+          ? lead.cpf_cnpj.replace(/\D/g, '').includes(normalizedQuery) 
+          : false;
         
-        if (!matchesName && !matchesPhone && !matchesTags && !matchesCompany && !matchesEmail && !matchesCpfCnpj) return false;
+        if (!matchesName && !matchesPhone && !matchesTags && !matchesCompany && !matchesEmail && !matchesCpfCnpj) {
+          return false;
+        }
       }
 
       // Filtro de instância
