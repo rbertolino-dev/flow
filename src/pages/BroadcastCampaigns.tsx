@@ -1674,6 +1674,8 @@ export default function BroadcastCampaigns() {
       // Log detalhado se campanha foi agendada
       if (newCampaign.scheduledStart) {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const now = new Date();
+        const diffMinutes = Math.round((newCampaign.scheduledStart.getTime() - now.getTime()) / 60000);
         console.log('📅 [Campanha] Agendada para:', {
           horario_local: newCampaign.scheduledStart.toLocaleString('pt-BR', { 
             timeZone: timezone,
@@ -1682,7 +1684,14 @@ export default function BroadcastCampaigns() {
           }),
           horario_utc: newCampaign.scheduledStart.toISOString(),
           timezone: timezone,
-          aguardando: newCampaign.scheduledStart > new Date() ? 'Sim (futuro)' : 'Não (passado ou agora)',
+          horario_atual_local: now.toLocaleString('pt-BR', {
+            timeZone: timezone,
+            dateStyle: 'short',
+            timeStyle: 'short'
+          }),
+          horario_atual_utc: now.toISOString(),
+          diferenca_minutos: diffMinutes,
+          aguardando: newCampaign.scheduledStart > now ? `Sim (${diffMinutes} minutos)` : 'Não (passado ou agora)',
         });
       }
 
@@ -3585,7 +3594,24 @@ export default function BroadcastCampaigns() {
                       <Calendar
                         mode="single"
                         selected={newCampaign.scheduledStart}
-                        onSelect={(date) => setNewCampaign({ ...newCampaign, scheduledStart: date })}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Garantir que a data seja criada no timezone local
+                            // Se já tiver hora definida, manter a hora
+                            const newDate = new Date(date);
+                            if (newCampaign.scheduledStart) {
+                              // Manter a hora existente se houver
+                              const existingHours = newCampaign.scheduledStart.getHours();
+                              const existingMinutes = newCampaign.scheduledStart.getMinutes();
+                              newDate.setHours(existingHours, existingMinutes, 0, 0);
+                            } else {
+                              // Se não tiver hora, usar horário atual local
+                              const now = new Date();
+                              newDate.setHours(now.getHours(), now.getMinutes(), 0, 0);
+                            }
+                            setNewCampaign({ ...newCampaign, scheduledStart: newDate });
+                          }
+                        }}
                         initialFocus
                         locale={ptBR}
                       />
@@ -3598,16 +3624,35 @@ export default function BroadcastCampaigns() {
                             value={formatDate(newCampaign.scheduledStart, "HH:mm")}
                             onChange={(e) => {
                               const [hours, minutes] = e.target.value.split(":");
-                              const newDate = new Date(newCampaign.scheduledStart!);
                               const hoursNum = parseInt(hours || '0', 10);
                               const minutesNum = parseInt(minutes || '0', 10);
                               if (!isNaN(hoursNum) && !isNaN(minutesNum)) {
-                                newDate.setHours(hoursNum, minutesNum);
-                              setNewCampaign({ ...newCampaign, scheduledStart: newDate });
+                                // Criar nova data baseada na data selecionada, garantindo timezone local
+                                const baseDate = newCampaign.scheduledStart!;
+                                const newDate = new Date(baseDate);
+                                // setHours usa timezone local automaticamente
+                                newDate.setHours(hoursNum, minutesNum, 0, 0);
+                                // Garantir que não haja problemas de timezone
+                                const localDate = new Date(
+                                  newDate.getFullYear(),
+                                  newDate.getMonth(),
+                                  newDate.getDate(),
+                                  hoursNum,
+                                  minutesNum,
+                                  0
+                                );
+                                setNewCampaign({ ...newCampaign, scheduledStart: localDate });
                               }
                             }}
                             className="mt-1"
                           />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Horário local: {newCampaign.scheduledStart.toLocaleString('pt-BR', { 
+                              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                              dateStyle: 'short',
+                              timeStyle: 'short'
+                            })}
+                          </p>
                         </div>
                       )}
                     </PopoverContent>
