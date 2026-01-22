@@ -63,7 +63,8 @@ export function ServiceBulkImport({ onImport, isImporting = false }: ServiceBulk
     
     toast({
       title: 'Template baixado',
-      description: 'Preencha o template e faça o upload para importar os serviços. NOTA: Se abrir o arquivo no Bloco de Notas, você verá código XML (isso é normal - arquivos Excel são arquivos ZIP com XML dentro). Abra no Excel ou LibreOffice.',
+      description: 'Template Excel baixado com sucesso! IMPORTANTE: Abra o arquivo no Excel, LibreOffice ou Google Sheets. Se abrir no Bloco de Notas, você verá código XML/script (isso é normal - arquivos Excel são arquivos ZIP com XML dentro).',
+      duration: 8000,
     });
   };
 
@@ -238,6 +239,10 @@ export function ServiceBulkImport({ onImport, isImporting = false }: ServiceBulk
                 <h4 className="font-semibold mb-1">1. Baixar Template</h4>
                 <p className="text-sm text-muted-foreground">
                   Baixe o template Excel com o formato correto
+                </p>
+                <p className="text-xs text-amber-600 mt-1 font-medium">
+                  ⚠️ IMPORTANTE: Abra o arquivo no Excel, LibreOffice ou Google Sheets. 
+                  Se abrir no Bloco de Notas, você verá código XML/script (isso é normal - arquivos Excel são arquivos ZIP com XML dentro).
                 </p>
               </div>
               <Button

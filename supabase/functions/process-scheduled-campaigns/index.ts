@@ -29,13 +29,34 @@ serve(async (req) => {
     );
 
     // Buscar campanhas agendadas que devem iniciar agora
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
+    
+    // Adicionar buffer de 5 minutos para garantir que pegue campanhas que acabaram de passar
+    // Isso resolve problemas de precisão de milissegundos e timezone
+    const bufferMinutes = 5;
+    const cutoffTime = new Date(now.getTime() + bufferMinutes * 60 * 1000);
+    const cutoffISO = cutoffTime.toISOString();
+    
+    console.log(`[process-scheduled-campaigns] Horário atual (UTC): ${nowISO}`);
+    console.log(`[process-scheduled-campaigns] Buscando campanhas até: ${cutoffISO} (buffer de ${bufferMinutes} minutos)`);
+    
+    // Primeiro, verificar quantas campanhas existem no total (para debug)
+    const { count: totalCount } = await supabase
+      .from("broadcast_campaigns")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "draft")
+      .not("scheduled_start_at", "is", null);
+    
+    console.log(`[process-scheduled-campaigns] Total de campanhas agendadas (draft): ${totalCount || 0}`);
+    
+    // Buscar campanhas que devem iniciar (usando buffer)
     const { data: scheduledCampaigns, error: fetchError } = await supabase
       .from("broadcast_campaigns")
-      .select("id, name, min_delay_seconds, max_delay_seconds, sending_method, instance_id")
+      .select("id, name, scheduled_start_at, min_delay_seconds, max_delay_seconds, sending_method, instance_id")
       .eq("status", "draft")
       .not("scheduled_start_at", "is", null)
-      .lte("scheduled_start_at", now)
+      .lte("scheduled_start_at", cutoffISO)
       .limit(10); // Processar no máximo 10 campanhas por vez
 
     if (fetchError) {
@@ -44,10 +65,36 @@ serve(async (req) => {
     }
 
     console.log(`📋 Encontradas ${scheduledCampaigns?.length || 0} campanha(s) para iniciar`);
+    
+    // Log detalhado das campanhas encontradas
+    if (scheduledCampaigns && scheduledCampaigns.length > 0) {
+      scheduledCampaigns.forEach((campaign, index) => {
+        console.log(`  ${index + 1}. ${campaign.name} (ID: ${campaign.id}) - Agendada para: ${campaign.scheduled_start_at}`);
+      });
+    }
 
     if (!scheduledCampaigns || scheduledCampaigns.length === 0) {
       // Logar mesmo quando não há campanhas para facilitar debug
-      console.log("ℹ️ Nenhuma campanha agendada para iniciar no momento (agora UTC:", now, ")");
+      console.log(`ℹ️ Nenhuma campanha agendada para iniciar no momento`);
+      console.log(`   - Horário atual (UTC): ${nowISO}`);
+      console.log(`   - Buscando campanhas até: ${cutoffISO}`);
+      console.log(`   - Total de campanhas agendadas (draft): ${totalCount || 0}`);
+      
+      // Buscar próxima campanha agendada (para debug)
+      const { data: nextCampaign } = await supabase
+        .from("broadcast_campaigns")
+        .select("id, name, scheduled_start_at")
+        .eq("status", "draft")
+        .not("scheduled_start_at", "is", null)
+        .gt("scheduled_start_at", nowISO)
+        .order("scheduled_start_at", { ascending: true })
+        .limit(1);
+      
+      if (nextCampaign && nextCampaign.length > 0) {
+        const nextTime = new Date(nextCampaign[0].scheduled_start_at);
+        const diffMinutes = Math.round((nextTime.getTime() - now.getTime()) / 60000);
+        console.log(`   - Próxima campanha: "${nextCampaign[0].name}" em ${diffMinutes} minutos (${nextCampaign[0].scheduled_start_at})`);
+      }
       return new Response(
         JSON.stringify({ processed: 0, message: "Nenhuma campanha agendada para iniciar" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
