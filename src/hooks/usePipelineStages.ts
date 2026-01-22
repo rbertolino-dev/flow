@@ -278,7 +278,8 @@ export function usePipelineStages() {
         description: "Nova etapa adicionada com sucesso.",
       });
 
-      await fetchStages();
+      // Não fazer fetchStages() aqui - o realtime cuidará da atualização
+      // A atualização otimista já foi aplicada pelo realtime
       return true;
     } catch (error: any) {
       toast({

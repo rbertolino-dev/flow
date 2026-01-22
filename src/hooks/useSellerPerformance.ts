@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Lead } from "@/types/lead";
 import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
+import { PipelineStage } from "@/hooks/usePipelineStages";
 import { format, differenceInDays, startOfDay, endOfDay } from "date-fns";
 
 export interface SellerPerformance {
@@ -39,6 +40,7 @@ export interface SellerPerformance {
 
 interface UseSellerPerformanceProps {
   leads: Lead[];
+  stages: PipelineStage[];
   startDate?: Date;
   endDate?: Date;
   sellerId?: string | string[]; // Filtrar por vendedor específico ou múltiplos vendedores
@@ -46,6 +48,7 @@ interface UseSellerPerformanceProps {
 
 export function useSellerPerformance({
   leads,
+  stages,
   startDate,
   endDate,
   sellerId,
@@ -250,7 +253,6 @@ export function useSellerPerformance({
 
       // Métricas de atividade
       const allActivities = filteredLeads.flatMap((lead) => lead.activities || []);
-      const totalActivities = allActivities.length;
 
       const firstDayThisWeek = new Date(now);
       firstDayThisWeek.setDate(now.getDate() - now.getDay());
@@ -273,6 +275,9 @@ export function useSellerPerformance({
       ).length;
       const calls = allActivities.filter((a) => a.type === "call").length;
       const notes = allActivities.filter((a) => a.type === "note").length;
+      
+      // Total deve ser a soma de todas as atividades realizadas pelo vendedor
+      const totalActivities = whatsappMessages + calls + notes;
 
       // Tempo médio de resposta (primeira atividade após criação do lead)
       const responseTimes: number[] = [];
@@ -322,8 +327,11 @@ export function useSellerPerformance({
       filteredLeads.forEach((lead) => {
         const stageKey = lead.stageId || "sem-etapa";
         if (!stageMap.has(stageKey)) {
+          // Buscar nome da etapa no array de stages
+          const stage = stages.find(s => s.id === stageKey);
+          const stageName = stage ? stage.name : (lead.stageId || "Sem Etapa");
           stageMap.set(stageKey, {
-            name: lead.stageId || "Sem Etapa",
+            name: stageName,
             count: 0,
             value: 0,
           });
@@ -400,6 +408,6 @@ export function useSellerPerformance({
     });
 
     return performance.sort((a, b) => b.totalValue - a.totalValue);
-  }, [leads, users, startDate, endDate, sellerId]);
+  }, [leads, stages, users, startDate, endDate, sellerId]);
 }
 

@@ -63,7 +63,7 @@ export function ServiceBulkImport({ onImport, isImporting = false }: ServiceBulk
     
     toast({
       title: 'Template baixado',
-      description: 'Preencha o template e faça o upload para importar os serviços.',
+      description: 'Preencha o template e faça o upload para importar os serviços. NOTA: Se abrir o arquivo no Bloco de Notas, você verá código XML (isso é normal - arquivos Excel são arquivos ZIP com XML dentro). Abra no Excel ou LibreOffice.',
     });
   };
 

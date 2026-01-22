@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { Lead } from "@/types/lead";
 import { Product, SellerGoal, SellerPerformanceMetrics } from "@/types/product";
+import { PipelineStage } from "@/hooks/usePipelineStages";
 import { useSellerCommissions } from "./useSellerCommissions";
 import { useSellerPerformance } from "./useSellerPerformance";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns";
 
 interface UseSellerPerformanceMetricsProps {
   leads: Lead[];
+  stages: PipelineStage[];
   products: Product[];
   goals: SellerGoal[];
   sellerId?: string;
@@ -15,6 +17,7 @@ interface UseSellerPerformanceMetricsProps {
 
 export function useSellerPerformanceMetrics({
   leads,
+  stages,
   products,
   goals,
   sellerId,
@@ -57,6 +60,7 @@ export function useSellerPerformanceMetrics({
 
   const performance = useSellerPerformance({
     leads,
+    stages,
     startDate: periodStart,
     endDate: periodEnd,
     sellerId,

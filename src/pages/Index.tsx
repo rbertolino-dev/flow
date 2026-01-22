@@ -494,11 +494,13 @@ const Index = () => {
                 filterInCallQueue={filterInCallQueue}
                 filterTags={selectedTags}
                 callQueue={callQueue}
+                searchQuery={debouncedSearchQuery}
               />
             ) : (
               <CalendarView
                 leads={leads}
                 onLeadUpdate={handleLeadUpdate}
+                searchQuery={debouncedSearchQuery}
               />
             )}
           </div>

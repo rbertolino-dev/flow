@@ -213,6 +213,7 @@ export function SalesReportDialog({ open, onOpenChange, leads, stages, callQueue
                     selected={startDate}
                     onSelect={setStartDate}
                     initialFocus
+                    locale={ptBR}
                   />
                 </PopoverContent>
               </Popover>
@@ -230,6 +231,7 @@ export function SalesReportDialog({ open, onOpenChange, leads, stages, callQueue
                     selected={endDate}
                     onSelect={setEndDate}
                     initialFocus
+                    locale={ptBR}
                   />
                 </PopoverContent>
               </Popover>

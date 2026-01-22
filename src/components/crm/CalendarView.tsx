@@ -13,25 +13,48 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface CalendarViewProps {
   leads: Lead[];
   onLeadUpdate: (leadId: string, newStatus: string) => void;
+  searchQuery?: string;
 }
 
-export const CalendarView = ({ leads, onLeadUpdate }: CalendarViewProps) => {
+export const CalendarView = ({ leads, onLeadUpdate, searchQuery = "" }: CalendarViewProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Filtrar leads que têm data de retorno no mês atual
+  // ✅ NOVO: Função para normalizar telefone (remover caracteres não numéricos)
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+
+  // Filtrar leads que têm data de retorno no mês atual E que correspondem à busca
   const leadsWithReturnDate = useMemo(() => {
     const now = new Date();
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
 
     return leads.filter(lead => {
+      // Filtro de busca
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const normalizedQuery = normalizePhone(searchQuery);
+        const normalizedLeadPhone = normalizePhone(lead.phone);
+        
+        const matchesName = lead.name.toLowerCase().includes(query);
+        const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
+        const matchesCompany = lead.company?.toLowerCase().includes(query) || false;
+        const matchesEmail = lead.email?.toLowerCase().includes(query) || false;
+        const matchesCpfCnpj = lead.cpf_cnpj?.replace(/\D/g, '').includes(normalizedQuery) || false;
+        const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+        
+        if (!matchesName && !matchesPhone && !matchesCompany && !matchesEmail && !matchesCpfCnpj && !matchesTags) {
+          return false;
+        }
+      }
+      
+      // Filtro de data de retorno
       if (!lead.returnDate) return false;
       const returnDate = new Date(lead.returnDate);
       return returnDate >= monthStart && returnDate <= monthEnd;
     });
-  }, [leads]);
+  }, [leads, searchQuery]);
 
   // Agrupar leads por data
   const leadsByDate = useMemo(() => {

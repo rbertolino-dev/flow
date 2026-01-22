@@ -9,6 +9,7 @@ import { useSellerPerformanceMetrics } from "@/hooks/useSellerPerformanceMetrics
 import { useSellerGoals } from "@/hooks/useSellerGoals";
 import { useProducts } from "@/hooks/useProducts";
 import { useLeads } from "@/hooks/useLeads";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Lead } from "@/types/lead";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -48,6 +49,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 export function SellerDashboard() {
   const { leads } = useLeads();
   const { products } = useProducts();
+  const { stages } = usePipelineStages();
   const { goals, loading: goalsLoading, createGoal, updateGoal, deleteGoal, getCurrentGoal, refetch: refetchGoals } = useSellerGoals();
   const { toast } = useToast();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export function SellerDashboard() {
 
   const metrics = useSellerPerformanceMetrics({
     leads,
+    stages,
     products,
     goals,
     sellerId: currentUserId || undefined,

@@ -16,6 +16,7 @@ export function useTags() {
 
   useEffect(() => {
     let channel: any = null;
+    let leadTagsChannel: any = null;
     let orgId: string | null = null;
 
     const setupRealtime = async () => {
@@ -64,6 +65,9 @@ export function useTags() {
                   color: updatedTag.color
                 } : t).sort((a, b) => a.name.localeCompare(b.name))
               );
+              
+              // ✅ NOVO: Disparar evento para atualizar leads quando etiqueta é editada
+              window.dispatchEvent(new CustomEvent('tag-updated', { detail: { tagId: updatedTag.id } }));
             } else if (payload.eventType === 'DELETE') {
               // Etiqueta deletada - remover otimisticamente
               const deletedId = payload.old?.id;
@@ -79,6 +83,32 @@ export function useTags() {
         .subscribe((status: string) => {
           console.log('📡 Status do canal realtime de etiquetas:', status);
         });
+      
+      // ✅ NOVO: Realtime para lead_tags - atualizar leads quando etiquetas são associadas/removidas
+      leadTagsChannel = supabase
+        .channel(`lead-tags-channel-${orgId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'lead_tags'
+          },
+          (payload: any) => {
+            console.log('🏷️ Associação lead-tag atualizada (realtime):', payload);
+            // Disparar evento para atualizar leads
+            window.dispatchEvent(new CustomEvent('lead-tags-updated', { 
+              detail: { 
+                leadId: payload.new?.lead_id || payload.old?.lead_id,
+                tagId: payload.new?.tag_id || payload.old?.tag_id,
+                eventType: payload.eventType
+              } 
+            }));
+          }
+        )
+        .subscribe((status: string) => {
+          console.log('📡 Status do canal realtime de lead_tags:', status);
+        });
     };
 
     setupRealtime();
@@ -86,6 +116,9 @@ export function useTags() {
     return () => {
       if (channel) {
       supabase.removeChannel(channel);
+      }
+      if (leadTagsChannel) {
+        supabase.removeChannel(leadTagsChannel);
       }
     };
   }, []);
@@ -175,7 +208,7 @@ export function useTags() {
         description: "Nova etiqueta criada com sucesso.",
       });
 
-      await fetchTags();
+      // Não fazer fetchTags() aqui - o realtime cuidará da atualização
       return true;
     } catch (error: any) {
       toast({
@@ -201,7 +234,9 @@ export function useTags() {
         description: "Etiqueta atualizada com sucesso.",
       });
 
-      await fetchTags();
+      // Não fazer fetchTags() aqui - o realtime cuidará da atualização
+      // Disparar evento para atualizar leads
+      window.dispatchEvent(new CustomEvent('tag-updated', { detail: { tagId: id } }));
       return true;
     } catch (error: any) {
       toast({

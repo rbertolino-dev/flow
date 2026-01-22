@@ -199,6 +199,7 @@ export function useLeads() {
           notes: lead.notes || undefined,
           stageId: lead.stage_id || undefined,
           excluded_from_funnel: lead.excluded_from_funnel ?? false,
+          cpf_cnpj: lead.cpf_cnpj || undefined,
           activities: (activities || []).map((a) => ({
             id: a.id,
             type: a.type as Activity['type'],
@@ -353,6 +354,28 @@ export function useLeads() {
           console.log('🏷️ Tags do lead alteradas:', payload);
           // Refetch para atualizar as tags dos leads
           fetchFn();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'activities' },
+        (payload) => {
+          console.log('📝 Atividade do lead alterada:', payload);
+          const activity = payload.new || payload.old;
+          if (activity?.lead_id) {
+            // Atualizar apenas o lead específico que teve atividade
+            setLeads((prev) => {
+              const leadIndex = prev.findIndex(l => l.id === activity.lead_id);
+              if (leadIndex === -1) return prev;
+              
+              // Refetch apenas este lead para atualizar atividades
+              fetchFn();
+              return prev;
+            });
+          } else {
+            // Se não tem lead_id, refetch completo
+            fetchFn();
+          }
         }
       )
       .subscribe((status) => {

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSellerPerformance, SellerPerformance } from "@/hooks/useSellerPerformance";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Lead } from "@/types/lead";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -39,10 +40,12 @@ export function SellerActivityDashboard({ leads }: SellerActivityDashboardProps)
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [sellerPopoverOpen, setSellerPopoverOpen] = useState(false);
+  const { stages } = usePipelineStages();
 
   // Buscar todos os vendedores primeiro (sem filtro)
   const allPerformance = useSellerPerformance({
     leads,
+    stages,
     startDate: undefined,
     endDate: undefined,
     sellerId: undefined,
@@ -94,6 +97,7 @@ export function SellerActivityDashboard({ leads }: SellerActivityDashboardProps)
 
   const performance = useSellerPerformance({
     leads,
+    stages,
     startDate,
     endDate,
     sellerId: sellerIds,

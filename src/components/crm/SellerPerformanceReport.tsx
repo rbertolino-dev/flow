@@ -58,6 +58,7 @@ export function SellerPerformanceReport({
 
   const performance = useSellerPerformance({
     leads,
+    stages,
     startDate,
     endDate,
     sellerId: selectedSeller !== "all" ? selectedSeller : undefined,

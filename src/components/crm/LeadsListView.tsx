@@ -31,6 +31,7 @@ interface LeadsListViewProps {
   filterInCallQueue?: boolean;
   filterTags?: string[];
   callQueue?: CallQueueItem[];
+  searchQuery?: string;
 }
 
 export function LeadsListView({
@@ -50,6 +51,7 @@ export function LeadsListView({
   filterInCallQueue = false,
   filterTags = [],
   callQueue = [],
+  searchQuery = "",
 }: LeadsListViewProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
@@ -130,9 +132,30 @@ export function LeadsListView({
     };
   }, []);
 
+  // ✅ NOVO: Função para normalizar telefone (remover caracteres não numéricos)
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+
   // ✅ NOVO: Aplicar filtros aos leads (mesma lógica do KanbanBoard)
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
+      // Filtro de busca
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const normalizedQuery = normalizePhone(searchQuery);
+        const normalizedLeadPhone = normalizePhone(lead.phone);
+        
+        const matchesName = lead.name.toLowerCase().includes(query);
+        const matchesPhone = normalizedLeadPhone.includes(normalizedQuery);
+        const matchesCompany = lead.company?.toLowerCase().includes(query) || false;
+        const matchesEmail = lead.email?.toLowerCase().includes(query) || false;
+        const matchesCpfCnpj = lead.cpf_cnpj?.replace(/\D/g, '').includes(normalizedQuery) || false;
+        const matchesTags = lead.tags?.some(tag => tag.name.toLowerCase().includes(query));
+        
+        if (!matchesName && !matchesPhone && !matchesCompany && !matchesEmail && !matchesCpfCnpj && !matchesTags) {
+          return false;
+        }
+      }
+      
       // Filtro de instância
       if (filterInstance && filterInstance !== "all") {
         if (lead.sourceInstanceId !== filterInstance) return false;
@@ -176,7 +199,7 @@ export function LeadsListView({
 
       return true;
     });
-  }, [leads, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
+  }, [leads, searchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
 
   // Agrupar leads por etapa e ordenar conforme seleção
   const leadsByStage = useMemo(() => {

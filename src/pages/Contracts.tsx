@@ -63,7 +63,7 @@ import { Label } from '@/components/ui/label';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 
 export default function Contracts() {
-  const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all' | 'expiring_soon' | 'approved'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>();
   const [dateFromFilter, setDateFromFilter] = useState<string | undefined>();
@@ -89,7 +89,7 @@ export default function Contracts() {
   
   // Memoizar filtros para evitar recriação do objeto a cada render
   const contractFilters = useMemo(() => ({
-    status: statusFilter !== 'all' ? statusFilter : undefined,
+    status: statusFilter !== 'all' ? (statusFilter === 'expiring_soon' || statusFilter === 'approved' ? statusFilter : statusFilter as ContractStatus) : undefined,
     search: searchQuery || undefined,
     category_id: categoryFilter,
     date_from: dateFromFilter,
