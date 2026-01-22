@@ -378,6 +378,63 @@ export function useLeads() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'tags',
+          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined
+        },
+        (payload) => {
+          console.log('🏷️ Etiqueta atualizada (realtime):', payload);
+          const updatedTag = payload.new as any;
+          if (!updatedTag || !updatedTag.id) {
+            console.error('❌ Payload UPDATE de tag inválido:', payload);
+            return;
+          }
+          
+          // Verificar se a tag pertence à organização ativa
+          if (activeOrgId && updatedTag.organization_id !== activeOrgId) {
+            console.log('⚠️ Tag atualizada pertence a outra organização, ignorando...');
+            return;
+          }
+          
+          // ✅ Atualização otimista: atualizar tags nos leads que têm essa tag
+          setLeads((prev) => {
+            let updated = false;
+            const updatedLeads = prev.map((lead) => {
+              // Verificar se o lead tem essa tag
+              const hasTag = lead.tags?.some(tag => tag.id === updatedTag.id);
+              if (!hasTag) return lead;
+              
+              updated = true;
+              // Atualizar a tag no lead
+              const updatedTags = lead.tags?.map(tag => 
+                tag.id === updatedTag.id 
+                  ? {
+                      ...tag,
+                      name: updatedTag.name || tag.name,
+                      color: updatedTag.color || tag.color
+                    }
+                  : tag
+              ) || [];
+              
+              console.log(`✅ Tag "${updatedTag.name}" atualizada no lead "${lead.name}"`);
+              return {
+                ...lead,
+                tags: updatedTags
+              };
+            });
+            
+            if (updated) {
+              console.log(`🔄 ${updatedLeads.filter(l => l.tags?.some(t => t.id === updatedTag.id)).length} leads atualizados com a tag "${updatedTag.name}"`);
+            }
+            
+            return updatedLeads;
+          });
+        }
+      )
       .subscribe((status) => {
         console.log('📡 Status do canal realtime de leads:', status);
         if (status === 'SUBSCRIBED') {
@@ -434,12 +491,66 @@ export function useLeads() {
       }
     };
 
+    // ✅ NOVO: Escutar evento de tag atualizada para atualizar leads em tempo real
+    const handleTagUpdated = (event: CustomEvent) => {
+      const { tagId } = event.detail;
+      if (!tagId) return;
+      
+      console.log(`🏷️ Evento tag-updated recebido para tagId: ${tagId}`);
+      
+      // Buscar a tag atualizada do banco
+      (supabase as any)
+        .from('tags')
+        .select('id, name, color')
+        .eq('id', tagId)
+        .maybeSingle()
+        .then(({ data: updatedTag, error }: any) => {
+          if (error) {
+            console.error('❌ Erro ao buscar tag atualizada:', error);
+            // Fallback: refetch completo
+            fetchLeads();
+            return;
+          }
+          
+          if (!updatedTag) {
+            console.warn(`⚠️ Tag ${tagId} não encontrada após atualização`);
+            return;
+          }
+          
+          // Atualizar leads que têm essa tag
+          setLeads((prev) => {
+            return prev.map((lead) => {
+              const hasTag = lead.tags?.some(tag => tag.id === updatedTag.id);
+              if (!hasTag) return lead;
+              
+              const updatedTags = lead.tags?.map(tag => 
+                tag.id === updatedTag.id 
+                  ? {
+                      ...tag,
+                      name: updatedTag.name,
+                      color: updatedTag.color
+                    }
+                  : tag
+              ) || [];
+              
+              console.log(`✅ Tag "${updatedTag.name}" atualizada no lead "${lead.name}" via evento`);
+              return {
+                ...lead,
+                tags: updatedTags
+              };
+            });
+          });
+        });
+    };
+
     window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
+    window.addEventListener('tag-updated', handleTagUpdated as EventListener);
 
     return () => {
       console.log('🔌 Desconectando realtime de leads...');
       clearInterval(fallbackPolling);
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
+      window.removeEventListener('tag-updated', handleTagUpdated as EventListener);
       if (channel) {
         try {
           supabase.removeChannel(channel);

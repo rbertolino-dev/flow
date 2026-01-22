@@ -69,43 +69,57 @@ export function useContractCategories() {
 
     let timeoutId: NodeJS.Timeout | null = null;
 
-    const contractsChannel = supabase
-      .channel(`contracts-changes-${activeOrgId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'contracts',
-          filter: `organization_id=eq.${activeOrgId}`,
-        },
-        (payload) => {
-          console.log('Contrato alterado via realtime:', payload.eventType, payload.new || payload.old);
-          
-          // Debounce para evitar múltiplas atualizações rápidas
-          if (timeoutId) {
-            clearTimeout(timeoutId);
+    let contractsChannel: any = null;
+    
+    try {
+      contractsChannel = supabase
+        .channel(`contracts-changes-${activeOrgId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'contracts',
+            filter: `organization_id=eq.${activeOrgId}`,
+          },
+          (payload) => {
+            console.log('Contrato alterado via realtime:', payload.eventType, payload.new || payload.old);
+            
+            // Debounce para evitar múltiplas atualizações rápidas
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            
+            timeoutId = setTimeout(() => {
+              // Recarregar categorias quando contratos mudarem
+              fetchCategories();
+            }, 300); // Aguardar 300ms antes de atualizar
           }
-          
-          timeoutId = setTimeout(() => {
-            // Recarregar categorias quando contratos mudarem
-            fetchCategories();
-          }, 300); // Aguardar 300ms antes de atualizar
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Realtime subscription ativa para contratos');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Erro na subscription realtime de contratos');
-        }
-      });
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Realtime subscription ativa para contratos');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Erro na subscription realtime de contratos');
+            // Não bloquear o fluxo, apenas logar o erro
+          }
+        });
+    } catch (error) {
+      console.error('Erro ao configurar subscription realtime:', error);
+      // Continuar mesmo se realtime falhar
+    }
 
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      supabase.removeChannel(contractsChannel);
+      if (contractsChannel) {
+        try {
+          supabase.removeChannel(contractsChannel);
+        } catch (error) {
+          console.error('Erro ao remover channel realtime:', error);
+        }
+      }
     };
   }, [fetchCategories, activeOrgId]);
 

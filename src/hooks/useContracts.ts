@@ -519,7 +519,6 @@ export function useContracts(filters?: ContractFilters) {
             value, 
             status, 
             product_id,
-            product:products(name),
             source, 
             notes, 
             created_at, 
@@ -531,7 +530,25 @@ export function useContracts(filters?: ContractFilters) {
         .single();
 
       if (contractError || !contract) {
+        console.error('Erro ao buscar contrato:', contractError);
         throw new Error('Contrato não encontrado');
+      }
+
+      // Buscar produto do lead separadamente se necessário
+      let leadWithProduct = contract.lead;
+      if (contract.lead?.product_id) {
+        const { data: productData } = await supabase
+          .from('products')
+          .select('name')
+          .eq('id', contract.lead.product_id)
+          .maybeSingle();
+        
+        if (productData) {
+          leadWithProduct = {
+            ...contract.lead,
+            product: { name: productData.name }
+          };
+        }
       }
 
       let contractContent = contract.content;
@@ -546,11 +563,11 @@ export function useContracts(filters?: ContractFilters) {
           .eq('id', contract.template_id)
           .single();
 
-        if (!templateError && updatedTemplate && contract.lead) {
+        if (!templateError && updatedTemplate && leadWithProduct) {
           // Regenerar conteúdo a partir do template atualizado
           contractContent = await generateContractContentFromTemplate(
             updatedTemplate,
-            contract.lead,
+            leadWithProduct,
             contract.contract_number,
             contract.expires_at
           );

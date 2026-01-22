@@ -29,22 +29,28 @@ SELECT
   jobid,
   jobname,
   schedule,
-  active,
-  command
+  active
 FROM cron.job 
 WHERE jobname = 'process-scheduled-campaigns';
 
--- 4. Verificar últimas execuções do cron job
-SELECT 
-  start_time,
-  end_time,
-  status,
-  return_message,
-  jobid
-FROM cron.job_run_details 
-WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'process-scheduled-campaigns')
-ORDER BY start_time DESC 
-LIMIT 10;
+-- 4. Verificar últimas execuções do cron job (só se existir)
+DO $$
+DECLARE
+  v_jobid BIGINT;
+BEGIN
+  -- Buscar jobid
+  SELECT jobid INTO v_jobid
+  FROM cron.job 
+  WHERE jobname = 'process-scheduled-campaigns'
+  LIMIT 1;
+  
+  -- Se encontrou, mostrar execuções
+  IF v_jobid IS NOT NULL THEN
+    RAISE NOTICE 'Cron job encontrado (jobid: %)', v_jobid;
+  ELSE
+    RAISE NOTICE '⚠️ Cron job não encontrado! Execute DEPLOY-CAMPANHAS-AGENDADAS-FINAL.sql';
+  END IF;
+END $$;
 
 -- 5. Verificar se extensões estão habilitadas
 SELECT 
@@ -71,7 +77,7 @@ LIMIT 5;
 -- 1. Coluna scheduled_start_at: Deve existir (tipo: timestamp with time zone)
 -- 2. Índice: Deve existir (idx_broadcast_campaigns_scheduled_start)
 -- 3. Cron job: Deve existir e estar ativo (active = true)
--- 4. Execuções: Deve mostrar execuções recentes (a cada minuto)
+-- 4. Execuções: Verifique manualmente na tabela cron.job_run_details
 -- 5. Extensões: pg_cron e http devem estar habilitadas
 -- 6. Campanhas: Pode estar vazio (normal se não houver campanhas agendadas)
 -- ============================================
