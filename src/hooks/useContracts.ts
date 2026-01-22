@@ -86,7 +86,21 @@ export function useContracts(filters?: ContractFilters) {
       // (já está incluído no *, mas explicitamente garantimos)
 
       if (filters?.status) {
-        query = query.eq('status', filters.status);
+        // Tratar filtros especiais
+        if (filters.status === 'expiring_soon') {
+          // Contratos que expiram nos próximos 7 dias
+          const sevenDaysFromNow = new Date();
+          sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+          query = query
+            .not('expires_at', 'is', null)
+            .lte('expires_at', sevenDaysFromNow.toISOString())
+            .gte('expires_at', new Date().toISOString());
+        } else if (filters.status === 'approved') {
+          // Contratos aprovados = assinados
+          query = query.eq('status', 'signed');
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
 
       if (filters?.lead_id) {

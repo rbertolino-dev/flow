@@ -13,7 +13,7 @@ import { useContractCategories } from '@/hooks/useContractCategories';
 import { ContractStatus } from '@/types/contract';
 
 interface ContractFiltersProps {
-  status?: ContractStatus | 'all';
+  status?: ContractStatus | 'all' | 'expiring_soon' | 'approved';
   categoryId?: string;
   search?: string;
   dateFrom?: string;
@@ -21,7 +21,7 @@ interface ContractFiltersProps {
   expiresFrom?: string;
   expiresTo?: string;
   onFiltersChange: (filters: {
-    status?: ContractStatus | 'all';
+    status?: ContractStatus | 'all' | 'expiring_soon' | 'approved';
     categoryId?: string;
     search?: string;
     dateFrom?: string;
@@ -135,6 +135,8 @@ export function ContractFilters({
                     { value: 'signed', label: 'Assinado' },
                     { value: 'expired', label: 'Expirado' },
                     { value: 'cancelled', label: 'Cancelado' },
+                    { value: 'expiring_soon', label: 'Próximo' },
+                    { value: 'approved', label: 'Aprovado' },
                   ]}
                   placeholder="Todos os status"
                 />

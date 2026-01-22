@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } fr
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SimpleDropdown } from '@/components/ui/simple-dropdown';
 import { ContractsList } from '@/components/contracts/ContractsList';
 import { ContractViewer } from '@/components/contracts/ContractViewer';
 import { CreateContractDialog } from '@/components/contracts/CreateContractDialog';
@@ -545,19 +544,6 @@ export default function Contracts() {
               className="pl-10"
             />
           </div>
-          <SimpleDropdown
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v as any)}
-            options={[
-              { value: 'all', label: 'Todos os status' },
-              { value: 'draft', label: 'Rascunho' },
-              { value: 'sent', label: 'Enviado' },
-              { value: 'signed', label: 'Assinado' },
-              { value: 'expired', label: 'Expirado' },
-              { value: 'cancelled', label: 'Cancelado' },
-            ]}
-            placeholder="Filtrar por status"
-          />
           <ContractFilters
             status={statusFilter}
             categoryId={categoryFilter}

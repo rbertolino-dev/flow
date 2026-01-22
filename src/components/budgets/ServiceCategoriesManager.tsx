@@ -116,37 +116,67 @@ export function ServiceCategoriesManager({
     }
   };
 
-  const handleDeleteCategory = (category: string) => {
+  const handleDeleteCategory = async (category: string) => {
     const servicesWithCategory = services.filter(s => s.category === category);
     
     if (servicesWithCategory.length > 0) {
-      if (!confirm(`Esta categoria está sendo usada por ${servicesWithCategory.length} serviço(s). Deseja remover a categoria de todos eles?`)) {
+      if (!confirm(`Esta categoria está sendo usada por ${servicesWithCategory.length} serviço(s). Deseja remover a categoria de todos eles e deletar a categoria?`)) {
         return;
       }
 
-      // Remover categoria de todos os serviços
-      Promise.all(
-        servicesWithCategory.map(service => 
-          onCategoryUpdate(service.id, '')
-        )
-      ).then(() => {
+      try {
+        // Remover categoria de todos os serviços
+        await Promise.all(
+          servicesWithCategory.map(service => 
+            onCategoryUpdate(service.id, '')
+          )
+        );
+        
+        // Deletar categoria do localStorage
+        if (activeOrgId) {
+          try {
+            const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
+            const existingCategories = stored ? JSON.parse(stored) as string[] : [];
+            const updatedCategories = existingCategories.filter(c => c !== category);
+            localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(updatedCategories));
+          } catch (e) {
+            console.error('Erro ao atualizar localStorage:', e);
+          }
+        }
+        
+        // Chamar callback para atualizar lista
         onCategoryDelete(category);
+        
         toast({
-          title: 'Categoria removida',
-          description: `Categoria removida de ${servicesWithCategory.length} serviço(s).`,
+          title: 'Categoria deletada',
+          description: `Categoria removida de ${servicesWithCategory.length} serviço(s) e deletada com sucesso.`,
         });
-      }).catch((error: any) => {
+      } catch (error: any) {
         toast({
-          title: 'Erro ao remover categoria',
+          title: 'Erro ao deletar categoria',
           description: error.message,
           variant: 'destructive',
         });
-      });
+      }
     } else {
+      // Deletar categoria do localStorage
+      if (activeOrgId) {
+        try {
+          const stored = localStorage.getItem(`service_categories_${activeOrgId}`);
+          const existingCategories = stored ? JSON.parse(stored) as string[] : [];
+          const updatedCategories = existingCategories.filter(c => c !== category);
+          localStorage.setItem(`service_categories_${activeOrgId}`, JSON.stringify(updatedCategories));
+        } catch (e) {
+          console.error('Erro ao atualizar localStorage:', e);
+        }
+      }
+      
+      // Chamar callback para atualizar lista
       onCategoryDelete(category);
+      
       toast({
-        title: 'Categoria removida',
-        description: 'Categoria removida com sucesso.',
+        title: 'Categoria deletada',
+        description: 'Categoria deletada com sucesso.',
       });
     }
   };
