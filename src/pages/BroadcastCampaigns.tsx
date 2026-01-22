@@ -1661,6 +1661,7 @@ export default function BroadcastCampaigns() {
         max_delay_seconds: newCampaign.maxDelay,
         total_contacts: contacts.length,
         status: "draft",
+        scheduled_start_at: newCampaign.scheduledStart ? newCampaign.scheduledStart.toISOString() : null,
       };
       
       console.log('💾 [Campanha] Salvando campanha:', {

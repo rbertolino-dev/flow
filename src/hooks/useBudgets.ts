@@ -120,10 +120,10 @@ export function useBudgets(filters?: BudgetFilters) {
         query = query.eq('lead_id', filters.lead_id);
       }
 
-      if (filters?.search) {
-        // Buscar no número do orçamento, observações e nome do cliente (client_data JSONB)
-        query = query.or(`budget_number.ilike.%${filters.search}%,observations.ilike.%${filters.search}%,client_data->>name.ilike.%${filters.search}%`);
-      }
+      // Se houver busca, vamos buscar todos os orçamentos (com outros filtros aplicados)
+      // e filtrar no cliente porque client_data é JSONB e não funciona bem com .or() do Supabase
+      // A busca no client_data será feita no lado do cliente após buscar os resultados
+      // Não aplicar filtro de busca no banco aqui - vamos buscar todos e filtrar no cliente
 
       if (filters?.expired_only) {
         query = query.lt('expires_at', new Date().toISOString().split('T')[0]);
@@ -163,7 +163,36 @@ export function useBudgets(filters?: BudgetFilters) {
       const { data, error } = await query;
 
       if (error) throw error;
-      setBudgets((data || []) as Budget[]);
+      
+      // Filtrar por nome do cliente se houver busca (client_data JSONB)
+      let filteredData = (data || []) as Budget[];
+      if (filters?.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredData = filteredData.filter((budget) => {
+          // Buscar no número do orçamento
+          if (budget.budget_number?.toLowerCase().includes(searchLower)) return true;
+          
+          // Buscar nas observações
+          if (budget.observations?.toLowerCase().includes(searchLower)) return true;
+          
+          // Buscar no nome do cliente (client_data JSONB)
+          const clientData = budget.client_data as any;
+          if (clientData?.name?.toLowerCase().includes(searchLower)) return true;
+          
+          // Buscar no telefone do cliente
+          if (clientData?.phone?.toLowerCase().includes(searchLower)) return true;
+          
+          // Buscar no email do cliente
+          if (clientData?.email?.toLowerCase().includes(searchLower)) return true;
+          
+          // Buscar na empresa do cliente
+          if (clientData?.company?.toLowerCase().includes(searchLower)) return true;
+          
+          return false;
+        });
+      }
+      
+      setBudgets(filteredData);
     } catch (error: any) {
       console.error('Erro ao carregar orçamentos:', error);
       toast({

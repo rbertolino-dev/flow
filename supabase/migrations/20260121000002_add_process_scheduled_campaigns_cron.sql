@@ -1,0 +1,29 @@
+-- ============================================
+-- Adicionar Cron Job para Processar Campanhas Agendadas
+-- ============================================
+-- Este cron job verifica e inicia automaticamente campanhas
+-- que foram agendadas para iniciar em um horário específico
+-- ============================================
+-- IMPORTANTE: Este cron job deve ser configurado manualmente
+-- usando o script CRON-JOBS-FINAL.sql ou via Supabase Dashboard
+-- ============================================
+
+-- NOTA: O cron job será criado via script externo (CRON-JOBS-FINAL.sql)
+-- ou manualmente via Supabase Dashboard. Esta migration apenas documenta
+-- a necessidade do cron job.
+
+-- Para criar manualmente, execute:
+-- SELECT cron.schedule(
+--   'process-scheduled-campaigns',
+--   '*/1 * * * *', -- A cada minuto
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://[PROJECT_ID].supabase.co/functions/v1/process-scheduled-campaigns',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'Authorization', 'Bearer [SERVICE_ROLE_KEY]'
+--     ),
+--     body := '{}'::jsonb
+--   );
+--   $$
+-- );

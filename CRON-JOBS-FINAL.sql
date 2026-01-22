@@ -150,6 +150,25 @@ SELECT cron.schedule(
 );
 
 -- ============================================
+-- 8. PROCESS SCHEDULED CAMPAIGNS (A cada minuto)
+-- ============================================
+-- Processa campanhas agendadas para iniciar automaticamente
+SELECT cron.schedule(
+  'process-scheduled-campaigns',
+  '*/1 * * * *', -- A cada minuto
+  $$
+  SELECT net.http_post(
+    url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-scheduled-campaigns',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer sb_publishable_7vsOSU_x3SOWheInFDj6yA_o6LG8Jdm'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+
+-- ============================================
 -- VERIFICAR CRON JOBS CONFIGURADOS
 -- ============================================
 SELECT 
