@@ -289,6 +289,16 @@ export function CreateContractDialog({
       
       const newContract = await createContract(contractData);
 
+      // Atualizar categorias imediatamente após criar contrato
+      // Isso garante que a contagem seja atualizada mesmo se realtime não funcionar
+      try {
+        await fetchCategories();
+        console.log('[CreateContractDialog] Categorias atualizadas após criar contrato');
+      } catch (error) {
+        console.error('[CreateContractDialog] Erro ao atualizar categorias:', error);
+        // Não bloquear o fluxo se falhar
+      }
+
       toast({
         title: 'Sucesso',
         description: 'Contrato criado com sucesso',

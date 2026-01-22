@@ -67,24 +67,44 @@ export function useContractCategories() {
     // Configurar real-time para atualizar contagem quando contratos mudarem
     if (!activeOrgId) return;
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const contractsChannel = supabase
-      .channel('contracts-changes')
+      .channel(`contracts-changes-${activeOrgId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: '*', // INSERT, UPDATE, DELETE
           schema: 'public',
           table: 'contracts',
           filter: `organization_id=eq.${activeOrgId}`,
         },
-        () => {
-          // Recarregar categorias quando contratos mudarem
-          fetchCategories();
+        (payload) => {
+          console.log('Contrato alterado via realtime:', payload.eventType, payload.new || payload.old);
+          
+          // Debounce para evitar múltiplas atualizações rápidas
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          
+          timeoutId = setTimeout(() => {
+            // Recarregar categorias quando contratos mudarem
+            fetchCategories();
+          }, 300); // Aguardar 300ms antes de atualizar
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime subscription ativa para contratos');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro na subscription realtime de contratos');
+        }
+      });
 
     return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       supabase.removeChannel(contractsChannel);
     };
   }, [fetchCategories, activeOrgId]);
