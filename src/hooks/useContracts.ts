@@ -518,7 +518,6 @@ export function useContracts(filters?: ContractFilters) {
             cpf_cnpj, 
             value, 
             status, 
-            product_id,
             source, 
             notes, 
             created_at, 
@@ -534,19 +533,20 @@ export function useContracts(filters?: ContractFilters) {
         throw new Error('Contrato não encontrado');
       }
 
-      // Buscar produto do lead separadamente se necessário
+      // Buscar produto do lead através da tabela lead_products
       let leadWithProduct = contract.lead;
-      if (contract.lead?.product_id) {
-        const { data: productData } = await supabase
-          .from('products')
-          .select('name')
-          .eq('id', contract.lead.product_id)
+      if (contract.lead?.id) {
+        const { data: leadProductData } = await supabase
+          .from('lead_products')
+          .select('product:products(name)')
+          .eq('lead_id', contract.lead.id)
+          .limit(1)
           .maybeSingle();
         
-        if (productData) {
+        if (leadProductData?.product) {
           leadWithProduct = {
             ...contract.lead,
-            product: { name: productData.name }
+            product: { name: leadProductData.product.name }
           };
         }
       }
