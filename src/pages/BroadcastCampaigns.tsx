@@ -2356,46 +2356,103 @@ export default function BroadcastCampaigns() {
           updates.push(...results.map(r => Promise.resolve(r)));
         }
       } else {
-        // Modo SINGLE ou ROTATE: Fila sequencial normal
+        // Modo SINGLE ou ROTATE:
+        // - SINGLE: Fila sequencial normal (1 instância)
+        // - ROTATE: Todas instâncias começam juntas, cada uma com delay próprio
+        
+        // Verificar se é modo ROTATE (múltiplas instâncias únicas mas não é separate)
+        const isRotate = campaign.sending_method === "rotate" || (uniqueInstances.size > 1 && !isSeparate);
+        
         // Obter limites de delay
         const minDelay = campaign.min_delay_seconds;
         const maxDelay = campaign.max_delay_seconds;
         
-        let currentScheduledTime = new Date(now);
-        
         // Preparar updates em batch
         const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
         
-        for (const item of queueItems) {
-          // Calcular delay ALEATÓRIO entre min e max para cada mensagem
-          const randomDelaySeconds = getRandomDelay(minDelay, maxDelay);
-          const randomDelayMs = randomDelaySeconds * 1000;
-          let scheduledTime = new Date(currentScheduledTime.getTime() + randomDelayMs);
+        if (isRotate) {
+          // Modo ROTATE: Agrupar por instância e todas começam ao mesmo tempo
+          const instancesMap = new Map<string, any[]>();
           
-          // Se há janela ativa e ação não é exceção
-          if (activeTimeWindow && action !== "exception") {
-            // Verificar se o horário calculado está na janela
-            if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
-              // Buscar próximo horário permitido
-              const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
-              if (nextWindowTime) {
-                // Ajustar para o início do próximo período permitido
-                scheduledTime = nextWindowTime;
+          // Agrupar mensagens por instância
+          queueItems.forEach(item => {
+            if (!instancesMap.has(item.instance_id)) {
+              instancesMap.set(item.instance_id, []);
+            }
+            instancesMap.get(item.instance_id)!.push(item);
+          });
+          
+          // Para cada instância, criar fila independente começando no mesmo horário
+          instancesMap.forEach((itemsForInstance) => {
+            let instanceScheduledTime = new Date(now); // Todas começam ao mesmo tempo
+            
+            itemsForInstance.forEach((item) => {
+              // Calcular delay ALEATÓRIO entre min e max para cada mensagem
+              const randomDelaySeconds = getRandomDelay(minDelay, maxDelay);
+              const randomDelayMs = randomDelaySeconds * 1000;
+              let scheduledTime = new Date(instanceScheduledTime.getTime() + randomDelayMs);
+              
+              // Se há janela ativa e ação não é exceção
+              if (activeTimeWindow && action !== "exception") {
+                // Verificar se o horário calculado está na janela
+                if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
+                  // Buscar próximo horário permitido
+                  const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
+                  if (nextWindowTime) {
+                    // Ajustar para o início do próximo período permitido
+                    scheduledTime = nextWindowTime;
+                    instanceScheduledTime = new Date(scheduledTime);
+                  }
+                } else {
+                  instanceScheduledTime = new Date(scheduledTime);
+                }
+              } else {
+                // Sem janela ou exceção: continuar normalmente
+                instanceScheduledTime = new Date(scheduledTime);
+              }
+
+              batchUpdates.push({
+                id: item.id,
+                scheduled_for: scheduledTime.toISOString(),
+                ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
+              });
+            });
+          });
+        } else {
+          // Modo SINGLE: Fila sequencial normal (1 instância apenas)
+          let currentScheduledTime = new Date(now);
+          
+          for (const item of queueItems) {
+            // Calcular delay ALEATÓRIO entre min e max para cada mensagem
+            const randomDelaySeconds = getRandomDelay(minDelay, maxDelay);
+            const randomDelayMs = randomDelaySeconds * 1000;
+            let scheduledTime = new Date(currentScheduledTime.getTime() + randomDelayMs);
+            
+            // Se há janela ativa e ação não é exceção
+            if (activeTimeWindow && action !== "exception") {
+              // Verificar se o horário calculado está na janela
+              if (!isTimeInWindow(activeTimeWindow, scheduledTime)) {
+                // Buscar próximo horário permitido
+                const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
+                if (nextWindowTime) {
+                  // Ajustar para o início do próximo período permitido
+                  scheduledTime = nextWindowTime;
+                  currentScheduledTime = new Date(scheduledTime);
+                }
+              } else {
                 currentScheduledTime = new Date(scheduledTime);
               }
             } else {
+              // Sem janela ou exceção: continuar normalmente
               currentScheduledTime = new Date(scheduledTime);
             }
-          } else {
-            // Sem janela ou exceção: continuar normalmente
-            currentScheduledTime = new Date(scheduledTime);
-          }
 
-          batchUpdates.push({
-            id: item.id,
-            scheduled_for: scheduledTime.toISOString(),
-            ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
-          });
+            batchUpdates.push({
+              id: item.id,
+              scheduled_for: scheduledTime.toISOString(),
+              ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
+            });
+          }
         }
         
         // Executar updates em batch

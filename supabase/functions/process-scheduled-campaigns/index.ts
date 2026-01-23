@@ -153,6 +153,9 @@ serve(async (req) => {
         const counts = Array.from(messagesPerInstance.values());
         const allSameCount = counts.length > 0 && counts.every(count => count === counts[0]);
         const isSeparate = allSameCount && uniqueInstances.size > 1;
+        
+        // Verificar se é modo ROTATE (múltiplas instâncias únicas mas não é separate)
+        const isRotate = (campaign.sending_method === "rotate" || (uniqueInstances.size > 1 && !isSeparate));
 
         // Preparar updates em batch
         const batchUpdates: Array<{ id: string; scheduled_for: string }> = [];
@@ -183,8 +186,37 @@ serve(async (req) => {
               instanceScheduledTime = new Date(scheduledTime);
             });
           });
+        } else if (isRotate) {
+          // Modo ROTATE: Agrupar por instância e todas começam ao mesmo tempo
+          const instancesMap = new Map<string, any[]>();
+          
+          // Agrupar mensagens por instância
+          queueItems.forEach((item: any) => {
+            if (!instancesMap.has(item.instance_id)) {
+              instancesMap.set(item.instance_id, []);
+            }
+            instancesMap.get(item.instance_id)!.push(item);
+          });
+          
+          // Para cada instância, criar fila independente começando no mesmo horário
+          instancesMap.forEach((itemsForInstance) => {
+            let instanceScheduledTime = new Date(nowDate); // Todas começam ao mesmo tempo
+            
+            itemsForInstance.forEach((item: any) => {
+              const randomDelaySeconds = getRandomDelay(minDelay, maxDelay);
+              const randomDelayMs = randomDelaySeconds * 1000;
+              const scheduledTime = new Date(instanceScheduledTime.getTime() + randomDelayMs);
+
+              batchUpdates.push({
+                id: item.id,
+                scheduled_for: scheduledTime.toISOString(),
+              });
+
+              instanceScheduledTime = new Date(scheduledTime);
+            });
+          });
         } else {
-          // Modo SINGLE ou ROTATE: Fila sequencial normal
+          // Modo SINGLE: Fila sequencial normal (1 instância apenas)
           let currentScheduledTime = new Date(nowDate);
 
           for (const item of queueItems) {
