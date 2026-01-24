@@ -412,12 +412,30 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
     }
   };
 
-  const handleAddNode = (type: FlowNodeType) => {
-    const getDefaultLabel = (nodeType: FlowNodeType): string => {
+  const handleAddNode = (type: FlowNodeType, actionType?: string) => {
+    const getDefaultLabel = (nodeType: FlowNodeType, specificActionType?: string): string => {
       switch (nodeType) {
         case 'trigger':
           return 'Lead Criado';
         case 'action':
+          // Se foi passado um tipo específico de ação, usar label correspondente
+          if (specificActionType) {
+            const actionLabels: Record<string, string> = {
+              'send_whatsapp': 'Enviar WhatsApp',
+              'send_whatsapp_template': 'Template WhatsApp',
+              'add_tag': 'Adicionar Tag',
+              'remove_tag': 'Remover Tag',
+              'move_stage': 'Mover Etapa',
+              'add_note': 'Adicionar Nota',
+              'add_to_call_queue': 'Adicionar à Fila',
+              'remove_from_call_queue': 'Remover da Fila',
+              'update_field': 'Atualizar Campo',
+              'update_value': 'Atualizar Valor',
+              'apply_template': 'Aplicar Template',
+              'create_reminder': 'Criar Lembrete',
+            };
+            return actionLabels[specificActionType] || 'Nova Ação';
+          }
           return 'Nova Ação';
         case 'wait':
           return 'Aguardar Tempo';
@@ -430,11 +448,15 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
       }
     };
 
-    const getDefaultConfig = (nodeType: FlowNodeType): any => {
+    const getDefaultConfig = (nodeType: FlowNodeType, specificActionType?: string): any => {
       switch (nodeType) {
         case 'trigger':
           return { triggerType: 'lead_created' };
         case 'action':
+          // Se foi passado um tipo específico de ação, usar esse tipo
+          if (specificActionType) {
+            return { actionType: specificActionType };
+          }
           return { actionType: 'send_whatsapp' };
         case 'wait':
           return { waitType: 'delay', delay_value: 1, delay_unit: 'hours' };
@@ -450,8 +472,8 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
       type,
       position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
       data: {
-        label: getDefaultLabel(type),
-        config: getDefaultConfig(type),
+        label: getDefaultLabel(type, actionType),
+        config: getDefaultConfig(type, actionType),
       },
     };
     setNodes((nds) => [...nds, newNode]);
@@ -583,7 +605,7 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
                   variant="outline"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => handleAddNode("action")}
+                  onClick={() => handleAddNode("action", "send_whatsapp")}
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Enviar WhatsApp
@@ -592,7 +614,7 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
                   variant="outline"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => handleAddNode("action")}
+                  onClick={() => handleAddNode("action", "add_tag")}
                 >
                   <Tag className="h-4 w-4 mr-2" />
                   Adicionar Tag
@@ -601,7 +623,7 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
                   variant="outline"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => handleAddNode("action")}
+                  onClick={() => handleAddNode("action", "move_stage")}
                 >
                   <ArrowRight className="h-4 w-4 mr-2" />
                   Mover Etapa
