@@ -20,7 +20,7 @@ import {
   subWeeks
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Clock, Users, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
+import { CalendarIcon, Clock, Users, ChevronLeft, ChevronRight, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,7 @@ interface BroadcastCampaignsCalendarProps {
 export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaignsCalendarProps) {
   const [viewMode, setViewMode] = useState<"week" | "month">("week"); // Semanal como padrão
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null); // Dia selecionado para visualização focada
   const [campaigns, setCampaigns] = useState<ScheduledCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [instancesMap, setInstancesMap] = useState<Map<string, string>>(new Map());
@@ -234,6 +235,12 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
 
   const goToToday = () => {
     setCurrentDate(new Date());
+    setSelectedDay(null); // Limpar seleção ao voltar para hoje
+  };
+
+  // Limpar seleção de dia
+  const clearSelectedDay = () => {
+    setSelectedDay(null);
   };
 
   // Obter campanhas de um dia específico
@@ -325,86 +332,152 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
           {viewMode === "week" ? (
             // Visualização Semanal
             <div className="space-y-4">
-              <div className="grid grid-cols-7 gap-3">
-                {weekDays.map((day) => {
-                  const dayCampaigns = getCampaignsForDay(day);
-                  const isCurrentDay = isToday(day);
-                  const isPastDay = isPast(startOfDay(day)) && !isCurrentDay;
-
-                  return (
-                    <div
-                      key={day.toISOString()}
-                      className={cn(
-                        "min-h-[400px] border rounded-lg p-3 transition-all",
-                        isCurrentDay && "border-primary bg-primary/5 shadow-sm",
-                        isPastDay && "opacity-50",
-                        !isPastDay && "hover:border-primary/50 hover:bg-muted/30"
-                      )}
+              {selectedDay ? (
+                // Modo foco: mostrar apenas o dia selecionado
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">
+                      {format(selectedDay, "EEEE, d 'de' MMMM yyyy", { locale: ptBR })}
+                    </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearSelectedDay}
+                      className="gap-2"
                     >
-                      <div className="mb-3">
-                        <div
-                          className={cn(
-                            "text-xs font-medium text-muted-foreground mb-1",
-                            isCurrentDay && "text-primary font-semibold"
-                          )}
-                        >
-                          {format(day, "EEE", { locale: ptBR })}
-                        </div>
-                        <div
-                          className={cn(
-                            "text-lg font-semibold",
-                            isCurrentDay && "text-primary",
-                            isPastDay && "text-muted-foreground"
-                          )}
-                        >
-                          {format(day, "d")}
-                        </div>
-                      </div>
-                      
-                      <ScrollArea className="h-[350px]">
-                        <div className="space-y-2">
-                          {dayCampaigns.map((campaign) => (
-                            <div
-                              key={campaign.id}
-                              className={cn(
-                                "text-xs p-2 rounded-lg border bg-background cursor-pointer transition-all hover:shadow-md",
-                                campaign.status === "draft" && "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20",
-                                campaign.status === "running" && "border-green-500/50 bg-green-500/10 hover:bg-green-500/20",
-                                campaign.status === "paused" && "border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20"
+                      <X className="h-4 w-4" />
+                      Voltar para semana
+                    </Button>
+                  </div>
+                  <div className="border rounded-lg p-4 min-h-[600px]">
+                    <ScrollArea className="h-[600px]">
+                      <div className="space-y-3">
+                        {getCampaignsForDay(selectedDay).map((campaign) => (
+                          <div
+                            key={campaign.id}
+                            className={cn(
+                              "p-4 rounded-lg border bg-background cursor-pointer transition-all hover:shadow-lg",
+                              campaign.status === "draft" && "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20",
+                              campaign.status === "running" && "border-green-500/50 bg-green-500/10 hover:bg-green-500/20",
+                              campaign.status === "paused" && "border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20"
+                            )}
+                          >
+                            <div className="font-semibold text-base mb-2 break-words">
+                              {campaign.name}
+                            </div>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Clock className="h-4 w-4" />
+                                <span className="font-medium">Horário:</span>
+                                <span>{formatFullDate(campaign.scheduled_start_at)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Users className="h-4 w-4" />
+                                <span className="font-medium">Instância(s):</span>
+                                <span className="break-words">{campaign.instance_name}</span>
+                              </div>
+                              {campaign.total_contacts > 0 && (
+                                <div className="text-muted-foreground">
+                                  <span className="font-medium">{campaign.total_contacts}</span> contato(s)
+                                </div>
                               )}
-                              title={`${campaign.name} - ${formatFullDate(campaign.scheduled_start_at)}`}
-                            >
-                              <div className="font-semibold truncate mb-1">
-                                {campaign.name}
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                  <Clock className="h-3 w-3" />
-                                  <span>{formatTime(campaign.scheduled_start_at)}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                  <Users className="h-3 w-3" />
-                                  <span className="truncate">{campaign.instance_name}</span>
-                                </div>
-                                {campaign.total_contacts > 0 && (
-                                  <div className="text-[11px] text-muted-foreground">
-                                    {campaign.total_contacts} contato(s)
-                                  </div>
-                                )}
-                              </div>
                             </div>
-                          ))}
-                          {dayCampaigns.length === 0 && (
-                            <div className="text-xs text-muted-foreground text-center py-4">
-                              Nenhuma campanha
-                            </div>
-                          )}
+                          </div>
+                        ))}
+                        {getCampaignsForDay(selectedDay).length === 0 && (
+                          <div className="text-center py-12 text-muted-foreground">
+                            <CalendarIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                            <p className="font-medium">Nenhuma campanha neste dia</p>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </div>
+              ) : (
+                // Modo normal: mostrar todos os dias da semana
+                <div className="grid grid-cols-7 gap-3">
+                  {weekDays.map((day) => {
+                    const dayCampaigns = getCampaignsForDay(day);
+                    const isCurrentDay = isToday(day);
+                    const isPastDay = isPast(startOfDay(day)) && !isCurrentDay;
+
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        className={cn(
+                          "min-h-[400px] border rounded-lg p-3 transition-all cursor-pointer",
+                          isCurrentDay && "border-primary bg-primary/5 shadow-sm",
+                          isPastDay && "opacity-50",
+                          !isPastDay && "hover:border-primary/50 hover:bg-muted/30"
+                        )}
+                        onClick={() => setSelectedDay(day)}
+                      >
+                        <div className="mb-3">
+                          <div
+                            className={cn(
+                              "text-xs font-medium text-muted-foreground mb-1",
+                              isCurrentDay && "text-primary font-semibold"
+                            )}
+                          >
+                            {format(day, "EEE", { locale: ptBR })}
+                          </div>
+                          <div
+                            className={cn(
+                              "text-lg font-semibold",
+                              isCurrentDay && "text-primary",
+                              isPastDay && "text-muted-foreground"
+                            )}
+                          >
+                            {format(day, "d")}
+                          </div>
                         </div>
-                      </ScrollArea>
-                    </div>
-                  );
-                })}
-              </div>
+                        
+                        <ScrollArea className="h-[350px]">
+                          <div className="space-y-2">
+                            {dayCampaigns.map((campaign) => (
+                              <div
+                                key={campaign.id}
+                                className={cn(
+                                  "text-xs p-2 rounded-lg border bg-background transition-all hover:shadow-md",
+                                  campaign.status === "draft" && "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20",
+                                  campaign.status === "running" && "border-green-500/50 bg-green-500/10 hover:bg-green-500/20",
+                                  campaign.status === "paused" && "border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20"
+                                )}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="font-semibold mb-1 break-words line-clamp-2">
+                                  {campaign.name}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                    <Clock className="h-3 w-3 flex-shrink-0" />
+                                    <span>{formatTime(campaign.scheduled_start_at)}</span>
+                                  </div>
+                                  <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                                    <Users className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                                    <span className="break-words line-clamp-2">{campaign.instance_name}</span>
+                                  </div>
+                                  {campaign.total_contacts > 0 && (
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {campaign.total_contacts} contato(s)
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {dayCampaigns.length === 0 && (
+                              <div className="text-xs text-muted-foreground text-center py-4">
+                                Nenhuma campanha
+                              </div>
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             // Visualização Mensal
@@ -495,11 +568,28 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
           {/* Lista detalhada de campanhas */}
           {campaigns.length > 0 && (
             <div className="mt-6 pt-6 border-t">
-              <h3 className="text-sm font-semibold mb-4">
+              <h3 className="text-sm font-semibold mb-3">
                 Todas as Campanhas Agendadas ({campaigns.length})
               </h3>
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-3">
+              <ScrollArea className="h-[400px] [&>[data-radix-scroll-area-viewport]]:pr-4">
+                <style>{`
+                  [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+                    width: 12px;
+                  }
+                  [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+                    background: hsl(var(--muted));
+                    border-radius: 6px;
+                  }
+                  [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+                    background: hsl(var(--muted-foreground) / 0.3);
+                    border-radius: 6px;
+                    border: 2px solid hsl(var(--muted));
+                  }
+                  [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
+                    background: hsl(var(--muted-foreground) / 0.5);
+                  }
+                `}</style>
+                <div className="space-y-2 pr-2">
                   {campaigns.map((campaign) => {
                     const hasMultipleInstances = campaign.instance_names && campaign.instance_names.length > 2;
                     const displayInstances = campaign.instance_names?.slice(0, 2) || [];
@@ -507,16 +597,16 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
                     return (
                       <div
                         key={campaign.id}
-                        className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                        className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex-shrink-0">
-                          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <CalendarIcon className="h-5 w-5 text-primary" />
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <CalendarIcon className="h-4 w-4 text-primary" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h4 className="font-medium truncate">{campaign.name}</h4>
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <h4 className="font-medium break-words">{campaign.name}</h4>
                             <Badge
                               variant={
                                 campaign.status === "draft"
@@ -525,7 +615,7 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
                                   ? "default"
                                   : "outline"
                               }
-                              className="text-xs"
+                              className="text-xs flex-shrink-0"
                             >
                               {campaign.status === "draft"
                                 ? "Agendada"
@@ -534,17 +624,17 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
                                 : "Pausada"}
                             </Badge>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             {/* Horários */}
-                            <div className="flex flex-wrap items-center gap-4 text-sm">
+                            <div className="flex flex-wrap items-center gap-3 text-xs">
                               <div className="flex items-center gap-1.5 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
+                                <Clock className="h-3.5 w-3.5 flex-shrink-0" />
                                 <span className="font-medium">Início:</span>
                                 <span>{formatFullDate(campaign.scheduled_start_at)}</span>
                               </div>
                               {campaign.last_message_scheduled_at && (
                                 <div className="flex items-center gap-1.5 text-muted-foreground">
-                                  <Clock className="h-4 w-4" />
+                                  <Clock className="h-3.5 w-3.5 flex-shrink-0" />
                                   <span className="font-medium">Última mensagem:</span>
                                   <span>{formatFullDate(campaign.last_message_scheduled_at)}</span>
                                 </div>
@@ -552,7 +642,7 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
                             </div>
                             
                             {/* Delay e Instâncias */}
-                            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                               {campaign.min_delay_seconds && campaign.max_delay_seconds && (
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-medium">Delay:</span>
@@ -560,7 +650,7 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
                                 </div>
                               )}
                               <div className="flex items-center gap-1.5">
-                                <Users className="h-4 w-4" />
+                                <Users className="h-3.5 w-3.5 flex-shrink-0" />
                                 <span className="font-medium">Instância(s):</span>
                                 <div className="flex items-center gap-1">
                                   {displayInstances.map((name, idx) => (
@@ -570,7 +660,7 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
                                     <TooltipProvider>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <div className="flex items-center gap-1 cursor-help">
+                                          <div className="flex items-center gap-1 cursor-help hover:text-foreground transition-colors">
                                             <Plus className="h-3 w-3" />
                                             <span>+{campaign.instance_names!.length - 2}</span>
                                           </div>
