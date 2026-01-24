@@ -4,11 +4,14 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoogleCalendarIntegrationPanel } from "@/components/calendar/GoogleCalendarIntegrationPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Settings, BarChart3, FileText, CheckCircle2 } from "lucide-react";
+import { Calendar, Settings, BarChart3, FileText, CheckCircle2, Link as LinkIcon, Clock } from "lucide-react";
 import { CalendarEventsReport } from "@/components/calendar/CalendarEventsReport";
 import { BookedMeetingsReport } from "@/components/calendar/BookedMeetingsReport";
 import { CalendarMessageTemplateManager } from "@/components/calendar/CalendarMessageTemplateManager";
 import { BookingApprovalQueue } from "@/components/calendar/BookingApprovalQueue";
+import { BookingConfigPanel } from "@/components/calendar/BookingConfigPanel";
+import { UserAvailabilitySettings } from "@/components/calendar/UserAvailabilitySettings";
+import { BookingTemplatesSettings } from "@/components/calendar/BookingTemplatesSettings";
 
 export default function CalendarPage() {
   const [activeTab, setActiveTab] = useState("calendar");
@@ -45,6 +48,14 @@ export default function CalendarPage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Aprovações
                 </TabsTrigger>
+                <TabsTrigger value="availability" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Disponibilidade
+                </TabsTrigger>
+                <TabsTrigger value="public-link" className="flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  Link Público
+                </TabsTrigger>
                 <TabsTrigger value="integration" className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
                   Integração
@@ -78,6 +89,17 @@ export default function CalendarPage() {
 
               <TabsContent value="approval" className="mt-6">
                 <BookingApprovalQueue />
+              </TabsContent>
+
+              <TabsContent value="availability" className="mt-6">
+                <UserAvailabilitySettings />
+              </TabsContent>
+
+              <TabsContent value="public-link" className="mt-6">
+                <div className="space-y-6">
+                  <BookingConfigPanel />
+                  <BookingTemplatesSettings />
+                </div>
               </TabsContent>
 
               <TabsContent value="integration" className="mt-6">
