@@ -1,6 +1,8 @@
 import { StorageService } from './StorageService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GoogleDriveConfig {
+  configId: string; // ID da configuração no banco para atualizar tokens
   accessToken: string;
   refreshToken: string;
   tokenExpiresAt: string;
@@ -17,50 +19,69 @@ export class GoogleDriveStorageService implements StorageService {
   }
 
   private async getAccessToken(): Promise<string> {
-    // Verificar se token expirou
+    // Verificar se token expirou ou vai expirar em menos de 5 minutos
     const expiresAt = new Date(this.config.tokenExpiresAt);
     const now = new Date();
+    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
     
-    if (now >= expiresAt) {
-      // Token expirado, precisa renovar
-      // Isso será feito via edge function
-      throw new Error('Token expirado. Renove o token via OAuth.');
+    // Se token expirou ou vai expirar em menos de 5 minutos, renovar automaticamente
+    if (now >= expiresAt || expiresAt <= fiveMinutesFromNow) {
+      return await this.refreshAccessToken();
     }
 
     return this.config.accessToken;
   }
 
   private async refreshAccessToken(): Promise<string> {
-    // Chamar edge function para renovar token
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-refresh-token`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          refresh_token: this.config.refreshToken,
-        }),
+    try {
+      // Obter sessão para autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Não autenticado');
       }
-    );
 
-    if (!response.ok) {
-      throw new Error('Erro ao renovar token do Google Drive');
+      // Chamar edge function para renovar token
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-refresh-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            refresh_token: this.config.refreshToken,
+            config_id: this.config.configId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(errorData.error || 'Erro ao renovar token do Google Drive');
+      }
+
+      const data = await response.json();
+      
+      // Atualizar config local com novo token
+      this.config.accessToken = data.access_token;
+      if (data.expires_in) {
+        const newExpiresAt = new Date(Date.now() + (data.expires_in * 1000));
+        this.config.tokenExpiresAt = newExpiresAt.toISOString();
+      }
+      
+      // A Edge Function já atualiza o banco, mas garantimos que config local está atualizada
+      return data.access_token;
+    } catch (error: any) {
+      console.error('Erro ao renovar token do Google Drive:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    return data.access_token;
   }
 
   async uploadPDF(pdf: Blob, contractId: string, type: 'contract' | 'budget' = 'contract'): Promise<string> {
     try {
-      let accessToken = await this.getAccessToken();
-      
-      // Se token expirou, tentar renovar
-      if (!accessToken) {
-        accessToken = await this.refreshAccessToken();
-      }
+      // getAccessToken já renova automaticamente se necessário
+      const accessToken = await this.getAccessToken();
 
       // Nome do arquivo
       const fileName = `${type}-${contractId}.pdf`;
@@ -103,11 +124,8 @@ export class GoogleDriveStorageService implements StorageService {
   async getPDFUrl(contractId: string): Promise<string> {
     // Buscar arquivo no Google Drive pelo nome
     try {
-      let accessToken = await this.getAccessToken();
-      
-      if (!accessToken) {
-        accessToken = await this.refreshAccessToken();
-      }
+      // getAccessToken já renova automaticamente se necessário
+      const accessToken = await this.getAccessToken();
 
       // Buscar arquivo
       const fileName = `contract-${contractId}.pdf`;
@@ -142,11 +160,8 @@ export class GoogleDriveStorageService implements StorageService {
 
   async deletePDF(contractId: string): Promise<void> {
     try {
-      let accessToken = await this.getAccessToken();
-      
-      if (!accessToken) {
-        accessToken = await this.refreshAccessToken();
-      }
+      // getAccessToken já renova automaticamente se necessário
+      const accessToken = await this.getAccessToken();
 
       // Buscar arquivo
       const fileName = `contract-${contractId}.pdf`;
@@ -192,11 +207,8 @@ export class GoogleDriveStorageService implements StorageService {
 
   async getFileSize(contractId: string): Promise<number> {
     try {
-      let accessToken = await this.getAccessToken();
-      
-      if (!accessToken) {
-        accessToken = await this.refreshAccessToken();
-      }
+      // getAccessToken já renova automaticamente se necessário
+      const accessToken = await this.getAccessToken();
 
       // Buscar arquivo
       const fileName = `contract-${contractId}.pdf`;
@@ -231,11 +243,8 @@ export class GoogleDriveStorageService implements StorageService {
 
   async listFiles(organizationId: string): Promise<Array<{ contractId: string; url: string; size: number; createdAt: string }>> {
     try {
-      let accessToken = await this.getAccessToken();
-      
-      if (!accessToken) {
-        accessToken = await this.refreshAccessToken();
-      }
+      // getAccessToken já renova automaticamente se necessário
+      const accessToken = await this.getAccessToken();
 
       // Buscar todos os arquivos PDF na pasta
       const query = `mimeType='application/pdf' and trashed=false`;

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +16,16 @@ serve(async (req) => {
   }
 
   try {
-    const { refresh_token } = await req.json();
+    // Obter token de autenticação do header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Token de autenticação não fornecido' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { refresh_token, config_id } = await req.json();
 
     if (!refresh_token) {
       return new Response(
@@ -44,6 +54,42 @@ serve(async (req) => {
     }
 
     const tokens = await tokenResponse.json();
+
+    // Se config_id foi fornecido, atualizar banco de dados
+    if (config_id) {
+      try {
+        // Criar cliente Supabase com service role para bypass RLS
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        
+        if (supabaseUrl && supabaseServiceKey) {
+          const supabase = createClient(supabaseUrl, supabaseServiceKey);
+          
+          // Calcular nova data de expiração
+          const expiresIn = tokens.expires_in || 3600; // Default 1 hora
+          const expiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
+          
+          // Atualizar configuração no banco
+          const { error: updateError } = await supabase
+            .from('client_google_drive_configs')
+            .update({
+              access_token: tokens.access_token,
+              token_expires_at: expiresAt,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', config_id);
+          
+          if (updateError) {
+            console.error('Erro ao atualizar token no banco:', updateError);
+            // Não falha a requisição se atualização do banco falhar
+            // O token foi renovado com sucesso, apenas não foi salvo
+          }
+        }
+      } catch (dbError) {
+        console.error('Erro ao atualizar banco de dados:', dbError);
+        // Não falha a requisição se atualização do banco falhar
+      }
+    }
 
     return new Response(
       JSON.stringify({ 

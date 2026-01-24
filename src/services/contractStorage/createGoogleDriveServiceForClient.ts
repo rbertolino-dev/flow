@@ -40,6 +40,7 @@ export async function createGoogleDriveServiceForClient(
     }
 
     return new GoogleDriveStorageService(organizationId, {
+      configId: config.id, // ID da configuração para atualizar tokens no banco
       accessToken: config.access_token,
       refreshToken: config.refresh_token,
       tokenExpiresAt: config.token_expires_at,
