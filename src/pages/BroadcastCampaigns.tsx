@@ -540,6 +540,7 @@ export default function BroadcastCampaigns() {
   const [searchSimulation, setSearchSimulation] = useState("");
   const [filterInstanceSimulation, setFilterInstanceSimulation] = useState<string>("all");
   const [showCalendar, setShowCalendar] = useState(false);
+  const [editingCampaignName, setEditingCampaignName] = useState<{ id: string; name: string } | null>(null);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "kanban") navigate('/');
@@ -547,6 +548,35 @@ export default function BroadcastCampaigns() {
     else if (view === "settings") navigate('/settings');
     else if (view === "broadcast") navigate('/broadcast');
   };
+
+  // Resetar formulário quando dialog é aberto
+  useEffect(() => {
+    if (createDialogOpen) {
+      setNewCampaign({
+        name: "",
+        instanceId: "",
+        instanceIds: [],
+        selectedGroupId: "",
+        sendingMethod: "single",
+        templateId: "",
+        customMessage: "",
+        messageVariations: [],
+        imageUrl: null,
+        minDelay: 30,
+        maxDelay: 60,
+        scheduledStart: undefined,
+        fromTemplate: false,
+        useLatamValidator: false,
+      });
+      setSelectedCampaignTemplate(null);
+      setCsvFile(null);
+      setPastedList("");
+      setImportMode("csv");
+      setValidationResult(null);
+      setValidatedContactsList([]);
+      setRejectedContacts([]);
+    }
+  }, [createDialogOpen]);
 
   const [newCampaign, setNewCampaign] = useState({
     name: "",
@@ -2574,6 +2604,40 @@ export default function BroadcastCampaigns() {
     }
   };
 
+  const handleSaveCampaignName = async (campaignId: string, newName: string) => {
+    if (!newName.trim()) {
+      toast({
+        title: "Nome inválido",
+        description: "O nome da campanha não pode estar vazio",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("broadcast_campaigns")
+        .update({ name: newName.trim() })
+        .eq("id", campaignId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Nome atualizado!",
+        description: "O nome da campanha foi atualizado com sucesso",
+      });
+
+      setEditingCampaignName(null);
+      fetchCampaigns();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar nome",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCancelCampaign = async (campaignId: string) => {
     // Guardar estado anterior para rollback em caso de erro
     const previousCampaigns = [...campaigns];
@@ -4481,7 +4545,50 @@ export default function BroadcastCampaigns() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-medium">{campaign.name}</h3>
+                    {editingCampaignName?.id === campaign.id ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
+                          value={editingCampaignName.name}
+                          onChange={(e) => setEditingCampaignName({ ...editingCampaignName, name: e.target.value })}
+                          className="h-8 max-w-md"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleSaveCampaignName(campaign.id, editingCampaignName.name);
+                            } else if (e.key === "Escape") {
+                              setEditingCampaignName(null);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => handleSaveCampaignName(campaign.id, editingCampaignName.name)}
+                        >
+                          Salvar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingCampaignName(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-medium">{campaign.name}</h3>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setEditingCampaignName({ id: campaign.id, name: campaign.name })}
+                          title="Editar nome da campanha"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
                     {getStatusBadge(campaign.status)}
                   </div>
                   <div className="flex gap-4 text-sm flex-wrap">
