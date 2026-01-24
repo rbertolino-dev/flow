@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { AutomationFlow, TriggerConfig, TriggerType } from "@/types/automationFlow";
+import { processFlowNode, getNextNodeId } from "./flowProcessor";
 
 /**
  * Verifica se um gatilho foi acionado e cria execuções de fluxo
@@ -225,7 +226,6 @@ export async function processFlowExecution(
     }
 
     // Processar nó
-    const { processFlowNode, getNextNodeId } = await import('./flowProcessor');
     const result = await processFlowNode(currentNode, leadId, execution.id);
 
     if (!result.success) {

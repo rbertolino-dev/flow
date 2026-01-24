@@ -6,12 +6,13 @@ import { Contract, ContractSignature } from '@/types/contract';
 import { format } from 'date-fns';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { useContractSignatures } from '@/hooks/useContractSignatures';
-import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw } from 'lucide-react';
+import { Download, FileSignature, Send, X, MessageSquare, ChevronDown, ChevronUp, Shield, Globe, Monitor, Hash, FileText, Settings, Trash2, RefreshCw, Link2, Check } from 'lucide-react';
 import { GoogleDriveBackupButton } from './GoogleDriveBackupButton';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ContractReminders } from './ContractReminders';
 import { ContractAuditLog } from './ContractAuditLog';
+import { useToast } from '@/hooks/use-toast';
 
 interface ContractViewerProps {
   contract: Contract;
@@ -41,6 +42,8 @@ export function ContractViewer({
   const { signatures, loading: signaturesLoading } = useContractSignatures(contract.id);
   const [expandedSignatures, setExpandedSignatures] = useState<Set<string>>(new Set());
   const [reloading, setReloading] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const { toast } = useToast();
 
   const pdfUrl = contract.signed_pdf_url || contract.pdf_url;
   
@@ -66,6 +69,37 @@ export function ContractViewer({
       console.error('Erro ao recarregar contrato:', error);
     } finally {
       setReloading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      // Gerar link do contrato para assinatura
+      const contractLink = contract.signature_token
+        ? `${window.location.origin}/sign-contract/${contract.id}/${contract.signature_token}`
+        : `${window.location.origin}/sign-contract/${contract.id}`;
+      
+      // Copiar para clipboard
+      await navigator.clipboard.writeText(contractLink);
+      
+      // Feedback visual
+      setLinkCopied(true);
+      toast({
+        title: 'Link copiado!',
+        description: 'O link do contrato foi copiado para a área de transferência.',
+      });
+      
+      // Resetar estado após 2 segundos
+      setTimeout(() => {
+        setLinkCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Erro ao copiar link:', error);
+      toast({
+        title: 'Erro ao copiar link',
+        description: 'Não foi possível copiar o link. Tente novamente.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -220,10 +254,29 @@ export function ContractViewer({
               </Button>
             )}
             {onSend && (
-              <Button variant="default" onClick={() => onSend(contract)}>
-                <Send className="w-4 h-4 mr-2" />
-                Enviar por WhatsApp
-              </Button>
+              <>
+                <Button variant="default" onClick={() => onSend(contract)}>
+                  <Send className="w-4 h-4 mr-2" />
+                  Enviar por WhatsApp
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCopyLink}
+                  title="Copiar link do contrato para enviar por outras formas"
+                >
+                  {linkCopied ? (
+                    <>
+                      <Check className="w-4 h-4 mr-2" />
+                      Link Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-4 h-4 mr-2" />
+                      Copiar Link
+                    </>
+                  )}
+                </Button>
+              </>
             )}
             {onCancel && contract.status !== 'cancelled' && (
               <Button variant="destructive" onClick={() => onCancel(contract)}>
