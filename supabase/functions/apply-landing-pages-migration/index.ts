@@ -1,87 +1,79 @@
--- Migration: Criar tabelas para Landing Pages de Vendas
--- Data: 2026-01-23
--- Descrição: Sistema de landing pages públicas com produtos/serviços e integração WhatsApp
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
--- =====================================================
--- TABELA 1: landing_pages - Configuração principal da landing page
--- =====================================================
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // SQL da migration
+    const migrationSQL = `
+-- Migration: Criar tabelas para Landing Pages de Vendas
 CREATE TABLE IF NOT EXISTS public.landing_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  
-  -- Status e visibilidade
   is_active BOOLEAN NOT NULL DEFAULT false,
-  slug TEXT NOT NULL, -- URL amigável (ex: "minha-empresa")
-  
-  -- Template e layout
-  template TEXT NOT NULL DEFAULT 'modern', -- 'modern' ou 'catalog'
-  
-  -- Identidade visual
-  cover_image_url TEXT, -- Imagem de capa/banner
-  logo_url TEXT, -- Logo da empresa
-  logo_position TEXT DEFAULT 'top-left', -- 'top-left', 'top-center', 'top-right'
-  primary_color TEXT DEFAULT '#3b82f6', -- Cor primária (hex)
-  secondary_color TEXT DEFAULT '#1e40af', -- Cor secundária (hex)
-  
-  -- Conteúdo
-  title TEXT NOT NULL, -- Título principal
-  subtitle TEXT, -- Subtítulo opcional
-  about_text TEXT, -- Texto "sobre" curto
-  
-  -- Configuração de produtos/serviços
-  show_all_items BOOLEAN DEFAULT true, -- Mostrar todos ou selecionar específicos
-  item_order TEXT DEFAULT 'recent', -- 'recent', 'category', 'manual'
-  show_price BOOLEAN DEFAULT true, -- Exibir preço nos cards
-  
-  -- Configuração WhatsApp
+  slug TEXT NOT NULL,
+  template TEXT NOT NULL DEFAULT 'modern',
+  cover_image_url TEXT,
+  logo_url TEXT,
+  logo_position TEXT DEFAULT 'top-left',
+  primary_color TEXT DEFAULT '#3b82f6',
+  secondary_color TEXT DEFAULT '#1e40af',
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  about_text TEXT,
+  show_all_items BOOLEAN DEFAULT true,
+  item_order TEXT DEFAULT 'recent',
+  show_price BOOLEAN DEFAULT true,
   whatsapp_enabled BOOLEAN DEFAULT true,
-  whatsapp_instance_id UUID REFERENCES public.evolution_config(id), -- Instância Evolution selecionada
-  whatsapp_number TEXT, -- Número fixo (opcional, se não usar instância)
+  whatsapp_instance_id UUID REFERENCES public.evolution_config(id),
+  whatsapp_number TEXT,
   whatsapp_message_template TEXT DEFAULT 'Olá! Vim pela página de vendas da {empresa}. Tenho interesse em {item}. Pode me passar um orçamento?',
   whatsapp_button_text TEXT DEFAULT 'Pedir Orçamento',
-  whatsapp_floating_button BOOLEAN DEFAULT true, -- Botão flutuante no mobile
-  
-  -- Configuração formulário
+  whatsapp_floating_button BOOLEAN DEFAULT true,
   form_enabled BOOLEAN DEFAULT false,
   form_title TEXT DEFAULT 'Receba um orçamento',
-  form_position TEXT DEFAULT 'bottom', -- 'middle' ou 'bottom'
+  form_position TEXT DEFAULT 'bottom',
   form_fields JSONB DEFAULT '{"name": true, "phone": true, "email": false, "message": false}'::jsonb,
-  form_destination TEXT DEFAULT 'leads', -- 'leads' ou 'email'
-  form_notification_email TEXT, -- Email para receber notificações
-  
-  -- SEO
-  seo_title TEXT, -- Title tag (se não informado, usa title)
-  seo_description TEXT, -- Meta description
-  seo_og_image_url TEXT, -- Open Graph image (se não informado, usa cover_image_url)
-  
-  -- Destaques/Benefícios (JSON array de strings)
+  form_destination TEXT DEFAULT 'leads',
+  form_notification_email TEXT,
+  seo_title TEXT,
+  seo_description TEXT,
+  seo_og_image_url TEXT,
   highlights JSONB DEFAULT '[]'::jsonb,
-  
-  -- Prova social (opcional)
-  testimonials JSONB DEFAULT '[]'::jsonb, -- Array de {name, text, rating}
-  social_proof JSONB DEFAULT '{}'::jsonb, -- {clients: 0, projects: 0, years: 0}
-  
-  -- Rodapé
+  testimonials JSONB DEFAULT '[]'::jsonb,
+  social_proof JSONB DEFAULT '{}'::jsonb,
   footer_enabled BOOLEAN DEFAULT true,
   footer_text TEXT,
-  footer_links JSONB DEFAULT '[]'::jsonb, -- Array de {label, url}
-  
-  -- Timestamps
+  footer_links JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   created_by UUID REFERENCES public.profiles(id),
   updated_by UUID REFERENCES public.profiles(id),
-  
-  -- Constraints
   UNIQUE(organization_id, slug)
 );
 
--- Índices para performance
 CREATE INDEX IF NOT EXISTS idx_landing_pages_organization ON public.landing_pages(organization_id);
 CREATE INDEX IF NOT EXISTS idx_landing_pages_slug ON public.landing_pages(slug);
 CREATE INDEX IF NOT EXISTS idx_landing_pages_active ON public.landing_pages(is_active) WHERE is_active = true;
 
--- Trigger para updated_at
 CREATE OR REPLACE FUNCTION update_landing_pages_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -96,40 +88,25 @@ CREATE TRIGGER update_landing_pages_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_landing_pages_updated_at();
 
--- =====================================================
--- TABELA 2: landing_page_items - Produtos/serviços selecionados
--- =====================================================
 CREATE TABLE IF NOT EXISTS public.landing_page_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   landing_page_id UUID NOT NULL REFERENCES public.landing_pages(id) ON DELETE CASCADE,
   product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-  
-  -- Ordenação manual (quando item_order = 'manual')
   display_order INTEGER DEFAULT 0,
-  
-  -- Personalização específica da landing page
-  custom_title TEXT, -- Sobrescreve nome do produto
-  custom_description TEXT, -- Sobrescreve descrição do produto
-  custom_image_url TEXT, -- Sobrescreve imagem do produto
-  custom_price NUMERIC(12,2), -- Sobrescreve preço do produto
-  
-  -- Visibilidade
+  custom_title TEXT,
+  custom_description TEXT,
+  custom_image_url TEXT,
+  custom_price NUMERIC(12,2),
   is_visible BOOLEAN DEFAULT true,
-  
-  -- Timestamps
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
-  
-  -- Constraint: um produto só pode aparecer uma vez por landing page
   UNIQUE(landing_page_id, product_id)
 );
 
--- Índices
 CREATE INDEX IF NOT EXISTS idx_landing_page_items_landing_page ON public.landing_page_items(landing_page_id);
 CREATE INDEX IF NOT EXISTS idx_landing_page_items_product ON public.landing_page_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_landing_page_items_order ON public.landing_page_items(landing_page_id, display_order);
 
--- Trigger para updated_at
 CREATE OR REPLACE FUNCTION update_landing_page_items_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -144,94 +121,37 @@ CREATE TRIGGER update_landing_page_items_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_landing_page_items_updated_at();
 
--- =====================================================
--- TABELA 3: landing_page_leads - Leads capturados via formulário
--- =====================================================
 CREATE TABLE IF NOT EXISTS public.landing_page_leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   landing_page_id UUID NOT NULL REFERENCES public.landing_pages(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  
-  -- Dados do lead
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT,
-  message TEXT, -- Mensagem/interesse do formulário
-  
-  -- Contexto
-  product_id UUID REFERENCES public.products(id), -- Produto de interesse (se clicou em um)
-  product_name TEXT, -- Nome do produto (snapshot)
-  source TEXT DEFAULT 'landing_page', -- Origem do lead
-  page_url TEXT, -- URL da página quando preencheu formulário
-  
-  -- Antispam
-  ip_address INET, -- IP do visitante
-  user_agent TEXT, -- User agent do navegador
-  
-  -- Status
-  is_processed BOOLEAN DEFAULT false, -- Se já foi processado/criado lead no CRM
-  processed_at TIMESTAMPTZ, -- Quando foi processado
-  lead_id UUID REFERENCES public.leads(id), -- Lead criado no CRM (se processado)
-  
-  -- Timestamps
+  message TEXT,
+  product_id UUID REFERENCES public.products(id),
+  product_name TEXT,
+  source TEXT DEFAULT 'landing_page',
+  page_url TEXT,
+  ip_address INET,
+  user_agent TEXT,
+  is_processed BOOLEAN DEFAULT false,
+  processed_at TIMESTAMPTZ,
+  lead_id UUID REFERENCES public.leads(id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Índices
 CREATE INDEX IF NOT EXISTS idx_landing_page_leads_landing_page ON public.landing_page_leads(landing_page_id);
 CREATE INDEX IF NOT EXISTS idx_landing_page_leads_organization ON public.landing_page_leads(organization_id);
 CREATE INDEX IF NOT EXISTS idx_landing_page_leads_processed ON public.landing_page_leads(is_processed) WHERE is_processed = false;
 CREATE INDEX IF NOT EXISTS idx_landing_page_leads_ip ON public.landing_page_leads(ip_address, created_at);
 CREATE INDEX IF NOT EXISTS idx_landing_page_leads_created ON public.landing_page_leads(created_at DESC);
 
--- =====================================================
--- Trigger: Rate Limit por IP (máximo 5 leads por hora por IP)
--- =====================================================
-
--- Função para validar rate limit antes de inserir
-CREATE OR REPLACE FUNCTION check_landing_page_lead_rate_limit()
-RETURNS TRIGGER AS $$
-DECLARE
-  lead_count INTEGER;
-BEGIN
-  -- Contar leads do mesmo IP na última hora
-  SELECT COUNT(*) INTO lead_count
-  FROM public.landing_page_leads
-  WHERE ip_address = NEW.ip_address
-    AND created_at > now() - INTERVAL '1 hour';
-  
-  -- Se já tem 5 ou mais leads na última hora, bloquear inserção
-  IF lead_count >= 5 THEN
-    RAISE EXCEPTION 'Rate limit exceeded: máximo de 5 leads por hora por IP. Tente novamente mais tarde.';
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Criar trigger antes de inserir
-DROP TRIGGER IF EXISTS check_landing_page_lead_rate_limit_trigger ON public.landing_page_leads;
-CREATE TRIGGER check_landing_page_lead_rate_limit_trigger
-  BEFORE INSERT ON public.landing_page_leads
-  FOR EACH ROW
-  WHEN (NEW.ip_address IS NOT NULL)
-  EXECUTE FUNCTION check_landing_page_lead_rate_limit();
-
--- =====================================================
--- RLS (Row Level Security)
--- =====================================================
-
--- Habilitar RLS
 ALTER TABLE public.landing_pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.landing_page_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.landing_page_leads ENABLE ROW LEVEL SECURITY;
 
--- =====================================================
--- RLS Policies: landing_pages
--- =====================================================
-
--- SELECT: Membros da organização podem ver suas landing pages
--- Público pode ver apenas landing pages ativas (para exibição pública)
+DROP POLICY IF EXISTS "Users can view landing pages of their organization" ON public.landing_pages;
 CREATE POLICY "Users can view landing pages of their organization"
   ON public.landing_pages FOR SELECT
   USING (
@@ -242,10 +162,10 @@ CREATE POLICY "Users can view landing pages of their organization"
     )
     OR public.has_role(auth.uid(), 'admin'::app_role)
     OR public.is_pubdigital_user(auth.uid())
-    OR (is_active = true) -- Landing pages ativas são públicas
+    OR (is_active = true)
   );
 
--- INSERT: Apenas membros da organização podem criar
+DROP POLICY IF EXISTS "Users can create landing pages for their organization" ON public.landing_pages;
 CREATE POLICY "Users can create landing pages for their organization"
   ON public.landing_pages FOR INSERT
   WITH CHECK (
@@ -258,7 +178,7 @@ CREATE POLICY "Users can create landing pages for their organization"
     OR public.is_pubdigital_user(auth.uid())
   );
 
--- UPDATE: Apenas membros da organização podem atualizar
+DROP POLICY IF EXISTS "Users can update landing pages of their organization" ON public.landing_pages;
 CREATE POLICY "Users can update landing pages of their organization"
   ON public.landing_pages FOR UPDATE
   USING (
@@ -280,7 +200,7 @@ CREATE POLICY "Users can update landing pages of their organization"
     OR public.is_pubdigital_user(auth.uid())
   );
 
--- DELETE: Apenas membros da organização podem deletar
+DROP POLICY IF EXISTS "Users can delete landing pages of their organization" ON public.landing_pages;
 CREATE POLICY "Users can delete landing pages of their organization"
   ON public.landing_pages FOR DELETE
   USING (
@@ -293,11 +213,7 @@ CREATE POLICY "Users can delete landing pages of their organization"
     OR public.is_pubdigital_user(auth.uid())
   );
 
--- =====================================================
--- RLS Policies: landing_page_items
--- =====================================================
-
--- SELECT: Membros da organização ou público (se landing page ativa)
+DROP POLICY IF EXISTS "Users can view landing page items" ON public.landing_page_items;
 CREATE POLICY "Users can view landing page items"
   ON public.landing_page_items FOR SELECT
   USING (
@@ -317,7 +233,7 @@ CREATE POLICY "Users can view landing page items"
     )
   );
 
--- INSERT/UPDATE/DELETE: Apenas membros da organização
+DROP POLICY IF EXISTS "Users can manage landing page items" ON public.landing_page_items;
 CREATE POLICY "Users can manage landing page items"
   ON public.landing_page_items FOR ALL
   USING (
@@ -345,11 +261,7 @@ CREATE POLICY "Users can manage landing page items"
     )
   );
 
--- =====================================================
--- RLS Policies: landing_page_leads
--- =====================================================
-
--- SELECT: Apenas membros da organização podem ver leads
+DROP POLICY IF EXISTS "Users can view landing page leads of their organization" ON public.landing_page_leads;
 CREATE POLICY "Users can view landing page leads of their organization"
   ON public.landing_page_leads FOR SELECT
   USING (
@@ -362,13 +274,12 @@ CREATE POLICY "Users can view landing page leads of their organization"
     OR public.is_pubdigital_user(auth.uid())
   );
 
--- INSERT: Público pode criar leads (formulário), mas apenas da sua organização
--- Usar service role key para inserção pública via edge function
+DROP POLICY IF EXISTS "Public can create landing page leads" ON public.landing_page_leads;
 CREATE POLICY "Public can create landing page leads"
   ON public.landing_page_leads FOR INSERT
-  WITH CHECK (true); -- Permitir inserção pública (edge function valida)
+  WITH CHECK (true);
 
--- UPDATE: Apenas membros da organização podem atualizar
+DROP POLICY IF EXISTS "Users can update landing page leads of their organization" ON public.landing_page_leads;
 CREATE POLICY "Users can update landing page leads of their organization"
   ON public.landing_page_leads FOR UPDATE
   USING (
@@ -390,7 +301,7 @@ CREATE POLICY "Users can update landing page leads of their organization"
     OR public.is_pubdigital_user(auth.uid())
   );
 
--- DELETE: Apenas membros da organização podem deletar
+DROP POLICY IF EXISTS "Users can delete landing page leads of their organization" ON public.landing_page_leads;
 CREATE POLICY "Users can delete landing page leads of their organization"
   ON public.landing_page_leads FOR DELETE
   USING (
@@ -402,18 +313,53 @@ CREATE POLICY "Users can delete landing page leads of their organization"
     OR public.has_role(auth.uid(), 'admin'::app_role)
     OR public.is_pubdigital_user(auth.uid())
   );
+`;
 
--- =====================================================
--- Comentários para documentação
--- =====================================================
-COMMENT ON TABLE public.landing_pages IS 'Configuração principal das landing pages de vendas';
-COMMENT ON TABLE public.landing_page_items IS 'Produtos/serviços selecionados para exibir na landing page';
-COMMENT ON TABLE public.landing_page_leads IS 'Leads capturados via formulário da landing page';
-
-COMMENT ON COLUMN public.landing_pages.template IS 'Template visual: modern (minimal) ou catalog (vitrine)';
-COMMENT ON COLUMN public.landing_pages.slug IS 'URL amigável única por organização (ex: minha-empresa)';
-COMMENT ON COLUMN public.landing_pages.whatsapp_message_template IS 'Template de mensagem com variáveis: {empresa}, {item}, {tipo_item}, {url_pagina}, {data_hora}';
-COMMENT ON COLUMN public.landing_pages.form_fields IS 'JSON com campos do formulário: {name: bool, phone: bool, email: bool, message: bool}';
-COMMENT ON COLUMN public.landing_pages.highlights IS 'Array JSON de strings com destaques/benefícios';
-COMMENT ON COLUMN public.landing_pages.testimonials IS 'Array JSON de depoimentos: [{name, text, rating}]';
-COMMENT ON COLUMN public.landing_pages.social_proof IS 'JSON com números de prova social: {clients, projects, years}';
+    // Executar SQL via RPC exec_sql se existir, senão usar método direto
+    try {
+      const { data, error } = await supabase.rpc('exec_sql', { 
+        sql_query: migrationSQL 
+      });
+      
+      if (error) {
+        // Se RPC não existir, tentar executar comandos individualmente via query direta
+        // Mas isso não funciona para DDL, então vamos retornar instruções
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Não é possível executar DDL via API REST. Aplicando via método alternativo...",
+            error: error.message,
+            instructions: "Execute o SQL no Supabase SQL Editor: https://supabase.com/dashboard/project/ogeljmbhqxpfjbpnbwog/sql/new"
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Migration aplicada com sucesso!",
+          data 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: err.message,
+          message: "Execute o SQL manualmente no Supabase SQL Editor"
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

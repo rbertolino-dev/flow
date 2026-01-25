@@ -26,7 +26,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export function AutomationFlowsList() {
-  const { flows, loading, createFlow, updateFlow, deleteFlow, duplicateFlow } = useAutomationFlows();
+  const { flows, loading, createFlow, updateFlow, deleteFlow, duplicateFlow, fetchFlows } = useAutomationFlows();
   const [editingFlowId, setEditingFlowId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<"flows" | "executions" | "metrics">("flows");
@@ -268,16 +268,26 @@ export function AutomationFlowsList() {
 
       {/* Dialog do Editor */}
       {(editingFlowId || isCreating) && (
-        <Dialog open={true} onOpenChange={() => {
-          setEditingFlowId(null);
-          setIsCreating(false);
-          setSelectedPlaybook(null);
+        <Dialog open={true} onOpenChange={(open) => {
+          if (!open) {
+            // Quando fecha o dialog, atualizar a lista
+            fetchFlows();
+            setEditingFlowId(null);
+            setIsCreating(false);
+            setSelectedPlaybook(null);
+          }
         }}>
           <DialogContent className="max-w-[95vw] h-[95vh] p-0">
             <AutomationFlowEditor
               flowId={editingFlowId || undefined}
               initialFlowData={selectedPlaybook?.flowData}
               onClose={() => {
+                // Atualizar lista antes de fechar
+                fetchFlows();
+                // Aguardar um pouco para garantir que a atualização foi propagada
+                setTimeout(() => {
+                  fetchFlows();
+                }, 500);
                 setEditingFlowId(null);
                 setIsCreating(false);
                 setSelectedPlaybook(null);

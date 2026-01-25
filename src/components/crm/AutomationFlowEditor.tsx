@@ -267,18 +267,29 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Atualizar quando o fluxo mudar
+  // Atualizar quando o fluxo mudar ou quando flowId mudar
   useEffect(() => {
     if (currentFlow) {
       setFlowName(currentFlow.name);
       setFlowDescription(currentFlow.description || "");
       setFlowStatus(currentFlow.status);
+    } else if (flowId) {
+      // Se temos um flowId mas não encontramos o fluxo, tentar buscar novamente
+      fetchFlows().then(() => {
+        // Após buscar, tentar encontrar novamente
+        const foundFlow = flows.find(f => f.id === flowId);
+        if (foundFlow) {
+          setFlowName(foundFlow.name);
+          setFlowDescription(foundFlow.description || "");
+          setFlowStatus(foundFlow.status);
+        }
+      });
     } else {
       setFlowName("");
       setFlowDescription("");
       setFlowStatus("draft");
     }
-  }, [currentFlow]);
+  }, [currentFlow, flowId, flows, fetchFlows]);
 
   // Aplicar dados iniciais do playbook quando disponível
   useEffect(() => {
@@ -390,6 +401,10 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
           // Forçar atualização da lista
           await fetchFlows();
           console.log("Lista de fluxos atualizada após salvamento");
+          // Aguardar um pouco para garantir que a atualização foi propagada
+          setTimeout(() => {
+            fetchFlows();
+          }, 500);
         }
       } else {
         console.log("Criando novo fluxo");
@@ -397,7 +412,13 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
         if (newFlowId) {
           console.log("Novo fluxo criado, ID:", newFlowId, "- Atualizando dados do canvas");
           await updateFlow(newFlowId, { flowData });
+          // Aguardar um pouco para garantir que o banco foi atualizado
+          await new Promise(resolve => setTimeout(resolve, 300));
           await fetchFlows();
+          // Aguardar mais um pouco para garantir que a atualização foi propagada
+          setTimeout(() => {
+            fetchFlows();
+          }, 500);
         }
       }
     } catch (error: any) {

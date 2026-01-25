@@ -31,6 +31,7 @@ export function LandingPageConfigurator() {
   const [saving, setSaving] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
   const coverInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -399,6 +400,9 @@ export function LandingPageConfigurator() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Imagem de Capa</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Tamanho recomendado: 1920x1080px (16:9). Máximo: 5MB. Formatos: PNG, JPG, WEBP
+                </p>
                 <div className="flex items-center gap-4">
                   {config.coverImage && (
                     <div className="relative w-32 h-32 rounded-lg overflow-hidden border">
@@ -457,6 +461,10 @@ export function LandingPageConfigurator() {
 
               <div className="space-y-2">
                 <Label>Logo</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Tamanho recomendado: 600x200px (3:1) ou quadrado 400x400px. Máximo: 5MB. Formatos: PNG, JPG, WEBP. 
+                  Fundo transparente recomendado (PNG).
+                </p>
                 <div className="flex items-center gap-4">
                   {config.logo && (
                     <div className="relative w-24 h-24 rounded-lg overflow-hidden border bg-white p-2">
@@ -597,12 +605,27 @@ export function LandingPageConfigurator() {
 
               {!config.showAllItems && (
                 <div className="space-y-2">
-                  <Label>Produtos Selecionados</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Produtos Selecionados</Label>
+                    <Input
+                      placeholder="Buscar produto..."
+                      className="max-w-xs"
+                      value={productSearchTerm}
+                      onChange={(e) => setProductSearchTerm(e.target.value.toLowerCase())}
+                    />
+                  </div>
                   {productsLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {products.filter(p => p.is_active).map((product) => {
+                      {products
+                        .filter(p => p.is_active)
+                        .filter(p => {
+                          if (!productSearchTerm) return true;
+                          return p.name.toLowerCase().includes(productSearchTerm) || 
+                                 (p.category || '').toLowerCase().includes(productSearchTerm);
+                        })
+                        .map((product) => {
                         const isSelected = config.selectedProductIds?.includes(product.id);
                         return (
                           <div

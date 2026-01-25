@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
@@ -9,30 +9,7 @@ export function useAutomationFlows() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchFlows();
-
-    const channel = supabase
-      .channel('automation-flows-channel')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'automation_flows',
-        },
-        () => {
-          fetchFlows();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const fetchFlows = async () => {
+  const fetchFlows = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -80,7 +57,43 @@ export function useAutomationFlows() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchFlows();
+
+    let channel: any;
+    
+    const setupRealtime = async () => {
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) return;
+
+      channel = supabase
+        .channel(`automation-flows-channel-${organizationId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'automation_flows',
+            filter: `organization_id=eq.${organizationId}`,
+          },
+          () => {
+            console.log('Mudança detectada em automation_flows, atualizando lista...');
+            fetchFlows();
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [fetchFlows]);
 
   const createFlow = async (name: string, description?: string) => {
     try {
@@ -236,4 +249,3 @@ export function useAutomationFlows() {
     duplicateFlow,
   };
 }
-

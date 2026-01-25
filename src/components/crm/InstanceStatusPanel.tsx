@@ -515,41 +515,34 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           break;
       }
 
-      // Buscar todos os disparos do período (sent e failed)
-      const { data: queueData, error: queueError } = await supabase
+      // ✅ CORREÇÃO: Buscar disparos SENT usando sent_at (data de envio real)
+      // ✅ CORREÇÃO: Buscar disparos FAILED usando created_at (quando sent_at não existe)
+      // ✅ CORREÇÃO: Usar count: 'exact' para contagem precisa sem limite
+      const { count: sentCount, error: sentError } = await supabase
         .from("broadcast_queue")
-        .select("status, sent_at, created_at")
+        .select("id", { count: 'exact', head: true })
         .eq("organization_id", orgId)
-        .in("status", ["sent", "failed"])
+        .eq("status", "sent")
+        .gte("sent_at", startDate.toISOString())
+        .lt("sent_at", endDate.toISOString());
+
+      const { count: failedCount, error: failedError } = await supabase
+        .from("broadcast_queue")
+        .select("id", { count: 'exact', head: true })
+        .eq("organization_id", orgId)
+        .eq("status", "failed")
         .gte("created_at", startDate.toISOString())
         .lt("created_at", endDate.toISOString());
 
-      if (queueError) {
-        console.error("Erro ao buscar disparos por data:", queueError);
-        throw queueError;
+      if (sentError || failedError) {
+        console.error("Erro ao buscar disparos por data:", sentError || failedError);
+        throw sentError || failedError;
       }
 
-      // Contar disparos por status
-      let total = 0;
-      let successful = 0;
-      let failed = 0;
-
-      if (queueData) {
-        queueData.forEach((item: any) => {
-          // Usar sent_at se disponível, senão usar created_at
-          const dispatchDate = item.sent_at ? new Date(item.sent_at) : new Date(item.created_at);
-          
-          // Verificar se o disparo foi feito no período selecionado
-          if (dispatchDate >= startDate && dispatchDate < endDate) {
-            total++;
-            if (item.status === "sent") {
-              successful++;
-            } else if (item.status === "failed") {
-              failed++;
-            }
-          }
-        });
-      }
+      // ✅ CORREÇÃO: Usar count exato ao invés de contar manualmente
+      const successful = sentCount || 0;
+      const failed = failedCount || 0;
+      const total = successful + failed;
 
       setTotalDispatchesByDate(total);
       setSuccessfulDispatches(successful);
