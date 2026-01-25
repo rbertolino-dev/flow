@@ -599,7 +599,12 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               if (mounted && payload.new && payload.new.status === 'sent') {
                 const oldStatus = payload.old?.status || null;
                 if (oldStatus !== 'sent') {
+                  // ✅ CORREÇÃO: Atualizar contador do dia
                   fetchDispatchesByInstance();
+                  // ✅ CORREÇÃO: Atualizar contador mensal se estiver no filtro mensal
+                  if (dateFilterType === "thisMonth") {
+                    fetchDispatchesByDate(selectedDate, dateFilterType);
+                  }
                 }
               }
             }
