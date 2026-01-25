@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useEvolutionConfigs, EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Archive } from "lucide-react";
+import { Plus, Loader2, Archive, Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User, Wifi, AlertTriangle, Globe } from "lucide-react";
 import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
@@ -28,9 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
@@ -53,8 +51,7 @@ import { IntegrationsOnboarding } from "@/components/crm/IntegrationsOnboarding"
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { ConditionalIntegration } from "@/components/integrations/ConditionalIntegration";
 import { useIntegrationAccess } from "@/hooks/useIntegrationAccess";
-import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
-import { Wifi, AlertTriangle } from "lucide-react";
+import { LandingPageConfigurator } from "@/components/landing-page/LandingPageConfigurator";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -271,6 +268,11 @@ export default function Settings() {
               <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
               <span className="hidden sm:inline">Perfil</span>
               <span className="sm:hidden">Perfil</span>
+            </TabsTrigger>
+            <TabsTrigger value="landing-page" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap min-w-fit">
+              <Globe className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 inline" />
+              <span className="hidden sm:inline">Landing Page</span>
+              <span className="sm:hidden">LP</span>
             </TabsTrigger>
           </TabsList>
           </div>
@@ -680,9 +682,13 @@ export default function Settings() {
                 <UsersPanel />
               </TabsContent>
 
-              <TabsContent value="profile" className="space-y-6 mt-4 sm:mt-6">
-                <UserProfilePanel />
-              </TabsContent>
+          <TabsContent value="profile" className="space-y-6 mt-4 sm:mt-6">
+            <UserProfilePanel />
+          </TabsContent>
+
+          <TabsContent value="landing-page" className="space-y-6 mt-4 sm:mt-6">
+            <LandingPageConfigurator />
+          </TabsContent>
         </Tabs>
       </div>
 

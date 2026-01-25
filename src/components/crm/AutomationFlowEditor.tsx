@@ -75,7 +75,7 @@ const TriggerNode = ({ data }: { data: any }) => {
     if (!config?.triggerType) return data.label;
     
     const labels: Record<string, string> = {
-      lead_created: "Lead Criado",
+      lead_created: config.source_instance_id ? "Lead Criado (Instância Específica)" : "Lead Criado",
       tag_added: "Tag Adicionada",
       tag_removed: "Tag Removida",
       stage_changed: "Estágio Mudou",

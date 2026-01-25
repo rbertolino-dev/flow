@@ -6,6 +6,50 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 };
 
+/**
+ * Calcula delay de digitação realista baseado no tamanho da mensagem
+ * Valores DOBRADOS para máxima segurança:
+ * - Mínimo: 4000ms (4 segundos) - tempo de pensar antes de começar
+ * - Máximo: 30000ms (30 segundos) - mensagens muito longas
+ * - Velocidade: 3.5 caracteres/segundo (média humana)
+ */
+function calculateTypingDelay(message: string, messageType: 'text' | 'media' | 'document' = 'text'): number {
+  if (!message || message.length === 0) {
+    // Mensagens sem texto: tempo mínimo baseado no tipo (DOBRADO)
+    if (messageType === 'document') return 5000; // 5s para documentos sem caption
+    if (messageType === 'media') return 6000; // 6s para mídia sem caption
+    return 4000; // 4s para texto sem mensagem
+  }
+  
+  // Velocidade média de digitação humana: ~200-250 caracteres/minuto
+  // Isso dá aproximadamente 3.3-4.2 caracteres por segundo
+  const charsPerSecond = 3.5;
+  
+  // Tempo base (pensar + começar a digitar) - DOBRADO
+  let baseDelay: number;
+  if (messageType === 'document') {
+    baseDelay = 5000; // 5s para documentos (mais complexo)
+  } else if (messageType === 'media') {
+    baseDelay = 5000; // 5s para mídia
+  } else {
+    baseDelay = 4000; // 4s para texto
+  }
+  
+  // Tempo de digitação baseado no tamanho da mensagem
+  const typingTime = (message.length / charsPerSecond) * 1000; // converter para ms
+  
+  // Variação aleatória ±25% para parecer mais humano
+  const variation = 0.25;
+  const randomMultiplier = 1 + (Math.random() * variation * 2 - variation);
+  
+  const calculatedDelay = baseDelay + (typingTime * randomMultiplier);
+  
+  // Limites DOBRADOS: mínimo baseado no tipo, máximo 30s (texto/mídia) ou 40s (documentos)
+  const maxDelay = messageType === 'document' ? 40000 : 30000; // 40s para documentos, 30s para texto/mídia
+  
+  return Math.max(baseDelay, Math.min(maxDelay, Math.round(calculatedDelay)));
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -144,7 +188,7 @@ serve(async (req) => {
       media: mediaToSend,
       fileName: pdfFile.filename,
       caption: message || '',
-      delay: 1200
+      delay: calculateTypingDelay(message || '', 'document')
     };
 
     console.log('📦 Payload Evolution (media preview):', {

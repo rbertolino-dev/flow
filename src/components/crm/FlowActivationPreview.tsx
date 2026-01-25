@@ -78,6 +78,10 @@ export function FlowActivationPreview({ flow }: FlowActivationPreviewProps) {
 
       switch (triggerConfig.triggerType) {
         case 'lead_created':
+          // Se foi configurado source_instance_id, filtrar por instância
+          if (triggerConfig.source_instance_id) {
+            query = query.eq('source_instance_id', triggerConfig.source_instance_id);
+          }
           // Todos os leads existentes serão afetados em novos cadastros
           query = query.order('created_at', { ascending: false });
           break;

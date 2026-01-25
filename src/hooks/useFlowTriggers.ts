@@ -19,7 +19,8 @@ export function useFlowTriggers() {
         },
         async (payload) => {
           const leadId = payload.new.id;
-          await checkTriggers('lead_created', leadId);
+          const sourceInstanceId = payload.new.source_instance_id;
+          await checkTriggers('lead_created', leadId, { source_instance_id: sourceInstanceId });
         }
       )
       .subscribe();

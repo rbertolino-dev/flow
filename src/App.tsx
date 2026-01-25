@@ -52,6 +52,8 @@ import DigitalContracts from "./pages/DigitalContracts";
 import DigitalContractsNew from "./pages/DigitalContractsNew";
 import DigitalContractView from "./pages/DigitalContractView";
 import DigitalContractSign from "./pages/DigitalContractSign";
+import LandingPageAdmin from "./pages/LandingPageAdmin";
+import LandingPagePublic from "./pages/LandingPagePublic";
 
 const queryClient = new QueryClient();
 
@@ -129,6 +131,8 @@ const App = () => {
             <Route path="/reconnect-instance/:instanceId" element={<ReconnectInstance />} />
             <Route path="/survey/:slug" element={<PublicSurvey />} />
             <Route path="/book/:organizationSlug" element={<PublicBooking />} />
+            <Route path="/admin/landing-page" element={<LandingPageAdmin />} />
+            <Route path="/p/:slug" element={<LandingPagePublic />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>

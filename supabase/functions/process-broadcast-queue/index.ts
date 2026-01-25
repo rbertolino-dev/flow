@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateDeduplicationHash } from "../_shared/failover-utils.ts";
+import { 
+  fetchWithTimeout, 
+  sendWithRetry, 
+  validateMessageLength, 
+  rateLimiter, 
+  circuitBreaker 
+} from "../_shared/message-security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -364,19 +371,149 @@ serve(async (req) => {
           });
         }
 
+        // ✅ NOVO: Validar tamanho da mensagem antes de enviar
+        const messageType = imageUrl ? (mediaType === 'document' ? 'document' : 'media') : 'text';
+        const validation = validateMessageLength(personalizedMessage, messageType);
+        
+        if (!validation.valid) {
+          console.error(`❌ [process-broadcast-queue] Mensagem muito longa: ${validation.error}`);
+          const metrics = getOrCreateMetrics(instance.instance_name);
+          metrics.messagesFailed++;
+          metrics.consecutiveFailures++;
+          metrics.lastError = validation.error || 'Mensagem muito longa';
+          metrics.lastErrorCode = 'MESSAGE_TOO_LONG';
+          
+          await supabase
+            .from("broadcast_queue")
+            .update({
+              status: "failed",
+              error_message: validation.error,
+              processing_lock_until: null,
+            })
+            .eq("id", item.id);
+
+          failed++;
+          continue;
+        }
+
+        // ✅ NOVO: Verificar circuit breaker antes de enviar
+        if (circuitBreaker.isOpen(instance.instance_name)) {
+          console.error(`🔴 [process-broadcast-queue] Circuit breaker aberto para instância ${instance.instance_name}. Mensagem não será enviada.`);
+          
+          // Tentar buscar instância de backup da mesma organização
+          const { data: campaignOrg } = await supabase
+            .from("broadcast_campaigns")
+            .select("organization_id")
+            .eq("id", campaign.id)
+            .single();
+
+          if (campaignOrg?.organization_id) {
+            const { data: backupInstance } = await supabase
+              .from('evolution_config')
+              .select('id, api_url, api_key, instance_name, is_connected')
+              .eq('organization_id', campaignOrg.organization_id)
+              .eq('is_connected', true)
+              .neq('id', activeInstanceId)
+              .limit(1)
+              .maybeSingle();
+
+            if (backupInstance) {
+              console.log(`✅ [process-broadcast-queue] Usando instância de backup: ${backupInstance.instance_name}`);
+              instance = backupInstance;
+              // ✅ CRÍTICO: Reconstruir URL e payload com nova instância
+              baseUrl = instance.api_url.replace(/\/+$/, '');
+              if (baseUrl.endsWith('/manager')) {
+                baseUrl = baseUrl.slice(0, -8);
+              }
+              evolutionUrl = imageUrl 
+                ? `${baseUrl}/message/sendMedia/${instance.instance_name}`
+                : `${baseUrl}/message/sendText/${instance.instance_name}`;
+              
+              // Payload já está correto (não tem apikey, usa do header)
+            } else {
+              // Não tem backup, marcar como falha e parar de disparar
+              const metrics = getOrCreateMetrics(instance.instance_name);
+              metrics.messagesFailed++;
+              metrics.consecutiveFailures++;
+              metrics.lastError = `Instância ${instance.instance_name} está quebrada (circuit breaker aberto) e não há instância de backup disponível`;
+              metrics.lastErrorCode = 'CIRCUIT_BREAKER_OPEN_NO_BACKUP';
+              
+              await supabase
+                .from("broadcast_queue")
+                .update({
+                  status: "failed",
+                  error_message: `Instância ${instance.instance_name} está quebrada e não há instância de backup disponível. Disparos pausados para esta instância.`,
+                  processing_lock_until: null,
+                })
+                .eq("id", item.id);
+
+              failed++;
+              continue;
+            }
+          } else {
+            // Sem organização, não tem como buscar backup
+            const metrics = getOrCreateMetrics(instance.instance_name);
+            metrics.messagesFailed++;
+            metrics.consecutiveFailures++;
+            metrics.lastError = `Instância ${instance.instance_name} está quebrada (circuit breaker aberto)`;
+            metrics.lastErrorCode = 'CIRCUIT_BREAKER_OPEN';
+            
+            await supabase
+              .from("broadcast_queue")
+              .update({
+                status: "failed",
+                error_message: `Instância ${instance.instance_name} está quebrada. Disparos pausados.`,
+                processing_lock_until: null,
+              })
+              .eq("id", item.id);
+
+            failed++;
+            continue;
+          }
+        }
+
+        // ✅ NOVO: Rate limiting antes de enviar
+        await rateLimiter.checkLimit(instance.instance_name);
+
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
         const startTime = Date.now();
 
-        // Enviar mensagem via Evolution API usando credenciais da instância específica
-        const evolutionResponse = await fetch(evolutionUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: instance.api_key,
-          },
-          body: JSON.stringify(payload),
-        });
+        // ✅ MELHORADO: Enviar mensagem via Evolution API com timeout e retry
+        let evolutionResponse: Response;
+        try {
+          evolutionResponse = await sendWithRetry(
+            evolutionUrl,
+            payload,
+            {
+              "Content-Type": "application/json",
+              apikey: instance.api_key,
+            }
+          );
+        } catch (error: any) {
+          // Se for timeout, registrar e continuar
+          if (error.message?.includes('Timeout')) {
+            console.error(`⏱️ [process-broadcast-queue] Timeout após 90s para instância ${instance.instance_name}`);
+            metrics.lastError = error.message.slice(0, 200);
+            metrics.lastErrorCode = 'TIMEOUT';
+            metrics.messagesFailed++;
+            metrics.consecutiveFailures++;
+            circuitBreaker.recordFailure(instance.instance_name);
+            
+            await supabase
+              .from("broadcast_queue")
+              .update({
+                status: "failed",
+                error_message: `Timeout após 90 segundos. A mensagem será reprocessada automaticamente.`,
+                processing_lock_until: null,
+              })
+              .eq("id", item.id);
+
+            failed++;
+            continue;
+          }
+          throw error;
+        }
 
         const responseTime = Date.now() - startTime;
         metrics.responseTimes.push(responseTime);
@@ -411,6 +548,9 @@ serve(async (req) => {
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
         metrics.consecutiveFailures = 0; // Resetar contador de falhas
+        
+        // ✅ NOVO: Registrar sucesso no circuit breaker
+        circuitBreaker.recordSuccess(instance.instance_name);
 
         // Atualizar contador da campanha - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const { data: sentCount } = await supabase
@@ -433,9 +573,10 @@ serve(async (req) => {
       } catch (error: any) {
         console.error(`❌ Erro ao processar ${item.phone}:`, error.message);
         
-        // Registrar falha nas métricas
+        // ✅ NOVO: Registrar falha nas métricas e circuit breaker
         if (instance) {
           const metrics = getOrCreateMetrics(instance.instance_name);
+          circuitBreaker.recordFailure(instance.instance_name);
           metrics.messagesFailed++;
           metrics.consecutiveFailures++;
           if (metrics.consecutiveFailures > metrics.maxConsecutiveFailures) {

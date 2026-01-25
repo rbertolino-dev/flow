@@ -101,7 +101,12 @@ function isTriggerMatch(
       return true;
 
     case 'lead_created':
-      return true; // Sempre aciona quando lead é criado
+      // Se foi configurado source_instance_id, verificar se corresponde
+      if (triggerConfig.source_instance_id) {
+        return triggerConfig.source_instance_id === eventData?.source_instance_id;
+      }
+      // Se não foi configurado, aciona para qualquer instância
+      return true;
 
     case 'date_trigger':
       // Verificar se a data atual corresponde à data configurada

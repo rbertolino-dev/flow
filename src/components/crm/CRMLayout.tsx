@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +37,8 @@ export type CRMView =
   // | "digital-contracts" // REMOVIDO TEMPORARIAMENTE
   | "budgets"
   | "employees"
-  | "messages-center";
+  | "messages-center"
+  | "landing-page";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -99,6 +100,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     // 'digital-contracts': 'digital_contracts', // controlado por feature - REMOVIDO TEMPORARIAMENTE
     'budgets': 'budgets', // controlado por feature
     'employees': 'employees', // controlado por feature
+    'landing-page': 'landing_page', // controlado por feature
     'settings': null, // sempre visível
     'superadmin': null, // controlado por role
     'users': null, // sempre visível para admins
@@ -123,6 +125,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     // { id: "digital-contracts" as const, label: "Contrato Digital", icon: FileSignature }, // REMOVIDO TEMPORARIAMENTE
     { id: "budgets" as const, label: "Orçamentos", icon: Receipt },
     { id: "employees" as const, label: "Colaboradores", icon: Users },
+    { id: "landing-page" as const, label: "Landing Page", icon: Globe },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
@@ -284,6 +287,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/budgets');
               } else if (item.id === 'employees') {
                 navigate('/employees');
+              } else if (item.id === 'landing-page') {
+                navigate('/admin/landing-page');
               } else if (item.id === 'kanban' || item.id === 'calls') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });

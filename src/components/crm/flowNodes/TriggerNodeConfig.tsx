@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { useTags } from "@/hooks/useTags";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { TriggerConfig, TriggerType } from "@/types/automationFlow";
 
 interface TriggerNodeConfigProps {
@@ -13,6 +14,7 @@ interface TriggerNodeConfigProps {
 export function TriggerNodeConfig({ config, onConfigChange }: TriggerNodeConfigProps) {
   const { tags } = useTags();
   const { stages } = usePipelineStages();
+  const { configs: evolutionConfigs } = useEvolutionConfigs();
 
   const handleTypeChange = (type: TriggerType) => {
     const newConfig: TriggerConfig = {
@@ -171,8 +173,38 @@ export function TriggerNodeConfig({ config, onConfigChange }: TriggerNodeConfigP
       ) : null}
 
       {config.triggerType === 'lead_created' ? (
-        <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-          Este gatilho será acionado sempre que um novo lead for criado no sistema.
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Instância do WhatsApp (opcional)</Label>
+            <Select
+              value={config.source_instance_id || ""}
+              onValueChange={(value) => updateConfig({ source_instance_id: value || undefined })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todas as instâncias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todas as instâncias</SelectItem>
+                {evolutionConfigs.map((instance) => (
+                  <SelectItem key={instance.id} value={instance.id}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${instance.is_connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {instance.instance_name}
+                      {instance.phone_number && (
+                        <span className="text-xs text-muted-foreground">({instance.phone_number})</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+            {config.source_instance_id 
+              ? `Este gatilho será acionado apenas quando um novo lead for criado pela instância selecionada.`
+              : `Este gatilho será acionado sempre que um novo lead for criado no sistema (qualquer instância).`
+            }
+          </div>
         </div>
       ) : null}
 

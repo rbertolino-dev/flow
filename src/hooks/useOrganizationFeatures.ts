@@ -27,6 +27,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'digital_contracts', label: 'Contrato Digital', description: 'Módulo completo de contratos digitais' },
   { value: 'budgets', label: 'Orçamentos', description: 'Criação e gestão de orçamentos' },
   { value: 'employees', label: 'Colaboradores', description: 'Gerenciamento de colaboradores' },
+  { value: 'landing_page', label: 'Landing Page', description: 'Página pública de vendas com produtos e WhatsApp' },
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];

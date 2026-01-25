@@ -48,6 +48,7 @@ export interface TriggerConfig {
   value?: any;
   date?: string; // ISO string
   days_before?: number;
+  source_instance_id?: string; // ID da instância do WhatsApp (para filtrar leads criados por instância específica)
   conditions?: Record<string, any>;
 }
 
