@@ -623,7 +623,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         supabase.removeChannel(channel);
       }
     };
-  }, [fetchDispatchesByInstance]);
+  }, [fetchDispatchesByInstance, fetchDispatchesByDate, dateFilterType, selectedDate]);
 
   // Agrupar instâncias por segmento para visualização de segmento
   const instancesBySegment = useMemo(() => {
