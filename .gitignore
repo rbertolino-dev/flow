@@ -27,3 +27,4 @@ dist-ssr
 # Credenciais (não versionar)
 scripts/.ssh-credentials
 scripts/.github-credentials
+scripts/verificar-deploy-process-broadcast-queue.sql
