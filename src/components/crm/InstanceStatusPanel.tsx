@@ -515,34 +515,41 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           break;
       }
 
-      // ✅ CORREÇÃO: Buscar disparos SENT usando sent_at (data de envio real)
-      // ✅ CORREÇÃO: Buscar disparos FAILED usando created_at (quando sent_at não existe)
-      // ✅ CORREÇÃO: Usar count: 'exact' para contagem precisa sem limite
-      const { count: sentCount, error: sentError } = await supabase
+      // Buscar todos os disparos do período (sent e failed)
+      const { data: queueData, error: queueError } = await supabase
         .from("broadcast_queue")
-        .select("id", { count: 'exact', head: true })
+        .select("status, sent_at, created_at")
         .eq("organization_id", orgId)
-        .eq("status", "sent")
-        .gte("sent_at", startDate.toISOString())
-        .lt("sent_at", endDate.toISOString());
-
-      const { count: failedCount, error: failedError } = await supabase
-        .from("broadcast_queue")
-        .select("id", { count: 'exact', head: true })
-        .eq("organization_id", orgId)
-        .eq("status", "failed")
+        .in("status", ["sent", "failed"])
         .gte("created_at", startDate.toISOString())
         .lt("created_at", endDate.toISOString());
 
-      if (sentError || failedError) {
-        console.error("Erro ao buscar disparos por data:", sentError || failedError);
-        throw sentError || failedError;
+      if (queueError) {
+        console.error("Erro ao buscar disparos por data:", queueError);
+        throw queueError;
       }
 
-      // ✅ CORREÇÃO: Usar count exato ao invés de contar manualmente
-      const successful = sentCount || 0;
-      const failed = failedCount || 0;
-      const total = successful + failed;
+      // Contar disparos por status
+      let total = 0;
+      let successful = 0;
+      let failed = 0;
+
+      if (queueData) {
+        queueData.forEach((item: any) => {
+          // Usar sent_at se disponível, senão usar created_at
+          const dispatchDate = item.sent_at ? new Date(item.sent_at) : new Date(item.created_at);
+          
+          // Verificar se o disparo foi feito no período selecionado
+          if (dispatchDate >= startDate && dispatchDate < endDate) {
+            total++;
+            if (item.status === "sent") {
+              successful++;
+            } else if (item.status === "failed") {
+              failed++;
+            }
+          }
+        });
+      }
 
       setTotalDispatchesByDate(total);
       setSuccessfulDispatches(successful);
@@ -599,12 +606,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               if (mounted && payload.new && payload.new.status === 'sent') {
                 const oldStatus = payload.old?.status || null;
                 if (oldStatus !== 'sent') {
-                  // ✅ CORREÇÃO: Atualizar contador do dia
                   fetchDispatchesByInstance();
-                  // ✅ CORREÇÃO: Atualizar contador mensal se estiver no filtro mensal
-                  if (dateFilterType === "thisMonth") {
-                    fetchDispatchesByDate(selectedDate, dateFilterType);
-                  }
                 }
               }
             }
@@ -623,7 +625,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         supabase.removeChannel(channel);
       }
     };
-  }, [fetchDispatchesByInstance, fetchDispatchesByDate, dateFilterType, selectedDate]);
+  }, [fetchDispatchesByInstance]);
 
   // Agrupar instâncias por segmento para visualização de segmento
   const instancesBySegment = useMemo(() => {

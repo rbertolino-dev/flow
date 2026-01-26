@@ -1,62 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
-import { 
-  fetchWithTimeout, 
-  sendWithRetry, 
-  validateMessageLength, 
-  rateLimiter, 
-  circuitBreaker 
-} from "../_shared/message-security.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-/**
- * Calcula delay de digitação realista baseado no tamanho da mensagem
- * Valores DOBRADOS para máxima segurança:
- * - Mínimo: 4000ms (4 segundos) - tempo de pensar antes de começar
- * - Máximo: 30000ms (30 segundos) - mensagens muito longas
- * - Velocidade: 3.5 caracteres/segundo (média humana)
- */
-function calculateTypingDelay(message: string, messageType: 'text' | 'media' | 'document' = 'text'): number {
-  if (!message || message.length === 0) {
-    // Mensagens sem texto: tempo mínimo baseado no tipo (DOBRADO)
-    if (messageType === 'document') return 5000; // 5s para documentos sem caption
-    if (messageType === 'media') return 6000; // 6s para mídia sem caption
-    return 4000; // 4s para texto sem mensagem
-  }
-  
-  // Velocidade média de digitação humana: ~200-250 caracteres/minuto
-  // Isso dá aproximadamente 3.3-4.2 caracteres por segundo
-  const charsPerSecond = 3.5;
-  
-  // Tempo base (pensar + começar a digitar) - DOBRADO
-  let baseDelay: number;
-  if (messageType === 'document') {
-    baseDelay = 5000; // 5s para documentos (mais complexo)
-  } else if (messageType === 'media') {
-    baseDelay = 5000; // 5s para mídia
-  } else {
-    baseDelay = 4000; // 4s para texto
-  }
-  
-  // Tempo de digitação baseado no tamanho da mensagem
-  const typingTime = (message.length / charsPerSecond) * 1000; // converter para ms
-  
-  // Variação aleatória ±25% para parecer mais humano
-  const variation = 0.25;
-  const randomMultiplier = 1 + (Math.random() * variation * 2 - variation);
-  
-  const calculatedDelay = baseDelay + (typingTime * randomMultiplier);
-  
-  // Limites DOBRADOS: mínimo baseado no tipo, máximo 30s (texto/mídia) ou 40s (documentos)
-  const maxDelay = messageType === 'document' ? 40000 : 30000; // 40s para documentos, 30s para texto/mídia
-  
-  return Math.max(baseDelay, Math.min(maxDelay, Math.round(calculatedDelay)));
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -379,7 +328,7 @@ serve(async (req) => {
             mediatype: mediaType,
             media: mediaUrl,
             caption: message.message || '',
-            delay: calculateTypingDelay(message.message || '', mediaType === 'document' ? 'document' : 'media'),
+            delay: 1200, // ✅ NOVO: Adicionar delay para evitar rate limiting (igual ao broadcast)
           };
           console.log('🖼️ [process-scheduled-messages] Enviando mensagem com mídia:', {
             to: remoteJid,
@@ -394,7 +343,7 @@ serve(async (req) => {
           payload = {
             number: remoteJid,
             text: message.message,
-            delay: calculateTypingDelay(message.message, 'text'),
+            delay: 1200, // ✅ NOVO: Adicionar delay para evitar rate limiting (igual ao broadcast)
           };
           console.log('📝 [process-scheduled-messages] Enviando mensagem de texto:', {
             to: remoteJid,
@@ -404,154 +353,18 @@ serve(async (req) => {
           });
         }
 
-        // ✅ NOVO: Validar tamanho da mensagem antes de enviar
-        const messageType = mediaUrl ? (mediaType === 'document' ? 'document' : 'media') : 'text';
-        const validation = validateMessageLength(message.message || '', messageType);
-        
-        if (!validation.valid) {
-          console.error(`❌ [process-scheduled-messages] Mensagem muito longa: ${validation.error}`);
-          const metrics = getOrCreateMetrics(config.instance_name);
-          metrics.messagesFailed++;
-          metrics.consecutiveFailures++;
-          metrics.lastError = validation.error || 'Mensagem muito longa';
-          metrics.lastErrorCode = 'MESSAGE_TOO_LONG';
-          
-          await supabase
-            .from('scheduled_messages')
-            .update({
-              status: 'failed',
-              error_message: validation.error,
-            })
-            .eq('id', message.id);
-
-          failureCount++;
-          continue;
-        }
-
-        // ✅ NOVO: Verificar circuit breaker antes de enviar
-        if (circuitBreaker.isOpen(config.instance_name)) {
-          console.error(`🔴 [process-scheduled-messages] Circuit breaker aberto para instância ${config.instance_name}. Mensagem não será enviada.`);
-          
-          // Tentar buscar instância de backup da mesma organização
-          if (message.organization_id) {
-            const { data: backupInstance } = await supabase
-              .from('evolution_config')
-              .select('id, api_url, api_key, instance_name, is_connected')
-              .eq('organization_id', message.organization_id)
-              .eq('is_connected', true)
-              .neq('id', message.instance_id)
-              .limit(1)
-              .maybeSingle();
-
-            if (backupInstance) {
-              console.log(`✅ [process-scheduled-messages] Usando instância de backup: ${backupInstance.instance_name}`);
-              config = backupInstance;
-              
-              // ✅ CRÍTICO: Reconstruir URL e payload com nova instância
-              baseUrl = config.api_url.replace(/\/+$/, '');
-              if (baseUrl.endsWith('/manager')) {
-                baseUrl = baseUrl.slice(0, -8);
-              }
-              const encodedInstanceName = encodeURIComponent(config.instance_name);
-              
-              if (mediaUrl) {
-                evolutionUrl = `${baseUrl}/message/sendMedia/${encodedInstanceName}`;
-                payload = {
-                  number: remoteJid,
-                  mediatype: mediaType,
-                  media: mediaUrl,
-                  caption: message.message || '',
-                  delay: calculateTypingDelay(message.message || '', mediaType === 'document' ? 'document' : 'media'),
-                };
-              } else {
-                evolutionUrl = `${baseUrl}/message/sendText/${encodedInstanceName}`;
-                payload = {
-                  number: remoteJid,
-                  text: message.message,
-                  delay: calculateTypingDelay(message.message, 'text'),
-                };
-              }
-            } else {
-              // Não tem backup, marcar como falha e parar de disparar
-              const metrics = getOrCreateMetrics(config.instance_name);
-              metrics.messagesFailed++;
-              metrics.consecutiveFailures++;
-              metrics.lastError = `Instância ${config.instance_name} está quebrada (circuit breaker aberto) e não há instância de backup disponível`;
-              metrics.lastErrorCode = 'CIRCUIT_BREAKER_OPEN_NO_BACKUP';
-              
-              await supabase
-                .from('scheduled_messages')
-                .update({
-                  status: 'failed',
-                  error_message: `Instância ${config.instance_name} está quebrada e não há instância de backup disponível. Disparos pausados para esta instância.`,
-                })
-                .eq('id', message.id);
-
-              failureCount++;
-              continue;
-            }
-          } else {
-            // Sem organização, não tem como buscar backup
-            const metrics = getOrCreateMetrics(config.instance_name);
-            metrics.messagesFailed++;
-            metrics.consecutiveFailures++;
-            metrics.lastError = `Instância ${config.instance_name} está quebrada (circuit breaker aberto)`;
-            metrics.lastErrorCode = 'CIRCUIT_BREAKER_OPEN';
-            
-            await supabase
-              .from('scheduled_messages')
-              .update({
-                status: 'failed',
-                error_message: `Instância ${config.instance_name} está quebrada. Disparos pausados.`,
-              })
-              .eq('id', message.id);
-
-            failureCount++;
-            continue;
-          }
-        }
-
-        // ✅ NOVO: Rate limiting antes de enviar
-        await rateLimiter.checkLimit(config.instance_name);
-
-        // ✅ MELHORADO: Enviar mensagem via Evolution API com timeout e retry
+        // ✅ MELHORADO: Enviar mensagem via Evolution API com métricas (igual ao broadcast)
         const metrics = getOrCreateMetrics(config.instance_name);
         const startTime = Date.now();
 
-        let evolutionResponse: Response;
-        try {
-          // Usar sendWithRetry que já inclui timeout de 90s e retry para 429
-          evolutionResponse = await sendWithRetry(
-            evolutionUrl,
-            payload,
-            {
-              'Content-Type': 'application/json',
-              'apikey': config.api_key || '',
-            }
-          );
-        } catch (error: any) {
-          // Se for timeout, registrar e continuar
-          if (error.message?.includes('Timeout')) {
-            console.error(`⏱️ [process-scheduled-messages] Timeout após 90s para instância ${config.instance_name}`);
-            metrics.lastError = error.message.slice(0, 200);
-            metrics.lastErrorCode = 'TIMEOUT';
-            metrics.messagesFailed++;
-            metrics.consecutiveFailures++;
-            circuitBreaker.recordFailure(config.instance_name);
-            
-            await supabase
-              .from('scheduled_messages')
-              .update({
-                status: 'failed',
-                error_message: `Timeout após 90 segundos. A mensagem será reprocessada automaticamente.`,
-              })
-              .eq('id', message.id);
-
-            failureCount++;
-            continue;
-          }
-          throw error;
-        }
+        const evolutionResponse = await fetch(evolutionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': config.api_key || '',
+          },
+          body: JSON.stringify(payload),
+        });
 
         const responseTime = Date.now() - startTime;
         metrics.responseTimes.push(responseTime);
@@ -581,21 +394,20 @@ serve(async (req) => {
             : responseText;
           
           // ✅ NOVO: Tratamento especial para HTTP 429 (Rate Limit)
-          // Agora já tratado pelo sendWithRetry, mas ainda registrar métricas
           if (httpStatus === 429) {
             metrics.lastError = errorMessage.slice(0, 200);
             metrics.lastErrorCode = 'HTTP_429';
             metrics.messagesFailed++;
             metrics.consecutiveFailures++;
-            circuitBreaker.recordFailure(config.instance_name);
             
-            console.error(`⏱️ [process-scheduled-messages] Rate limit atingido (429) para instância ${config.instance_name} após retries`);
+            console.error(`⏱️ [process-scheduled-messages] Rate limit atingido (429) para instância ${config.instance_name}`);
             
+            // Marcar como falha mas com mensagem específica de rate limit
             await supabase
               .from('scheduled_messages')
               .update({
                 status: 'failed',
-                error_message: `Rate limit atingido (HTTP 429) após 3 tentativas. A mensagem será reprocessada automaticamente.`,
+                error_message: `Rate limit atingido (HTTP 429). A mensagem será reprocessada automaticamente.`,
               })
               .eq('id', message.id);
 
@@ -646,7 +458,7 @@ serve(async (req) => {
                 mediatype: 'text',
                 media: '',
                 caption: message.message || '',
-                delay: calculateTypingDelay(message.message || '', 'text'),
+                delay: 1200,
               };
               
               console.log('🔄 [process-scheduled-messages] Tentando fallback sendMedia...');
@@ -747,9 +559,6 @@ serve(async (req) => {
         // ✅ NOVO: Registrar sucesso nas métricas
         metrics.messagesSent++;
         metrics.consecutiveFailures = 0; // Resetar contador de falhas
-        
-        // ✅ NOVO: Registrar sucesso no circuit breaker
-        circuitBreaker.recordSuccess(config.instance_name);
 
         // Marcar como enviada
         await supabase
@@ -781,10 +590,9 @@ serve(async (req) => {
       } catch (error: any) {
         console.error(`❌ Erro ao processar mensagem ${message.id}:`, error.message);
         
-        // ✅ NOVO: Registrar falha nas métricas e circuit breaker
+        // ✅ NOVO: Registrar falha nas métricas
         if (config) {
           const metrics = getOrCreateMetrics(config.instance_name);
-          circuitBreaker.recordFailure(config.instance_name);
           metrics.messagesFailed++;
           metrics.consecutiveFailures++;
           if (metrics.consecutiveFailures > metrics.maxConsecutiveFailures) {

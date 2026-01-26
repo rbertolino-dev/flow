@@ -114,9 +114,14 @@ export function useScheduledMessages(leadId?: string) {
         repeatUntil = endDate.toISOString();
       }
 
-      // ✅ DEBUG: Validar data/hora antes de inserir
-      if (params.scheduledFor <= new Date()) {
-        throw new Error('A data e hora de agendamento deve ser no futuro');
+      // ✅ CORREÇÃO: Permitir agendamento para "agora" ou até 5 minutos no passado
+      // Isso permite que mensagens sejam agendadas para envio imediato
+      // O process-scheduled-messages já filtra por scheduled_for <= NOW()
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      
+      if (params.scheduledFor < fiveMinutesAgo) {
+        throw new Error('A data e hora de agendamento não pode ser mais de 5 minutos no passado');
       }
 
       // ✅ DEBUG: Validar telefone (deve ter apenas números)

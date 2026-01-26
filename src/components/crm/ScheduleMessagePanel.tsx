@@ -139,14 +139,17 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       return;
     }
 
-    // ✅ Validação adicional de data/hora
+    // ✅ CORREÇÃO: Permitir agendamento para "agora" ou até 5 minutos no passado
+    // Isso permite que mensagens sejam agendadas para envio imediato
+    // O process-scheduled-messages já filtra por scheduled_for <= NOW()
     const scheduledFor = parseSaoPauloDateTime(scheduledDate, scheduledTime);
     const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     
-    if (scheduledFor <= now) {
+    if (scheduledFor < fiveMinutesAgo) {
       toast({
         title: "Data/hora inválida",
-        description: "A data e hora de agendamento deve ser no futuro.",
+        description: "A data e hora de agendamento não pode ser mais de 5 minutos no passado.",
         variant: "destructive",
       });
       return;
