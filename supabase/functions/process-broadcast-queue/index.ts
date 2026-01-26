@@ -132,7 +132,6 @@ serve(async (req) => {
     };
 
     for (const item of validItems) {
-      let instance: any = null;
       try {
         const campaign = item.campaign;
         
@@ -140,8 +139,7 @@ serve(async (req) => {
           throw new Error("Configuração da campanha inválida");
         }
 
-        // ✅ HÍBRIDO: Verificar lock de processamento (evitar processamento concorrente)
-        // Se coluna não existir, ignora silenciosamente
+        // Verificar lock de processamento (evitar processamento concorrente)
         if (item.processing_lock_until) {
           const lockUntil = new Date(item.processing_lock_until);
           if (lockUntil > new Date()) {
@@ -164,92 +162,48 @@ serve(async (req) => {
           throw new Error(`Instância ${activeInstanceId} não encontrada`);
         }
 
-        instance = activeInstance;
+        const instance = activeInstance;
         
-        // ✅ HÍBRIDO: Adquirir lock de processamento (1 minuto)
-        // Se coluna não existir, ignora silenciosamente
-        try {
-          const lockUntil = new Date(Date.now() + 60 * 1000);
-          await supabase
-            .from("broadcast_queue")
-            .update({ processing_lock_until: lockUntil.toISOString() })
-            .eq("id", item.id)
-            .is("processing_lock_until", null); // Apenas se não estiver lockado
-        } catch (lockError: any) {
-          // Se coluna não existir, continua sem lock
-          if (lockError.message?.includes('column') || lockError.message?.includes('does not exist')) {
-            console.log(`⚠️ Coluna processing_lock_until não existe - continuando sem lock`);
-          } else {
-            throw lockError;
-          }
-        }
+        // Adquirir lock de processamento (1 minuto)
+        const lockUntil = new Date(Date.now() + 60 * 1000);
+        await supabase
+          .from("broadcast_queue")
+          .update({ processing_lock_until: lockUntil.toISOString() })
+          .eq("id", item.id)
+          .is("processing_lock_until", null); // Apenas se não estiver lockado
 
-        // ✅ HÍBRIDO: Verificar deduplicação
-        // Se coluna não existir, pula verificação mas continua
+        // Verificar deduplicação
         const messageContent = item.personalized_message || campaign.custom_message || "";
-        let deduplicationHash: string | null = null;
-        let existingSent: any = null;
+        const deduplicationHash = await generateDeduplicationHash(
+          campaign.id,
+          item.phone,
+          messageContent
+        );
 
-        try {
-          deduplicationHash = await generateDeduplicationHash(
-            campaign.id,
-            item.phone,
-            messageContent
-          );
+        // Verificar se já foi enviada
+        const { data: existingSent, error: dedupError } = await supabase
+          .from("broadcast_queue")
+          .select("id, status")
+          .eq("deduplication_hash", deduplicationHash)
+          .eq("status", "sent")
+          .neq("id", item.id)
+          .maybeSingle();
 
-          // Verificar se já foi enviada
-          const { data: dedupCheck, error: dedupError } = await supabase
-            .from("broadcast_queue")
-            .select("id, status")
-            .eq("deduplication_hash", deduplicationHash)
-            .eq("status", "sent")
-            .neq("id", item.id)
-            .maybeSingle();
-
-          if (dedupError) {
-            // Se coluna não existir, ignora erro e continua
-            if (dedupError.message?.includes('column') || dedupError.message?.includes('does not exist')) {
-              console.log(`⚠️ Coluna deduplication_hash não existe - pulando verificação de duplicação`);
-            } else {
-              console.error(`Erro ao verificar deduplicação:`, dedupError);
-            }
-          } else if (dedupCheck) {
-            existingSent = dedupCheck;
-          }
-        } catch (hashError: any) {
-          // Se função não existir ou coluna não existir, continua sem deduplicação
-          if (hashError.message?.includes('column') || hashError.message?.includes('does not exist')) {
-            console.log(`⚠️ Sistema de deduplicação não disponível - continuando sem verificação`);
-          } else {
-            console.error(`Erro ao gerar hash de deduplicação:`, hashError);
-          }
+        if (dedupError) {
+          console.error(`Erro ao verificar deduplicação:`, dedupError);
         }
 
         if (existingSent) {
-          console.log(`⚠️ Mensagem duplicada detectada (hash: ${deduplicationHash?.substring(0, 8) || 'N/A'}...) - marcando como SENT sem enviar`);
+          console.log(`⚠️ Mensagem duplicada detectada (hash: ${deduplicationHash.substring(0, 8)}...) - marcando como SENT sem enviar`);
           
-          const updateData: any = {
-            status: "sent",
-            sent_at: new Date().toISOString(),
-          };
-
-          // ✅ HÍBRIDO: Adicionar campos apenas se existirem
-          if (deduplicationHash) {
-            try {
-              updateData.deduplication_hash = deduplicationHash;
-            } catch (e) {
-              // Ignora se coluna não existir
-            }
-          }
-          try {
-            updateData.processing_lock_until = null;
-          } catch (e) {
-            // Ignora se coluna não existir
-          }
-
           await supabase
             .from("broadcast_queue")
-            .update(updateData)
+            .update({
+              status: "sent",
+              deduplication_hash: deduplicationHash,
+              sent_at: new Date().toISOString(),
+              processing_lock_until: null,
+            })
             .eq("id", item.id);
 
           processed++;
@@ -348,45 +302,18 @@ serve(async (req) => {
           });
         }
 
-        // ✅ HÍBRIDO: Atualizar hash de deduplicação e marcar como SENDING
-        // Adiciona campos apenas se colunas existirem
+        // Atualizar hash de deduplicação e marcar como SENDING
         const sendingStartedAt = new Date().toISOString();
-        const updateData: any = {
-          status: "sending",
-        };
-
-        // Adicionar campos opcionais apenas se existirem
-        if (deduplicationHash) {
-          try {
-            updateData.deduplication_hash = deduplicationHash;
-          } catch (e) {
-            // Ignora se coluna não existir
-          }
-        }
-        try {
-          updateData.sending_started_at = sendingStartedAt;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-        try {
-          updateData.attempted_instance_id = activeInstanceId;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-        try {
-          updateData.send_attempts = (item.send_attempts || 0) + 1;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-        try {
-          updateData.last_attempt_at = sendingStartedAt;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-
         await supabase
           .from("broadcast_queue")
-          .update(updateData)
+          .update({
+            status: "sending",
+            deduplication_hash: deduplicationHash,
+            sending_started_at: sendingStartedAt,
+            attempted_instance_id: activeInstanceId,
+            send_attempts: (item.send_attempts || 0) + 1,
+            last_attempt_at: sendingStartedAt,
+          })
           .eq("id", item.id);
 
         // Limpar api_url e construir endpoint correto usando a instância do item
@@ -469,22 +396,14 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // ✅ HÍBRIDO: Marcar como enviado e liberar lock
-        const sentUpdateData: any = {
-          status: "sent",
-          sent_at: new Date().toISOString(),
-        };
-
-        // Liberar lock apenas se coluna existir
-        try {
-          sentUpdateData.processing_lock_until = null;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-
+        // Marcar como enviado e liberar lock
         const { error: updateError } = await supabase
           .from("broadcast_queue")
-          .update(sentUpdateData)
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            processing_lock_until: null, // Liberar lock
+          })
           .eq("id", item.id);
 
         if (updateError) throw updateError;
@@ -541,22 +460,14 @@ serve(async (req) => {
           }
         }
         
-        // ✅ HÍBRIDO: Marcar como falha e liberar lock
-        const failedUpdateData: any = {
-          status: "failed",
-          error_message: error.message,
-        };
-
-        // Liberar lock apenas se coluna existir
-        try {
-          failedUpdateData.processing_lock_until = null;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-
+        // Marcar como falha e liberar lock
         await supabase
           .from("broadcast_queue")
-          .update(failedUpdateData)
+          .update({
+            status: "failed",
+            error_message: error.message,
+            processing_lock_until: null, // Liberar lock
+          })
           .eq("id", item.id);
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO

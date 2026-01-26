@@ -30,7 +30,6 @@ import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindow
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
 import { WorkflowListManager } from "@/components/whatsapp/workflows/WorkflowListManager";
-import { BroadcastCampaignsCalendar } from "@/components/crm/BroadcastCampaignsCalendar";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
@@ -539,7 +538,6 @@ export default function BroadcastCampaigns() {
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [searchSimulation, setSearchSimulation] = useState("");
   const [filterInstanceSimulation, setFilterInstanceSimulation] = useState<string>("all");
-  const [showCalendar, setShowCalendar] = useState(false);
   const [editingCampaignName, setEditingCampaignName] = useState<{ id: string; name: string } | null>(null);
 
   const handleViewChange = (view: CRMView) => {
@@ -3354,25 +3352,6 @@ export default function BroadcastCampaigns() {
             </TabsContent>
 
             <TabsContent value="campaigns">
-              {/* Botão para mostrar/esconder calendário */}
-              <div className="mb-4 flex justify-end">
-                <Button
-                  variant={showCalendar ? "default" : "outline"}
-                  onClick={() => setShowCalendar(!showCalendar)}
-                  className="gap-2"
-                >
-                  <CalendarIcon className="h-4 w-4" />
-                  {showCalendar ? "Ocultar Programação" : "Ver Programação"}
-                </Button>
-              </div>
-
-              {/* Calendário de campanhas agendadas */}
-              {showCalendar && activeOrgId && (
-                <div className="mb-6">
-                  <BroadcastCampaignsCalendar organizationId={activeOrgId} />
-                </div>
-              )}
-
               <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
