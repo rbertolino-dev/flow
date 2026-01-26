@@ -22,7 +22,6 @@ serve(async (req) => {
 
     // Buscar mensagens agendadas que estão prontas para envio
     // ✅ CORREÇÃO CRÍTICA: Excluir mensagens com status "sending" para evitar processamento duplicado
-    // ✅ CORREÇÃO EXTRA: Excluir mensagens com processing_lock_until ainda válido
     const now = new Date().toISOString();
     const { data: queueItems, error: fetchError } = await supabase
       .from("broadcast_queue")
@@ -43,27 +42,11 @@ serve(async (req) => {
       .lte("scheduled_for", now)
       .limit(10); // Processar 10 por vez
     
-    // ✅ CORREÇÃO CRÍTICA: Filtrar mensagens lockadas após buscar (Supabase não suporta WHERE em query)
-    // Isso previne pegar mensagens que já estão sendo processadas por outro processo
-    const nowDate = new Date();
-    const filteredItems = (queueItems || []).filter(item => {
-      // Se tem processing_lock_until e ainda é válido, pular
-      if (item.processing_lock_until) {
-        const lockUntil = new Date(item.processing_lock_until);
-        if (lockUntil > nowDate) {
-          console.log(`⚠️ Item ${item.id} está lockado até ${item.processing_lock_until} - PULADO`);
-          return false;
-        }
-      }
-      return true;
-    });
-    
-    // Usar itens filtrados ao invés dos originais
-    const queueItemsToProcess = filteredItems;
+    const queueItemsToProcess = queueItems || [];
 
     if (fetchError) throw fetchError;
 
-    console.log(`📬 Encontrados ${queueItems?.length || 0} itens na query, ${queueItemsToProcess.length} após filtrar lockados`);
+    console.log(`📬 Encontrados ${queueItemsToProcess.length} itens na query`);
 
     if (!queueItemsToProcess || queueItemsToProcess.length === 0) {
       return new Response(
@@ -186,7 +169,7 @@ serve(async (req) => {
         // Isso previne que múltiplas execuções processem a mesma mensagem
         const { data: currentItem } = await supabase
           .from("broadcast_queue")
-          .select("status, processing_lock_until")
+          .select("status")
           .eq("id", item.id)
           .single();
         
@@ -201,15 +184,6 @@ serve(async (req) => {
           continue;
         }
         
-        // ✅ CRÍTICO: Verificar se está lockado (se coluna existir)
-        if (currentItem.processing_lock_until) {
-          const lockUntil = new Date(currentItem.processing_lock_until);
-          if (lockUntil > new Date()) {
-            console.log(`⚠️ Item ${item.id} está lockado até ${currentItem.processing_lock_until} - PULADO`);
-            continue;
-          }
-        }
-
         // ✅ CORREÇÃO CRÍTICA: Verificar duplicação ANTES de processar
         // Verificar se já existe outra mensagem para o mesmo telefone e campanha em qualquer status relevante
         console.log(`🔍 [DUPLICAÇÃO] Verificando duplicatas para telefone ${item.phone}, campanha ${campaign.id}, item ${item.id}`);
@@ -401,26 +375,11 @@ serve(async (req) => {
 
         // ✅ CORREÇÃO CRÍTICA: Atualizar para "sending" de forma ATÔMICA
         // Só atualiza se ainda estiver "scheduled" - previne processamento duplicado
-        const sendingStartedAt = new Date().toISOString();
-        const lockUntil = new Date(Date.now() + 5 * 60 * 1000); // Lock por 5 minutos
-        
         // ✅ CRÍTICO: Atualização atômica - só atualiza se ainda estiver "scheduled"
         // Isso previne que múltiplos processos processem a mesma mensagem
         const updateData: any = {
           status: "sending",
-          processing_lock_until: lockUntil.toISOString(),
         };
-        
-        // Adicionar campos opcionais apenas se colunas existirem (não causar erro)
-        // Tentar adicionar campos opcionais, mas não falhar se não existirem
-        if (activeInstanceId) {
-          // Tentar adicionar attempted_instance_id se coluna existir (não vai falhar se não existir)
-          try {
-            updateData.attempted_instance_id = activeInstanceId;
-          } catch (e) {
-            // Ignorar se coluna não existir
-          }
-        }
         
         const { error: sendingUpdateError, data: sendingUpdateResult } = await supabase
           .from("broadcast_queue")
@@ -603,7 +562,6 @@ serve(async (req) => {
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
-            processing_lock_until: null, // ✅ Liberar lock após envio bem-sucedido
           })
           .eq("id", item.id)
           .in("status", ["scheduled", "sending"]) // ✅ CRÍTICO: Apenas atualizar se ainda estiver em processamento
@@ -682,7 +640,6 @@ serve(async (req) => {
           .update({
             status: "failed",
             error_message: error.message,
-            processing_lock_until: null, // ✅ Liberar lock em caso de erro
           })
           .eq("id", item.id)
           .in("status", ["scheduled", "sending"]); // ✅ CRÍTICO: Só atualizar se ainda estiver em processamento

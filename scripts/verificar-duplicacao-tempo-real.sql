@@ -17,7 +17,6 @@ SELECT
   bq.created_at,
   bq.scheduled_for,
   bq.sent_at,
-  bq.processing_lock_until,
   bq.error_message,
   EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 60 as minutos_desde_criacao,
   CASE 
@@ -80,9 +79,7 @@ SELECT
   bq.created_at,
   bq.scheduled_for,
   bq.sent_at,
-  bq.processing_lock_until,
   CASE 
-    WHEN bq.processing_lock_until IS NOT NULL AND bq.processing_lock_until > NOW() THEN 'LOCKADO'
     WHEN bq.status = 'sending' THEN 'SENDO ENVIADA'
     WHEN bq.status = 'scheduled' AND bq.scheduled_for <= NOW() THEN 'PRONTA PARA PROCESSAR'
     ELSE 'OUTRO'
