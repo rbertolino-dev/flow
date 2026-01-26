@@ -17,7 +17,6 @@ SELECT
   bq.created_at,
   bq.scheduled_for,
   bq.sent_at,
-  bq.sending_started_at,
   bq.processing_lock_until,
   bq.error_message,
   EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 60 as minutos_desde_criacao,
@@ -81,7 +80,6 @@ SELECT
   bq.created_at,
   bq.scheduled_for,
   bq.sent_at,
-  bq.sending_started_at,
   bq.processing_lock_until,
   CASE 
     WHEN bq.processing_lock_until IS NOT NULL AND bq.processing_lock_until > NOW() THEN 'LOCKADO'
@@ -89,7 +87,7 @@ SELECT
     WHEN bq.status = 'scheduled' AND bq.scheduled_for <= NOW() THEN 'PRONTA PARA PROCESSAR'
     ELSE 'OUTRO'
   END as estado_processamento,
-  EXTRACT(EPOCH FROM (NOW() - COALESCE(bq.sending_started_at, bq.created_at))) / 60 as minutos_em_processamento
+  EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 60 as minutos_em_processamento
 FROM broadcast_queue bq
 LEFT JOIN broadcast_campaigns bc ON bc.id = bq.campaign_id
 LEFT JOIN organizations o ON o.id = bc.organization_id
