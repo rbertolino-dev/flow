@@ -277,13 +277,16 @@ export function AutomationFlowsList() {
             setSelectedPlaybook(null);
           }
         }}>
-          <DialogContent className="max-w-[95vw] h-[95vh] p-0">
+          <DialogContent 
+            className="max-w-[95vw] h-[95vh] p-0"
+            aria-describedby="flow-editor-description"
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>{isCreating ? "Criar Fluxo" : "Editar Fluxo"}</DialogTitle>
-              <DialogDescription>
-                {isCreating ? "Crie um novo fluxo de automação" : "Edite o fluxo de automação"}
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription id="flow-editor-description" className="sr-only">
+              {isCreating ? "Crie um novo fluxo de automação" : "Edite o fluxo de automação"}
+            </DialogDescription>
             <div className="h-full">
               <AutomationFlowEditor
                 flowId={editingFlowId || undefined}
@@ -308,13 +311,16 @@ export function AutomationFlowsList() {
       {/* Dialog de Teste */}
       {testingFlowId && (
         <Dialog open={true} onOpenChange={() => setTestingFlowId(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent 
+            className="max-w-md"
+            aria-describedby="test-mode-description"
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>Modo de Teste</DialogTitle>
-              <DialogDescription>
-                Execute este fluxo manualmente em um lead para testar
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription id="test-mode-description" className="sr-only">
+              Execute este fluxo manualmente em um lead para testar
+            </DialogDescription>
             <FlowTestMode
               flow={flows.find(f => f.id === testingFlowId)!}
               onClose={() => setTestingFlowId(null)}

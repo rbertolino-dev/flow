@@ -398,6 +398,10 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
         });
         
         if (success) {
+          toast({
+            title: "Fluxo salvo",
+            description: "O fluxo foi salvo com sucesso.",
+          });
           // Forçar atualização da lista
           await fetchFlows();
           console.log("Lista de fluxos atualizada após salvamento");
@@ -405,6 +409,8 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
           setTimeout(() => {
             fetchFlows();
           }, 500);
+        } else {
+          throw new Error("Falha ao atualizar o fluxo");
         }
       } else {
         console.log("Criando novo fluxo");
@@ -412,6 +418,10 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
         if (newFlowId) {
           console.log("Novo fluxo criado, ID:", newFlowId, "- Atualizando dados do canvas");
           await updateFlow(newFlowId, { flowData });
+          toast({
+            title: "Fluxo criado",
+            description: "O fluxo foi criado e salvo com sucesso.",
+          });
           // Aguardar um pouco para garantir que o banco foi atualizado
           await new Promise(resolve => setTimeout(resolve, 300));
           await fetchFlows();
@@ -419,6 +429,8 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
           setTimeout(() => {
             fetchFlows();
           }, 500);
+        } else {
+          throw new Error("Falha ao criar o fluxo");
         }
       }
     } catch (error: any) {
