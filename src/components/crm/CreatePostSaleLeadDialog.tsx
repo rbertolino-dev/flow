@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,9 +75,15 @@ export function CreatePostSaleLeadDialog({ open, onOpenChange, onCreated }: Crea
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent 
+        className="max-w-md"
+        aria-describedby="create-post-sale-description"
+      >
         <DialogHeader>
           <DialogTitle>Adicionar Cliente ao Pós-Venda</DialogTitle>
+          <DialogDescription id="create-post-sale-description">
+            Adicione um novo cliente ao funil de pós-venda
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

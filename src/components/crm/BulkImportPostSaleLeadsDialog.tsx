@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -342,9 +343,15 @@ export function BulkImportPostSaleLeadsDialog({ onImported, onSuccess }: BulkImp
           Importar em Massa
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        aria-describedby="bulk-import-description"
+      >
         <DialogHeader>
           <DialogTitle>Importar Clientes em Massa</DialogTitle>
+          <DialogDescription id="bulk-import-description">
+            Importe múltiplos clientes de uma vez usando o formato especificado abaixo
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
