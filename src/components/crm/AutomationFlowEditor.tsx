@@ -374,11 +374,20 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
         })),
       };
 
-      console.log("Salvando fluxo:", { flowName, flowDescription, flowStatus, nodesCount: nodes.length, edgesCount: edges.length });
+      console.log("💾 [handleSave] Salvando fluxo:", { 
+        flowId, 
+        flowName, 
+        flowDescription, 
+        flowStatus, 
+        nodesCount: nodes.length, 
+        edgesCount: edges.length,
+        currentFlow: currentFlow?.id 
+      });
 
       // Validar antes de salvar
       const validationResult = validateFlow(flowData);
       if (!validationResult.isValid && validationResult.errors.length > 0) {
+        console.error("❌ [handleSave] Erro de validação:", validationResult.errors);
         toast({
           title: "Erro de validação",
           description: validationResult.errors[0],
@@ -389,7 +398,7 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
       }
 
       if (currentFlow) {
-        console.log("Atualizando fluxo existente:", currentFlow.id);
+        console.log("💾 [handleSave] Atualizando fluxo existente:", currentFlow.id);
         const success = await updateFlow(currentFlow.id, {
           name: flowName,
           description: flowDescription,
@@ -398,26 +407,32 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
         });
         
         if (success) {
+          console.log("✅ [handleSave] Fluxo atualizado com sucesso!");
           toast({
             title: "Fluxo salvo",
             description: "O fluxo foi salvo com sucesso.",
           });
           // Forçar atualização da lista
           await fetchFlows();
-          console.log("Lista de fluxos atualizada após salvamento");
+          console.log("✅ [handleSave] Lista de fluxos atualizada após salvamento");
           // Aguardar um pouco para garantir que a atualização foi propagada
           setTimeout(() => {
             fetchFlows();
           }, 500);
         } else {
-          throw new Error("Falha ao atualizar o fluxo");
+          console.error("❌ [handleSave] Falha ao atualizar fluxo - updateFlow retornou false");
+          throw new Error("Falha ao atualizar o fluxo. Verifique o console para mais detalhes.");
         }
       } else {
-        console.log("Criando novo fluxo");
+        console.log("💾 [handleSave] Criando novo fluxo");
         const newFlowId = await createFlow(flowName, flowDescription);
         if (newFlowId) {
-          console.log("Novo fluxo criado, ID:", newFlowId, "- Atualizando dados do canvas");
-          await updateFlow(newFlowId, { flowData });
+          console.log("✅ [handleSave] Novo fluxo criado, ID:", newFlowId, "- Atualizando dados do canvas");
+          const updateSuccess = await updateFlow(newFlowId, { flowData });
+          if (!updateSuccess) {
+            console.error("❌ [handleSave] Falha ao atualizar dados do canvas após criar fluxo");
+            throw new Error("Fluxo criado mas falhou ao salvar dados do canvas.");
+          }
           toast({
             title: "Fluxo criado",
             description: "O fluxo foi criado e salvo com sucesso.",
@@ -430,14 +445,16 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
             fetchFlows();
           }, 500);
         } else {
-          throw new Error("Falha ao criar o fluxo");
+          console.error("❌ [handleSave] Falha ao criar fluxo - createFlow retornou null");
+          throw new Error("Falha ao criar o fluxo. Verifique o console para mais detalhes.");
         }
       }
     } catch (error: any) {
-      console.error("Erro ao salvar fluxo:", error);
+      console.error("❌ [handleSave] Erro completo ao salvar fluxo:", error);
+      console.error("❌ [handleSave] Stack:", error.stack);
       toast({
         title: "Erro ao salvar",
-        description: error.message || "Ocorreu um erro ao salvar o fluxo.",
+        description: error.message || "Ocorreu um erro ao salvar o fluxo. Verifique o console para mais detalhes.",
         variant: "destructive",
       });
     } finally {

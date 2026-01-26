@@ -141,6 +141,15 @@ export function useAutomationFlows() {
     }
   ) => {
     try {
+      console.log("🔄 [updateFlow] Iniciando atualização:", { id, updates });
+      
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        throw new Error("Organização não encontrada.");
+      }
+
+      console.log("🔄 [updateFlow] Organization ID:", organizationId);
+
       const updateData: any = {
         updated_at: new Date().toISOString(),
       };
@@ -148,14 +157,26 @@ export function useAutomationFlows() {
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.description !== undefined) updateData.description = updates.description;
       if (updates.status !== undefined) updateData.status = updates.status;
-      if (updates.flowData !== undefined) updateData.flow_data = updates.flowData;
+      if (updates.flowData !== undefined) {
+        updateData.flow_data = updates.flowData;
+        console.log("🔄 [updateFlow] Flow data size:", JSON.stringify(updates.flowData).length, "bytes");
+      }
 
-      const { error } = await (supabase as any)
+      console.log("🔄 [updateFlow] Update data:", updateData);
+
+      const { data, error } = await (supabase as any)
         .from('automation_flows')
         .update(updateData)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ [updateFlow] Erro do Supabase:", error);
+        throw error;
+      }
+
+      console.log("✅ [updateFlow] Sucesso! Dados atualizados:", data);
 
       toast({
         title: "Sucesso",
@@ -165,9 +186,11 @@ export function useAutomationFlows() {
       await fetchFlows();
       return true;
     } catch (error: any) {
+      console.error("❌ [updateFlow] Erro completo:", error);
+      console.error("❌ [updateFlow] Stack:", error.stack);
       toast({
         title: "Erro",
-        description: error.message,
+        description: error.message || "Erro desconhecido ao atualizar fluxo.",
         variant: "destructive",
       });
       return false;
