@@ -229,6 +229,38 @@ serve(async (req) => {
           messageContent
         );
 
+        // ✅ CORREÇÃO CRÍTICA: Verificar se já existe OUTRA mensagem "scheduled" para o mesmo telefone e campanha
+        // Isso previne processar múltiplas mensagens que foram criadas duplicadas na fila
+        const { data: otherScheduledCheck } = await supabase
+          .from("broadcast_queue")
+          .select("id, status, created_at, scheduled_for")
+          .eq("phone", item.phone)
+          .eq("campaign_id", campaign.id)
+          .eq("status", "scheduled")
+          .neq("id", item.id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        
+        if (otherScheduledCheck) {
+          console.log(`⚠️ [DUPLICAÇÃO CRÍTICA] Outra mensagem "scheduled" já existe para este telefone e campanha!`);
+          console.log(`   - Mensagem atual: ID ${item.id}, criada em ${item.created_at}`);
+          console.log(`   - Mensagem duplicada: ID ${otherScheduledCheck.id}, criada em ${otherScheduledCheck.created_at}`);
+          console.log(`   - AÇÃO: Cancelando esta mensagem para evitar envio duplicado`);
+          
+          // Cancelar esta mensagem (manter a mais antiga)
+          await supabase
+            .from("broadcast_queue")
+            .update({
+              status: "cancelled",
+              error_message: `Mensagem duplicada cancelada. Outra mensagem (ID: ${otherScheduledCheck.id}) já está agendada para este telefone.`
+            })
+            .eq("id", item.id)
+            .eq("status", "scheduled");
+          
+          continue; // Pular para o próximo item
+        }
+
         // ✅ CORREÇÃO CRÍTICA: Verificar se já foi enviada (com fallback se coluna não existir)
         // Primeiro, verificar por deduplication_hash se coluna existir
         let existingSent = null;
