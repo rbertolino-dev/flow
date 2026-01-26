@@ -2016,9 +2016,45 @@ export default function BroadcastCampaigns() {
         console.warn(`⚠️ ${queueItems.length - validQueueItems.length} itens foram removidos por validação`);
       }
 
+      // ✅ CORREÇÃO 1: Verificar duplicação antes de inserir (previne contatos duplicados na lista)
+      const existingPhones = new Set<string>();
+      const uniqueQueueItems: any[] = [];
+      let duplicatesRemoved = 0;
+
+      for (const item of validQueueItems) {
+        // Criar chave única: campaign_id + phone + instance_id
+        // No modo separate, cada instância pode ter o mesmo telefone (comportamento esperado)
+        // No modo single/rotate, telefone deve ser único por campanha
+        const phoneKey = newCampaign.sendingMethod === "separate"
+          ? `${item.campaign_id}-${item.phone}-${item.instance_id}`
+          : `${item.campaign_id}-${item.phone}`;
+        
+        if (existingPhones.has(phoneKey)) {
+          console.warn(`⚠️ Telefone ${item.phone} já está na fila (campanha ${item.campaign_id}) - PULADO`);
+          duplicatesRemoved++;
+          continue; // Pular duplicado
+        }
+        
+        existingPhones.add(phoneKey);
+        uniqueQueueItems.push(item);
+      }
+
+      if (duplicatesRemoved > 0) {
+        console.warn(`⚠️ ${duplicatesRemoved} telefones duplicados foram removidos antes de inserir na fila`);
+        toast({
+          title: "Duplicados removidos",
+          description: `${duplicatesRemoved} telefone(s) duplicado(s) foram removidos da lista`,
+          variant: "default",
+        });
+      }
+
+      if (uniqueQueueItems.length === 0) {
+        throw new Error("Nenhum item válido para inserir na fila após remover duplicados. Verifique os dados dos contatos.");
+      }
+
       const { error: queueError, data: insertedData } = await supabase
         .from("broadcast_queue")
-        .insert(validQueueItems)
+        .insert(uniqueQueueItems)  // ✅ Usar lista sem duplicados
         .select();
 
       if (queueError) {
@@ -2080,6 +2116,65 @@ export default function BroadcastCampaigns() {
 
   const proceedWithCampaignStart = async (campaignId: string, scheduleForNextWindow: boolean) => {
     try {
+      // ✅ CORREÇÃO 2: Verificar status da campanha antes de iniciar (previne múltiplas execuções)
+      const { data: campaignStatus, error: statusError } = await supabase
+        .from("broadcast_campaigns")
+        .select("id, status, started_at")
+        .eq("id", campaignId)
+        .single();
+      
+      if (statusError) throw statusError;
+      
+      // Se já está running, não permitir iniciar novamente
+      if (campaignStatus.status === "running") {
+        const startedAt = campaignStatus.started_at 
+          ? formatDate(new Date(campaignStatus.started_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+          : "anteriormente";
+        
+        toast({
+          title: "Campanha já está em execução",
+          description: `Esta campanha foi iniciada ${startedAt}. Aguarde a conclusão ou cancele antes de iniciar novamente.`,
+          variant: "destructive",
+        });
+        fetchCampaigns(); // Atualizar lista para mostrar status correto
+        return; // Não continuar
+      }
+
+      // ✅ Atualizar status para "running" ANTES de agendar (atualização atômica)
+      // Só atualiza se ainda estiver "draft" - previne race condition
+      const { error: updateError, data: updateResult } = await supabase
+        .from("broadcast_campaigns")
+        .update({
+          status: "running",
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", campaignId)
+        .eq("status", "draft") // ✅ CRÍTICO: Só atualizar se ainda estiver "draft"
+        .select("id");
+      
+      // Se não conseguiu atualizar (já está running), verificar novamente
+      if (updateError || !updateResult || updateResult.length === 0) {
+        const { data: currentCampaign } = await supabase
+          .from("broadcast_campaigns")
+          .select("status, started_at")
+          .eq("id", campaignId)
+          .single();
+        
+        if (currentCampaign?.status === "running") {
+          const startedAt = currentCampaign.started_at 
+            ? formatDate(new Date(currentCampaign.started_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+            : "anteriormente";
+          
+          toast({
+            title: "Campanha já está em execução",
+            description: `Outro processo já iniciou esta campanha ${startedAt}.`,
+            variant: "destructive",
+          });
+          fetchCampaigns(); // Atualizar lista
+          return; // Não continuar
+        }
+      }
+
       // Buscar itens pendentes
       const { data: queueItems, error: fetchError } = await supabase
         .from("broadcast_queue")
@@ -2280,6 +2375,44 @@ export default function BroadcastCampaigns() {
     newMaxDelay?: number
   ) => {
     try {
+      // ✅ CORREÇÃO 3: Verificar se mensagens já estão agendadas antes de agendar (previne re-agendamento)
+      const itemIds = queueItems.map(item => item.id);
+      const { data: existingScheduled, error: checkError } = await supabase
+        .from("broadcast_queue")
+        .select("id, status, scheduled_for")
+        .in("id", itemIds)
+        .in("status", ["scheduled", "sending", "sent"]);
+      
+      if (checkError) {
+        console.error("⚠️ Erro ao verificar mensagens existentes:", checkError);
+      } else if (existingScheduled && existingScheduled.length > 0) {
+        // Filtrar mensagens que já estão agendadas/enviadas
+        const scheduledIds = new Set(existingScheduled.map(item => item.id));
+        const originalLength = queueItems.length;
+        queueItems = queueItems.filter(item => !scheduledIds.has(item.id));
+        
+        if (queueItems.length === 0) {
+          console.log("⚠️ Todas as mensagens já estão agendadas/enviadas - nada para agendar");
+          toast({
+            title: "Nada para agendar",
+            description: "Todas as mensagens desta campanha já foram agendadas ou enviadas.",
+            variant: "default",
+          });
+          return; // Não continuar
+        }
+        
+        const skippedCount = originalLength - queueItems.length;
+        console.log(`⚠️ ${skippedCount} mensagem(ns) já estava(m) agendada(s)/enviada(s) - pulada(s)`);
+        
+        if (skippedCount > 0) {
+          toast({
+            title: "Algumas mensagens já estavam agendadas",
+            description: `${skippedCount} mensagem(ns) foram pulada(s) pois já estavam agendadas ou enviadas.`,
+            variant: "default",
+          });
+        }
+      }
+
       // Atualizar delay se foi editado
       if (action === "edit" && newMinDelay && newMaxDelay) {
         await supabase

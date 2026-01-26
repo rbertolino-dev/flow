@@ -22,6 +22,7 @@ serve(async (req) => {
 
     // Buscar mensagens agendadas que estão prontas para envio
     // ✅ CORREÇÃO CRÍTICA: Excluir mensagens com status "sending" para evitar processamento duplicado
+    // ✅ CORREÇÃO EXTRA: Excluir mensagens com processing_lock_until ainda válido
     const now = new Date().toISOString();
     const { data: queueItems, error: fetchError } = await supabase
       .from("broadcast_queue")
@@ -40,14 +41,31 @@ serve(async (req) => {
       `)
       .eq("status", "scheduled")
       .lte("scheduled_for", now)
-      .neq("status", "sending") // ✅ CRÍTICO: Excluir mensagens que já estão sendo processadas
       .limit(10); // Processar 10 por vez
+    
+    // ✅ CORREÇÃO CRÍTICA: Filtrar mensagens lockadas após buscar (Supabase não suporta WHERE em query)
+    // Isso previne pegar mensagens que já estão sendo processadas por outro processo
+    const nowDate = new Date();
+    const filteredItems = (queueItems || []).filter(item => {
+      // Se tem processing_lock_until e ainda é válido, pular
+      if (item.processing_lock_until) {
+        const lockUntil = new Date(item.processing_lock_until);
+        if (lockUntil > nowDate) {
+          console.log(`⚠️ Item ${item.id} está lockado até ${item.processing_lock_until} - PULADO`);
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    // Usar itens filtrados ao invés dos originais
+    const queueItemsToProcess = filteredItems;
 
     if (fetchError) throw fetchError;
 
-    console.log(`📬 Encontrados ${queueItems?.length || 0} itens para processar`);
+    console.log(`📬 Encontrados ${queueItems?.length || 0} itens na query, ${queueItemsToProcess.length} após filtrar lockados`);
 
-    if (!queueItems || queueItems.length === 0) {
+    if (!queueItemsToProcess || queueItemsToProcess.length === 0) {
       return new Response(
         JSON.stringify({ processed: 0, message: "Nenhum item para processar" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -55,7 +73,7 @@ serve(async (req) => {
     }
 
     // SEGURANÇA EXTRA: Filtrar itens de campanhas canceladas
-    const validItems = queueItems.filter(item => {
+    const validItems = queueItemsToProcess.filter(item => {
       if (!item.campaign) {
         console.log(`⚠️ Item ${item.id} sem campanha associada - IGNORADO`);
         return false;
@@ -236,7 +254,9 @@ serve(async (req) => {
         }
         
         // ✅ FALLBACK: Se deduplication_hash não funcionar, verificar por telefone + campanha + sent_at recente
+        // ✅ CORREÇÃO CRÍTICA: Verificar também mensagens "sending" (podem estar sendo enviadas agora)
         if (!existingSent) {
+          // Verificar mensagens já enviadas
           const { data: phoneCheck } = await supabase
             .from("broadcast_queue")
             .select("id, status, sent_at")
@@ -250,6 +270,29 @@ serve(async (req) => {
           if (phoneCheck) {
             existingSent = phoneCheck;
             console.log(`⚠️ Mensagem duplicada detectada por telefone+campanha (sem hash) - ID: ${phoneCheck.id}`);
+          } else {
+            // ✅ NOVO: Verificar também mensagens "sending" (podem estar sendo enviadas agora)
+            const { data: sendingCheck } = await supabase
+              .from("broadcast_queue")
+              .select("id, status, sending_started_at")
+              .eq("phone", item.phone)
+              .eq("campaign_id", campaign.id)
+              .eq("status", "sending")
+              .neq("id", item.id)
+              .maybeSingle();
+            
+            if (sendingCheck) {
+              // Verificar se está sendo enviada há menos de 5 minutos (pode ser legítimo)
+              const sendingStarted = sendingCheck.sending_started_at 
+                ? new Date(sendingCheck.sending_started_at).getTime()
+                : Date.now();
+              const timeSinceStart = Date.now() - sendingStarted;
+              
+              if (timeSinceStart < 5 * 60 * 1000) { // Menos de 5 minutos
+                existingSent = sendingCheck;
+                console.log(`⚠️ Mensagem duplicada detectada: outra mensagem está sendo enviada agora (ID: ${sendingCheck.id}) - PULANDO`);
+              }
+            }
           }
         }
 
