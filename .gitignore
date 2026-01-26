@@ -28,3 +28,17 @@ dist-ssr
 scripts/.ssh-credentials
 scripts/.github-credentials
 scripts/verificar-deploy-process-broadcast-queue.sql
+
+# Scripts de diagnóstico temporários
+scripts/*diagnostico*.sql
+scripts/*diagnostico*.sh
+scripts/verificar-*.sql
+scripts/verificar-*.sh
+scripts/executar-*.sh
+scripts/cancelar-*.sql
+scripts/corrigir-*.sql
+scripts/forcar-*.sql
+scripts/parar-*.sql
+scripts/criar-*.sql
+scripts/queries-*.sql
+scripts/ver-logs-*.sh
