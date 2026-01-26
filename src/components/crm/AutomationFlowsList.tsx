@@ -278,6 +278,9 @@ export function AutomationFlowsList() {
           }
         }}>
           <DialogContent className="max-w-[95vw] h-[95vh] p-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{isCreating ? "Criar Fluxo" : "Editar Fluxo"}</DialogTitle>
+            </DialogHeader>
             <AutomationFlowEditor
               flowId={editingFlowId || undefined}
               initialFlowData={selectedPlaybook?.flowData}
@@ -301,6 +304,9 @@ export function AutomationFlowsList() {
       {testingFlowId && (
         <Dialog open={true} onOpenChange={() => setTestingFlowId(null)}>
           <DialogContent className="max-w-md">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Modo de Teste</DialogTitle>
+            </DialogHeader>
             <FlowTestMode
               flow={flows.find(f => f.id === testingFlowId)!}
               onClose={() => setTestingFlowId(null)}
