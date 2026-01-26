@@ -514,7 +514,7 @@ export function AutomationFlowEditor({ flowId, onClose, initialFlowData }: Autom
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b p-4 bg-background">
         {/* Validações */}

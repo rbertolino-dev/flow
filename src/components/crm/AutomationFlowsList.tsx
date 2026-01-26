@@ -280,22 +280,27 @@ export function AutomationFlowsList() {
           <DialogContent className="max-w-[95vw] h-[95vh] p-0">
             <DialogHeader className="sr-only">
               <DialogTitle>{isCreating ? "Criar Fluxo" : "Editar Fluxo"}</DialogTitle>
+              <DialogDescription>
+                {isCreating ? "Crie um novo fluxo de automação" : "Edite o fluxo de automação"}
+              </DialogDescription>
             </DialogHeader>
-            <AutomationFlowEditor
-              flowId={editingFlowId || undefined}
-              initialFlowData={selectedPlaybook?.flowData}
-              onClose={() => {
-                // Atualizar lista antes de fechar
-                fetchFlows();
-                // Aguardar um pouco para garantir que a atualização foi propagada
-                setTimeout(() => {
+            <div className="h-full">
+              <AutomationFlowEditor
+                flowId={editingFlowId || undefined}
+                initialFlowData={selectedPlaybook?.flowData}
+                onClose={() => {
+                  // Atualizar lista antes de fechar
                   fetchFlows();
-                }, 500);
-                setEditingFlowId(null);
-                setIsCreating(false);
-                setSelectedPlaybook(null);
-              }}
-            />
+                  // Aguardar um pouco para garantir que a atualização foi propagada
+                  setTimeout(() => {
+                    fetchFlows();
+                  }, 500);
+                  setEditingFlowId(null);
+                  setIsCreating(false);
+                  setSelectedPlaybook(null);
+                }}
+              />
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -306,6 +311,9 @@ export function AutomationFlowsList() {
           <DialogContent className="max-w-md">
             <DialogHeader className="sr-only">
               <DialogTitle>Modo de Teste</DialogTitle>
+              <DialogDescription>
+                Execute este fluxo manualmente em um lead para testar
+              </DialogDescription>
             </DialogHeader>
             <FlowTestMode
               flow={flows.find(f => f.id === testingFlowId)!}
