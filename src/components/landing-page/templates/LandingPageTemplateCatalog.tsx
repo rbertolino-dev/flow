@@ -1,6 +1,7 @@
 import { LandingPagePublicData } from "@/types/landing-page";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, ShoppingBag, CheckCircle, Star, Grid3x3 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { MessageSquare, ShoppingBag, CheckCircle, Star, Grid3x3, Search } from "lucide-react";
 import { LandingPageForm } from "@/components/landing-page/LandingPageForm";
 import { useState } from "react";
 
@@ -11,6 +12,7 @@ interface LandingPageTemplateCatalogProps {
 export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateCatalogProps) {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Agrupar produtos por categoria
   const productsByCategory = landingPage.items.reduce((acc, item) => {
@@ -51,9 +53,26 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
     window.open(`https://wa.me/${phoneClean}?text=${encodedMessage}`, '_blank');
   };
 
-  const filteredItems = selectedCategory
+  // Filtrar por busca
+  const filterBySearch = (item: typeof landingPage.items[0]): boolean => {
+    if (!searchTerm) return true;
+    const product = item.product;
+    if (!product) return false;
+    const searchLower = searchTerm.toLowerCase();
+    const itemName = (item.custom_title || product.name).toLowerCase();
+    const itemDescription = (item.custom_description || product.description || '').toLowerCase();
+    const category = (product.category || '').toLowerCase();
+    return itemName.includes(searchLower) || 
+           itemDescription.includes(searchLower) || 
+           category.includes(searchLower);
+  };
+
+  // Filtrar itens por categoria e busca
+  const filteredItemsByCategory = selectedCategory
     ? productsByCategory[selectedCategory] || []
     : landingPage.items;
+
+  const filteredItems = filteredItemsByCategory.filter(filterBySearch);
 
   return (
     <div className="min-h-screen bg-white">
@@ -87,6 +106,26 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
         </div>
       </section>
 
+      {/* Search Bar */}
+      {landingPage.items && landingPage.items.length > 0 && (
+        <section className="py-6 sm:py-8 bg-gray-50 border-b">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-2xl mx-auto">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar produtos ou serviços..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-5 sm:py-6 text-sm sm:text-base border-2 border-gray-300 focus:border-blue-500 rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Categories Filter */}
       {categories.length > 1 && (
         <section className="py-6 sm:py-8 bg-gray-50 border-b">
@@ -117,7 +156,7 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
       )}
 
       {/* Products and Services Grid */}
-      {filteredItems && filteredItems.length > 0 && (() => {
+      {landingPage.items && landingPage.items.length > 0 && (() => {
         // Separar produtos e serviços baseado na categoria
         const isServiceCategory = (category: string | null | undefined): boolean => {
           if (!category) return false;
@@ -200,6 +239,17 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
 
         return (
           <>
+            {/* Mensagem quando não há resultados */}
+            {searchTerm && filteredItems.length === 0 && products.length === 0 && services.length === 0 && (
+              <section className="py-12 sm:py-16 bg-white">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                  <p className="text-center text-gray-600 text-lg sm:text-xl">
+                    Nenhum resultado encontrado para "{searchTerm}"
+                  </p>
+                </div>
+              </section>
+            )}
+
             {/* Products Section */}
             {products.length > 0 && (
               <section className="py-12 sm:py-16 bg-white">
@@ -253,6 +303,11 @@ export function LandingPageTemplateCatalog({ landingPage }: LandingPageTemplateC
                     <h2 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8">{selectedCategory}</h2>
                   ) : (
                     <h2 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-center">Nossos Produtos e Serviços</h2>
+                  )}
+                  {searchTerm && filteredItems.length === 0 && (
+                    <p className="text-center text-gray-600 mb-8">
+                      Nenhum resultado encontrado para "{searchTerm}"
+                    </p>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                     {filteredItems.map(renderItemCard)}
