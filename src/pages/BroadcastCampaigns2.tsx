@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -26,7 +26,6 @@ import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
-import { Wifi, AlertTriangle } from "lucide-react";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
 import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
@@ -450,7 +449,7 @@ function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
   );
 }
 
-export default function BroadcastCampaigns() {
+export default function BroadcastCampaigns2() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
