@@ -289,14 +289,16 @@ serve(async (req) => {
           }
         }
         
-        // Marcar como falha
+        // ✅ CRÍTICO: Marcar como falha de forma ATÔMICA
+        // Só atualiza se ainda estiver "scheduled" - previne reprocessamento
         await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .eq("status", "scheduled"); // ✅ CRÍTICO: Só atualizar se ainda estiver "scheduled"
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
