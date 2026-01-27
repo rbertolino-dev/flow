@@ -315,7 +315,8 @@ function normalizePhoneForComparison(phone: string): string {
 export async function validateWhatsAppNumbers(
   contacts: ParsedContact[],
   instanceId: string,
-  evolutionConfig: { api_url: string; api_key: string; instance_name: string }
+  evolutionConfig: { api_url: string; api_key: string; instance_name: string },
+  useLatamValidator: boolean = false
 ): Promise<{ validated: ParsedContact[]; rejected: ParsedContact[] }> {
   const validated: ParsedContact[] = [];
   const rejected: ParsedContact[] = [];
@@ -337,8 +338,17 @@ export async function validateWhatsAppNumbers(
     const normalizedNumbers: string[] = [];
 
     for (const contact of validContacts) {
-      // Normalizar número (remover + e manter apenas dígitos)
-      const normalized = normalizePhoneForComparison(contact.phone);
+      // Para LATAM: preservar formato internacional com + (não remover código do país)
+      // Para Brasil: remover + e manter apenas dígitos (normalizar)
+      let normalized: string;
+      if (useLatamValidator && contact.phone.startsWith('+')) {
+        // LATAM: preservar formato +XX... (remover apenas espaços, não o +)
+        normalized = contact.phone.replace(/\s/g, ''); // Remove apenas espaços
+      } else {
+        // Brasil: remover + e manter apenas dígitos
+        normalized = normalizePhoneForComparison(contact.phone);
+      }
+      
       if (normalized && !phoneToContactMap.has(normalized)) {
         phoneToContactMap.set(normalized, contact);
         normalizedNumbers.push(normalized);
@@ -432,23 +442,43 @@ export async function validateWhatsAppNumbers(
     const apiResultsMap = new Map<string, any>();
     for (const result of aggregated) {
       if (result && result.number) {
-        const normalizedApiNumber = normalizePhoneForComparison(result.number);
+        // Para LATAM: preservar formato com + se vier da API
+        // Para Brasil: normalizar removendo +
+        let normalizedApiNumber: string;
+        if (useLatamValidator && (result.number.startsWith('+') || result.number.includes('@'))) {
+          // LATAM: preservar formato +XX... ou remover @s.whatsapp.net mas manter +
+          normalizedApiNumber = result.number.replace('@s.whatsapp.net', '').replace(/\s/g, '');
+        } else {
+          // Brasil: remover + e manter apenas dígitos
+          normalizedApiNumber = normalizePhoneForComparison(result.number);
+        }
+        
         if (normalizedApiNumber) {
           // Se já existe, manter o que tem exists: true (priorizar validação positiva)
           if (!apiResultsMap.has(normalizedApiNumber) || result.exists === true) {
             apiResultsMap.set(normalizedApiNumber, result);
           }
           
-          // Também mapear pelos últimos dígitos para matching flexível
-          const last8 = normalizedApiNumber.slice(-8);
-          const last9 = normalizedApiNumber.slice(-9);
-          const last10 = normalizedApiNumber.slice(-10);
-          const last11 = normalizedApiNumber.slice(-11);
+          // Para LATAM, também mapear sem o + para matching
+          if (useLatamValidator && normalizedApiNumber.startsWith('+')) {
+            const withoutPlus = normalizedApiNumber.substring(1);
+            if (!apiResultsMap.has(withoutPlus) || result.exists === true) {
+              apiResultsMap.set(withoutPlus, result);
+            }
+          }
           
-          if (!apiResultsMap.has(last8)) apiResultsMap.set(last8, result);
-          if (!apiResultsMap.has(last9)) apiResultsMap.set(last9, result);
-          if (!apiResultsMap.has(last10)) apiResultsMap.set(last10, result);
-          if (!apiResultsMap.has(last11)) apiResultsMap.set(last11, result);
+          // Também mapear pelos últimos dígitos para matching flexível (apenas Brasil)
+          if (!useLatamValidator) {
+            const last8 = normalizedApiNumber.slice(-8);
+            const last9 = normalizedApiNumber.slice(-9);
+            const last10 = normalizedApiNumber.slice(-10);
+            const last11 = normalizedApiNumber.slice(-11);
+            
+            if (!apiResultsMap.has(last8)) apiResultsMap.set(last8, result);
+            if (!apiResultsMap.has(last9)) apiResultsMap.set(last9, result);
+            if (!apiResultsMap.has(last10)) apiResultsMap.set(last10, result);
+            if (!apiResultsMap.has(last11)) apiResultsMap.set(last11, result);
+          }
         }
       }
     }
@@ -460,17 +490,34 @@ export async function validateWhatsAppNumbers(
     let rejectedCount = 0;
 
     for (const contact of validContacts) {
-      const normalized = normalizePhoneForComparison(contact.phone);
+      // Para LATAM: preservar formato internacional com + (não remover código do país)
+      // Para Brasil: remover + e manter apenas dígitos (normalizar)
+      let normalized: string;
+      if (useLatamValidator && contact.phone.startsWith('+')) {
+        // LATAM: preservar formato +XX... (remover apenas espaços, não o +)
+        normalized = contact.phone.replace(/\s/g, ''); // Remove apenas espaços
+      } else {
+        // Brasil: remover + e manter apenas dígitos
+        normalized = normalizePhoneForComparison(contact.phone);
+      }
       
       // Tentar encontrar resultado por várias estratégias
       let apiResult = apiResultsMap.get(normalized);
       
       if (!apiResult) {
-        // Tentar pelos últimos dígitos
-        apiResult = apiResultsMap.get(normalized.slice(-11)) ||
-                   apiResultsMap.get(normalized.slice(-10)) ||
-                   apiResultsMap.get(normalized.slice(-9)) ||
-                   apiResultsMap.get(normalized.slice(-8));
+        // Para LATAM, também tentar sem o + para matching
+        if (useLatamValidator && normalized.startsWith('+')) {
+          const withoutPlus = normalized.substring(1);
+          apiResult = apiResultsMap.get(withoutPlus);
+        }
+        
+        // Tentar pelos últimos dígitos (apenas para Brasil)
+        if (!apiResult && !useLatamValidator) {
+          apiResult = apiResultsMap.get(normalized.slice(-11)) ||
+                     apiResultsMap.get(normalized.slice(-10)) ||
+                     apiResultsMap.get(normalized.slice(-9)) ||
+                     apiResultsMap.get(normalized.slice(-8));
+        }
       }
 
       if (apiResult) {
@@ -551,7 +598,7 @@ export async function validateContactsComplete(
   let whatsappRejected: ParsedContact[] = [];
 
   if (validContacts.length > 0) {
-    const result = await validateWhatsAppNumbers(validContacts, instanceId, evolutionConfig);
+    const result = await validateWhatsAppNumbers(validContacts, instanceId, evolutionConfig, useLatamValidator);
     whatsappValidated = result.validated;
     // Contatos rejeitados pelo WhatsApp = validContacts - whatsappValidated
     // NÃO usar result.rejected.filter(c => c.valid) pois valid é alterado para false nos rejeitados
