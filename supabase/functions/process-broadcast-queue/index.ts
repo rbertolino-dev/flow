@@ -20,6 +20,7 @@ serve(async (req) => {
     );
 
     // Buscar mensagens agendadas que estão prontas para envio
+    // IMPORTANTE: ORDER BY garante ordem consistente e previne processamento duplicado
     const now = new Date().toISOString();
     const { data: queueItems, error: fetchError } = await supabase
       .from("broadcast_queue")
@@ -35,6 +36,9 @@ serve(async (req) => {
       `)
       .eq("status", "scheduled")
       .lte("scheduled_for", now)
+      .order("scheduled_for", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
       .limit(10); // Processar 10 por vez
 
     if (fetchError) throw fetchError;
@@ -213,22 +217,16 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // Marcar como enviado - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-        const { error: updateError, count: updateCount } = await supabase
+        // Marcar como enviado
+        const { error: updateError } = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
-          .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .eq("id", item.id);
 
         if (updateError) throw updateError;
-
-        if (updateCount === 0) {
-          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker ou não estava 'scheduled'. Pulando.`);
-          continue; // Pular para o próximo item se já foi processado
-        }
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
@@ -282,20 +280,14 @@ serve(async (req) => {
           }
         }
         
-        // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-        const { count: updateCount } = await supabase
+        // Marcar como falha
+        await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
           })
-          .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-
-        if (updateCount === 0) {
-          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker ou não estava 'scheduled'. Pulando atualização de falha.`);
-          continue; // Pular para o próximo item se já foi processado
-        }
+          .eq("id", item.id);
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
