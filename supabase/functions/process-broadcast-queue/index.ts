@@ -213,16 +213,29 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // Marcar como enviado
-        const { error: updateError } = await supabase
+        // ✅ CRÍTICO: Marcar como enviado de forma ATÔMICA
+        // Só atualiza se ainda estiver "scheduled" - previne reprocessamento
+        const { error: updateError, data: updateResult } = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .eq("status", "scheduled"); // ✅ CRÍTICO: Só atualizar se ainda estiver "scheduled"
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error(`❌ Erro ao atualizar status para sent:`, updateError);
+          throw updateError;
+        }
+
+        // ✅ VERIFICAÇÃO: Se não atualizou nenhuma linha, significa que já foi processado
+        if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+          console.log(`⚠️ Item ${item.id} já foi processado por outro worker - PULADO`);
+          continue; // Pular para próximo item
+        }
+
+        console.log(`✅ Status atualizado para "sent" - Item ${item.id}`);
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
