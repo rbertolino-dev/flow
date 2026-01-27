@@ -173,6 +173,24 @@ serve(async (req) => {
           personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
         }
 
+        // Formatar telefone para Evolution API (igual ao original)
+        let formattedPhone = item.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
+        
+        // Garantir que números brasileiros tenham código do país (55)
+        if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
+          // Verificar se parece um número brasileiro (DDD válido: 11-99)
+          const ddd = parseInt(formattedPhone.substring(0, 2));
+          if (ddd >= 11 && ddd <= 99) {
+            formattedPhone = '55' + formattedPhone;
+            console.log(`➕ Adicionado código do país 55 ao número ${item.phone}`);
+          }
+        }
+        
+        // Formatar para WhatsApp (adicionar @s.whatsapp.net se não tiver)
+        const whatsappNumber = formattedPhone.includes('@') 
+          ? formattedPhone 
+          : `${formattedPhone}@s.whatsapp.net`;
+
         // Limpar api_url e construir endpoint correto usando a instância do item
         let baseUrl = instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
         if (baseUrl.endsWith('/manager')) {
@@ -180,7 +198,7 @@ serve(async (req) => {
         }
         
         const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
-        console.log(`📤 Enviando para ${item.phone} via ${instance.instance_name} (${evolutionUrl})`);
+        console.log(`📤 Enviando para ${whatsappNumber} via ${instance.instance_name} (${evolutionUrl})`);
 
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
@@ -194,7 +212,7 @@ serve(async (req) => {
             apikey: instance.api_key,
           },
           body: JSON.stringify({
-            number: item.phone,
+            number: whatsappNumber,
             text: personalizedMessage,
           }),
         });
@@ -217,16 +235,23 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // Marcar como enviado
-        const { error: updateError } = await supabase
+        // Marcar como enviado - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+        // Isso previne que múltiplos workers processem a mesma mensagem
+        const { error: updateError, count: updateCount } = await supabase
           .from("broadcast_queue_2")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
 
         if (updateError) throw updateError;
+
+        if (updateCount === 0) {
+          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando.`);
+          continue; // Pular para o próximo item se já foi processado
+        }
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
