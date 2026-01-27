@@ -42,3 +42,8 @@ scripts/parar-*.sql
 scripts/criar-*.sql
 scripts/queries-*.sql
 scripts/ver-logs-*.sh
+
+# Arquivos de diagnóstico temporários
+*.md
+*.txt
+scripts/diagnosticar-*.sql
