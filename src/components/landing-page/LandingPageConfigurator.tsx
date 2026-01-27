@@ -621,6 +621,10 @@ export function LandingPageConfigurator() {
                       {products
                         .filter(p => p.is_active)
                         .filter(p => {
+                          // GARANTIR que produto pertence à organização da landing page
+                          if (landingPage && p.organization_id !== landingPage.organization_id) {
+                            return false;
+                          }
                           if (!productSearchTerm) return true;
                           return p.name.toLowerCase().includes(productSearchTerm) || 
                                  (p.category || '').toLowerCase().includes(productSearchTerm);
