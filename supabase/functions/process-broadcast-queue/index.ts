@@ -287,14 +287,20 @@ serve(async (req) => {
           }
         }
         
-        // Marcar como falha
-        await supabase
+        // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+        const { count: updateCount } = await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+
+        if (updateCount === 0) {
+          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando atualização de falha.`);
+          continue; // Pular para o próximo item se já foi processado
+        }
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
