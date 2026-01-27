@@ -6,6 +6,50 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Substitui todas as tags dinâmicas em uma mensagem de template
+ * Suporta: {nome}, {empresa}, {nome_empresa}, {email}, {cpf}, {cnpj}, e campos customizados
+ */
+function replaceBroadcastTemplateTags(
+  template: string,
+  contactData: Record<string, string | undefined>
+): string {
+  let result = template;
+
+  // Mapeamento de tags padrão
+  // CRÍTICO: Usar ?? ao invés de || para garantir que null/undefined virem string vazia
+  const replacements: Record<string, string> = {
+    nome: contactData.nome ?? "",
+    // CRÍTICO: Usar ?? para empresa (mesma lógica de nome)
+    // Se empresa for null/undefined, tentar nome_empresa, senão string vazia
+    empresa: (contactData.empresa ?? contactData.nome_empresa) ?? "",
+    nome_empresa: (contactData.nome_empresa ?? contactData.empresa) ?? "",
+    email: contactData.email ?? "",
+    cpf: contactData.cpf ?? "",
+    cnpj: contactData.cnpj ?? "",
+  };
+
+  // Adicionar campos customizados
+  // CRÍTICO: Usar ?? ao invés de || para garantir que null/undefined virem string vazia
+  Object.entries(contactData).forEach(([key, value]) => {
+    if (!['nome', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key)) {
+      replacements[key] = value ?? "";
+    }
+  });
+
+  // Substituir todas as tags {tag} ou {{tag}}
+  result = result.replace(/\{\{?(\w+)\}?\}/gi, (match, key) => {
+    const normalizedKey = key.toLowerCase();
+    const replacement = replacements[normalizedKey];
+    
+    // CRÍTICO: Se replacement for undefined, retornar string vazia ao invés de match
+    // Isso garante que tags sem dados sejam removidas (não ficam no texto)
+    return replacement !== undefined ? replacement : "";
+  });
+
+  return result;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -167,11 +211,21 @@ serve(async (req) => {
           if (!message) {
             throw new Error("Mensagem não configurada");
           }
-          personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
-        } else {
-          // Aplicar personalização de variáveis mesmo em mensagens pré-personalizadas
-          personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
+          personalizedMessage = message;
         }
+        
+        // Aplicar personalização completa de todas as tags
+        // Suporta: {nome}, {empresa}, {nome_empresa}, {email}, {cpf}, {cnpj}, e campos customizados
+        personalizedMessage = replaceBroadcastTemplateTags(personalizedMessage, {
+          nome: item.name || "",
+          empresa: item.empresa || item.nome_empresa || "",
+          nome_empresa: item.nome_empresa || item.empresa || "",
+          email: item.email || "",
+          cpf: item.cpf || "",
+          cnpj: item.cnpj || "",
+          // Adicionar campos customizados do JSONB
+          ...(item.custom_fields || {}),
+        });
 
         // Formatar telefone para Evolution API (igual ao original)
         let formattedPhone = item.phone.replace(/\D/g, ''); // Remove caracteres não numéricos

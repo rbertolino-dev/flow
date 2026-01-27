@@ -33,6 +33,7 @@ import { WorkflowListManager } from "@/components/whatsapp/workflows/WorkflowLis
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
+import { parseCSVFile, ParsedCSVContact } from "@/lib/csvParser";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { StatusMediaUpload } from "@/components/whatsapp/StatusMediaUpload";
 import { 
@@ -1143,10 +1144,26 @@ export default function BroadcastCampaigns2() {
 
       // Ler contatos novamente para obter dados validados
       let text: string;
-      let contacts: Array<{ phone: string; name?: string }> = [];
+      let contacts: Array<{ 
+        phone: string; 
+        name?: string;
+        empresa?: string;
+        nome_empresa?: string;
+        email?: string;
+        cpf?: string;
+        cnpj?: string;
+        custom_fields?: Record<string, string>;
+      }> = [];
+      let csvContacts: ParsedCSVContact[] = [];
       
       if (importMode === "csv" && csvFile) {
         text = await csvFile.text();
+        // Processar CSV completo para obter todos os campos
+        const csvResult = parseCSVFile(text, { hasHeader: true });
+        if (csvResult.errors.length > 0) {
+          console.warn("Erros ao processar CSV:", csvResult.errors);
+        }
+        csvContacts = csvResult.contacts;
       } else if (importMode === "list" && selectedListId) {
         // Se for lista do funil, usar contatos diretamente sem revalidar
         const selectedList = lists.find(l => l.id === selectedListId);
@@ -1216,11 +1233,41 @@ export default function BroadcastCampaigns2() {
           instance_name: instance.instance_name
         }, newCampaign.useLatamValidator);
 
-        // Usar apenas os contatos validados com WhatsApp
-        contacts = validation.whatsappValidated.map(c => ({
-          phone: c.phone,
-          name: c.name
-        }));
+        // Se temos CSV parseado, combinar com validação WhatsApp
+        if (csvContacts.length > 0) {
+          // Criar mapa de telefones validados
+          const validatedPhones = new Set(validation.whatsappValidated.map(c => c.phone));
+          
+          // Combinar dados do CSV com validação WhatsApp
+          contacts = csvContacts
+            .filter(csvContact => validatedPhones.has(csvContact.phone))
+            .map(csvContact => {
+              // Extrair campos customizados (todos exceto os campos padrão)
+              const customFields: Record<string, string> = {};
+              Object.entries(csvContact).forEach(([key, value]) => {
+                if (!['phone', 'name', 'empresa', 'nome_empresa', 'email', 'cpf', 'cnpj'].includes(key) && value) {
+                  customFields[key] = String(value);
+                }
+              });
+
+              return {
+                phone: csvContact.phone,
+                name: csvContact.name,
+                empresa: csvContact.empresa,
+                nome_empresa: csvContact.nome_empresa,
+                email: csvContact.email,
+                cpf: csvContact.cpf,
+                cnpj: csvContact.cnpj,
+                custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
+              };
+            });
+        } else {
+          // Usar apenas os contatos validados com WhatsApp (formato simples)
+          contacts = validation.whatsappValidated.map(c => ({
+            phone: c.phone,
+            name: c.name
+          }));
+        }
       }
 
       // Criar campanha
@@ -1272,6 +1319,12 @@ export default function BroadcastCampaigns2() {
               instance_id: instanceId,
               phone: contact.phone,
               name: contact.name,
+              empresa: contact.empresa,
+              nome_empresa: contact.nome_empresa,
+              email: contact.email,
+              cpf: contact.cpf,
+              cnpj: contact.cnpj,
+              custom_fields: contact.custom_fields || null,
               personalized_message: personalizedMessage,
               status: "pending",
             });
@@ -1298,6 +1351,12 @@ export default function BroadcastCampaigns2() {
             instance_id: assignedInstanceId,
             phone: contact.phone,
             name: contact.name,
+            empresa: contact.empresa,
+            nome_empresa: contact.nome_empresa,
+            email: contact.email,
+            cpf: contact.cpf,
+            cnpj: contact.cnpj,
+            custom_fields: contact.custom_fields || null,
             personalized_message: personalizedMessage,
             status: "pending",
           };
