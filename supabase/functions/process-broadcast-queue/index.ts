@@ -213,29 +213,16 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // ✅ CRÍTICO: Marcar como enviado de forma ATÔMICA
-        // Só atualiza se ainda estiver "scheduled" - previne reprocessamento
-        const { error: updateError, data: updateResult } = await supabase
+        // Marcar como enviado
+        const { error: updateError } = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
-          .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ CRÍTICO: Só atualizar se ainda estiver "scheduled"
+          .eq("id", item.id);
 
-        if (updateError) {
-          console.error(`❌ Erro ao atualizar status para sent:`, updateError);
-          throw updateError;
-        }
-
-        // ✅ VERIFICAÇÃO: Se não atualizou nenhuma linha, significa que já foi processado
-        if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
-          console.log(`⚠️ Item ${item.id} já foi processado por outro worker - PULADO`);
-          continue; // Pular para próximo item
-        }
-
-        console.log(`✅ Status atualizado para "sent" - Item ${item.id}`);
+        if (updateError) throw updateError;
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
@@ -289,16 +276,14 @@ serve(async (req) => {
           }
         }
         
-        // ✅ CRÍTICO: Marcar como falha de forma ATÔMICA
-        // Só atualiza se ainda estiver "scheduled" - previne reprocessamento
+        // Marcar como falha
         await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
           })
-          .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ CRÍTICO: Só atualizar se ainda estiver "scheduled"
+          .eq("id", item.id);
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
