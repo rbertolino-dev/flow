@@ -32,7 +32,7 @@ serve(async (req) => {
           custom_message,
           message_template:message_templates(content)
         ),
-        instance:evolution_config(api_url, api_key, instance_name)
+        instance:evolution_config!instance_id(api_url, api_key, instance_name)
       `)
       .eq("status", "scheduled")
       .lte("scheduled_for", now)

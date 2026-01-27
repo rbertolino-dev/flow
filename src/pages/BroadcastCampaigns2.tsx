@@ -1882,7 +1882,7 @@ export default function BroadcastCampaigns2() {
         .from("broadcast_queue_2")
         .select(`
           *,
-          instance:evolution_config(id, instance_name)
+          instance:evolution_config!instance_id(id, instance_name)
         `)
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false });
