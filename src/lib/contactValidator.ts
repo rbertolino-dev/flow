@@ -6,6 +6,9 @@
 export interface ParsedContact {
   phone: string;
   name?: string;
+  empresa?: string;
+  nome_empresa?: string;
+  email?: string;
   valid: boolean;
   error?: string;
 }
@@ -161,6 +164,7 @@ function validateLatamPhone(phone: string): { normalized: string; valid: boolean
 
 /**
  * Parseia uma lista de contatos (CSV ou texto colado)
+ * Melhorado para aceitar espaço como separador e detectar automaticamente campos
  */
 export function parseContactList(text: string, useLatamValidator: boolean = false): ParsedContact[] {
   const lines = text.split("\n").filter((line) => line.trim());
@@ -170,12 +174,113 @@ export function parseContactList(text: string, useLatamValidator: boolean = fals
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Tentar separar por vírgula ou ponto-e-vírgula
-    const parts = trimmed.split(/[,;]/);
-    const rawPhone = parts[0]?.trim() || "";
-    const name = parts[1]?.trim();
+    // Detectar separador: vírgula, ponto-e-vírgula, tab ou espaço múltiplo
+    let parts: string[] = [];
+    
+    // Primeiro tentar separadores comuns (vírgula, ponto-e-vírgula, tab)
+    if (trimmed.includes(',') || trimmed.includes(';') || trimmed.includes('\t')) {
+      parts = trimmed.split(/[,;\t]/).map(p => p.trim().replace(/^"|"$/g, ''));
+    } else {
+      // Se não tem separadores comuns, usar espaço múltiplo ou espaço simples
+      // Espaço múltiplo (2 ou mais) = separador de colunas de planilha
+      if (trimmed.match(/\s{2,}/)) {
+        parts = trimmed.split(/\s{2,}/).map(p => p.trim());
+      } else {
+        // Espaço simples: tentar detectar campos inteligentemente
+        // Dividir por espaço e depois agrupar palavras que não são telefone
+        const spaceParts = trimmed.split(/\s+/);
+        parts = [];
+        
+        let currentField = '';
+        for (let i = 0; i < spaceParts.length; i++) {
+          const part = spaceParts[i];
+          const phoneRegex = /[\d\s\(\)\-\+]{10,}/;
+          
+          // Se é telefone, finalizar campo anterior e adicionar telefone
+          if (phoneRegex.test(part)) {
+            if (currentField) {
+              parts.push(currentField.trim());
+              currentField = '';
+            }
+            parts.push(part);
+          } else {
+            // É texto, adicionar ao campo atual
+            if (currentField) {
+              currentField += ' ' + part;
+            } else {
+              currentField = part;
+            }
+          }
+        }
+        if (currentField) {
+          parts.push(currentField.trim());
+        }
+      }
+    }
 
-    // Normalizar e validar baseado no tipo selecionado
+    // Detectar telefone, nome e empresa automaticamente
+    let rawPhone = '';
+    let name = '';
+    let empresa = '';
+    
+    // Regex para detectar telefone (10+ dígitos)
+    const phoneRegex = /[\d\s\(\)\-\+]{10,}/;
+    
+    // Encontrar telefone em qualquer parte
+    let phoneIndex = -1;
+    for (let i = 0; i < parts.length; i++) {
+      if (phoneRegex.test(parts[i])) {
+        rawPhone = parts[i];
+        phoneIndex = i;
+        break;
+      }
+    }
+    
+    if (!rawPhone) {
+      // Se não encontrou telefone, assumir primeiro campo é telefone
+      rawPhone = parts[0] || '';
+      phoneIndex = 0;
+    }
+    
+    // Preencher nome e empresa baseado na posição do telefone
+    if (phoneIndex === 0) {
+      // Telefone primeiro: nome e empresa vêm depois
+      name = parts[1] || '';
+      empresa = parts[2] || parts[3] || '';
+    } else if (phoneIndex === 1) {
+      // Telefone segundo: nome primeiro, empresa depois
+      name = parts[0] || '';
+      empresa = parts[2] || parts[3] || '';
+    } else if (phoneIndex > 1) {
+      // Telefone depois: nome e empresa antes
+      name = parts[0] || '';
+      empresa = parts.slice(1, phoneIndex).join(' ') || parts[phoneIndex + 1] || '';
+    } else {
+      // Fallback: primeiro campo é nome, segundo é telefone
+      name = parts[0] || '';
+      rawPhone = parts[1] || rawPhone;
+      empresa = parts[2] || parts[3] || '';
+    }
+    
+    // Detectar email em qualquer parte
+    let email = '';
+    for (const part of parts) {
+      if (part.includes('@') && part.includes('.')) {
+        email = part;
+        break;
+      }
+    }
+    
+    // Se encontrou email e não tem empresa definida, pode ser que email esteja no lugar da empresa
+    if (email && !empresa && phoneIndex > 0) {
+      // Verificar se há campo entre telefone e email que pode ser empresa
+      const emailIndex = parts.findIndex(p => p.includes('@'));
+      if (emailIndex > phoneIndex) {
+        empresa = parts.slice(phoneIndex + 1, emailIndex).join(' ') || '';
+      }
+    }
+
+    // Normalizar e validar telefone baseado no tipo selecionado
     const result = useLatamValidator 
       ? normalizeLatamPhoneNumber(rawPhone)
       : normalizePhoneNumber(rawPhone);
@@ -183,6 +288,9 @@ export function parseContactList(text: string, useLatamValidator: boolean = fals
     contacts.push({
       phone: result.normalized,
       name: name || undefined,
+      empresa: empresa || undefined,
+      nome_empresa: empresa || undefined, // Se tem empresa, usar também como nome_empresa
+      email: email || undefined,
       valid: result.valid,
       error: result.error
     });

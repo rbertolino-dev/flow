@@ -1263,12 +1263,21 @@ export default function BroadcastCampaigns2() {
             });
         } else {
           // Usar apenas os contatos validados com WhatsApp (formato simples)
-          // IMPORTANTE: Preservar o name do contato validado
+          // IMPORTANTE: Preservar todos os campos do contato validado (name, empresa, email, etc)
           contacts = validation.whatsappValidated.map(c => {
-            console.log('📋 Contato validado:', { phone: c.phone, name: c.name });
+            console.log('📋 Contato validado:', { 
+              phone: c.phone, 
+              name: c.name,
+              empresa: c.empresa,
+              nome_empresa: c.nome_empresa,
+              email: c.email
+            });
             return {
               phone: c.phone,
-              name: c.name || undefined // Preservar undefined se não tiver nome
+              name: c.name || undefined, // Preservar undefined se não tiver nome
+              empresa: c.empresa || undefined,
+              nome_empresa: c.nome_empresa || c.empresa || undefined,
+              email: c.email || undefined,
             };
           });
         }
