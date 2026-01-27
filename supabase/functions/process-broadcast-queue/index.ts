@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { generateDeduplicationHash } from "../_shared/failover-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,11 +29,7 @@ serve(async (req) => {
           id,
           status,
           custom_message,
-          image_url,
-          media_type,
-          message_template:message_templates(content, image_url, media_type),
-          current_active_instance_id,
-          instance_id
+          message_template:message_templates(content)
         ),
         instance:evolution_config(api_url, api_key, instance_name)
       `)
@@ -132,222 +127,27 @@ serve(async (req) => {
     };
 
     for (const item of validItems) {
-      let instance: any = null;
       try {
         const campaign = item.campaign;
+        const instance = item.instance;
         
         if (!campaign) {
           throw new Error("Configuração da campanha inválida");
         }
-
-        // ✅ VERIFICAÇÃO CRÍTICA 1: Verificar status atual ANTES de processar
-        // Buscar status mais recente do item (pode ter mudado desde que foi carregado)
-        const { data: currentItem, error: currentItemError } = await supabase
-          .from("broadcast_queue")
-          .select("id, status, processing_lock_until")
-          .eq("id", item.id)
-          .single();
-
-        if (currentItemError || !currentItem) {
-          console.log(`⚠️ Item ${item.id} não encontrado ou erro ao buscar - PULADO`);
-          continue;
-        }
-
-        // Se status mudou, pular
-        if (currentItem.status !== 'scheduled') {
-          console.log(`⚠️ Item ${item.id} mudou de status (${currentItem.status}) - PULADO`);
-          continue;
-        }
-
-        // Verificar lock de processamento (evitar processamento concorrente)
-        if (currentItem.processing_lock_until) {
-          const lockUntil = new Date(currentItem.processing_lock_until);
-          if (lockUntil > new Date()) {
-            console.log(`🔒 Item ${item.id} está lockado até ${lockUntil.toISOString()} - PULADO`);
-            continue;
-          }
-        }
-
-        // ✅ VERIFICAÇÃO CRÍTICA 2: Verificar se já existe outra mensagem para o mesmo telefone + campanha + instância
-        // que está sendo processada ou já foi enviada (previne duplicação)
-        const { data: duplicateCheck } = await supabase
-          .from("broadcast_queue")
-          .select("id, status, sent_at")
-          .eq("phone", item.phone)
-          .eq("campaign_id", campaign.id)
-          .eq("instance_id", item.instance_id)
-          .in("status", ["sending", "sent"])
-          .neq("id", item.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (duplicateCheck) {
-          // Se já foi enviada nas últimas 24 horas, cancelar esta
-          if (duplicateCheck.status === "sent" && duplicateCheck.sent_at) {
-            const sentAt = new Date(duplicateCheck.sent_at);
-            const hoursSinceSent = (Date.now() - sentAt.getTime()) / (1000 * 60 * 60);
-            
-            if (hoursSinceSent < 24) {
-              console.log(`⚠️ [DUPLICAÇÃO] Mensagem já foi ENVIADA para ${item.phone} (campanha ${campaign.id}, instância ${item.instance_id}) há ${Math.round(hoursSinceSent * 60)} minutos - CANCELANDO`);
-              
-              await supabase
-                .from("broadcast_queue")
-                .update({
-                  status: "cancelled",
-                  error_message: `Duplicata cancelada. Mensagem (ID: ${duplicateCheck.id}) já foi enviada para este telefone.`
-                })
-                .eq("id", item.id)
-                .eq("status", "scheduled");
-              
-              blocked++;
-              continue;
-            }
-          }
-          
-          // Se está sendo enviada agora, cancelar esta
-          if (duplicateCheck.status === "sending") {
-            console.log(`⚠️ [DUPLICAÇÃO] Outra mensagem está SENDO ENVIADA para ${item.phone} (campanha ${campaign.id}, instância ${item.instance_id}) - CANCELANDO`);
-            
-            await supabase
-              .from("broadcast_queue")
-              .update({
-                status: "cancelled",
-                error_message: `Duplicata cancelada. Mensagem (ID: ${duplicateCheck.id}) está sendo enviada agora.`
-              })
-              .eq("id", item.id)
-              .eq("status", "scheduled");
-            
-            blocked++;
-            continue;
-          }
-        }
-
-        // Determinar qual instância usar (failover ou original)
-        const activeInstanceId = campaign.current_active_instance_id || campaign.instance_id || item.instance_id;
         
-        // Buscar instância ativa
-        const { data: activeInstance, error: instanceError } = await supabase
-          .from("evolution_config")
-          .select("id, api_url, api_key, instance_name")
-          .eq("id", activeInstanceId)
-          .single();
-
-        if (instanceError || !activeInstance) {
-          throw new Error(`Instância ${activeInstanceId} não encontrada`);
+        if (!instance) {
+          throw new Error("Instância não configurada para este contato");
         }
 
-        instance = activeInstance;
-        
-        // ✅ VERIFICAÇÃO CRÍTICA 3: Adquirir lock de processamento de forma ATÔMICA
-        // Só atualiza se ainda estiver "scheduled" e não lockado
-        const lockUntil = new Date(Date.now() + 60 * 1000);
-        const { error: lockError, data: lockResult } = await supabase
-          .from("broadcast_queue")
-          .update({ processing_lock_until: lockUntil.toISOString() })
-          .eq("id", item.id)
-          .eq("status", "scheduled") // ✅ CRÍTICO: Só atualizar se ainda estiver scheduled
-          .is("processing_lock_until", null) // ✅ CRÍTICO: Apenas se não estiver lockado
-          .select("id");
-
-        if (lockError || !lockResult || lockResult.length === 0) {
-          console.log(`⚠️ Item ${item.id} não pôde adquirir lock (status mudou ou já lockado) - PULADO`);
-          continue;
-        }
-
-        // Verificar deduplicação por hash (se coluna existir)
-        const messageContent = item.personalized_message || campaign.custom_message || "";
-        let deduplicationHash: string | null = null;
-        let existingSent: any = null;
-
-        try {
-          deduplicationHash = await generateDeduplicationHash(
-            campaign.id,
-            item.phone,
-            messageContent
-          );
-
-          // Verificar se já foi enviada por hash
-          const { data: dedupCheck, error: dedupError } = await supabase
-            .from("broadcast_queue")
-            .select("id, status")
-            .eq("deduplication_hash", deduplicationHash)
-            .eq("status", "sent")
-            .neq("id", item.id)
-            .maybeSingle();
-
-          if (dedupError) {
-            // Se coluna não existir, ignorar erro
-            if (!dedupError.message?.includes('column') && !dedupError.message?.includes('does not exist')) {
-              console.error(`Erro ao verificar deduplicação:`, dedupError);
-            }
-          } else if (dedupCheck) {
-            existingSent = dedupCheck;
-          }
-        } catch (hashError: any) {
-          // Se função não existir, continuar sem hash
-          if (!hashError.message?.includes('generateDeduplicationHash')) {
-            console.error(`Erro ao gerar hash:`, hashError);
-          }
-        }
-
-        if (existingSent) {
-          console.log(`⚠️ Mensagem duplicada detectada (hash: ${deduplicationHash?.substring(0, 8) || 'N/A'}...) - marcando como SENT sem enviar`);
-          
-          await supabase
-            .from("broadcast_queue")
-            .update({
-              status: "sent",
-              sent_at: new Date().toISOString(),
-              processing_lock_until: null,
-              ...(deduplicationHash && { deduplication_hash: deduplicationHash }),
-            })
-            .eq("id", item.id)
-            .eq("status", "scheduled");
-
-          processed++;
-          continue;
-        }
-
-        // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Buscar status mais recente da campanha ANTES de processar
-        // Isso garante que mesmo se a campanha foi cancelada durante o processamento, não enviará
-        const { data: currentCampaign, error: statusError } = await supabase
-          .from("broadcast_campaigns")
-          .select("status")
-          .eq("id", campaign.id)
-          .single();
-        
-        // Se campanha foi cancelada ou pausada, pular este item
-        if (!statusError && currentCampaign && (currentCampaign.status === 'cancelled' || currentCampaign.status === 'paused')) {
-          console.log(`🚫 [process-broadcast-queue] Item ${item.id} de campanha ${currentCampaign.status.toUpperCase()} - BLOQUEADO`);
-          // Marcar como cancelado imediatamente
-          await supabase
-            .from("broadcast_queue")
-            .update({ 
-              status: "cancelled",
-              error_message: `Campanha foi ${currentCampaign.status}`
-            })
-            .eq("id", item.id);
-          blocked++;
-          continue; // Pular para próximo item
-        }
-        
-        if (statusError) {
-          console.error(`Erro ao verificar status da campanha ${campaign.id}:`, statusError);
-          throw statusError;
-        }
-        
-        // Usar status mais recente (pode ter mudado desde que o item foi carregado)
-        const currentStatus = currentCampaign?.status || campaign.status;
-        
-        if (currentStatus === 'cancelled' || currentStatus === 'paused') {
-          console.log(`🛑 BLOQUEIO DE SEGURANÇA: Campanha ${campaign.id} está ${currentStatus} - mensagem NÃO será enviada`);
+        // VERIFICAÇÃO DE SEGURANÇA CRÍTICA: Dupla verificação do status da campanha
+        if (campaign.status === 'cancelled' || campaign.status === 'paused') {
+          console.log(`🛑 BLOQUEIO DE SEGURANÇA: Campanha ${campaign.id} está ${campaign.status} - mensagem NÃO será enviada`);
           
           await supabase
             .from("broadcast_queue")
             .update({
               status: "cancelled",
-              error_message: `Bloqueado: campanha ${currentStatus}`,
+              error_message: `Bloqueado: campanha ${campaign.status}`,
             })
             .eq("id", item.id);
           
@@ -363,90 +163,10 @@ serve(async (req) => {
           if (!message) {
             throw new Error("Mensagem não configurada");
           }
-          personalizedMessage = message;
-        }
-        
-        // Substituir todas as tags dinâmicas disponíveis
-        // Suporta: {nome}, {empresa}, {nome_empresa}, {email}, {cpf}, {cnpj}, e campos customizados
-        const replacements: Record<string, string> = {
-          nome: item.name || "",
-          empresa: item.empresa || "",
-          nome_empresa: item.nome_empresa || item.empresa || "",
-          email: item.email || "",
-          cpf: item.cpf || "",
-          cnpj: item.cnpj || "",
-        };
-        
-        // Adicionar campos customizados do JSONB
-        if (item.custom_fields && typeof item.custom_fields === 'object') {
-          Object.entries(item.custom_fields).forEach(([key, value]) => {
-            replacements[key] = String(value || "");
-          });
-        }
-        
-        // Aplicar todas as substituições
-        const originalMessage = personalizedMessage;
-        personalizedMessage = personalizedMessage.replace(/\{(\w+)\}/gi, (match, key) => {
-          const normalizedKey = key.toLowerCase();
-          return replacements[normalizedKey] !== undefined ? replacements[normalizedKey] : match;
-        });
-        
-        // LOG para debug quando houver tags substituídas
-        if (originalMessage !== personalizedMessage) {
-          console.log(`🏷️ [process-broadcast-queue] Tags substituídas:`, {
-            phone: item.phone,
-            original: originalMessage.substring(0, 100),
-            personalized: personalizedMessage.substring(0, 100),
-            replacements: Object.keys(replacements).filter(k => replacements[k]),
-          });
-        }
-
-        // ✅ VERIFICAÇÃO CRÍTICA 4: Atualizar para "sending" de forma ATÔMICA
-        // Só atualiza se ainda estiver "scheduled" - previne processamento duplicado
-        const sendingStartedAt = new Date().toISOString();
-        const updateData: any = {
-          status: "sending",
-        };
-
-        // Adicionar campos opcionais apenas se existirem
-        if (deduplicationHash) {
-          try {
-            updateData.deduplication_hash = deduplicationHash;
-          } catch (e) {
-            // Ignora se coluna não existir
-          }
-        }
-        try {
-          updateData.sending_started_at = sendingStartedAt;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-        try {
-          updateData.attempted_instance_id = activeInstanceId;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-        try {
-          updateData.send_attempts = (item.send_attempts || 0) + 1;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-        try {
-          updateData.last_attempt_at = sendingStartedAt;
-        } catch (e) {
-          // Ignora se coluna não existir
-        }
-
-        const { error: sendingUpdateError, data: sendingUpdateResult } = await supabase
-          .from("broadcast_queue")
-          .update(updateData)
-          .eq("id", item.id)
-          .eq("status", "scheduled") // ✅ CRÍTICO: Só atualizar se ainda estiver scheduled
-          .select("id");
-
-        if (sendingUpdateError || !sendingUpdateResult || sendingUpdateResult.length === 0) {
-          console.log(`⚠️ Item ${item.id} não pôde ser atualizado para "sending" (status mudou) - PULADO`);
-          continue; // Pular para o próximo item se não conseguiu atualizar
+          personalizedMessage = message.replace(/\{nome\}/gi, item.name || "");
+        } else {
+          // Aplicar personalização de variáveis mesmo em mensagens pré-personalizadas
+          personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
         }
 
         // Limpar api_url e construir endpoint correto usando a instância do item
@@ -455,47 +175,8 @@ serve(async (req) => {
           baseUrl = baseUrl.slice(0, -8); // Remove '/manager' se existir
         }
         
-        // CRÍTICO: Verificar imagem primeiro no item (pode ter sido definida individualmente),
-        // depois na campanha, depois no template da campanha
-        // A mensagem personalizada (com tags já substituídas) será usada no caption
-        const imageUrl = item.image_url || campaign.image_url || campaign.message_template?.image_url;
-        const mediaType = item.media_type || campaign.media_type || campaign.message_template?.media_type || 'image';
-        
-        let evolutionUrl: string;
-        let payload: any;
-        
-        if (imageUrl) {
-          // Enviar mensagem com imagem usando sendMedia endpoint
-          // O caption contém o texto personalizado (com tags já substituídas)
-          evolutionUrl = `${baseUrl}/message/sendMedia/${instance.instance_name}`;
-          payload = {
-            number: item.phone,
-            mediatype: mediaType,
-            media: imageUrl,
-            caption: personalizedMessage || '', // CRÍTICO: Usar mensagem personalizada no caption
-          };
-          console.log(`🖼️ [process-broadcast-queue] Enviando mensagem com mídia:`, {
-            to: item.phone,
-            instance: instance.instance_name,
-            mediaType,
-            imageUrl,
-            captionLength: personalizedMessage?.length || 0,
-            captionPreview: personalizedMessage?.substring(0, 50) || '',
-          });
-        } else {
-          // Enviar mensagem de texto simples
-          evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
-          payload = {
-            number: item.phone,
-            text: personalizedMessage, // Mensagem personalizada (com tags já substituídas)
-          };
-          console.log(`📝 [process-broadcast-queue] Enviando mensagem de texto:`, {
-            to: item.phone,
-            instance: instance.instance_name,
-            messageLength: personalizedMessage?.length || 0,
-            messagePreview: personalizedMessage?.substring(0, 50) || '',
-          });
-        }
+        const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
+        console.log(`📤 Enviando para ${item.phone} via ${instance.instance_name} (${evolutionUrl})`);
 
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
@@ -508,7 +189,10 @@ serve(async (req) => {
             "Content-Type": "application/json",
             apikey: instance.api_key,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            number: item.phone,
+            text: personalizedMessage,
+          }),
         });
 
         const responseTime = Date.now() - startTime;
@@ -529,26 +213,16 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // ✅ VERIFICAÇÃO CRÍTICA 5: Marcar como enviado de forma ATÔMICA
-        // Só atualiza se ainda estiver "scheduled" ou "sending" - previne atualização duplicada
-        const { error: updateError, data: updateResult } = await supabase
+        // Marcar como enviado
+        const { error: updateError } = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
-            processing_lock_until: null, // Liberar lock
-            ...(deduplicationHash && { deduplication_hash: deduplicationHash }),
           })
-          .eq("id", item.id)
-          .in("status", ["scheduled", "sending"]) // ✅ CRÍTICO: Apenas atualizar se ainda estiver em processamento
-          .select("id");
+          .eq("id", item.id);
 
         if (updateError) throw updateError;
-        
-        if (!updateResult || updateResult.length === 0) {
-          console.log(`⚠️ Item ${item.id} não pôde ser atualizado para "sent" (status mudou) - já foi processado`);
-          continue; // Pular se não conseguiu atualizar (já foi processado por outro worker)
-        }
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
@@ -576,8 +250,8 @@ serve(async (req) => {
         console.error(`❌ Erro ao processar ${item.phone}:`, error.message);
         
         // Registrar falha nas métricas
-        if (instance) {
-          const metrics = getOrCreateMetrics(instance.instance_name);
+        if (item.instance) {
+          const metrics = getOrCreateMetrics(item.instance.instance_name);
           metrics.messagesFailed++;
           metrics.consecutiveFailures++;
           if (metrics.consecutiveFailures > metrics.maxConsecutiveFailures) {
@@ -602,17 +276,14 @@ serve(async (req) => {
           }
         }
         
-        // ✅ VERIFICAÇÃO CRÍTICA 6: Marcar como falha de forma ATÔMICA
-        // Só atualiza se ainda estiver "scheduled" ou "sending"
+        // Marcar como falha
         await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
-            processing_lock_until: null, // Liberar lock
           })
-          .eq("id", item.id)
-          .in("status", ["scheduled", "sending"]); // ✅ CRÍTICO: Só atualizar se ainda estiver em processamento
+          .eq("id", item.id);
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
