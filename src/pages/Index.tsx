@@ -192,6 +192,8 @@ const Index = () => {
   const handleViewChange = (view: CRMView) => {
     if (view === "broadcast") {
       navigate('/broadcast');
+    } else if (view === "broadcast-2") {
+      navigate('/broadcast-2');
     } else {
       setActiveView(view);
     }

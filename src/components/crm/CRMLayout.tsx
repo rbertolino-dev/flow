@@ -38,7 +38,8 @@ export type CRMView =
   | "budgets"
   | "employees"
   | "messages-center"
-  | "landing-page";
+  | "landing-page"
+  | "broadcast-2";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -93,6 +94,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'calls': 'call_queue',
     'calendar': 'calendar',
     'broadcast': 'broadcast',
+    'broadcast-2': 'broadcast',
     'workflows': 'automations',
     'automation-flows': 'automations',
     'form-builder': 'form_builder',
@@ -118,6 +120,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
     { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
+    { id: "broadcast-2" as const, label: "Disparador 2", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
@@ -273,6 +276,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/calendar');
               } else if (item.id === 'broadcast') {
                 navigate('/broadcast');
+              } else if (item.id === 'broadcast-2') {
+                navigate('/broadcast-2');
               } else if (item.id === 'settings') {
                 navigate('/settings');
               } else if (item.id === 'form-builder') {
@@ -432,6 +437,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/calendar');
                         } else if (item.id === 'broadcast') {
                           navigate('/broadcast');
+                        } else if (item.id === 'broadcast-2') {
+                          navigate('/broadcast-2');
                         } else if (item.id === 'settings') {
                           navigate('/settings');
                         } else if (item.id === 'form-builder') {

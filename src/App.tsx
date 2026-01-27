@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import BroadcastCampaigns from "./pages/BroadcastCampaigns";
+import BroadcastCampaigns2 from "./pages/BroadcastCampaigns2";
 // DESATIVADO: Funcionalidades não disponibilizadas para clientes ainda
 // import ChatwootMessages from "./pages/ChatwootMessages";
 // import UnifiedMessages from "./pages/UnifiedMessages";
@@ -89,6 +90,7 @@ const App = () => {
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/broadcast" element={<BroadcastCampaigns />} />
+            <Route path="/broadcast-2" element={<BroadcastCampaigns2 />} />
             {/* DESATIVADO: Funcionalidades não disponibilizadas para clientes ainda */}
             {/* <Route path="/agilizechat" element={<ChatwootMessages />} /> */}
             {/* <Route path="/unified-messages" element={<UnifiedMessages />} /> */}

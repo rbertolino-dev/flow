@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log("📡 [process-broadcast-queue] Iniciando processamento...");
+    console.log("📡 [process-broadcast-queue-2] Iniciando processamento...");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -23,10 +23,10 @@ serve(async (req) => {
     // IMPORTANTE: ORDER BY garante ordem consistente e previne processamento duplicado
     const now = new Date().toISOString();
     const { data: queueItems, error: fetchError } = await supabase
-      .from("broadcast_queue")
+      .from("broadcast_queue_2")
       .select(`
         *,
-        campaign:broadcast_campaigns(
+        campaign:broadcast_campaigns_2(
           id,
           status,
           custom_message,
@@ -62,7 +62,7 @@ serve(async (req) => {
         console.log(`🚫 Item ${item.id} de campanha CANCELADA - BLOQUEADO`);
         // Marcar como cancelado imediatamente
         supabase
-          .from("broadcast_queue")
+          .from("broadcast_queue_2")
           .update({ 
             status: "cancelled",
             error_message: "Campanha foi cancelada"
@@ -148,7 +148,7 @@ serve(async (req) => {
           console.log(`🛑 BLOQUEIO DE SEGURANÇA: Campanha ${campaign.id} está ${campaign.status} - mensagem NÃO será enviada`);
           
           await supabase
-            .from("broadcast_queue")
+            .from("broadcast_queue_2")
             .update({
               status: "cancelled",
               error_message: `Bloqueado: campanha ${campaign.status}`,
@@ -217,23 +217,16 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // Marcar como enviado - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-        // Isso previne que múltiplos workers processem a mesma mensagem
-        const { error: updateError, count: updateCount } = await supabase
-          .from("broadcast_queue")
+        // Marcar como enviado
+        const { error: updateError } = await supabase
+          .from("broadcast_queue_2")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
-          .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .eq("id", item.id);
 
         if (updateError) throw updateError;
-
-        if (updateCount === 0) {
-          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando.`);
-          continue; // Pular para o próximo item se já foi processado
-        }
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
@@ -241,13 +234,13 @@ serve(async (req) => {
 
         // Atualizar contador da campanha - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const { data: sentCount } = await supabase
-          .from("broadcast_queue")
+          .from("broadcast_queue_2")
           .select("id", { count: 'exact', head: true })
           .eq("campaign_id", campaign.id)
           .eq("status", "sent");
 
         const { error: campaignUpdateError } = await supabase
-          .from("broadcast_campaigns")
+          .from("broadcast_campaigns_2")
           .update({
             sent_count: sentCount || 0,
           })
@@ -287,26 +280,32 @@ serve(async (req) => {
           }
         }
         
-        // Marcar como falha
-        await supabase
-          .from("broadcast_queue")
+        // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+        const { count: updateCount } = await supabase
+          .from("broadcast_queue_2")
           .update({
             status: "failed",
             error_message: error.message,
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+
+        if (updateCount === 0) {
+          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker ou não estava 'scheduled'. Pulando atualização de falha.`);
+          continue; // Pular para o próximo item se já foi processado
+        }
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
         if (campaign) {
           const { data: failedCount } = await supabase
-            .from("broadcast_queue")
+            .from("broadcast_queue_2")
             .select("id", { count: 'exact', head: true })
             .eq("campaign_id", campaign.id)
             .eq("status", "failed");
 
           await supabase
-            .from("broadcast_campaigns")
+            .from("broadcast_campaigns_2")
             .update({
               failed_count: failedCount || 0,
             })
@@ -384,7 +383,7 @@ serve(async (req) => {
       if (!campaign) continue;
 
       const { data: remainingItems } = await supabase
-        .from("broadcast_queue")
+        .from("broadcast_queue_2")
         .select("id")
         .eq("campaign_id", campaign.id)
         .in("status", ["pending", "scheduled"])
@@ -393,19 +392,19 @@ serve(async (req) => {
       if (!remainingItems || remainingItems.length === 0) {
         // SINCRONIZAÇÃO FINAL: Garantir contadores corretos ao completar
         const { data: finalSentCount } = await supabase
-          .from("broadcast_queue")
+          .from("broadcast_queue_2")
           .select("id", { count: 'exact', head: true })
           .eq("campaign_id", campaign.id)
           .eq("status", "sent");
 
         const { data: finalFailedCount } = await supabase
-          .from("broadcast_queue")
+          .from("broadcast_queue_2")
           .select("id", { count: 'exact', head: true })
           .eq("campaign_id", campaign.id)
           .eq("status", "failed");
 
         await supabase
-          .from("broadcast_campaigns")
+          .from("broadcast_campaigns_2")
           .update({
             status: "completed",
             completed_at: new Date().toISOString(),
