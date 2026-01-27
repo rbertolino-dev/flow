@@ -377,7 +377,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.test_diagnostic_functions()
 RETURNS TABLE (
   function_name TEXT,
-  exists BOOLEAN,
+  function_exists BOOLEAN,
   can_execute BOOLEAN,
   error_message TEXT
 )
@@ -397,8 +397,8 @@ BEGIN
     RETURN QUERY
     SELECT 
       'diagnose_landing_page_simple'::TEXT,
-      true,
-      true,
+      true::BOOLEAN,
+      true::BOOLEAN,
       NULL::TEXT;
   EXCEPTION
     WHEN OTHERS THEN
@@ -406,8 +406,8 @@ BEGIN
       RETURN QUERY
       SELECT 
         'diagnose_landing_page_simple'::TEXT,
-        false,
-        false,
+        false::BOOLEAN,
+        false::BOOLEAN,
         v_error;
   END;
   
@@ -422,15 +422,15 @@ BEGIN
       RETURN QUERY
       SELECT 
         'check_product_visibility'::TEXT,
-        true,
-        true,
+        true::BOOLEAN,
+        true::BOOLEAN,
         'Função existe (requer parâmetros para executar)'::TEXT;
     ELSE
       RETURN QUERY
       SELECT 
         'check_product_visibility'::TEXT,
-        false,
-        false,
+        false::BOOLEAN,
+        false::BOOLEAN,
         'Função não encontrada'::TEXT;
     END IF;
   EXCEPTION
@@ -439,8 +439,8 @@ BEGIN
       RETURN QUERY
       SELECT 
         'check_product_visibility'::TEXT,
-        false,
-        false,
+        false::BOOLEAN,
+        false::BOOLEAN,
         v_error;
   END;
 END;
