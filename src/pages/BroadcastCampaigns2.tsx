@@ -1263,10 +1263,14 @@ export default function BroadcastCampaigns2() {
             });
         } else {
           // Usar apenas os contatos validados com WhatsApp (formato simples)
-          contacts = validation.whatsappValidated.map(c => ({
-            phone: c.phone,
-            name: c.name
-          }));
+          // IMPORTANTE: Preservar o name do contato validado
+          contacts = validation.whatsappValidated.map(c => {
+            console.log('📋 Contato validado:', { phone: c.phone, name: c.name });
+            return {
+              phone: c.phone,
+              name: c.name || undefined // Preservar undefined se não tiver nome
+            };
+          });
         }
       }
 
@@ -1318,7 +1322,7 @@ export default function BroadcastCampaigns2() {
               organization_id: activeOrgId,
               instance_id: instanceId,
               phone: contact.phone,
-              name: contact.name,
+              name: contact.name || null, // Salvar name mesmo se for undefined (vira null no banco)
               empresa: contact.empresa,
               nome_empresa: contact.nome_empresa,
               email: contact.email,
@@ -1350,7 +1354,7 @@ export default function BroadcastCampaigns2() {
             organization_id: activeOrgId,
             instance_id: assignedInstanceId,
             phone: contact.phone,
-            name: contact.name,
+            name: contact.name || null, // Salvar name mesmo se for undefined (vira null no banco)
             empresa: contact.empresa,
             nome_empresa: contact.nome_empresa,
             email: contact.email,

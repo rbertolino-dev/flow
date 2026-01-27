@@ -216,16 +216,29 @@ serve(async (req) => {
         
         // Aplicar personalização completa de todas as tags
         // Suporta: {nome}, {empresa}, {nome_empresa}, {email}, {cpf}, {cnpj}, e campos customizados
+        // IMPORTANTE: item.name pode ser null/undefined, usar ?? para garantir string vazia
+        console.log(`🔍 Personalizando mensagem para ${item.phone}:`, {
+          name: item.name,
+          empresa: item.empresa,
+          nome_empresa: item.nome_empresa,
+          email: item.email,
+          cpf: item.cpf,
+          cnpj: item.cnpj,
+          custom_fields: item.custom_fields
+        });
+        
         personalizedMessage = replaceBroadcastTemplateTags(personalizedMessage, {
-          nome: item.name || "",
-          empresa: item.empresa || item.nome_empresa || "",
-          nome_empresa: item.nome_empresa || item.empresa || "",
-          email: item.email || "",
-          cpf: item.cpf || "",
-          cnpj: item.cnpj || "",
+          nome: item.name ?? "", // Usar ?? para tratar null/undefined
+          empresa: item.empresa ?? item.nome_empresa ?? "",
+          nome_empresa: item.nome_empresa ?? item.empresa ?? "",
+          email: item.email ?? "",
+          cpf: item.cpf ?? "",
+          cnpj: item.cnpj ?? "",
           // Adicionar campos customizados do JSONB
           ...(item.custom_fields || {}),
         });
+        
+        console.log(`✅ Mensagem personalizada:`, personalizedMessage.substring(0, 100));
 
         // Formatar telefone para Evolution API (igual ao original)
         let formattedPhone = item.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
