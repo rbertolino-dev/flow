@@ -32,7 +32,7 @@ serve(async (req) => {
           custom_message,
           message_template:message_templates(content)
         ),
-        instance:evolution_config(api_url, api_key, instance_name)
+        instance:evolution_config!instance_id(api_url, api_key, instance_name)
       `)
       .eq("status", "scheduled")
       .lte("scheduled_for", now)
@@ -173,6 +173,24 @@ serve(async (req) => {
           personalizedMessage = personalizedMessage.replace(/\{nome\}/gi, item.name || "");
         }
 
+        // Formatar telefone para Evolution API (igual ao disparador 2)
+        let formattedPhone = item.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
+        
+        // Garantir que números brasileiros tenham código do país (55)
+        if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
+          // Verificar se parece um número brasileiro (DDD válido: 11-99)
+          const ddd = parseInt(formattedPhone.substring(0, 2));
+          if (ddd >= 11 && ddd <= 99) {
+            formattedPhone = '55' + formattedPhone;
+            console.log(`➕ Adicionado código do país 55 ao número ${item.phone}`);
+          }
+        }
+        
+        // Formatar para WhatsApp (adicionar @s.whatsapp.net se não tiver)
+        const whatsappNumber = formattedPhone.includes('@') 
+          ? formattedPhone 
+          : `${formattedPhone}@s.whatsapp.net`;
+
         // Limpar api_url e construir endpoint correto usando a instância do item
         let baseUrl = instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
         if (baseUrl.endsWith('/manager')) {
@@ -180,7 +198,7 @@ serve(async (req) => {
         }
         
         const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
-        console.log(`📤 Enviando para ${item.phone} via ${instance.instance_name} (${evolutionUrl})`);
+        console.log(`📤 Enviando para ${whatsappNumber} via ${instance.instance_name} (${evolutionUrl})`);
 
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
@@ -194,7 +212,7 @@ serve(async (req) => {
             apikey: instance.api_key,
           },
           body: JSON.stringify({
-            number: item.phone,
+            number: whatsappNumber,
             text: personalizedMessage,
           }),
         });
