@@ -240,17 +240,25 @@ serve(async (req) => {
         
         console.log(`✅ Mensagem personalizada:`, personalizedMessage.substring(0, 100));
 
-        // Formatar telefone para Evolution API (igual ao original)
+        // Formatar telefone para Evolution API
+        // IMPORTANTE: Para LATAM, preservar código do país original (não adicionar 55)
         let formattedPhone = item.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
         
+        // Códigos de países LATAM (não adicionar 55 se já tiver código LATAM)
+        const latamCountryCodes = ['54', '57', '52', '51', '56', '58', '593', '595', '598', '591', '507', '506', '502', '503', '504', '505'];
+        const hasLatamCode = latamCountryCodes.some(code => formattedPhone.startsWith(code));
+        
         // Garantir que números brasileiros tenham código do país (55)
-        if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
+        // MAS NÃO adicionar 55 se já tiver código LATAM
+        if (!formattedPhone.startsWith('55') && !hasLatamCode && formattedPhone.length >= 10) {
           // Verificar se parece um número brasileiro (DDD válido: 11-99)
           const ddd = parseInt(formattedPhone.substring(0, 2));
           if (ddd >= 11 && ddd <= 99) {
             formattedPhone = '55' + formattedPhone;
             console.log(`➕ Adicionado código do país 55 ao número ${item.phone}`);
           }
+        } else if (hasLatamCode) {
+          console.log(`🌎 Número LATAM detectado (${formattedPhone.substring(0, 3)}), preservando código do país original`);
         }
         
         // Formatar para WhatsApp (adicionar @s.whatsapp.net se não tiver)
