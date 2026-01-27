@@ -132,6 +132,7 @@ serve(async (req) => {
     };
 
     for (const item of validItems) {
+      let instance: any = null;
       try {
         const campaign = item.campaign;
         
@@ -139,11 +140,85 @@ serve(async (req) => {
           throw new Error("Configuração da campanha inválida");
         }
 
+        // ✅ VERIFICAÇÃO CRÍTICA 1: Verificar status atual ANTES de processar
+        // Buscar status mais recente do item (pode ter mudado desde que foi carregado)
+        const { data: currentItem, error: currentItemError } = await supabase
+          .from("broadcast_queue")
+          .select("id, status, processing_lock_until")
+          .eq("id", item.id)
+          .single();
+
+        if (currentItemError || !currentItem) {
+          console.log(`⚠️ Item ${item.id} não encontrado ou erro ao buscar - PULADO`);
+          continue;
+        }
+
+        // Se status mudou, pular
+        if (currentItem.status !== 'scheduled') {
+          console.log(`⚠️ Item ${item.id} mudou de status (${currentItem.status}) - PULADO`);
+          continue;
+        }
+
         // Verificar lock de processamento (evitar processamento concorrente)
-        if (item.processing_lock_until) {
-          const lockUntil = new Date(item.processing_lock_until);
+        if (currentItem.processing_lock_until) {
+          const lockUntil = new Date(currentItem.processing_lock_until);
           if (lockUntil > new Date()) {
             console.log(`🔒 Item ${item.id} está lockado até ${lockUntil.toISOString()} - PULADO`);
+            continue;
+          }
+        }
+
+        // ✅ VERIFICAÇÃO CRÍTICA 2: Verificar se já existe outra mensagem para o mesmo telefone + campanha + instância
+        // que está sendo processada ou já foi enviada (previne duplicação)
+        const { data: duplicateCheck } = await supabase
+          .from("broadcast_queue")
+          .select("id, status, sent_at")
+          .eq("phone", item.phone)
+          .eq("campaign_id", campaign.id)
+          .eq("instance_id", item.instance_id)
+          .in("status", ["sending", "sent"])
+          .neq("id", item.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (duplicateCheck) {
+          // Se já foi enviada nas últimas 24 horas, cancelar esta
+          if (duplicateCheck.status === "sent" && duplicateCheck.sent_at) {
+            const sentAt = new Date(duplicateCheck.sent_at);
+            const hoursSinceSent = (Date.now() - sentAt.getTime()) / (1000 * 60 * 60);
+            
+            if (hoursSinceSent < 24) {
+              console.log(`⚠️ [DUPLICAÇÃO] Mensagem já foi ENVIADA para ${item.phone} (campanha ${campaign.id}, instância ${item.instance_id}) há ${Math.round(hoursSinceSent * 60)} minutos - CANCELANDO`);
+              
+              await supabase
+                .from("broadcast_queue")
+                .update({
+                  status: "cancelled",
+                  error_message: `Duplicata cancelada. Mensagem (ID: ${duplicateCheck.id}) já foi enviada para este telefone.`
+                })
+                .eq("id", item.id)
+                .eq("status", "scheduled");
+              
+              blocked++;
+              continue;
+            }
+          }
+          
+          // Se está sendo enviada agora, cancelar esta
+          if (duplicateCheck.status === "sending") {
+            console.log(`⚠️ [DUPLICAÇÃO] Outra mensagem está SENDO ENVIADA para ${item.phone} (campanha ${campaign.id}, instância ${item.instance_id}) - CANCELANDO`);
+            
+            await supabase
+              .from("broadcast_queue")
+              .update({
+                status: "cancelled",
+                error_message: `Duplicata cancelada. Mensagem (ID: ${duplicateCheck.id}) está sendo enviada agora.`
+              })
+              .eq("id", item.id)
+              .eq("status", "scheduled");
+            
+            blocked++;
             continue;
           }
         }
@@ -162,49 +237,73 @@ serve(async (req) => {
           throw new Error(`Instância ${activeInstanceId} não encontrada`);
         }
 
-        const instance = activeInstance;
+        instance = activeInstance;
         
-        // Adquirir lock de processamento (1 minuto)
+        // ✅ VERIFICAÇÃO CRÍTICA 3: Adquirir lock de processamento de forma ATÔMICA
+        // Só atualiza se ainda estiver "scheduled" e não lockado
         const lockUntil = new Date(Date.now() + 60 * 1000);
-        await supabase
+        const { error: lockError, data: lockResult } = await supabase
           .from("broadcast_queue")
           .update({ processing_lock_until: lockUntil.toISOString() })
           .eq("id", item.id)
-          .is("processing_lock_until", null); // Apenas se não estiver lockado
+          .eq("status", "scheduled") // ✅ CRÍTICO: Só atualizar se ainda estiver scheduled
+          .is("processing_lock_until", null) // ✅ CRÍTICO: Apenas se não estiver lockado
+          .select("id");
 
-        // Verificar deduplicação
+        if (lockError || !lockResult || lockResult.length === 0) {
+          console.log(`⚠️ Item ${item.id} não pôde adquirir lock (status mudou ou já lockado) - PULADO`);
+          continue;
+        }
+
+        // Verificar deduplicação por hash (se coluna existir)
         const messageContent = item.personalized_message || campaign.custom_message || "";
-        const deduplicationHash = await generateDeduplicationHash(
-          campaign.id,
-          item.phone,
-          messageContent
-        );
+        let deduplicationHash: string | null = null;
+        let existingSent: any = null;
 
-        // Verificar se já foi enviada
-        const { data: existingSent, error: dedupError } = await supabase
-          .from("broadcast_queue")
-          .select("id, status")
-          .eq("deduplication_hash", deduplicationHash)
-          .eq("status", "sent")
-          .neq("id", item.id)
-          .maybeSingle();
+        try {
+          deduplicationHash = await generateDeduplicationHash(
+            campaign.id,
+            item.phone,
+            messageContent
+          );
 
-        if (dedupError) {
-          console.error(`Erro ao verificar deduplicação:`, dedupError);
+          // Verificar se já foi enviada por hash
+          const { data: dedupCheck, error: dedupError } = await supabase
+            .from("broadcast_queue")
+            .select("id, status")
+            .eq("deduplication_hash", deduplicationHash)
+            .eq("status", "sent")
+            .neq("id", item.id)
+            .maybeSingle();
+
+          if (dedupError) {
+            // Se coluna não existir, ignorar erro
+            if (!dedupError.message?.includes('column') && !dedupError.message?.includes('does not exist')) {
+              console.error(`Erro ao verificar deduplicação:`, dedupError);
+            }
+          } else if (dedupCheck) {
+            existingSent = dedupCheck;
+          }
+        } catch (hashError: any) {
+          // Se função não existir, continuar sem hash
+          if (!hashError.message?.includes('generateDeduplicationHash')) {
+            console.error(`Erro ao gerar hash:`, hashError);
+          }
         }
 
         if (existingSent) {
-          console.log(`⚠️ Mensagem duplicada detectada (hash: ${deduplicationHash.substring(0, 8)}...) - marcando como SENT sem enviar`);
+          console.log(`⚠️ Mensagem duplicada detectada (hash: ${deduplicationHash?.substring(0, 8) || 'N/A'}...) - marcando como SENT sem enviar`);
           
           await supabase
             .from("broadcast_queue")
             .update({
               status: "sent",
-              deduplication_hash: deduplicationHash,
               sent_at: new Date().toISOString(),
               processing_lock_until: null,
+              ...(deduplicationHash && { deduplication_hash: deduplicationHash }),
             })
-            .eq("id", item.id);
+            .eq("id", item.id)
+            .eq("status", "scheduled");
 
           processed++;
           continue;
@@ -302,19 +401,53 @@ serve(async (req) => {
           });
         }
 
-        // Atualizar hash de deduplicação e marcar como SENDING
+        // ✅ VERIFICAÇÃO CRÍTICA 4: Atualizar para "sending" de forma ATÔMICA
+        // Só atualiza se ainda estiver "scheduled" - previne processamento duplicado
         const sendingStartedAt = new Date().toISOString();
-        await supabase
+        const updateData: any = {
+          status: "sending",
+        };
+
+        // Adicionar campos opcionais apenas se existirem
+        if (deduplicationHash) {
+          try {
+            updateData.deduplication_hash = deduplicationHash;
+          } catch (e) {
+            // Ignora se coluna não existir
+          }
+        }
+        try {
+          updateData.sending_started_at = sendingStartedAt;
+        } catch (e) {
+          // Ignora se coluna não existir
+        }
+        try {
+          updateData.attempted_instance_id = activeInstanceId;
+        } catch (e) {
+          // Ignora se coluna não existir
+        }
+        try {
+          updateData.send_attempts = (item.send_attempts || 0) + 1;
+        } catch (e) {
+          // Ignora se coluna não existir
+        }
+        try {
+          updateData.last_attempt_at = sendingStartedAt;
+        } catch (e) {
+          // Ignora se coluna não existir
+        }
+
+        const { error: sendingUpdateError, data: sendingUpdateResult } = await supabase
           .from("broadcast_queue")
-          .update({
-            status: "sending",
-            deduplication_hash: deduplicationHash,
-            sending_started_at: sendingStartedAt,
-            attempted_instance_id: activeInstanceId,
-            send_attempts: (item.send_attempts || 0) + 1,
-            last_attempt_at: sendingStartedAt,
-          })
-          .eq("id", item.id);
+          .update(updateData)
+          .eq("id", item.id)
+          .eq("status", "scheduled") // ✅ CRÍTICO: Só atualizar se ainda estiver scheduled
+          .select("id");
+
+        if (sendingUpdateError || !sendingUpdateResult || sendingUpdateResult.length === 0) {
+          console.log(`⚠️ Item ${item.id} não pôde ser atualizado para "sending" (status mudou) - PULADO`);
+          continue; // Pular para o próximo item se não conseguiu atualizar
+        }
 
         // Limpar api_url e construir endpoint correto usando a instância do item
         let baseUrl = instance.api_url.replace(/\/+$/, ''); // Remove trailing slashes
@@ -396,17 +529,26 @@ serve(async (req) => {
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
-        // Marcar como enviado e liberar lock
-        const { error: updateError } = await supabase
+        // ✅ VERIFICAÇÃO CRÍTICA 5: Marcar como enviado de forma ATÔMICA
+        // Só atualiza se ainda estiver "scheduled" ou "sending" - previne atualização duplicada
+        const { error: updateError, data: updateResult } = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
             processing_lock_until: null, // Liberar lock
+            ...(deduplicationHash && { deduplication_hash: deduplicationHash }),
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .in("status", ["scheduled", "sending"]) // ✅ CRÍTICO: Apenas atualizar se ainda estiver em processamento
+          .select("id");
 
         if (updateError) throw updateError;
+        
+        if (!updateResult || updateResult.length === 0) {
+          console.log(`⚠️ Item ${item.id} não pôde ser atualizado para "sent" (status mudou) - já foi processado`);
+          continue; // Pular se não conseguiu atualizar (já foi processado por outro worker)
+        }
 
         // Registrar sucesso nas métricas
         metrics.messagesSent++;
@@ -460,7 +602,8 @@ serve(async (req) => {
           }
         }
         
-        // Marcar como falha e liberar lock
+        // ✅ VERIFICAÇÃO CRÍTICA 6: Marcar como falha de forma ATÔMICA
+        // Só atualiza se ainda estiver "scheduled" ou "sending"
         await supabase
           .from("broadcast_queue")
           .update({
@@ -468,7 +611,8 @@ serve(async (req) => {
             error_message: error.message,
             processing_lock_until: null, // Liberar lock
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .in("status", ["scheduled", "sending"]); // ✅ CRÍTICO: Só atualizar se ainda estiver em processamento
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
         const campaign = item.campaign;
