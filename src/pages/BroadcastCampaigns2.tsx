@@ -20,7 +20,6 @@ import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanceReport";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
@@ -52,6 +51,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Campaign {
   id: string;
@@ -503,6 +512,12 @@ export default function BroadcastCampaigns2() {
   const [validatedContactsList, setValidatedContactsList] = useState<Array<{
     phone: string;
     name?: string;
+    empresa?: string;
+    nome_empresa?: string;
+    email?: string;
+    cpf?: string;
+    cnpj?: string;
+    custom_fields?: Record<string, string>;
     instanceId?: string;
     messageVariation?: string;
     estimatedTime?: Date;
@@ -515,6 +530,26 @@ export default function BroadcastCampaigns2() {
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [searchSimulation, setSearchSimulation] = useState("");
   const [filterInstanceSimulation, setFilterInstanceSimulation] = useState<string>("all");
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [editingCampaignName, setEditingCampaignName] = useState("");
+  const [deletedHistoryDialogOpen, setDeletedHistoryDialogOpen] = useState(false);
+  const [deletedHistory, setDeletedHistory] = useState<Array<{
+    id: string;
+    campaign_name: string;
+    deleted_by_email: string | null;
+    deleted_at: string;
+    instance_id: string | null;
+    instance_ids: string[] | null;
+    leads_snapshot: Array<{ phone: string; name: string | null; instance_id: string | null }>;
+    total_contacts: number;
+    instance_name?: string;
+  }>>([]);
+  const [deletedHistoryLoading, setDeletedHistoryLoading] = useState(false);
+  const [personalizationWarningDialog, setPersonalizationWarningDialog] = useState<{
+    missingTags: string[];
+    missingCount: number;
+    contacts: Array<{ phone: string; name?: string; empresa?: string; nome_empresa?: string; email?: string; cpf?: string; cnpj?: string; custom_fields?: Record<string, string> }>;
+  } | null>(null);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "kanban") navigate('/');
@@ -532,8 +567,8 @@ export default function BroadcastCampaigns2() {
     templateId: "",
     customMessage: "",
     messageVariations: [] as string[],
-    minDelay: 30,
-    maxDelay: 60,
+    minDelay: 1200,
+    maxDelay: 1600,
     scheduledStart: undefined as Date | undefined,
     fromTemplate: false,
     useLatamValidator: false, // Nova opção para validador LATAM
@@ -951,6 +986,9 @@ export default function BroadcastCampaigns2() {
         const simulationList: Array<{
           phone: string;
           name?: string;
+          empresa?: string;
+          nome_empresa?: string;
+          email?: string;
           instanceId?: string;
           messageVariation?: string;
           estimatedTime?: Date;
@@ -963,6 +1001,9 @@ export default function BroadcastCampaigns2() {
               simulationList.push({
                 phone: contact.phone,
                 name: contact.name,
+                empresa: (contact as any).empresa,
+                nome_empresa: (contact as any).nome_empresa,
+                email: (contact as any).email,
                 instanceId: instanceId,
                 messageVariation: messagesToUse[messageIndex],
               });
@@ -975,6 +1016,9 @@ export default function BroadcastCampaigns2() {
             simulationList.push({
               phone: contact.phone,
               name: contact.name,
+              empresa: (contact as any).empresa,
+              nome_empresa: (contact as any).nome_empresa,
+              email: (contact as any).email,
               instanceId: instancesForRotation[instanceIndex],
               messageVariation: messagesToUse[messageIndex],
             });
@@ -1049,6 +1093,9 @@ export default function BroadcastCampaigns2() {
       const simulationList: Array<{
         phone: string;
         name?: string;
+        empresa?: string;
+        nome_empresa?: string;
+        email?: string;
         instanceId?: string;
         messageVariation?: string;
         estimatedTime?: Date;
@@ -1061,6 +1108,9 @@ export default function BroadcastCampaigns2() {
             simulationList.push({
               phone: contact.phone,
               name: contact.name,
+              empresa: contact.empresa,
+              nome_empresa: contact.nome_empresa,
+              email: contact.email,
               instanceId: instanceId,
               messageVariation: messagesToUse[messageIndex],
             });
@@ -1073,6 +1123,9 @@ export default function BroadcastCampaigns2() {
           simulationList.push({
             phone: contact.phone,
             name: contact.name,
+            empresa: contact.empresa,
+            nome_empresa: contact.nome_empresa,
+            email: contact.email,
             instanceId: instancesForRotation[instanceIndex],
             messageVariation: messagesToUse[messageIndex],
           });
@@ -1104,6 +1157,139 @@ export default function BroadcastCampaigns2() {
     } finally {
       setValidatingContacts(false);
     }
+  };
+
+  type CreateCampaignContact = {
+    phone: string;
+    name?: string;
+    empresa?: string;
+    nome_empresa?: string;
+    email?: string;
+    cpf?: string;
+    cnpj?: string;
+    custom_fields?: Record<string, string>;
+  };
+
+  const doInsertCampaign = async (contacts: CreateCampaignContact[]) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+    if (!activeOrgId) throw new Error("Organização não identificada");
+
+    const { data: campaign, error: campaignError } = await supabase
+      .from("broadcast_campaigns_2")
+      .insert({
+        user_id: user.id,
+        organization_id: activeOrgId,
+        name: newCampaign.name,
+        instance_id: newCampaign.sendingMethod === "single" ? newCampaign.instanceId : null,
+        message_template_id: newCampaign.templateId || null,
+        custom_message: newCampaign.customMessage || null,
+        min_delay_seconds: newCampaign.minDelay,
+        max_delay_seconds: newCampaign.maxDelay,
+        total_contacts: contacts.length,
+        status: "draft",
+        sending_method: newCampaign.sendingMethod,
+        instance_ids: newCampaign.instanceIds?.length ? newCampaign.instanceIds : null,
+      })
+      .select()
+      .single();
+
+    if (campaignError) throw campaignError;
+
+    const messagesToUse = newCampaign.messageVariations.length > 0
+      ? newCampaign.messageVariations
+      : [newCampaign.customMessage];
+
+    let queueItems: any[] = [];
+
+    if (newCampaign.sendingMethod === "separate") {
+      newCampaign.instanceIds.forEach((instanceId: string) => {
+        contacts.forEach((contact, index) => {
+          const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+          const personalizedMessage = messagesToUse[messageIndex];
+          queueItems.push({
+            campaign_id: campaign.id,
+            organization_id: activeOrgId,
+            instance_id: instanceId,
+            phone: contact.phone,
+            name: contact.name || null,
+            empresa: contact.empresa || null,
+            nome_empresa: contact.nome_empresa || contact.empresa || null,
+            email: contact.email || null,
+            cpf: contact.cpf || null,
+            cnpj: contact.cnpj || null,
+            custom_fields: contact.custom_fields || null,
+            personalized_message: personalizedMessage,
+            status: "pending",
+          });
+        });
+      });
+    } else {
+      const instancesForRotation = newCampaign.sendingMethod === "single"
+        ? [newCampaign.instanceId]
+        : newCampaign.instanceIds;
+      queueItems = contacts.map((contact, index) => {
+        const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
+        const personalizedMessage = messagesToUse[messageIndex];
+        const instanceIndex = index % instancesForRotation.length;
+        const assignedInstanceId = instancesForRotation[instanceIndex];
+        return {
+          campaign_id: campaign.id,
+          organization_id: activeOrgId,
+          instance_id: assignedInstanceId,
+          phone: contact.phone,
+          name: contact.name || null,
+          empresa: contact.empresa || null,
+          nome_empresa: contact.nome_empresa || contact.empresa || null,
+          email: contact.email || null,
+          cpf: contact.cpf || null,
+          cnpj: contact.cnpj || null,
+          custom_fields: contact.custom_fields || null,
+          personalized_message: personalizedMessage,
+          status: "pending",
+        };
+      });
+    }
+
+    const { error: queueError } = await supabase
+      .from("broadcast_queue_2")
+      .insert(queueItems);
+    if (queueError) throw queueError;
+
+    const instanceCount = newCampaign.sendingMethod === "single" ? 1 : newCampaign.instanceIds.length;
+    const instanceLabel = instanceCount === 1 ? "1 instância" : `${instanceCount} instâncias`;
+    const totalMessages = newCampaign.sendingMethod === "separate"
+      ? contacts.length * instanceCount
+      : contacts.length;
+
+    toast({
+      title: "Campanha criada!",
+      description: `${totalMessages} mensagens agendadas usando ${instanceLabel}`,
+    });
+
+    setCreateDialogOpen(false);
+    setNewCampaign({
+      name: "",
+      instanceId: "",
+      instanceIds: [],
+      selectedGroupId: "",
+      sendingMethod: "single",
+      templateId: "",
+      customMessage: "",
+      messageVariations: [],
+      minDelay: 1200,
+      maxDelay: 1600,
+      scheduledStart: undefined,
+      fromTemplate: false,
+      useLatamValidator: false,
+    });
+    setSelectedCampaignTemplate(null);
+    setCsvFile(null);
+    setPastedList("");
+    setImportMode("csv");
+    setValidationResult(null);
+    setValidatedContactsList([]);
+    fetchCampaigns();
   };
 
   const handleCreateCampaign = async () => {
@@ -1283,144 +1469,48 @@ export default function BroadcastCampaigns2() {
         }
       }
 
-      // Criar campanha
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      if (!activeOrgId) {
-        throw new Error("Organização não identificada");
+      // Verificar tags de personalização: se a mensagem tem {nome} etc. e algum contato não tem o dado, avisar
+      const messagesToCheck = newCampaign.messageVariations.length > 0
+        ? newCampaign.messageVariations
+        : [newCampaign.customMessage || ""];
+      const tagRegex = /\{(\w+)\}/g;
+      const allTags = new Set<string>();
+      messagesToCheck.forEach((msg) => {
+        let m;
+        tagRegex.lastIndex = 0;
+        while ((m = tagRegex.exec(msg)) !== null) allTags.add(m[1].toLowerCase());
+      });
+      const tagToField: Record<string, (c: (typeof contacts)[0]) => string | undefined> = {
+        nome: (c) => c.name,
+        name: (c) => c.name,
+        empresa: (c) => c.empresa || c.nome_empresa,
+        nome_empresa: (c) => c.nome_empresa || c.empresa,
+        email: (c) => c.email,
+        cpf: (c) => c.cpf,
+        cnpj: (c) => c.cnpj,
+      };
+      const missingTags: string[] = [];
+      let missingCount = 0;
+      allTags.forEach((tag) => {
+        const getter = tagToField[tag];
+        if (!getter) return;
+        const without = contacts.filter((c) => !getter(c) || String(getter(c)).trim() === "");
+        if (without.length > 0) {
+          missingTags.push(tag);
+          missingCount += without.length;
+        }
+      });
+      if (missingTags.length > 0) {
+        setPersonalizationWarningDialog({
+          missingTags,
+          missingCount,
+          contacts,
+        });
+        setLoading(false);
+        return;
       }
 
-      const { data: campaign, error: campaignError } = await supabase
-        .from("broadcast_campaigns_2")
-        .insert({
-          user_id: user.id,
-          organization_id: activeOrgId,
-          name: newCampaign.name,
-          instance_id: newCampaign.sendingMethod === "single" ? newCampaign.instanceId : null,
-          message_template_id: newCampaign.templateId || null,
-          custom_message: newCampaign.customMessage || null,
-          min_delay_seconds: newCampaign.minDelay,
-          max_delay_seconds: newCampaign.maxDelay,
-          total_contacts: contacts.length,
-          status: "draft",
-        })
-        .select()
-        .single();
-
-      if (campaignError) throw campaignError;
-
-      // Determinar mensagens a serem usadas (variações ou mensagem única)
-      const messagesToUse = newCampaign.messageVariations.length > 0 
-        ? newCampaign.messageVariations 
-        : [newCampaign.customMessage];
-
-      // Preparar itens da fila
-      let queueItems: any[] = [];
-
-      if (newCampaign.sendingMethod === "separate") {
-        // Modo "disparar separadamente": CADA instância envia para TODOS os contatos
-        newCampaign.instanceIds.forEach(instanceId => {
-          contacts.forEach((contact, index) => {
-            // Rotacionar entre as variações de mensagem
-            const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-            const personalizedMessage = messagesToUse[messageIndex];
-
-            queueItems.push({
-              campaign_id: campaign.id,
-              organization_id: activeOrgId,
-              instance_id: instanceId,
-              phone: contact.phone,
-              name: contact.name || null, // Salvar name mesmo se for undefined (vira null no banco)
-              empresa: contact.empresa || null,
-              nome_empresa: contact.nome_empresa || contact.empresa || null,
-              email: contact.email || null,
-              cpf: contact.cpf || null,
-              cnpj: contact.cnpj || null,
-              custom_fields: contact.custom_fields || null,
-              personalized_message: personalizedMessage,
-              status: "pending",
-            });
-          });
-        });
-      } else {
-        // Modo "single" ou "rotate": distribuir contatos entre instâncias
-        const instancesForRotation = newCampaign.sendingMethod === "single" 
-          ? [newCampaign.instanceId]
-          : newCampaign.instanceIds;
-
-        queueItems = contacts.map((contact, index) => {
-          // Rotacionar entre as variações de mensagem
-          const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-          const personalizedMessage = messagesToUse[messageIndex];
-
-          // Rotacionar entre as instâncias (quando método é "rotate")
-          const instanceIndex = index % instancesForRotation.length;
-          const assignedInstanceId = instancesForRotation[instanceIndex];
-
-          return {
-            campaign_id: campaign.id,
-            organization_id: activeOrgId,
-            instance_id: assignedInstanceId,
-            phone: contact.phone,
-            name: contact.name || null, // Salvar name mesmo se for undefined (vira null no banco)
-            empresa: contact.empresa || null,
-            nome_empresa: contact.nome_empresa || contact.empresa || null,
-            email: contact.email || null,
-            cpf: contact.cpf || null,
-            cnpj: contact.cnpj || null,
-            custom_fields: contact.custom_fields || null,
-            personalized_message: personalizedMessage,
-            status: "pending",
-          };
-        });
-      }
-
-      const { error: queueError } = await supabase
-        .from("broadcast_queue_2")
-        .insert(queueItems);
-
-      if (queueError) throw queueError;
-
-      const instanceCount = newCampaign.sendingMethod === "single" 
-        ? 1
-        : newCampaign.instanceIds.length;
-
-      const instanceLabel = instanceCount === 1 
-        ? "1 instância"
-        : `${instanceCount} instâncias`;
-
-      const totalMessages = newCampaign.sendingMethod === "separate"
-        ? contacts.length * instanceCount
-        : contacts.length;
-
-      toast({
-        title: "Campanha criada!",
-        description: `${totalMessages} mensagens agendadas usando ${instanceLabel}`,
-      });
-
-      setCreateDialogOpen(false);
-      setNewCampaign({
-        name: "",
-        instanceId: "",
-        instanceIds: [],
-        selectedGroupId: "",
-        sendingMethod: "single",
-        templateId: "",
-        customMessage: "",
-        messageVariations: [],
-        minDelay: 30,
-        maxDelay: 60,
-        scheduledStart: undefined,
-        fromTemplate: false,
-        useLatamValidator: false,
-      });
-      setCsvFile(null);
-      setPastedList("");
-      setImportMode("csv");
-      setValidationResult(null);
-      setValidatedContactsList([]);
-      fetchCampaigns();
+      await doInsertCampaign(contacts);
     } catch (error: any) {
       toast({
         title: "Erro ao criar campanha",
@@ -1434,13 +1524,25 @@ export default function BroadcastCampaigns2() {
 
   const proceedWithCampaignStart = async (campaignId: string, scheduleForNextWindow: boolean) => {
     try {
-      // Buscar itens pendentes
+      // Buscar configurações da campanha primeiro (inclui sending_method para ordenação correta)
+      const { data: campaign, error: campaignError } = await supabase
+        .from("broadcast_campaigns_2")
+        .select("min_delay_seconds, max_delay_seconds, sending_method")
+        .eq("id", campaignId)
+        .single();
+
+      if (campaignError) throw campaignError;
+
+      // Buscar itens pendentes na ordem correta:
+      // - rotate: por created_at (ordem de inserção = round-robin inst1, inst2, inst1, inst2...)
+      // - single/separate: por instance_id depois created_at (comportamento anterior)
+      const orderByInstanceFirst = campaign?.sending_method !== "rotate";
       const { data: queueItems, error: fetchError } = await supabase
         .from("broadcast_queue_2")
         .select("*")
         .eq("campaign_id", campaignId)
         .eq("status", "pending")
-        .order("instance_id", { ascending: true })
+        .order(orderByInstanceFirst ? "instance_id" : "created_at", { ascending: true })
         .order("created_at", { ascending: true });
 
       if (fetchError) throw fetchError;
@@ -1448,15 +1550,6 @@ export default function BroadcastCampaigns2() {
       if (!queueItems || queueItems.length === 0) {
         throw new Error("Nenhum contato pendente nesta campanha");
       }
-
-      // Buscar configurações da campanha
-      const { data: campaign, error: campaignError } = await supabase
-        .from("broadcast_campaigns_2")
-        .select("min_delay_seconds, max_delay_seconds")
-        .eq("id", campaignId)
-        .single();
-
-      if (campaignError) throw campaignError;
 
       // Se deve agendar para próxima janela, fazer isso
       if (scheduleForNextWindow && activeTimeWindow) {
@@ -1483,17 +1576,15 @@ export default function BroadcastCampaigns2() {
         const avgDelayMs = avgDelay * 1000;
         
         const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
-        const isSeparate = uniqueInstances.size > 1;
-        
-        let isSeparateMode = false;
-        if (isSeparate) {
+        const isSeparateByHeuristic = uniqueInstances.size > 1 && (() => {
           const messagesPerInstance = new Map<string, number>();
           queueItems.forEach(item => {
             messagesPerInstance.set(item.instance_id, (messagesPerInstance.get(item.instance_id) || 0) + 1);
           });
           const counts = Array.from(messagesPerInstance.values());
-          isSeparateMode = counts.length > 0 && counts.every(count => count === counts[0]);
-        }
+          return counts.length > 0 && counts.every(count => count === counts[0]);
+        })();
+        const isSeparateMode = campaign?.sending_method === "separate" || (campaign?.sending_method == null && isSeparateByHeuristic);
         
         let messagesOutOfWindow = 0;
         let firstOutOfWindowTime: Date | null = null;
@@ -1628,26 +1719,24 @@ export default function BroadcastCampaigns2() {
 
       const now = new Date();
       
-      // Verificar se é modo "separate" - nesse caso, cada instância deve ter sua própria fila independente
-      // No modo separate, cada instância tem TODOS os contatos, então:
-      // - Múltiplas instâncias
-      // - Cada instância tem o mesmo número de mensagens (todos os contatos)
+      // Modo "separate": cada instância envia para TODOS os contatos, com filas independentes (paralelas).
+      // Modo "rotate": cada instância tem sua própria fila começando ao mesmo tempo (round-robin já definido nos itens) → reduz tempo total.
+      // Modo "single": uma fila sequencial única.
       const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
-      
-      // Verificar se realmente é separate: cada instância deve ter o mesmo número de mensagens
       const messagesPerInstance = new Map<string, number>();
       queueItems.forEach(item => {
         messagesPerInstance.set(item.instance_id, (messagesPerInstance.get(item.instance_id) || 0) + 1);
       });
       const counts = Array.from(messagesPerInstance.values());
       const allSameCount = counts.length > 0 && counts.every(count => count === counts[0]);
-      // Se todas as instâncias têm o mesmo número de mensagens e há múltiplas instâncias, é modo separate
-      const isSeparate = allSameCount && uniqueInstances.size > 1;
+      const heuristicSeparate = allSameCount && uniqueInstances.size > 1;
+      const isSeparate = campaign?.sending_method === "separate" || (campaign?.sending_method == null && heuristicSeparate);
+      const useParallelTimelines = isSeparate || campaign?.sending_method === "rotate";
       
       let updates: Promise<any>[] = [];
       
-      if (isSeparate) {
-        // Modo SEPARATE: Cada instância começa ao mesmo tempo, com sua própria fila independente
+      if (useParallelTimelines) {
+        // Modo SEPARATE ou ROTATE: cada instância começa ao mesmo tempo, com sua própria fila (paralelas → reduz tempo total)
         const instancesMap = new Map<string, any[]>();
         
         // Agrupar mensagens por instância
@@ -1667,9 +1756,13 @@ export default function BroadcastCampaigns2() {
         // Preparar updates em batch para reduzir queries
         const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
         
-        // Para cada instância, criar fila independente começando no mesmo horário
-        instancesMap.forEach((itemsForInstance) => {
-          let instanceScheduledTime = new Date(now); // Todas começam ao mesmo tempo
+        // Offset de 1 segundo por instância para que nenhum horário coincida no mesmo segundo (evita colisão entre instâncias)
+        const OFFSET_SECONDS_PER_INSTANCE = 1;
+        
+        // Para cada instância, criar fila independente com início deslocado em 1s para garantir segundos sempre diferentes
+        Array.from(instancesMap.entries()).forEach(([_instanceId, itemsForInstance], instanceIndex) => {
+          const startOffsetMs = instanceIndex * OFFSET_SECONDS_PER_INSTANCE * 1000;
+          let instanceScheduledTime = new Date(now.getTime() + startOffsetMs);
           
           itemsForInstance.forEach((item) => {
             // Calcular horário baseado no delay médio (independente para cada instância)
@@ -1720,7 +1813,7 @@ export default function BroadcastCampaigns2() {
           updates.push(...results.map(r => Promise.resolve(r)));
         }
       } else {
-        // Modo SINGLE ou ROTATE: Fila sequencial normal
+        // Modo SINGLE: fila sequencial normal (uma única linha do tempo)
         // Calcular delay uma vez (otimização)
         const minDelay = campaign.min_delay_seconds;
         const maxDelay = campaign.max_delay_seconds;
@@ -1882,6 +1975,45 @@ export default function BroadcastCampaigns2() {
   const handleCancelCampaign = async (campaignId: string) => {
     try {
       setLoading(true);
+
+      // PASSO 0: Salvar histórico antes de cancelar
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && activeOrgId) {
+        const { data: campaignData, error: fetchCampaignError } = await supabase
+          .from("broadcast_campaigns_2")
+          .select("name, instance_id, instance_ids, organization_id, total_contacts, sent_count, failed_count, status, sending_method")
+          .eq("id", campaignId)
+          .single();
+
+        if (!fetchCampaignError && campaignData) {
+          const { data: queueData } = await supabase
+            .from("broadcast_queue_2")
+            .select("phone, name, instance_id")
+            .eq("campaign_id", campaignId);
+
+          const leadsSnapshot = (queueData || []).map((q) => ({
+            phone: q.phone,
+            name: q.name || null,
+            instance_id: q.instance_id,
+          }));
+
+          await supabase.from("broadcast_campaigns_deleted_history").insert({
+            campaign_id: campaignId,
+            campaign_name: campaignData.name,
+            deleted_by_user_id: user.id,
+            deleted_by_email: user.email || null,
+            organization_id: campaignData.organization_id,
+            instance_id: campaignData.instance_id,
+            instance_ids: campaignData.instance_ids,
+            leads_snapshot: leadsSnapshot,
+            total_contacts: campaignData.total_contacts,
+            sent_count: campaignData.sent_count,
+            failed_count: campaignData.failed_count,
+            status_at_deletion: campaignData.status,
+            sending_method: campaignData.sending_method,
+          });
+        }
+      }
       
       // PASSO 1: Atualizar status da campanha PRIMEIRO para bloquear novos envios
       const { error: campaignError } = await supabase
@@ -1983,6 +2115,79 @@ export default function BroadcastCampaigns2() {
 
     const config = variants[status] || { variant: "outline", label: status };
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  /** Substitui tags de personalização na mensagem pelos dados reais do contato */
+  const replacePersonalizationTags = (
+    msg: string,
+    contact: { name?: string; empresa?: string; nome_empresa?: string; email?: string; cpf?: string; cnpj?: string; custom_fields?: Record<string, string> }
+  ): string => {
+    if (!msg) return "";
+    let result = msg;
+    result = result.replace(/\{nome\}/gi, contact.name?.trim() || "");
+    result = result.replace(/\{name\}/gi, contact.name?.trim() || "");
+    result = result.replace(/\{empresa\}/gi, (contact.empresa || contact.nome_empresa)?.trim() || "");
+    result = result.replace(/\{nome_empresa\}/gi, (contact.nome_empresa || contact.empresa)?.trim() || "");
+    result = result.replace(/\{email\}/gi, contact.email?.trim() || "");
+    result = result.replace(/\{cpf\}/gi, contact.cpf?.trim() || "");
+    result = result.replace(/\{cnpj\}/gi, contact.cnpj?.trim() || "");
+    contact.custom_fields &&
+      Object.entries(contact.custom_fields).forEach(([key, value]) => {
+        result = result.replace(new RegExp(`\\{${key}\\}`, "gi"), value?.trim() || "");
+      });
+    return result;
+  };
+
+  const fetchDeletedHistory = useCallback(async () => {
+    if (!activeOrgId) return;
+    setDeletedHistoryLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("broadcast_campaigns_deleted_history")
+        .select("id, campaign_name, deleted_by_email, deleted_at, instance_id, instance_ids, leads_snapshot, total_contacts")
+        .eq("organization_id", activeOrgId)
+        .order("deleted_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const withInstanceNames = (data || []).map((h) => {
+        const singleName = h.instance_id ? instances.find((i) => i.id === h.instance_id)?.instance_name : null;
+        const multiNames = (h.instance_ids || [])
+          .map((id) => instances.find((i) => i.id === id)?.instance_name)
+          .filter(Boolean)
+          .join(", ");
+        return {
+          ...h,
+          instance_name: singleName || (multiNames ? multiNames : null),
+        };
+      });
+      setDeletedHistory(withInstanceNames);
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar histórico", description: err.message, variant: "destructive" });
+    } finally {
+      setDeletedHistoryLoading(false);
+    }
+  }, [activeOrgId, instances]);
+
+  const handleSaveCampaignName = async (campaignId: string) => {
+    const name = editingCampaignName.trim();
+    if (!name) return;
+    try {
+      const { error } = await supabase
+        .from("broadcast_campaigns_2")
+        .update({ name })
+        .eq("id", campaignId);
+      if (error) throw error;
+      setEditingCampaignId(null);
+      setEditingCampaignName("");
+      fetchCampaigns();
+      toast({ title: "Nome atualizado", description: "O nome da campanha foi alterado." });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao atualizar nome",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
   };
 
   // Memoizar filtros para evitar recálculos desnecessários
@@ -2252,8 +2457,13 @@ export default function BroadcastCampaigns2() {
               <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-xl">Disparador 2</CardTitle>
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <CardTitle className="text-xl">Disparador Inteligente</CardTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setDeletedHistoryDialogOpen(true); fetchDeletedHistory(); }}>
+                <History className="h-4 w-4 mr-2" />
+                Histórico de Excluídas
+              </Button>
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
@@ -2972,7 +3182,7 @@ export default function BroadcastCampaigns2() {
                           const totalContacts = selectedList.contacts.length;
                           
                           // Normalizar telefones e preparar lista de contatos validados
-                          const contacts = selectedList.contacts.map(contact => {
+                          const contacts = selectedList.contacts.map((contact: any) => {
                             let phone = contact.phone || '';
                             
                             if (phone.startsWith('55') && !phone.startsWith('+')) {
@@ -2987,7 +3197,10 @@ export default function BroadcastCampaigns2() {
                             
                             return {
                               phone,
-                              name: contact.name || undefined
+                              name: contact.name || undefined,
+                              empresa: contact.empresa,
+                              nome_empresa: contact.nome_empresa,
+                              email: contact.email,
                             };
                           });
                           
@@ -3003,6 +3216,9 @@ export default function BroadcastCampaigns2() {
                           const simulationList: Array<{
                             phone: string;
                             name?: string;
+                            empresa?: string;
+                            nome_empresa?: string;
+                            email?: string;
                             instanceId?: string;
                             messageVariation?: string;
                             estimatedTime?: Date;
@@ -3010,23 +3226,29 @@ export default function BroadcastCampaigns2() {
                           
                           if (newCampaign.sendingMethod === "separate") {
                             instancesForRotation.forEach(instanceId => {
-                              contacts.forEach((contact, index) => {
+                              contacts.forEach((contact: any, index: number) => {
                                 const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
                                 simulationList.push({
                                   phone: contact.phone,
                                   name: contact.name,
+                                  empresa: contact.empresa,
+                                  nome_empresa: contact.nome_empresa,
+                                  email: contact.email,
                                   instanceId: instanceId,
                                   messageVariation: messagesToUse[messageIndex],
                                 });
                               });
                             });
                           } else {
-                            contacts.forEach((contact, index) => {
+                            contacts.forEach((contact: any, index: number) => {
                               const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
                               const instanceIndex = index % instancesForRotation.length;
                               simulationList.push({
                                 phone: contact.phone,
                                 name: contact.name,
+                                empresa: contact.empresa,
+                                nome_empresa: contact.nome_empresa,
+                                email: contact.email,
                                 instanceId: instancesForRotation[instanceIndex],
                                 messageVariation: messagesToUse[messageIndex],
                               });
@@ -3111,6 +3333,7 @@ export default function BroadcastCampaigns2() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
@@ -3210,7 +3433,38 @@ export default function BroadcastCampaigns2() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-medium">{campaign.name}</h3>
+                    {editingCampaignId === campaign.id ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Input
+                          value={editingCampaignName}
+                          onChange={(e) => setEditingCampaignName(e.target.value)}
+                          className="max-w-[280px]"
+                          placeholder="Nome da campanha"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveCampaignName(campaign.id);
+                            if (e.key === "Escape") { setEditingCampaignId(null); setEditingCampaignName(""); }
+                          }}
+                        />
+                        <Button size="sm" onClick={() => handleSaveCampaignName(campaign.id)}>Salvar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingCampaignId(null); setEditingCampaignName(""); }}>Cancelar</Button>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-medium">{campaign.name}</h3>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            setEditingCampaignId(campaign.id);
+                            setEditingCampaignName(campaign.name);
+                          }}
+                          title="Editar nome"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                     {getStatusBadge(campaign.status)}
                   </div>
                   <div className="flex gap-4 text-sm flex-wrap">
@@ -3321,11 +3575,13 @@ export default function BroadcastCampaigns2() {
             </TabsContent>
 
             <TabsContent value="reports">
-              <BroadcastPerformanceReport 
-                campaigns={campaigns} 
-                instances={instances}
-                dateFilter={sentDateFilter}
-              />
+              <Card>
+                <CardContent className="p-6">
+                  <p className="text-muted-foreground text-center py-8">
+                    Relatório de performance temporariamente indisponível. Use a aba &quot;Exportar&quot; para exportar dados.
+                  </p>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="export">
@@ -3615,6 +3871,121 @@ export default function BroadcastCampaigns2() {
           </Dialog>
         )}
 
+        {/* Aviso: tags de personalização sem dados em alguns contatos */}
+        <AlertDialog
+          open={!!personalizationWarningDialog}
+          onOpenChange={(open) => {
+            if (!open) setPersonalizationWarningDialog(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tags de personalização sem dados</AlertDialogTitle>
+              <AlertDialogDescription>
+                A mensagem contém as tags{" "}
+                <strong>{personalizationWarningDialog?.missingTags.map((t) => `{${t}}`).join(", ")}</strong>, mas{" "}
+                {personalizationWarningDialog?.missingCount} contato(s) não possuem esses dados preenchidos. A
+                personalização pode não funcionar corretamente para esses contatos (a tag pode ficar em branco ou
+                sem substituição). Deseja prosseguir mesmo assim?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPersonalizationWarningDialog(null)}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (!personalizationWarningDialog) return;
+                  const contactsToUse = personalizationWarningDialog.contacts;
+                  setPersonalizationWarningDialog(null);
+                  try {
+                    setLoading(true);
+                    await doInsertCampaign(contactsToUse);
+                  } catch (err: any) {
+                    toast({
+                      title: "Erro ao criar campanha",
+                      description: err.message,
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Prosseguir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog Histórico de Campanhas Excluídas */}
+        <Dialog open={deletedHistoryDialogOpen} onOpenChange={setDeletedHistoryDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Histórico de Campanhas Excluídas</DialogTitle>
+              <DialogDescription>
+                Campanhas canceladas/excluídas com nome, usuário, horário, instância e leads vinculados
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {deletedHistoryLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : deletedHistory.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <HistoryIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Nenhuma campanha excluída ainda</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-4">
+                    {deletedHistory.map((h) => (
+                      <div key={h.id} className="p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <h4 className="font-semibold">{h.campaign_name}</h4>
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {formatDate(new Date(h.deleted_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          <p>
+                            <span className="font-medium">Excluído por:</span> {h.deleted_by_email || "—"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Instância:</span>{" "}
+                            {h.instance_name || (h.instance_ids?.length ? `${h.instance_ids.length} instância(s)` : "—")}
+                          </p>
+                          <p>
+                            <span className="font-medium">Leads vinculados:</span> {h.total_contacts} contato(s)
+                          </p>
+                        </div>
+                        {h.leads_snapshot && h.leads_snapshot.length > 0 && (
+                          <details className="mt-3">
+                            <summary className="text-sm font-medium cursor-pointer text-primary hover:underline">
+                              Ver lista de contatos ({h.leads_snapshot.length})
+                            </summary>
+                            <div className="mt-2 max-h-32 overflow-y-auto text-xs space-y-1 pl-2 border-l-2 border-muted">
+                              {h.leads_snapshot.slice(0, 50).map((lead, i) => (
+                                <div key={i}>
+                                  {lead.phone} {lead.name ? `(${lead.name})` : ""}
+                                </div>
+                              ))}
+                              {h.leads_snapshot.length > 50 && (
+                                <p className="text-muted-foreground italic">... e mais {h.leads_snapshot.length - 50}</p>
+                              )}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Dialog de Simulação de Envio */}
         <Dialog open={simulationDialogOpen} onOpenChange={(open) => {
           setSimulationDialogOpen(open);
@@ -3887,10 +4258,10 @@ export default function BroadcastCampaigns2() {
                                           )}
                                         </div>
                                         {contact.messageVariation && (
-                                          <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded border">
-                                            <span className="font-medium">Mensagem:</span>
-                                            <p className="mt-1 whitespace-pre-wrap line-clamp-2">
-                                              {contact.messageVariation.replace(/\{nome\}/gi, contact.name || 'Cliente')}
+                                          <div className="text-sm mt-2 p-3 bg-muted/50 rounded border">
+                                            <span className="font-medium text-muted-foreground block mb-1">Mensagem que será enviada:</span>
+                                            <p className="whitespace-pre-wrap break-words">
+                                              {replacePersonalizationTags(contact.messageVariation, contact)}
                                             </p>
                                           </div>
                                         )}
