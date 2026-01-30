@@ -122,19 +122,16 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
             let lastMessageScheduledAt: string | undefined;
             
             if (queueData && queueData.length > 0) {
-              // Última mensagem agendada (maior scheduled_for = última mensagem)
               const scheduledMessages = queueData.filter(q => q.scheduled_for);
               if (scheduledMessages.length > 0) {
-                // Ordenar por scheduled_for descendente e pegar o primeiro (mais recente)
                 const sortedMessages = scheduledMessages.sort((a, b) => {
                   const dateA = new Date(a.scheduled_for).getTime();
                   const dateB = new Date(b.scheduled_for).getTime();
-                  return dateB - dateA; // Descendente
+                  return dateB - dateA;
                 });
                 lastMessageScheduledAt = sortedMessages[0].scheduled_for;
               }
               
-              // Instâncias únicas
               const uniqueInstanceIds = [...new Set(queueData.map(item => item.instance_id).filter(Boolean))];
               
               if (uniqueInstanceIds.length > 0) {
@@ -163,13 +160,10 @@ export function BroadcastCampaignsCalendar({ organizationId }: BroadcastCampaign
               instanceNames = [instanceName];
             }
             
-            // Se não encontrou última mensagem na fila, usar scheduled_start_at como fallback
             if (!lastMessageScheduledAt) {
               lastMessageScheduledAt = campaign.scheduled_start_at;
             }
 
-            // Garantir que sempre temos um horário de término
-            // Se não encontrou na fila, usar scheduled_start_at como fallback
             const finalLastMessageAt = lastMessageScheduledAt || campaign.scheduled_start_at;
 
             return {

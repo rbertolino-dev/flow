@@ -50,12 +50,20 @@ function replaceBroadcastTemplateTags(
   return result;
 }
 
+const DEBUG_LOG = (msg: string, data: Record<string, unknown>, hypothesisId: string) => {
+  const payload = { hypothesisId, message: msg, data, timestamp: Date.now(), sessionId: "debug-session" };
+  console.log(`[DEBUG][${hypothesisId}]`, JSON.stringify(payload));
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // #region agent log
+    DEBUG_LOG("process-broadcast-queue invocado", { now: new Date().toISOString() }, "H1");
+    // #endregion
     console.log("📡 [process-broadcast-queue] Iniciando processamento...");
 
     const supabase = createClient(
@@ -87,6 +95,16 @@ serve(async (req) => {
 
     if (fetchError) throw fetchError;
 
+    // #region agent log
+    const ids = (queueItems || []).map((i: { id: string }) => i.id);
+    const idSet = new Set(ids);
+    DEBUG_LOG("query retornou itens", {
+      total: queueItems?.length ?? 0,
+      ids: ids.slice(0, 20),
+      idsUnicos: idSet.size,
+      temDuplicataNaQuery: ids.length !== idSet.size,
+    }, "H3");
+    // #endregion
     console.log(`📬 Encontrados ${queueItems?.length || 0} itens para processar`);
 
     if (!queueItems || queueItems.length === 0) {
@@ -176,6 +194,9 @@ serve(async (req) => {
 
     for (const item of validItems) {
       try {
+        // #region agent log
+        DEBUG_LOG("inicio processamento item", { itemId: item.id, phone: item.phone, campaignId: item.campaign?.id }, "H4");
+        // #endregion
         const campaign = item.campaign;
         const instance = item.instance;
         
@@ -252,6 +273,9 @@ serve(async (req) => {
         }
         
         const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
+        // #region agent log
+        DEBUG_LOG("antes do envio fetch", { itemId: item.id, phone: item.phone, campaignId: campaign.id }, "H1");
+        // #endregion
         console.log(`📤 Enviando para ${whatsappNumber} via ${instance.instance_name} (${evolutionUrl})`);
 
         // Obter métricas da instância
@@ -291,18 +315,36 @@ serve(async (req) => {
 
         // Marcar como enviado - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
         // Isso previne que múltiplos workers processem a mesma mensagem
-        const { error: updateError, count: updateCount } = await supabase
+        // FIX H2: Supabase só retorna count quando .select(..., { count: 'exact' }) é usado
+        const updateResult = await supabase
           .from("broadcast_queue")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
           .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .eq("status", "scheduled") // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .select("id", { count: "exact", head: true }); // ✅ FIX: permite detectar 0 rows (já processado por outro worker)
+
+        const updateError = updateResult.error;
+        const updateCount = (updateResult as { count?: number }).count ?? null;
+
+        // #region agent log
+        DEBUG_LOG("retorno do update sent", {
+          itemId: item.id,
+          hasError: !!updateError,
+          updateCount,
+          updateCountType: typeof updateCount,
+          keys: Object.keys(updateResult),
+        }, "H2");
+        // #endregion
 
         if (updateError) throw updateError;
 
         if (updateCount === 0) {
+          // #region agent log
+          DEBUG_LOG("updateCount === 0, pulando (ja processado por outro)", { itemId: item.id }, "H2");
+          // #endregion
           console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando.`);
           continue; // Pular para o próximo item se já foi processado
         }
@@ -360,14 +402,17 @@ serve(async (req) => {
         }
         
         // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-        const { count: updateCount } = await supabase
+        // FIX H2: usar .select(..., { count: 'exact', head: true }) para count confiável
+        const failUpdateResult = await supabase
           .from("broadcast_queue")
           .update({
             status: "failed",
             error_message: error.message,
           })
           .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .eq("status", "scheduled") // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .select("id", { count: "exact", head: true });
+        const updateCount = (failUpdateResult as { count?: number }).count ?? null;
 
         if (updateCount === 0) {
           console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando atualização de falha.`);

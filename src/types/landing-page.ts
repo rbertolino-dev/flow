@@ -36,6 +36,10 @@ export interface LandingPage {
   form_enabled?: boolean | null;
   form_title?: string | null;
   form_position?: 'middle' | 'bottom';
+  
+  // Vídeo (ao lado do formulário)
+  video_enabled?: boolean | null;
+  video_url?: string | null;
   form_fields?: {
     name: boolean;
     phone: boolean;
@@ -64,6 +68,18 @@ export interface LandingPage {
     projects?: number;
     years?: number;
   } | null;
+  
+  // Mapa/Localização
+  map_enabled?: boolean | null;
+  map_embed_url?: string | null;
+  
+  // Botão de Ligação
+  call_enabled?: boolean | null;
+  call_number?: string | null;
+  
+  // Horário de Atendimento
+  business_hours_enabled?: boolean | null;
+  business_hours_text?: string | null;
   
   // Rodapé
   footer_enabled?: boolean | null;
@@ -167,6 +183,10 @@ export interface LandingPageConfig {
   formEnabled: boolean;
   formTitle?: string;
   formPosition?: 'middle' | 'bottom';
+  
+  // Vídeo (ao lado do formulário)
+  videoEnabled?: boolean;
+  videoUrl?: string;
   formFields?: {
     name: boolean;
     phone: boolean;
@@ -195,6 +215,18 @@ export interface LandingPageConfig {
     projects?: number;
     years?: number;
   };
+  
+  // Mapa/Localização
+  mapEnabled?: boolean;
+  mapEmbedUrl?: string;
+  
+  // Botão de Ligação
+  callEnabled?: boolean;
+  callNumber?: string;
+  
+  // Horário de Atendimento
+  businessHoursEnabled?: boolean;
+  businessHoursText?: string;
   
   // Rodapé
   footerEnabled: boolean;

@@ -78,6 +78,14 @@ export function useLandingPage() {
           form_enabled: config.formEnabled,
           form_title: config.formTitle,
           form_position: config.formPosition || 'bottom',
+          video_enabled: config.videoEnabled ?? false,
+          video_url: config.videoUrl || null,
+          map_enabled: config.mapEnabled ?? false,
+          map_embed_url: config.mapEmbedUrl || null,
+          call_enabled: config.callEnabled ?? false,
+          call_number: config.callNumber || null,
+          business_hours_enabled: config.businessHoursEnabled ?? false,
+          business_hours_text: config.businessHoursText || null,
           form_fields: config.formFields,
           form_destination: config.formDestination || 'leads',
           form_notification_email: config.formNotificationEmail || null,
@@ -155,6 +163,14 @@ export function useLandingPage() {
       if (config.formFields !== undefined) updateData.form_fields = config.formFields;
       if (config.formDestination !== undefined) updateData.form_destination = config.formDestination;
       if (config.formNotificationEmail !== undefined) updateData.form_notification_email = config.formNotificationEmail || null;
+      if (config.videoEnabled !== undefined) updateData.video_enabled = config.videoEnabled;
+      if (config.videoUrl !== undefined) updateData.video_url = config.videoUrl || null;
+      if (config.mapEnabled !== undefined) updateData.map_enabled = config.mapEnabled;
+      if (config.mapEmbedUrl !== undefined) updateData.map_embed_url = config.mapEmbedUrl || null;
+      if (config.callEnabled !== undefined) updateData.call_enabled = config.callEnabled;
+      if (config.callNumber !== undefined) updateData.call_number = config.callNumber || null;
+      if (config.businessHoursEnabled !== undefined) updateData.business_hours_enabled = config.businessHoursEnabled;
+      if (config.businessHoursText !== undefined) updateData.business_hours_text = config.businessHoursText || null;
       if (config.seoTitle !== undefined) updateData.seo_title = config.seoTitle;
       if (config.seoDescription !== undefined) updateData.seo_description = config.seoDescription;
       if (config.seoOgImage !== undefined) updateData.seo_og_image_url = config.seoOgImage;
@@ -306,9 +322,13 @@ export function useLandingPageItems(landingPageId: string | null) {
       return data;
     } catch (error: any) {
       console.error("Erro ao adicionar item:", error);
+      const isFkOrRls =
+        /Key is not present|foreign key|23503|row_level_security|RLS|not present in table/i.test(String(error?.message ?? ""));
       toast({
         title: "Erro ao adicionar produto",
-        description: error.message,
+        description: isFkOrRls
+          ? "Produto não encontrado ou permissões do banco desatualizadas. Execute o script em scripts/aplicar-correcao-completa-landing-page.sql no SQL Editor do Supabase."
+          : error.message,
         variant: "destructive",
       });
       throw error;

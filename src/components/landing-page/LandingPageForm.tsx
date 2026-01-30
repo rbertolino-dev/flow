@@ -5,8 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send, User, Phone, Mail, MessageSquare } from "lucide-react";
 
 interface LandingPageFormProps {
   landingPage: LandingPagePublicData;
@@ -22,6 +21,7 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
     email: '',
     message: '',
   });
+  const primaryColor = landingPage.primary_color || '#3b82f6';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,15 +38,20 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
     setSubmitting(true);
 
     try {
-      // Obter IP do cliente (via edge function ou header)
-      const ipResponse = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipResponse.json();
-      const ipAddress = ipData.ip;
+      let ipAddress: string | null = null;
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        ipAddress = ipData.ip;
+      } catch {
+        // Ignorar se não conseguir obter IP
+      }
 
-      // Criar lead na landing_page_leads
-      const { data: leadData, error: leadError } = await supabase
-        .from('landing_page_leads')
-        .insert({
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/submit-landing-page-form`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           landing_page_id: landingPage.id,
           organization_id: landingPage.organization_id,
           name: formData.name.trim(),
@@ -54,44 +59,22 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
           email: formData.email.trim() || null,
           message: formData.message.trim() || null,
           product_id: selectedProduct || null,
-          product_name: selectedProduct 
+          product_name: selectedProduct
             ? landingPage.items.find(i => i.product_id === selectedProduct)?.product?.name || null
             : null,
-          source: 'landing_page',
           page_url: window.location.href,
           ip_address: ipAddress,
           user_agent: navigator.userAgent,
-        })
-        .select()
-        .single();
+          form_destination: landingPage.form_destination,
+        }),
+      });
 
-      if (leadError) throw leadError;
-
-      // Se destino é leads, criar lead no CRM também
-      if (landingPage.form_destination === 'leads') {
-        // Criar lead no sistema de leads
-        const { error: crmLeadError } = await supabase
-          .from('leads')
-          .insert({
-            organization_id: landingPage.organization_id,
-            user_id: landingPage.organization_id, // Usar organization_id como fallback
-            name: formData.name.trim(),
-            phone: formData.phone.trim(),
-            email: formData.email.trim() || null,
-            source: 'landing_page',
-            status: 'new',
-            notes: formData.message.trim() || null,
-          });
-
-        if (crmLeadError) {
-          console.error("Erro ao criar lead no CRM:", crmLeadError);
-          // Não falhar o formulário se apenas o CRM falhar
-        }
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao enviar formulário');
       }
 
-      // Se destino é email, enviar email (via edge function)
       if (landingPage.form_destination === 'email' && landingPage.form_notification_email) {
-        // TODO: Implementar envio de email via edge function
         console.log("Enviar email para:", landingPage.form_notification_email);
       }
 
@@ -100,13 +83,7 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
         description: "Entraremos em contato em breve",
       });
 
-      // Limpar formulário
-      setFormData({
-        name: '',
-        phone: '',
-        email: '',
-        message: '',
-      });
+      setFormData({ name: '', phone: '', email: '', message: '' });
     } catch (error: any) {
       console.error("Erro ao enviar formulário:", error);
       toast({
@@ -120,80 +97,103 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold text-center mb-8">
-        {landingPage.form_title || 'Receba um orçamento'}
-      </h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {landingPage.form_fields?.name && (
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-              placeholder="Seu nome completo"
-            />
-          </div>
-        )}
+    <div className="w-full max-w-xl mx-auto min-w-0">
+      <div className="text-center mb-10">
+        <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
+          {landingPage.form_title || 'Receba um orçamento'}
+        </h2>
+        <p className="text-gray-600">Preencha o formulário e retornaremos em breve</p>
+        <div className="w-16 h-1 rounded-full mx-auto mt-4" style={{ backgroundColor: primaryColor }} />
+      </div>
 
-        {landingPage.form_fields?.phone && (
-          <div className="space-y-2">
-            <Label htmlFor="phone">WhatsApp *</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              required
-              placeholder="(11) 99999-9999"
-            />
-          </div>
-        )}
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-5">
+          {landingPage.form_fields?.name && (
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <User className="h-4 w-4" style={{ color: primaryColor }} />
+                Nome *
+              </Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                placeholder="Seu nome completo"
+                className="h-12 min-h-[48px] rounded-xl border-2 border-gray-200 focus:border-gray-400 px-4"
+              />
+            </div>
+          )}
 
-        {landingPage.form_fields?.email && (
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="seu@email.com"
-            />
-          </div>
-        )}
+          {landingPage.form_fields?.phone && (
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Phone className="h-4 w-4" style={{ color: primaryColor }} />
+                WhatsApp *
+              </Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                required
+                placeholder="(11) 99999-9999"
+                className="h-12 min-h-[48px] rounded-xl border-2 border-gray-200 focus:border-gray-400 px-4"
+              />
+            </div>
+          )}
 
-        {landingPage.form_fields?.message && (
-          <div className="space-y-2">
-            <Label htmlFor="message">Mensagem</Label>
-            <Textarea
-              id="message"
-              value={formData.message}
-              onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-              placeholder="Conte-nos sobre seu interesse..."
-              rows={4}
-            />
-          </div>
-        )}
+          {landingPage.form_fields?.email && (
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Mail className="h-4 w-4" style={{ color: primaryColor }} />
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="seu@email.com"
+                className="h-12 min-h-[48px] rounded-xl border-2 border-gray-200 focus:border-gray-400 px-4"
+              />
+            </div>
+          )}
+
+          {landingPage.form_fields?.message && (
+            <div className="space-y-2">
+              <Label htmlFor="message" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" style={{ color: primaryColor }} />
+                Mensagem
+              </Label>
+              <Textarea
+                id="message"
+                value={formData.message}
+                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                placeholder="Conte-nos sobre seu interesse..."
+                rows={4}
+                className="rounded-xl border-2 border-gray-200 focus:border-gray-400 px-4 py-3 resize-none min-h-[100px]"
+              />
+            </div>
+          )}
+        </div>
 
         <Button
           type="submit"
-          className="w-full"
+          className="w-full landing-page-premium btn-cta-lift h-14 min-h-[48px] rounded-xl text-base font-semibold"
           disabled={submitting}
-          style={{
-            backgroundColor: landingPage.primary_color || '#3b82f6',
-            color: 'white',
-          }}
+          style={{ backgroundColor: primaryColor, color: 'white' }}
         >
           {submitting ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
               Enviando...
             </>
           ) : (
-            'Enviar Mensagem'
+            <>
+              <Send className="h-5 w-5 mr-2" />
+              Enviar Mensagem
+            </>
           )}
         </Button>
       </form>

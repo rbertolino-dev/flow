@@ -13,16 +13,12 @@ import { format as formatDate, subDays, subMonths, startOfDay, endOfDay } from "
 import { ptBR } from "date-fns/locale";
 
 interface PerformanceReportProps {
-  campaigns?: any[];
-  instances?: any[];
+  campaigns: any[];
+  instances: any[];
   dateFilter?: Date;
 }
 
-export function BroadcastPerformanceReport({ campaigns: campaignsProp, instances: instancesProp, dateFilter: externalDateFilter }: PerformanceReportProps) {
-  // Fallback defensivo: garantir que campaigns e instances são sempre arrays (evita erros de undefined)
-  const campaigns = Array.isArray(campaignsProp) ? campaignsProp : [];
-  const instances = Array.isArray(instancesProp) ? instancesProp : [];
-
+export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: externalDateFilter }: PerformanceReportProps) {
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -94,14 +90,11 @@ export function BroadcastPerformanceReport({ campaigns: campaignsProp, instances
     campaign.broadcast_queue || campaign.broadcast_queue_2 || [];
   const getCampaignStats = (campaign: any) => {
     const queueItems = getQueueItems(campaign);
-    const sentFromQueue = queueItems.filter((q: any) => q.status === 'sent').length;
-    const failedFromQueue = queueItems.filter((q: any) => q.status === 'failed').length;
+    const sent = queueItems.filter((q: any) => q.status === 'sent').length;
+    const failed = queueItems.filter((q: any) => q.status === 'failed').length;
     const cancelled = queueItems.filter((q: any) => q.status === 'cancelled').length;
     const pending = queueItems.filter((q: any) => q.status === 'pending').length;
     const total = campaign.total_contacts || 0;
-    // Usar fila quando disponível, senão fallback para sent_count/failed_count da campanha
-    const sent = queueItems.length > 0 ? sentFromQueue : (campaign.sent_count || 0);
-    const failed = queueItems.length > 0 ? failedFromQueue : (campaign.failed_count || 0);
     
     return { sent, failed, cancelled, pending, total };
   };
@@ -163,7 +156,7 @@ export function BroadcastPerformanceReport({ campaigns: campaignsProp, instances
     return acc;
   }, []).sort((a, b) => a.dia - b.dia);
 
-  // Disparos por instância (suporta instance_id e instance_ids do Disparador Inteligente)
+  // Disparos por instância
   const instanceData = instances.map(instance => {
     const instanceCampaigns = filteredCampaigns.filter(c => 
       c.instance_id === instance.id ||

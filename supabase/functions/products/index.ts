@@ -4,7 +4,7 @@ import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-organization-id',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
@@ -198,12 +198,15 @@ serve(async (req) => {
       );
     }
 
-    // Obter organization_id do usuário (da primeira organização)
+    // Obter organization_id: priorizar header X-Organization-Id (organização ativa do frontend)
+    // Se não fornecido, usar primeira organização do usuário (fallback)
+    const requestedOrgId = req.headers.get('X-Organization-Id');
+    let organizationId: string | null = null;
+
     const { data: orgMembers, error: orgError } = await supabase
       .from('organization_members')
       .select('organization_id')
-      .eq('user_id', user.id)
-      .limit(1);
+      .eq('user_id', user.id);
 
     if (orgError) {
       console.error('Erro ao buscar organização:', orgError);
@@ -223,7 +226,13 @@ serve(async (req) => {
       );
     }
 
-    const organizationId = orgMembers[0].organization_id;
+    const userOrgIds = orgMembers.map((m: { organization_id: string }) => m.organization_id);
+
+    if (requestedOrgId && userOrgIds.includes(requestedOrgId)) {
+      organizationId = requestedOrgId;
+    } else {
+      organizationId = orgMembers[0].organization_id;
+    }
 
     // Validar permissões
     const permissions = await validatePermissions(supabase, user.id, organizationId);

@@ -824,23 +824,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
               </div>
 
               {/* Lista de atividades */}
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-custom">
-                <style>{`
-                  .scrollbar-custom::-webkit-scrollbar {
-                    width: 8px;
-                  }
-                  .scrollbar-custom::-webkit-scrollbar-track {
-                    background: hsl(var(--muted));
-                    border-radius: 8px;
-                  }
-                  .scrollbar-custom::-webkit-scrollbar-thumb {
-                    background: hsl(var(--muted-foreground) / 0.4);
-                    border-radius: 8px;
-                  }
-                  .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-                    background: hsl(var(--muted-foreground) / 0.6);
-                  }
-                `}</style>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-popup">
                 {currentLead.activities && currentLead.activities.length > 0 ? (
                   currentLead.activities.map((activity) => (
                     <div

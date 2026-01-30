@@ -96,7 +96,7 @@ export function SimpleDropdown({
             />
           </div>
         )}
-        <div className="max-h-[300px] overflow-auto p-1">
+        <div className="max-h-[300px] overflow-auto scrollbar-popup p-1">
           {filteredOptions.length === 0 ? (
             <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">
               {emptyMessage}

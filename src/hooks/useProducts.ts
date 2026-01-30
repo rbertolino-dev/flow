@@ -31,14 +31,18 @@ export function useProducts() {
         throw new Error("Usuário não autenticado");
       }
 
-      // Chamar Edge Function
+      // Chamar Edge Function - passar organization_id ativa para garantir isolamento por organização
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      };
+      if (activeOrgId) {
+        headers["X-Organization-Id"] = activeOrgId;
+      }
       const response = await fetch(`${supabaseUrl}/functions/v1/products`, {
         method: "GET",
-        headers: {
-          "Authorization": `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -95,14 +99,18 @@ export function useProducts() {
         throw new Error("Usuário não autenticado");
       }
 
-      // Chamar Edge Function
+      // Chamar Edge Function - passar organization_id ativa
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      };
+      if (activeOrgId) {
+        headers["X-Organization-Id"] = activeOrgId;
+      }
       const response = await fetch(`${supabaseUrl}/functions/v1/products`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(productData),
       });
 
@@ -142,14 +150,18 @@ export function useProducts() {
         throw new Error("Usuário não autenticado");
       }
 
-      // Chamar Edge Function
+      // Chamar Edge Function - passar organization_id ativa
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      };
+      if (activeOrgId) {
+        headers["X-Organization-Id"] = activeOrgId;
+      }
       const response = await fetch(`${supabaseUrl}/functions/v1/products/${productId}`, {
         method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(productData),
       });
 
@@ -240,14 +252,18 @@ export function useProducts() {
         throw new Error("Usuário não autenticado");
       }
 
-      // Chamar Edge Function para criar produtos em massa
+      // Chamar Edge Function - passar organization_id ativa
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      };
+      if (activeOrgId) {
+        headers["X-Organization-Id"] = activeOrgId;
+      }
       const response = await fetch(`${supabaseUrl}/functions/v1/products/bulk`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ products: productsData }),
       });
 

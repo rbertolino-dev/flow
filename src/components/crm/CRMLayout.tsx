@@ -119,8 +119,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "post-sale" as const, label: "Pós-Venda", icon: ShoppingBag },
     { id: "calls" as const, label: "Fila de Ligações", icon: Phone },
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
-    { id: "broadcast" as const, label: "Disparo em Massa", icon: Send },
-    { id: "broadcast-2" as const, label: "Disparador 2", icon: Send },
+    // "Disparo em Massa" (broadcast) oculto do menu – usar Disparador Inteligente
+    { id: "broadcast-2" as const, label: "Disparador Inteligente", icon: Send },
     { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
     { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },

@@ -14,7 +14,7 @@ import { useLandingPage, useLandingPageItems } from "@/hooks/useLandingPage";
 import { useProducts } from "@/hooks/useProducts";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { LandingPageConfig } from "@/types/landing-page";
-import { Loader2, Image as ImageIcon, X, Eye, ExternalLink, Upload, Globe, MessageSquare, Settings, Palette, Layout, ShoppingBag, FileText, Zap } from "lucide-react";
+import { Loader2, Image as ImageIcon, X, Eye, ExternalLink, Upload, Globe, MessageSquare, Settings, Palette, Layout, ShoppingBag, FileText, Zap, Video } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const BUCKET_ID = "whatsapp-workflow-media";
@@ -57,6 +57,12 @@ export function LandingPageConfigurator() {
       message: false,
     },
     formDestination: "leads",
+    mapEnabled: false,
+    mapEmbedUrl: "",
+    callEnabled: false,
+    callNumber: "",
+    businessHoursEnabled: false,
+    businessHoursText: "",
     footerEnabled: true,
     highlights: [],
     testimonials: [],
@@ -88,6 +94,8 @@ export function LandingPageConfigurator() {
         formEnabled: landingPage.form_enabled ?? false,
         formTitle: landingPage.form_title || "",
         formPosition: landingPage.form_position || "bottom",
+        videoEnabled: landingPage.video_enabled ?? false,
+        videoUrl: landingPage.video_url || "",
         formFields: landingPage.form_fields || {
           name: true,
           phone: true,
@@ -351,6 +359,30 @@ export function LandingPageConfigurator() {
                   placeholder="Breve descrição sobre sua empresa..."
                   rows={4}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="businessHours" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Horário de Atendimento
+                </Label>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Exibir horário na página (rodapé ou seção de contato)
+                  </p>
+                  <Switch
+                    checked={config.businessHoursEnabled ?? false}
+                    onCheckedChange={(checked) => setConfig({ ...config, businessHoursEnabled: checked })}
+                  />
+                </div>
+                {config.businessHoursEnabled && (
+                  <Input
+                    id="businessHours"
+                    value={config.businessHoursText || ""}
+                    onChange={(e) => setConfig({ ...config, businessHoursText: e.target.value })}
+                    placeholder="Ex: Seg-Sex 9h-18h, Sáb 9h-13h"
+                  />
+                )}
               </div>
 
               <div className="space-y-2">
@@ -813,6 +845,38 @@ export function LandingPageConfigurator() {
                       onCheckedChange={(checked) => setConfig({ ...config, whatsappFloatingButton: checked })}
                     />
                   </div>
+
+                  <div className="border-t pt-6 mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Botão de Ligação
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Exibir botão para ligar (além do WhatsApp)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.callEnabled ?? false}
+                        onCheckedChange={(checked) => setConfig({ ...config, callEnabled: checked })}
+                      />
+                    </div>
+                    {config.callEnabled && (
+                      <div className="space-y-2">
+                        <Label htmlFor="callNumber">Número para Ligação</Label>
+                        <Input
+                          id="callNumber"
+                          value={config.callNumber || ""}
+                          onChange={(e) => setConfig({ ...config, callNumber: e.target.value })}
+                          placeholder="5511999999999"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Apenas números. Ex: 5511999999999 (DDI + DDD + número)
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </CardContent>
@@ -959,7 +1023,107 @@ export function LandingPageConfigurator() {
                       />
                     </div>
                   )}
+
+                  <div className="border-t pt-6 mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-2">
+                          <Video className="h-4 w-4" />
+                          Exibir vídeo ao lado do formulário
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Mostra um vídeo na parte inferior da página, ao lado do formulário
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.videoEnabled ?? false}
+                        onCheckedChange={(checked) => setConfig({ ...config, videoEnabled: checked })}
+                      />
+                    </div>
+
+                    {config.videoEnabled && (
+                      <div className="space-y-2">
+                        <Label htmlFor="videoUrl">URL do vídeo</Label>
+                        <Input
+                          id="videoUrl"
+                          value={config.videoUrl || ""}
+                          onChange={(e) => setConfig({ ...config, videoUrl: e.target.value })}
+                          placeholder="https://www.youtube.com/watch?v=... ou https://vimeo.com/..."
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Suporta YouTube e Vimeo. Cole o link completo do vídeo.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t pt-6 mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Mapa de Localização
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Exibir mapa na parte inferior da página
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.mapEnabled ?? false}
+                        onCheckedChange={(checked) => setConfig({ ...config, mapEnabled: checked })}
+                      />
+                    </div>
+                    {config.mapEnabled && (
+                      <div className="space-y-2">
+                        <Label htmlFor="mapEmbedUrl">URL do embed do Google Maps</Label>
+                        <Input
+                          id="mapEmbedUrl"
+                          value={config.mapEmbedUrl || ""}
+                          onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })}
+                          placeholder="https://www.google.com/maps/embed?pb=..."
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          No Google Maps: Compartilhar → Incorporar um mapa → copie o src do iframe
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </>
+              )}
+
+              {/* Mapa - visível mesmo sem formulário */}
+              {!config.formEnabled && (
+                <div className="border-t pt-6 mt-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Mapa de Localização
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Exibir mapa na parte inferior da página
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.mapEnabled ?? false}
+                      onCheckedChange={(checked) => setConfig({ ...config, mapEnabled: checked })}
+                    />
+                  </div>
+                  {config.mapEnabled && (
+                    <div className="space-y-2">
+                      <Label htmlFor="mapEmbedUrlStandalone">URL do embed do Google Maps</Label>
+                      <Input
+                        id="mapEmbedUrlStandalone"
+                        value={config.mapEmbedUrl || ""}
+                        onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })}
+                        placeholder="https://www.google.com/maps/embed?pb=..."
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        No Google Maps: Compartilhar → Incorporar um mapa → copie o src do iframe
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

@@ -420,10 +420,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       
       if (queueData) {
         queueData.forEach((item: any) => {
-          // Contar TODOS os disparos, mesmo sem instance_id
           total++;
-          
-          // Se tiver instance_id, contar por instância também
           if (item.instance_id) {
             counts[item.instance_id] = (counts[item.instance_id] || 0) + 1;
           }
@@ -451,7 +448,6 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           const trend = ((total - yesterdayTotal) / yesterdayTotal) * 100;
           setDispatchesTrend(trend);
         } else {
-          // Se não havia disparos ontem e há hoje, mostrar 100% de aumento
           setDispatchesTrend(total > 0 ? 100 : null);
         }
       } else {
@@ -515,26 +511,39 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           break;
       }
 
-      // Buscar todos os disparos do período (sent e failed)
-      const { data: queueData, error: queueError } = await supabase
-        .from("broadcast_queue")
-        .select("status, sent_at, created_at")
-        .eq("organization_id", orgId)
-        .in("status", ["sent", "failed"])
-        .gte("created_at", startDate.toISOString())
-        .lt("created_at", endDate.toISOString());
+      // Buscar todos os disparos do período (sent e failed) - AMBOS os sistemas
+      const [queueResult, queue2Result] = await Promise.all([
+        supabase
+          .from("broadcast_queue")
+          .select("status, sent_at, created_at")
+          .eq("organization_id", orgId)
+          .in("status", ["sent", "failed"])
+          .gte("created_at", startDate.toISOString())
+          .lt("created_at", endDate.toISOString()),
+        supabase
+          .from("broadcast_queue_2")
+          .select("status, sent_at, created_at")
+          .eq("organization_id", orgId)
+          .in("status", ["sent", "failed"])
+          .gte("created_at", startDate.toISOString())
+          .lt("created_at", endDate.toISOString()),
+      ]);
 
-      if (queueError) {
-        console.error("Erro ao buscar disparos por data:", queueError);
-        throw queueError;
+      if (queueResult.error) {
+        console.error("Erro ao buscar disparos por data (broadcast_queue):", queueResult.error);
       }
+      if (queue2Result.error) {
+        console.error("Erro ao buscar disparos por data (broadcast_queue_2):", queue2Result.error);
+      }
+
+      const queueData = [...(queueResult.data || []), ...(queue2Result.data || [])];
 
       // Contar disparos por status
       let total = 0;
       let successful = 0;
       let failed = 0;
 
-      if (queueData) {
+      if (queueData.length > 0) {
         queueData.forEach((item: any) => {
           // Usar sent_at se disponível, senão usar created_at
           const dispatchDate = item.sent_at ? new Date(item.sent_at) : new Date(item.created_at);
@@ -602,12 +611,9 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               filter: `organization_id=eq.${orgId}`,
             },
             (payload) => {
-              // Quando um disparo é marcado como "sent", atualizar contadores
               if (mounted && payload.new && payload.new.status === 'sent') {
                 const oldStatus = payload.old?.status || null;
-                if (oldStatus !== 'sent') {
-                  fetchDispatchesByInstance();
-                }
+                if (oldStatus !== 'sent') fetchDispatchesByInstance();
               }
             }
           )
