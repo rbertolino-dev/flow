@@ -9,17 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon } from "lucide-react";
-import { format as formatDate } from "date-fns";
+import { format as formatDate, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 
 interface PerformanceReportProps {
-  campaigns: any[];
-  instances: any[];
+  campaigns?: any[];
+  instances?: any[];
   dateFilter?: Date;
 }
 
-export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: externalDateFilter }: PerformanceReportProps) {
+export function BroadcastPerformanceReport({ campaigns: campaignsProp, instances: instancesProp, dateFilter: externalDateFilter }: PerformanceReportProps) {
+  // Fallback defensivo: garantir que campaigns e instances são sempre arrays (evita erros de undefined)
+  const campaigns = Array.isArray(campaignsProp) ? campaignsProp : [];
+  const instances = Array.isArray(instancesProp) ? instancesProp : [];
+
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -86,14 +89,19 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
 
   const filteredCampaigns = getFilteredCampaigns();
 
-  // Calcular dados reais da fila para cada campanha
+  // Calcular dados reais da fila para cada campanha (suporta Disparador em Massa e Disparador Inteligente)
+  const getQueueItems = (campaign: any) =>
+    campaign.broadcast_queue || campaign.broadcast_queue_2 || [];
   const getCampaignStats = (campaign: any) => {
-    const queueItems = campaign.broadcast_queue || [];
-    const sent = queueItems.filter((q: any) => q.status === 'sent').length;
-    const failed = queueItems.filter((q: any) => q.status === 'failed').length;
+    const queueItems = getQueueItems(campaign);
+    const sentFromQueue = queueItems.filter((q: any) => q.status === 'sent').length;
+    const failedFromQueue = queueItems.filter((q: any) => q.status === 'failed').length;
     const cancelled = queueItems.filter((q: any) => q.status === 'cancelled').length;
     const pending = queueItems.filter((q: any) => q.status === 'pending').length;
     const total = campaign.total_contacts || 0;
+    // Usar fila quando disponível, senão fallback para sent_count/failed_count da campanha
+    const sent = queueItems.length > 0 ? sentFromQueue : (campaign.sent_count || 0);
+    const failed = queueItems.length > 0 ? failedFromQueue : (campaign.failed_count || 0);
     
     return { sent, failed, cancelled, pending, total };
   };
@@ -116,7 +124,7 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
 
   // Análise por horário (agrupado por hora do dia)
   const hourlyEngagement = filteredCampaigns.reduce((acc: any[], campaign) => {
-    const queueItems = campaign.broadcast_queue || [];
+    const queueItems = getQueueItems(campaign);
     queueItems.forEach((item: any) => {
       if (!item.sent_at) return;
       const hour = new Date(item.sent_at).getHours();
@@ -137,7 +145,7 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
   // Análise por dia da semana
   const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const dailyEngagement = filteredCampaigns.reduce((acc: any[], campaign) => {
-    const queueItems = campaign.broadcast_queue || [];
+    const queueItems = getQueueItems(campaign);
     queueItems.forEach((item: any) => {
       if (!item.sent_at) return;
       const day = new Date(item.sent_at).getDay();
@@ -155,17 +163,19 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
     return acc;
   }, []).sort((a, b) => a.dia - b.dia);
 
-  // Disparos por instância
+  // Disparos por instância (suporta instance_id e instance_ids do Disparador Inteligente)
   const instanceData = instances.map(instance => {
     const instanceCampaigns = filteredCampaigns.filter(c => 
-      c.instance_id === instance.id || c.instance_name === instance.instance_name
+      c.instance_id === instance.id ||
+      c.instance_name === instance.instance_name ||
+      (Array.isArray(c.instance_ids) && c.instance_ids.includes(instance.id))
     );
     
     let totalSent = 0;
     let totalFailed = 0;
     
     instanceCampaigns.forEach(campaign => {
-      const queueItems = campaign.broadcast_queue || [];
+      const queueItems = getQueueItems(campaign);
       totalSent += queueItems.filter((q: any) => q.status === 'sent').length;
       totalFailed += queueItems.filter((q: any) => q.status === 'failed').length;
     });
@@ -191,7 +201,7 @@ export function BroadcastPerformanceReport({ campaigns, instances, dateFilter: e
   };
   
   filteredCampaigns.forEach(campaign => {
-    const queueItems = campaign.broadcast_queue || [];
+    const queueItems = getQueueItems(campaign);
     totalStats.totalEnviados += queueItems.filter((q: any) => q.status === 'sent').length;
     totalStats.totalFalhas += queueItems.filter((q: any) => q.status === 'failed').length;
     totalStats.totalCancelados += queueItems.filter((q: any) => q.status === 'cancelled').length;
