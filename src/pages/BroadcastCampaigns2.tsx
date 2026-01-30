@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, AlertTriangle } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, AlertTriangle, History } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -3934,7 +3934,7 @@ export default function BroadcastCampaigns2() {
                 </div>
               ) : deletedHistory.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  <HistoryIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <History className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>Nenhuma campanha excluída ainda</p>
                 </div>
               ) : (
