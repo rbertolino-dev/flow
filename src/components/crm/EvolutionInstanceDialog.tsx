@@ -213,6 +213,11 @@ export function EvolutionInstanceDialog({
             instanceName: formData.instance_name,
             organizationId: orgId,
             userId: user.id,
+            ...(formData.proxy_host?.trim() && { proxyHost: formData.proxy_host.trim() }),
+            ...(formData.proxy_port?.trim() && { proxyPort: formData.proxy_port.trim() }),
+            ...(formData.proxy_protocol?.trim() && { proxyProtocol: formData.proxy_protocol.trim() }),
+            ...(formData.proxy_username?.trim() && { proxyUsername: formData.proxy_username.trim() }),
+            ...(formData.proxy_password?.trim() && { proxyPassword: formData.proxy_password.trim() }),
           },
         });
 

@@ -52,7 +52,18 @@ serve(async (req) => {
       userId: body.userId
     });
 
-    const { apiUrl, apiKey, instanceName, organizationId, userId } = body;
+    const {
+      apiUrl,
+      apiKey,
+      instanceName,
+      organizationId,
+      userId,
+      proxyHost,
+      proxyPort,
+      proxyProtocol,
+      proxyUsername,
+      proxyPassword,
+    } = body;
 
     if (!apiUrl || !apiKey || !instanceName || !organizationId || !userId) {
       console.error('[CREATE-EVOLUTION-INSTANCE] Campos obrigatórios ausentes');
@@ -176,17 +187,24 @@ serve(async (req) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
       
+      const createBody: Record<string, unknown> = {
+        instanceName: instanceName,
+        integration: 'WHATSAPP-BAILEYS', // Campo obrigatório
+        qrcode: true,
+      };
+      if (proxyHost?.trim()) createBody.proxyHost = proxyHost.trim();
+      if (proxyPort?.trim()) createBody.proxyPort = proxyPort.trim();
+      if (proxyProtocol?.trim()) createBody.proxyProtocol = proxyProtocol.trim();
+      if (proxyUsername?.trim()) createBody.proxyUsername = proxyUsername.trim();
+      if (proxyPassword?.trim()) createBody.proxyPassword = proxyPassword.trim();
+
       createResponse = await fetch(`${normalizedUrl}/instance/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': apiKey,
         },
-        body: JSON.stringify({
-          instanceName: instanceName,
-          integration: 'WHATSAPP-BAILEYS', // Campo obrigatório
-          qrcode: true,
-        }),
+        body: JSON.stringify(createBody),
         signal: controller.signal,
       });
       
@@ -281,7 +299,7 @@ serve(async (req) => {
 
     // 4. Salvar no banco
     console.log('[CREATE-EVOLUTION-INSTANCE] Salvando no banco de dados');
-    const insertData = {
+    const insertData: Record<string, unknown> = {
       user_id: userId,
       organization_id: organizationId,
       api_url: normalizedUrl,
@@ -292,6 +310,11 @@ serve(async (req) => {
       webhook_enabled: true,
       webhook_secret: webhookSecret,
     };
+    if (proxyHost?.trim()) insertData.proxy_host = proxyHost.trim();
+    if (proxyPort?.trim()) insertData.proxy_port = proxyPort.trim();
+    if (proxyProtocol?.trim()) insertData.proxy_protocol = proxyProtocol.trim();
+    if (proxyUsername?.trim()) insertData.proxy_username = proxyUsername.trim();
+    if (proxyPassword?.trim()) insertData.proxy_password = proxyPassword.trim();
 
     const { data: config, error: insertError } = await supabase
       .from('evolution_config')
