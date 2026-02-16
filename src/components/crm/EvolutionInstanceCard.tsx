@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
-import { extractConnectionState } from "@/lib/evolutionStatus";
+import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { ReconnectInstanceDialog } from "./ReconnectInstanceDialog";
@@ -189,24 +189,9 @@ export function EvolutionInstanceCard({
   const checkRealStatus = async () => {
     setTesting(true);
     try {
-      // Normalizar URL da API usando a mesma função que outros lugares usam
-      const normalizeApiUrl = (url: string) => {
-        try {
-          const u = new URL(url);
-          let base = u.origin + u.pathname.replace(/\/$/, '');
-          base = base.replace(/\/(manager|dashboard|app)$/i, '');
-          return base;
-        } catch {
-          return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-        }
-      };
-      
-      // Usar sempre URL e API Key da própria instância para checagem de status:
-      // a instância foi criada nesse servidor Evolution; evita checar no servidor errado (provider).
-      const apiUrl = config.api_url;
+      // Usar sempre URL e API Key da própria instância; evolutionApiUrlForFetch evita Mixed Content (HTTPS → HTTP bloqueado).
       const apiKey = config.api_key || '';
-      
-      const baseUrl = normalizeApiUrl(apiUrl);
+      const baseUrl = evolutionApiUrlForFetch(config.api_url);
       // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
       const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
       
@@ -214,7 +199,7 @@ export function EvolutionInstanceCard({
       console.log(`📍 API URL: ${baseUrl}`);
       console.log(`📍 URL completa: ${url}`);
       
-      if (!apiUrl || !config.instance_name) {
+      if (!config.api_url || !config.instance_name) {
         throw new Error('URL da API ou nome da instância não configurados');
       }
       

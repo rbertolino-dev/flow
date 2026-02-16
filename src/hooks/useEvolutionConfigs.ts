@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { extractConnectionState } from "@/lib/evolutionStatus";
+import { extractConnectionState, evolutionApiUrlForFetch, normalizeApiUrl as normalizeApiUrlLib } from "@/lib/evolutionStatus";
 
 export interface EvolutionConfig {
   id: string;
@@ -58,16 +58,7 @@ export function useEvolutionConfigs() {
     };
   }, [activeOrgId]);
 
-  const normalizeApiUrl = (url: string) => {
-    try {
-      const u = new URL(url);
-      let base = u.origin + u.pathname.replace(/\/$/, '');
-      base = base.replace(/\/(manager|dashboard|app)$/, '');
-      return base;
-    } catch {
-      return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/, '');
-    }
-  };
+  const normalizeApiUrl = (url: string) => normalizeApiUrlLib(url);
 
   const fetchConfigs = async () => {
     try {
@@ -166,7 +157,7 @@ export function useEvolutionConfigs() {
       // Checagem imediata de status para atualizar is_connected (evita mostrar "desconectado" se já estiver conectada na Evolution)
       if (newConfig?.id) {
         try {
-          const url = `${normalizedUrl.replace(/\/$/, '')}/instance/connectionState/${encodeURIComponent(cleanedInstanceName)}`;
+          const url = `${evolutionApiUrlForFetch(normalizedUrl)}/instance/connectionState/${encodeURIComponent(cleanedInstanceName)}`;
           const res = await fetch(url, {
             headers: { apikey: cleanedApiKey },
             signal: AbortSignal.timeout(8000),
@@ -316,7 +307,7 @@ export function useEvolutionConfigs() {
       // Usar extractConnectionState para normalizar diferentes formatos de resposta
       try {
         // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-        const connectionUrl = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
+        const connectionUrl = `${evolutionApiUrlForFetch(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
         const connectionResponse = await fetch(connectionUrl, {
           headers: { 'apikey': config.api_key },
         });
@@ -368,7 +359,7 @@ export function useEvolutionConfigs() {
         throw new Error('A URL do webhook é muito longa. Tente usar um webhook_secret mais curto.');
       }
 
-      const apiUrl = normalizeApiUrl(config.api_url);
+      const apiUrl = evolutionApiUrlForFetch(config.api_url);
       const endpoint = `${apiUrl}/webhook/set/${config.instance_name}`;
 
       console.log('🔧 Configurando webhook:', {
@@ -474,8 +465,8 @@ export function useEvolutionConfigs() {
 
   const testConnection = async (config: EvolutionConfig) => {
     try {
-      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-      const url = `${normalizeApiUrl(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
+      // ✅ CORREÇÃO: Codificar nome da instância + URL segura para HTTPS (evita Mixed Content)
+      const url = `${evolutionApiUrlForFetch(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
       const response = await fetch(url, {
         headers: {
           'apikey': config.api_key || '',
@@ -535,7 +526,7 @@ export function useEvolutionConfigs() {
         stack: error?.stack,
         instance: config.instance_name,
         // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-        url: `${normalizeApiUrl(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`
+        url: `${evolutionApiUrlForFetch(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`
       });
       
       toast({
@@ -550,7 +541,7 @@ export function useEvolutionConfigs() {
   const refreshStatuses = async () => {
     const results = await Promise.allSettled(
       configs.map(async (cfg) => {
-        const base = normalizeApiUrl(cfg.api_url);
+        const base = evolutionApiUrlForFetch(cfg.api_url);
         // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
         const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
         try {

@@ -1,6 +1,31 @@
 // Utilities to normalize and interpret Evolution API connection status responses
 // Handles multiple possible shapes returned by different deployments
 
+/** Normaliza URL da Evolution API (remove barra final, /manager, /dashboard, etc.). */
+export function normalizeApiUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    let base = u.origin + u.pathname.replace(/\/$/, '');
+    base = base.replace(/\/(manager|dashboard|app)$/i, '');
+    return base;
+  } catch {
+    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
+  }
+}
+
+/**
+ * URL da Evolution API segura para fetch no browser.
+ * Quando a página está em HTTPS, converte http:// da API para https://
+ * para evitar Mixed Content (navegador bloqueia HTTP em página HTTPS).
+ */
+export function evolutionApiUrlForFetch(apiUrl: string): string {
+  let base = normalizeApiUrl(apiUrl);
+  if (typeof window !== 'undefined' && window?.location?.protocol === 'https:' && base.startsWith('http://')) {
+    base = 'https' + base.slice(4);
+  }
+  return base;
+}
+
 export function extractConnectionState(input: any): boolean | null {
   if (!input) return null;
 

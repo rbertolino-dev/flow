@@ -6,23 +6,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, XCircle, RefreshCw, AlertCircle } from "lucide-react";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
-import { extractConnectionState } from "@/lib/evolutionStatus";
+import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
 
 interface EvolutionStatusScannerProps {
   configs: EvolutionConfig[];
 }
-
-// Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
-const normalizeApiUrl = (url: string) => {
-  try {
-    const u = new URL(url);
-    let base = u.origin + u.pathname.replace(/\/$/, '');
-    base = base.replace(/\/(manager|dashboard|app)$/i, '');
-    return base;
-  } catch {
-    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-  }
-};
 
 export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps) {
   const [running, setRunning] = useState(false);
@@ -33,7 +21,7 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
     setRunning(true);
     const entries = await Promise.allSettled(
       configs.map(async (cfg) => {
-        const base = normalizeApiUrl(cfg.api_url);
+        const base = evolutionApiUrlForFetch(cfg.api_url);
         // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
         const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
         const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
@@ -142,7 +130,7 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
                         disabled={running}
                         onClick={async () => {
                           try {
-                            const base = normalizeApiUrl(cfg.api_url);
+                            const base = evolutionApiUrlForFetch(cfg.api_url);
                             // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
         const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
                             const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });

@@ -7,24 +7,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { QrCode, RefreshCw, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AuthGuard } from '@/components/auth/AuthGuard';
-import { extractConnectionState } from '@/lib/evolutionStatus';
-
-// Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
-const normalizeApiUrl = (url: string) => {
-  try {
-    const u = new URL(url);
-    let base = u.origin + u.pathname.replace(/\/$/, '');
-    base = base.replace(/\/(manager|dashboard|app)$/i, '');
-    return base;
-  } catch {
-    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-  }
-};
+import { extractConnectionState, evolutionApiUrlForFetch } from '@/lib/evolutionStatus';
 
 // Buscar QR code da Evolution API (endpoint correto: /instance/connect/)
 const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string): Promise<string | null> => {
   try {
-    const base = normalizeApiUrl(apiUrl);
+    const base = evolutionApiUrlForFetch(apiUrl);
     const url = `${base}/instance/connect/${instanceName}`;
     
     console.log(`🔍 Buscando QR code: ${url}`);
@@ -170,7 +158,7 @@ export default function ReconnectInstance() {
       if (!instance.api_url || !instance.api_key || !instance.instance_name) return;
 
       try {
-        const base = normalizeApiUrl(instance.api_url);
+        const base = evolutionApiUrlForFetch(instance.api_url);
         // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
         const url = `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
         
@@ -289,8 +277,8 @@ export default function ReconnectInstance() {
 
     setCheckingStatus(true);
     try {
-      const base = normalizeApiUrl(instance.api_url);
-      const url = `${base}/instance/connectionState/${instance.instance_name}`;
+      const base = evolutionApiUrlForFetch(instance.api_url);
+      const url = `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
       
       const response = await fetch(url, {
         headers: {
@@ -301,7 +289,7 @@ export default function ReconnectInstance() {
 
       if (response.ok) {
         const data = await response.json();
-        const connected = data.state === 'open';
+        const connected = extractConnectionState(data) === true;
         
         setIsConnected(connected);
 

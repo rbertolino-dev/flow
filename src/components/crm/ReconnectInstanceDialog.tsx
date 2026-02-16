@@ -15,6 +15,7 @@ import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
 
 interface ReconnectInstanceDialogProps {
   open: boolean;
@@ -23,22 +24,10 @@ interface ReconnectInstanceDialogProps {
   onReconnected?: () => void;
 }
 
-// Normaliza URLs de API
-const normalizeApiUrl = (url: string) => {
-  try {
-    const u = new URL(url);
-    let base = u.origin + u.pathname.replace(/\/$/, '');
-    base = base.replace(/\/(manager|dashboard|app)$/i, '');
-    return base;
-  } catch {
-    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-  }
-};
-
 // Buscar QR code da Evolution API (endpoint correto: /instance/connect/)
 const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string): Promise<string | null> => {
   try {
-    const base = normalizeApiUrl(apiUrl);
+    const base = evolutionApiUrlForFetch(apiUrl);
     const url = `${base}/instance/connect/${instanceName}`;
     
     console.log(`🔍 Buscando QR code: ${url}`);
@@ -76,7 +65,7 @@ const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string)
 // Verificar status de conexão
 const checkConnectionStatus = async (apiUrl: string, apiKey: string, instanceName: string): Promise<boolean> => {
   try {
-    const base = normalizeApiUrl(apiUrl);
+    const base = evolutionApiUrlForFetch(apiUrl);
     // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
     const url = `${base}/instance/connectionState/${encodeURIComponent(instanceName)}`;
     
@@ -89,7 +78,7 @@ const checkConnectionStatus = async (apiUrl: string, apiKey: string, instanceNam
 
     if (response.ok) {
       const data = await response.json();
-      return data.state === 'open';
+      return extractConnectionState(data) === true;
     }
     return false;
   } catch (error) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { EvolutionConfig } from './useEvolutionConfigs';
-import { extractConnectionState } from '@/lib/evolutionStatus';
+import { extractConnectionState, evolutionApiUrlForFetch } from '@/lib/evolutionStatus';
 
 interface UseInstanceHealthCheckOptions {
   instances: EvolutionConfig[];
@@ -16,18 +16,6 @@ interface InstanceHealth {
   isStable: boolean;
   lastCheck: number;
 }
-
-// Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
-const normalizeApiUrl = (url: string) => {
-  try {
-    const u = new URL(url);
-    let base = u.origin + u.pathname.replace(/\/$/, '');
-    base = base.replace(/\/(manager|dashboard|app)$/i, '');
-    return base;
-  } catch {
-    return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-  }
-};
 
 export function useInstanceHealthCheck({
   instances,
@@ -82,7 +70,7 @@ export function useInstanceHealthCheck({
         }
 
         try {
-          const base = normalizeApiUrl(instance.api_url);
+          const base = evolutionApiUrlForFetch(instance.api_url);
           // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
           const url = `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
           

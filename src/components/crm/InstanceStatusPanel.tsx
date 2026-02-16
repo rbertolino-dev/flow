@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { extractConnectionState } from "@/lib/evolutionStatus";
+import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
@@ -192,25 +192,12 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
     const now = Date.now();
     
-    // Normalizar URL da API (declarar antes do try para estar disponível no catch)
-    const normalizeApiUrl = (url: string) => {
-      try {
-        const u = new URL(url);
-        let base = u.origin + u.pathname.replace(/\/$/, '');
-        base = base.replace(/\/(manager|dashboard|app)$/i, '');
-        return base;
-      } catch {
-        return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-      }
-    };
-    
     // Usar sempre URL e API Key da própria instância para checagem de status:
     // a instância foi criada nesse servidor Evolution; o provider (se existir) não
     // é usado aqui para evitar checar no servidor errado e mostrar "desconectado".
-    const apiUrl = instance.api_url;
+    // evolutionApiUrlForFetch evita Mixed Content (HTTPS página → HTTP API bloqueado).
     const apiKey = instance.api_key || '';
-    
-    const baseUrl = normalizeApiUrl(apiUrl);
+    const baseUrl = evolutionApiUrlForFetch(instance.api_url);
     // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais (espaços, parênteses, etc.)
     const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
 
