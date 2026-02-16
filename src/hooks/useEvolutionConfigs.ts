@@ -143,7 +143,7 @@ export function useEvolutionConfigs() {
         throw new Error('Você não tem permissão para criar instâncias nesta organização.');
       }
       
-      const { error } = await (supabase as any)
+      const { data: newConfig, error } = await (supabase as any)
         .from('evolution_config')
         .insert({
           user_id: user.id,
@@ -152,7 +152,9 @@ export function useEvolutionConfigs() {
           api_key: cleanedApiKey,
           instance_name: cleanedInstanceName,
           webhook_enabled: true,
-        });
+        })
+        .select('*')
+        .single();
 
       if (error) {
         console.error('❌ Erro ao criar instância:', error);
@@ -160,6 +162,29 @@ export function useEvolutionConfigs() {
       }
 
       console.log('✅ Instância criada com sucesso');
+
+      // Checagem imediata de status para atualizar is_connected (evita mostrar "desconectado" se já estiver conectada na Evolution)
+      if (newConfig?.id) {
+        try {
+          const url = `${normalizedUrl.replace(/\/$/, '')}/instance/connectionState/${encodeURIComponent(cleanedInstanceName)}`;
+          const res = await fetch(url, {
+            headers: { apikey: cleanedApiKey },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const isConnected = extractConnectionState(data) === true;
+            if (isConnected) {
+              await (supabase as any)
+                .from('evolution_config')
+                .update({ is_connected: true, updated_at: new Date().toISOString() })
+                .eq('id', newConfig.id);
+            }
+          }
+        } catch (checkErr) {
+          console.warn('⚠️ Checagem de status pós-criação ignorada:', checkErr);
+        }
+      }
 
       toast({
         title: "✅ Instância criada",

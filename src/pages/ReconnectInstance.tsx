@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { QrCode, RefreshCw, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { extractConnectionState } from '@/lib/evolutionStatus';
 
 // Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
 const normalizeApiUrl = (url: string) => {
@@ -182,7 +183,7 @@ export default function ReconnectInstance() {
 
         if (response.ok) {
           const data = await response.json();
-          const connected = data.state === 'open';
+          const connected = extractConnectionState(data) === true;
           
           setIsConnected(connected);
 

@@ -201,125 +201,18 @@ export function EvolutionInstanceCard({
         }
       };
       
-      // Buscar URL e API Key corretas (do provider se existir, senão do config)
-      let apiUrl = config.api_url;
-      let apiKey = config.api_key || '';
-      
-      // Se há provider configurado, buscar URL e API Key do provider
-      // IMPORTANTE: Organizações podem ter MÚLTIPLOS providers, então tentamos todos até encontrar a instância
-      if (hasProvider) {
-        try {
-          const orgId = await getUserOrganizationId();
-          if (orgId) {
-            const { data: providerData, error: providerError } = await supabase.rpc('get_organization_evolution_provider' as any, {
-              _org_id: orgId,
-            }) as { data: any[] | null; error: any };
-            
-            if (!providerError && providerData && providerData.length > 0) {
-              // ESTRATÉGIA: Tentar encontrar o provider correto
-              // 1. Primeiro, verificar se alguma URL de provider corresponde à URL do config
-              const matchingProvider = providerData.find(p => {
-                const normalizedProvider = normalizeApiUrl(p.api_url);
-                const normalizedConfig = normalizeApiUrl(config.api_url);
-                return normalizedProvider === normalizedConfig;
-              });
-              
-              if (matchingProvider) {
-                // Se encontrou provider com URL correspondente, usar esse
-                apiUrl = matchingProvider.api_url;
-                apiKey = matchingProvider.api_key;
-                console.log(`🔗 Usando provider correspondente: ${matchingProvider.provider_name} (${apiUrl})`);
-              } else if (providerData.length === 1) {
-                // Se há apenas um provider, usar esse
-                const provider = providerData[0];
-                apiUrl = provider.api_url;
-                apiKey = provider.api_key;
-                console.log(`🔗 Usando único provider disponível: ${provider.provider_name} (${apiUrl})`);
-              } else {
-                // Se há múltiplos providers, listar instâncias de cada um para encontrar qual tem a instância
-                console.log(`🔍 Múltiplos providers encontrados (${providerData.length}). Listando instâncias para encontrar "${config.instance_name}"...`);
-                
-                let foundProvider = null;
-                for (const provider of providerData) {
-                  try {
-                    // Listar todas as instâncias do provider
-                    const listUrl = `${normalizeApiUrl(provider.api_url)}/instance/fetchInstances`;
-                    const listResponse = await fetch(listUrl, {
-                      headers: { 'apikey': provider.api_key },
-                      signal: AbortSignal.timeout(5000) // 5s timeout
-                    });
-                    
-                    if (listResponse.ok) {
-                      const instancesData = await listResponse.json();
-                      console.log(`📋 Instâncias do provider ${provider.provider_name}:`, instancesData);
-                      
-                      // Verificar se a instância existe na lista (diferentes formatos possíveis)
-                      const instanceExists = Array.isArray(instancesData) 
-                        ? instancesData.some((inst: any) => {
-                            const name = inst.instance?.instanceName || inst.instanceName || inst.name || inst.instance?.name;
-                            return name && name.toLowerCase() === config.instance_name.toLowerCase();
-                          })
-                        : (instancesData.instance?.instanceName || instancesData.instanceName || instancesData.name || instancesData.instance?.name)?.toLowerCase() === config.instance_name.toLowerCase();
-                      
-                      if (instanceExists) {
-                        foundProvider = provider;
-                        console.log(`✅ Instância "${config.instance_name}" encontrada no provider: ${provider.provider_name} (${provider.api_url})`);
-                        break;
-                      } else {
-                        console.log(`⚠️ Instância "${config.instance_name}" não encontrada no provider ${provider.provider_name}`);
-                      }
-                    }
-                  } catch (listErr) {
-                    // Se listar falhar, tentar connectionState como fallback
-                    console.log(`⚠️ Erro ao listar instâncias do provider ${provider.provider_name}, tentando connectionState...`, listErr);
-                    try {
-                      // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-                      const testUrl = `${normalizeApiUrl(provider.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
-                      const testResponse = await fetch(testUrl, {
-                        headers: { 'apikey': provider.api_key },
-                        signal: AbortSignal.timeout(5000)
-                      });
-                      
-                      if (testResponse.ok) {
-                        foundProvider = provider;
-                        console.log(`✅ Instância encontrada via connectionState no provider: ${provider.provider_name}`);
-                        break;
-                      }
-                    } catch (testErr) {
-                      console.log(`⚠️ Provider ${provider.provider_name} não tem a instância`);
-                    }
-                  }
-                }
-                
-                if (foundProvider) {
-                  apiUrl = foundProvider.api_url;
-                  apiKey = foundProvider.api_key;
-                  console.log(`🔗 Usando provider onde instância foi encontrada: ${foundProvider.provider_name}`);
-                } else {
-                  // Se não encontrou em nenhum, usar o primeiro como fallback
-                  const provider = providerData[0];
-                  apiUrl = provider.api_url;
-                  apiKey = provider.api_key;
-                  console.log(`⚠️ Instância não encontrada em nenhum provider. Usando primeiro como fallback: ${provider.provider_name}`);
-                }
-              }
-            }
-          }
-        } catch (providerErr) {
-          console.warn('⚠️ Erro ao buscar provider, usando URL do config:', providerErr);
-          // Continuar com URL do config se falhar
-        }
-      }
+      // Usar sempre URL e API Key da própria instância para checagem de status:
+      // a instância foi criada nesse servidor Evolution; evita checar no servidor errado (provider).
+      const apiUrl = config.api_url;
+      const apiKey = config.api_key || '';
       
       const baseUrl = normalizeApiUrl(apiUrl);
       // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
       const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
       
       console.log(`🔍 Verificando status real da instância ${config.instance_name}...`);
-      console.log(`📍 API URL original: ${apiUrl}`);
-      console.log(`📍 API URL normalizada: ${baseUrl}`);
+      console.log(`📍 API URL: ${baseUrl}`);
       console.log(`📍 URL completa: ${url}`);
-      console.log(`📍 Usando provider: ${hasProvider ? 'SIM' : 'NÃO'}`);
       
       if (!apiUrl || !config.instance_name) {
         throw new Error('URL da API ou nome da instância não configurados');

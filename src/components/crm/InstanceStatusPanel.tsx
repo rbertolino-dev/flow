@@ -204,29 +204,11 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       }
     };
     
-    // Buscar URL e API Key corretas (do provider se existir, senão do instance)
-    let apiUrl = instance.api_url;
-    let apiKey = instance.api_key || '';
-    
-    // Verificar se há provider configurado para a organização
-    try {
-      const orgId = await getUserOrganizationId();
-      if (orgId) {
-        const { data: providerData, error: providerError } = await supabase.rpc('get_organization_evolution_provider' as any, {
-          _org_id: orgId,
-        }) as { data: any[] | null; error: any };
-        
-        if (!providerError && providerData && providerData.length > 0) {
-          const provider = providerData[0];
-          apiUrl = provider.api_url;
-          apiKey = provider.api_key;
-          console.log(`🔗 InstanceStatusPanel: Usando URL do provider: ${provider.provider_name}`);
-        }
-      }
-    } catch (providerErr) {
-      console.warn('⚠️ Erro ao buscar provider, usando URL do instance:', providerErr);
-      // Continuar com URL do instance se falhar
-    }
+    // Usar sempre URL e API Key da própria instância para checagem de status:
+    // a instância foi criada nesse servidor Evolution; o provider (se existir) não
+    // é usado aqui para evitar checar no servidor errado e mostrar "desconectado".
+    const apiUrl = instance.api_url;
+    const apiKey = instance.api_key || '';
     
     const baseUrl = normalizeApiUrl(apiUrl);
     // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais (espaços, parênteses, etc.)
