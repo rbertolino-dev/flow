@@ -26,7 +26,7 @@ import {
 interface EvolutionInstanceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: { api_url: string; api_key: string; instance_name: string }) => Promise<boolean>;
+  onSave: (data: { api_url: string; api_key: string; instance_name: string; proxy_host?: string; proxy_port?: string; proxy_protocol?: string; proxy_username?: string; proxy_password?: string }) => Promise<boolean>;
   onUpdate?: (id: string, data: Partial<EvolutionConfig>) => Promise<boolean>;
   editingConfig?: EvolutionConfig | null;
   onRefetch?: () => void;
@@ -44,6 +44,11 @@ export function EvolutionInstanceDialog({
     api_url: "",
     api_key: "",
     instance_name: "",
+    proxy_host: "",
+    proxy_port: "",
+    proxy_protocol: "",
+    proxy_username: "",
+    proxy_password: "",
   });
   const [saving, setSaving] = useState(false);
   const [createWithQR, setCreateWithQR] = useState(true); // QR code ativado por padrão
@@ -60,6 +65,11 @@ export function EvolutionInstanceDialog({
         api_url: editingConfig.api_url || "",
         api_key: editingConfig.api_key || "",
         instance_name: editingConfig.instance_name || "",
+        proxy_host: editingConfig.proxy_host ?? "",
+        proxy_port: editingConfig.proxy_port ?? "",
+        proxy_protocol: editingConfig.proxy_protocol ?? "",
+        proxy_username: editingConfig.proxy_username ?? "",
+        proxy_password: editingConfig.proxy_password ?? "",
       });
       // Verificar se há provider configurado mesmo na edição
       if (open) {
@@ -70,6 +80,11 @@ export function EvolutionInstanceDialog({
         api_url: "",
         api_key: "",
         instance_name: "",
+        proxy_host: "",
+        proxy_port: "",
+        proxy_protocol: "",
+        proxy_username: "",
+        proxy_password: "",
       });
       // Buscar provider da organização quando abrir para criar nova instância
       if (open) {
@@ -151,6 +166,11 @@ export function EvolutionInstanceDialog({
         // Modo edição - se há provider configurado, não permitir alterar URL/API key
         const updateData: any = {
           instance_name: formData.instance_name,
+          proxy_host: formData.proxy_host.trim() || null,
+          proxy_port: formData.proxy_port.trim() || null,
+          proxy_protocol: formData.proxy_protocol.trim() || null,
+          proxy_username: formData.proxy_username.trim() || null,
+          proxy_password: formData.proxy_password.trim() || null,
         };
         
         // Só permitir atualizar URL/API key se NÃO houver providers configurados
@@ -162,7 +182,7 @@ export function EvolutionInstanceDialog({
         const success = await onUpdate(editingConfig.id, updateData);
         if (success) {
           onOpenChange(false);
-          setFormData({ api_url: "", api_key: "", instance_name: "" });
+          setFormData({ api_url: "", api_key: "", instance_name: "", proxy_host: "", proxy_port: "", proxy_protocol: "", proxy_username: "", proxy_password: "" });
         }
       } else if (createWithQR) {
         // Modo criação com QR Code via Evolution API
@@ -209,10 +229,19 @@ export function EvolutionInstanceDialog({
         if (onRefetch) onRefetch();
       } else {
         // Modo criação manual (sem QR)
-        const success = await onSave(formData);
+        const success = await onSave({
+          api_url: formData.api_url,
+          api_key: formData.api_key,
+          instance_name: formData.instance_name,
+          proxy_host: formData.proxy_host || undefined,
+          proxy_port: formData.proxy_port || undefined,
+          proxy_protocol: formData.proxy_protocol || undefined,
+          proxy_username: formData.proxy_username || undefined,
+          proxy_password: formData.proxy_password || undefined,
+        });
         if (success) {
           onOpenChange(false);
-          setFormData({ api_url: "", api_key: "", instance_name: "" });
+          setFormData({ api_url: "", api_key: "", instance_name: "", proxy_host: "", proxy_port: "", proxy_protocol: "", proxy_username: "", proxy_password: "" });
         }
       }
     } catch (error: any) {
@@ -228,7 +257,7 @@ export function EvolutionInstanceDialog({
 
   const handleClose = () => {
     onOpenChange(false);
-    setFormData({ api_url: "", api_key: "", instance_name: "" });
+    setFormData({ api_url: "", api_key: "", instance_name: "", proxy_host: "", proxy_port: "", proxy_protocol: "", proxy_username: "", proxy_password: "" });
     setQrCode(null);
     setCreatedInstance(null);
     setCreateWithQR(false);
@@ -375,6 +404,74 @@ export function EvolutionInstanceDialog({
                 onChange={(e) => setFormData({ ...formData, instance_name: e.target.value })}
                 required
               />
+            </div>
+
+            {/* Proxy da instância (Evolution API) - opcional */}
+            <div className="space-y-3 rounded-lg border p-3">
+              <Label className="text-sm font-medium">Proxy (opcional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Configure proxy para a instância conforme documentação da Evolution API (proxyHost, proxyPort, proxyProtocol).
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2 sm:col-span-1 space-y-1">
+                  <Label htmlFor="proxy_host" className="text-xs">Host</Label>
+                  <Input
+                    id="proxy_host"
+                    placeholder="proxy.exemplo.com"
+                    value={formData.proxy_host}
+                    onChange={(e) => setFormData({ ...formData, proxy_host: e.target.value })}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="proxy_port" className="text-xs">Porta</Label>
+                  <Input
+                    id="proxy_port"
+                    placeholder="8080"
+                    value={formData.proxy_port}
+                    onChange={(e) => setFormData({ ...formData, proxy_port: e.target.value })}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="proxy_protocol" className="text-xs">Protocolo</Label>
+                  <Select
+                    value={formData.proxy_protocol || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, proxy_protocol: v === "none" ? "" : v })}
+                  >
+                    <SelectTrigger id="proxy_protocol" className="h-8">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      <SelectItem value="HTTP">HTTP</SelectItem>
+                      <SelectItem value="HTTPS">HTTPS</SelectItem>
+                      <SelectItem value="SOCKS5">SOCKS5</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="proxy_username" className="text-xs">Usuário</Label>
+                  <Input
+                    id="proxy_username"
+                    placeholder="Opcional"
+                    value={formData.proxy_username}
+                    onChange={(e) => setFormData({ ...formData, proxy_username: e.target.value })}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="proxy_password" className="text-xs">Senha</Label>
+                  <Input
+                    id="proxy_password"
+                    type="password"
+                    placeholder="Opcional"
+                    value={formData.proxy_password}
+                    onChange={(e) => setFormData({ ...formData, proxy_password: e.target.value })}
+                    className="h-8"
+                  />
+                </div>
+              </div>
             </div>
 
             <DialogFooter>

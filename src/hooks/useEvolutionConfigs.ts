@@ -18,6 +18,11 @@ export interface EvolutionConfig {
   organization_id?: string;
   created_at: string;
   updated_at: string;
+  proxy_host?: string | null;
+  proxy_port?: string | null;
+  proxy_protocol?: string | null;
+  proxy_username?: string | null;
+  proxy_password?: string | null;
 }
 
 export function useEvolutionConfigs() {
@@ -94,6 +99,11 @@ export function useEvolutionConfigs() {
     api_url: string;
     api_key: string;
     instance_name: string;
+    proxy_host?: string;
+    proxy_port?: string;
+    proxy_protocol?: string;
+    proxy_username?: string;
+    proxy_password?: string;
   }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -134,16 +144,23 @@ export function useEvolutionConfigs() {
         throw new Error('Você não tem permissão para criar instâncias nesta organização.');
       }
       
+      const insertPayload: Record<string, unknown> = {
+        user_id: user.id,
+        organization_id: activeOrgId,
+        api_url: normalizedUrl,
+        api_key: cleanedApiKey,
+        instance_name: cleanedInstanceName,
+        webhook_enabled: true,
+      };
+      if (configData.proxy_host?.trim()) insertPayload.proxy_host = configData.proxy_host.trim();
+      if (configData.proxy_port?.trim()) insertPayload.proxy_port = configData.proxy_port.trim();
+      if (configData.proxy_protocol?.trim()) insertPayload.proxy_protocol = configData.proxy_protocol.trim();
+      if (configData.proxy_username?.trim()) insertPayload.proxy_username = configData.proxy_username.trim();
+      if (configData.proxy_password?.trim()) insertPayload.proxy_password = configData.proxy_password.trim();
+
       const { data: newConfig, error } = await (supabase as any)
         .from('evolution_config')
-        .insert({
-          user_id: user.id,
-          organization_id: activeOrgId,
-          api_url: normalizedUrl,
-          api_key: cleanedApiKey,
-          instance_name: cleanedInstanceName,
-          webhook_enabled: true,
-        })
+        .insert(insertPayload)
         .select('*')
         .single();
 
@@ -219,6 +236,11 @@ export function useEvolutionConfigs() {
       if (configData.webhook_enabled !== undefined) {
         updateData.webhook_enabled = configData.webhook_enabled;
       }
+      if (configData.proxy_host !== undefined) updateData.proxy_host = configData.proxy_host?.trim() || null;
+      if (configData.proxy_port !== undefined) updateData.proxy_port = configData.proxy_port?.trim() || null;
+      if (configData.proxy_protocol !== undefined) updateData.proxy_protocol = configData.proxy_protocol?.trim() || null;
+      if (configData.proxy_username !== undefined) updateData.proxy_username = configData.proxy_username?.trim() || null;
+      if (configData.proxy_password !== undefined) updateData.proxy_password = configData.proxy_password?.trim() || null;
       
       updateData.updated_at = new Date().toISOString();
       
