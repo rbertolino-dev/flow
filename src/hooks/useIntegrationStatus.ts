@@ -32,7 +32,7 @@ export function useIntegrationStatus() {
   // const { config: chatwootConfig } = useChatwootConfig(activeOrgId);
   const { config: hubspotConfig } = useHubSpotConfigs();
 
-  // Verificar Facebook/Instagram
+  // Verificar Facebook/Instagram (.maybeSingle evita 406 quando não há config para a org)
   const { data: facebookConfig } = useQuery({
     queryKey: ["facebook-config", activeOrgId],
     queryFn: async () => {
@@ -41,7 +41,7 @@ export function useIntegrationStatus() {
         .from("facebook_configs")
         .select("*")
         .eq("organization_id", activeOrgId)
-        .single();
+        .maybeSingle();
       return data;
     },
     enabled: !!activeOrgId,

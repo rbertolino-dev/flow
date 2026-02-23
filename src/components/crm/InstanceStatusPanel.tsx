@@ -245,31 +245,16 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       }
 
     } catch (error: any) {
-      const isConnected = false;
-      
+      // Em erro de rede/CORS/timeout não sabemos o estado real (doc Evolution): manter estado anterior na UI e não persistir
       setStatusMap(prev => ({
         ...prev,
         [instance.id]: { 
-          isConnected, 
+          isConnected: previousStatus ?? false, 
           checking: false,
           lastCheck: now
         }
       }));
 
-      // Atualizar no banco apenas se mudou de conectado para desconectado
-      if (!skipDbUpdate && previousStatus === true && isConnected === false) {
-        if (lastUpdateRef.current[instance.id] !== isConnected) {
-          lastUpdateRef.current[instance.id] = isConnected;
-          await supabase
-            .from('evolution_config')
-            .update({ 
-              is_connected: false,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', instance.id);
-        }
-      }
-      
       // Tratar erro 404 (instância não encontrada) com mensagem clara
       if (error?.message?.includes("não encontrada") || error?.message?.includes("404")) {
         toast({

@@ -225,8 +225,11 @@ serve(async (req) => {
       } catch (e) {
         errorText = `Status ${createResponse.status}: ${createResponse.statusText}`;
       }
-      console.error('[CREATE-EVOLUTION-INSTANCE] Erro ao criar instância Evolution:', errorText);
-      throw new Error(`Erro ao criar instância: ${errorText}`);
+      console.error('[CREATE-EVOLUTION-INSTANCE] Erro ao criar instância Evolution:', createResponse.status, errorText);
+      const is4xx = createResponse.status >= 400 && createResponse.status < 500;
+      const err = new Error(errorText || `Evolution API retornou ${createResponse.status}`);
+      (err as any).status = is4xx ? createResponse.status : 500;
+      throw err;
     }
 
     let instanceData: any;
@@ -330,10 +333,12 @@ serve(async (req) => {
         hint: insertError.hint
       });
       
-      // Tratar erros específicos
+      // Tratar erros específicos (4xx para o cliente)
       if (insertError.code === '23505') { // Unique violation
         if (insertError.message?.includes('ux_evolution_config_instance_org')) {
-          throw new Error(`Já existe uma instância com o nome "${instanceName}" nesta organização. Escolha outro nome.`);
+          const err = new Error(`Já existe uma instância com o nome "${instanceName}" nesta organização. Escolha outro nome.`);
+          (err as any).status = 400;
+          throw err;
         } else if (insertError.message?.includes('ux_evolution_config_webhook_secret')) {
           // Retry com novo UUID
           console.log('[CREATE-EVOLUTION-INSTANCE] Conflito de webhook_secret, tentando novamente...');
@@ -361,7 +366,7 @@ serve(async (req) => {
         }
       }
       
-      throw insertError;
+      throw new Error(insertError.message || 'Erro ao salvar configuração no banco');
     }
 
     console.log('[CREATE-EVOLUTION-INSTANCE] Configuração salva com sucesso:', config?.id);
@@ -411,35 +416,34 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    // Garantir que sempre logamos o erro antes de retornar
     console.error('[CREATE-EVOLUTION-INSTANCE] ========== ERRO CAPTURADO ==========');
     console.error('[CREATE-EVOLUTION-INSTANCE] Tipo do erro:', typeof error);
     console.error('[CREATE-EVOLUTION-INSTANCE] Erro:', error);
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    const errorDetails = error && typeof error === 'object' && 'code' in error 
+    const errorDetails = error && typeof error === 'object' && 'code' in error
       ? { code: (error as any).code, message: (error as any).message }
       : null;
-    
+    const status = (error && typeof error === 'object' && 'status' in error && typeof (error as any).status === 'number')
+      ? (error as any).status
+      : 500;
+
     console.error('[CREATE-EVOLUTION-INSTANCE] Mensagem:', errorMessage);
-    console.error('[CREATE-EVOLUTION-INSTANCE] Stack:', errorStack);
-    console.error('[CREATE-EVOLUTION-INSTANCE] Detalhes:', errorDetails);
+    console.error('[CREATE-EVOLUTION-INSTANCE] Status HTTP a retornar:', status);
     console.error('[CREATE-EVOLUTION-INSTANCE] ====================================');
-    
-    // Sempre retornar uma resposta válida, mesmo em caso de erro
+
     try {
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: errorMessage,
           code: errorDetails?.code || undefined
         }),
-        { 
-          status: 500, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
+        {
+          status,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
         }
       );
     } catch (responseError) {

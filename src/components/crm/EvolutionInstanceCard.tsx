@@ -279,24 +279,7 @@ export function EvolutionInstanceCard({
     } catch (error: any) {
       console.error('❌ Erro ao verificar status:', error);
       setRealStatus(false);
-      
-      // Se estava marcado como conectado mas não conseguiu verificar, pode estar desconectado
-      if (config.is_connected) {
-        console.log('⚠️ Instância estava marcada como conectada, mas verificação falhou. Atualizando para desconectado...');
-        
-        const { error: updateError } = await supabase
-          .from('evolution_config')
-          .update({ 
-            is_connected: false,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', config.id);
-          
-        if (!updateError) {
-          onRefresh?.();
-        }
-      }
-      
+      // Não atualizar is_connected no banco em erro de rede/CORS/timeout (doc Evolution: estado desconhecido)
       toast({
         title: "Erro ao verificar status",
         description: error.message || "Não foi possível conectar à API Evolution",

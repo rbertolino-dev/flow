@@ -26,28 +26,36 @@ export function evolutionApiUrlForFetch(apiUrl: string): string {
   return base;
 }
 
+/**
+ * Extrai estado de conexão da resposta da Evolution API.
+ * Formato oficial (doc): GET /instance/connectionState/{instance} retorna
+ * { instance: { instanceName: string, state: "open" | "close" | ... } }
+ * state "open" = conectado, "close" = desconectado.
+ */
 export function extractConnectionState(input: any): boolean | null {
   if (!input) return null;
 
-  // If API wraps payload
   const candidate =
-    // common shapes
-    input?.state ??
-    input?.status ??
+    // Formato oficial Evolution API v2 (instance.state)
     input?.instance?.state ??
     input?.instance?.status ??
+    // Resposta aninhada em .data (alguns deployments)
+    input?.data?.instance?.state ??
+    input?.data?.state ??
+    input?.data?.status ??
+    // Outros formatos comuns
+    input?.state ??
+    input?.status ??
     input?.connection?.state ??
     input?.connectionState ??
-    // boolean flags
     (typeof input?.connected === 'boolean' ? (input.connected ? 'open' : 'close') : undefined) ??
     (typeof input?.isConnected === 'boolean' ? (input.isConnected ? 'open' : 'close') : undefined);
 
-  // If still undefined, try to unwrap one level deep automatically
   const unwrap = typeof input === 'object' && Object.keys(input).length === 1
     ? input[Object.keys(input)[0]]
     : undefined;
 
-  const candidate2 = candidate ?? unwrap?.state ?? unwrap?.status;
+  const candidate2 = candidate ?? unwrap?.instance?.state ?? unwrap?.state ?? unwrap?.status;
 
   return normalizeState(candidate2);
 }

@@ -580,12 +580,7 @@ export function useEvolutionConfigs() {
           }
           return { id: cfg.id, ok: isConnected };
         } catch (e: any) {
-          if (cfg.is_connected) {
-            await supabase
-              .from('evolution_config')
-              .update({ is_connected: false, updated_at: new Date().toISOString() })
-              .eq('id', cfg.id);
-          }
+          // Não marcar como desconectado em erro de rede/CORS/timeout: não sabemos o estado real (doc Evolution)
           return { id: cfg.id, ok: false, error: e?.message || 'Erro' };
         }
       })

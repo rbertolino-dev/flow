@@ -123,45 +123,22 @@ export function useInstanceHealthCheck({
             }
           } else {
             console.warn(`⚠️ Falha ao verificar ${instance.instance_name}: HTTP ${response.status}`);
-            
-            // Resetar e marcar como desconectado
+            // Não marcar como desconectado: pode ser 404/502/CORS - não sabemos o estado real (doc Evolution)
             health.consecutiveSuccesses = 0;
             health.isStable = false;
             health.lastCheck = now;
-            
-            if (instance.is_connected) {
-              await supabase
-                .from('evolution_config')
-                .update({ 
-                  is_connected: false,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', instance.id);
-            }
           }
         } catch (error: any) {
-          // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
           console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, {
             message: error?.message,
             name: error?.name,
             stack: error?.stack,
             url: `${base}/instance/connectionState/${instance.instance_name}`
           });
-          
-          // Resetar e marcar como desconectado em caso de erro
+          // Não marcar como desconectado em erro de rede/CORS/timeout (doc Evolution)
           health.consecutiveSuccesses = 0;
           health.isStable = false;
           health.lastCheck = now;
-          
-          if (instance.is_connected) {
-            await supabase
-              .from('evolution_config')
-              .update({ 
-                is_connected: false,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', instance.id);
-          }
         }
 
         updatedHealthMap[instance.id] = health;

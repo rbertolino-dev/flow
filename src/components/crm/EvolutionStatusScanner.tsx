@@ -55,11 +55,12 @@ export function EvolutionStatusScanner({ configs, persistToDb, onAfterPersist }:
     setResults(map);
     setRunning(false);
 
-    // Persistir no banco quando o status difere de is_connected (para que a UI mostre conectado/desconectado corretamente)
+    // Persistir no banco apenas quando obtivemos resposta OK da API (não em erro de rede/CORS)
     if (persistToDb) {
       try {
         for (const cfg of configs) {
           const r = map[cfg.id];
+          if (r?.error) continue; // Não persistir quando deu erro de fetch (CORS, timeout, etc.)
           if (r?.status !== undefined && r?.status !== null && r.status !== cfg.is_connected) {
             await supabase
               .from('evolution_config')
