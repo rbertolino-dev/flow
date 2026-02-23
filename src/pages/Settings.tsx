@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs, EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +65,8 @@ export default function Settings() {
     toggleWebhook,
     configureWebhook,
     testConnection,
-    refetch
+    refetch,
+    refreshStatuses,
   } = useEvolutionConfigs();
   
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
@@ -81,6 +82,15 @@ export default function Settings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<EvolutionConfig | null>(null);
   const [reconnectingInstance, setReconnectingInstance] = useState<EvolutionConfig | null>(null);
+  const hasRefreshedStatuses = useRef(false);
+
+  // Ao abrir a aba Integrações com instâncias, sincronizar status da Evolution API com o banco (corrige exibição quando instâncias estão conectadas na Evolution mas is_connected estava desatualizado)
+  useEffect(() => {
+    if (!hasEvolutionAccess || activeTab !== "integrations" || loading || configs.length === 0) return;
+    if (hasRefreshedStatuses.current) return;
+    hasRefreshedStatuses.current = true;
+    refreshStatuses().catch(() => {});
+  }, [activeTab, hasEvolutionAccess, loading, configs.length, refreshStatuses]);
 
   // Stage management
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
@@ -434,7 +444,7 @@ export default function Settings() {
                   </Alert>
                 ) : (
                   <div className="space-y-4">
-                    <EvolutionStatusScanner configs={configs} />
+                    <EvolutionStatusScanner configs={configs} persistToDb onAfterPersist={refetch} />
                     <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
                       {configs.map((config) => (
                         <EvolutionInstanceCard
@@ -769,3 +779,4 @@ export default function Settings() {
     </AuthGuard>
   );
 }
+                                            

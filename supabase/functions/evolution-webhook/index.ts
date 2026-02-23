@@ -893,16 +893,42 @@ serve(async (req) => {
       if (!providedSecret) {
         return new Response(JSON.stringify({ success: false, error: 'Missing webhook secret' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      const { data: configs } = await supabase
+      // Buscar pela config correta: instance_name + (webhook_secret ou api_key). Várias instâncias podem usar o mesmo secret; a URL do webhook pode usar api_key quando webhook_secret não está definido.
+      let configs = null;
+      const { data: bySecret } = await supabase
         .from('evolution_config')
         .select('id, is_connected, organization_id, api_url, api_key, instance_name')
         .eq('webhook_secret', providedSecret)
+        .eq('instance_name', instance)
         .maybeSingle();
+      if (bySecret) {
+        configs = bySecret;
+      } else {
+        const { data: byApiKey } = await supabase
+          .from('evolution_config')
+          .select('id, is_connected, organization_id, api_url, api_key, instance_name')
+          .eq('api_key', providedSecret)
+          .eq('instance_name', instance)
+          .maybeSingle();
+        configs = byApiKey ?? null;
+      }
 
-      if (configs && payload.state) {
+      // Normalizar estado: Evolution pode enviar "open", "connected", "close", "closed", etc.
+      const connectionStateToBoolean = (state: string | undefined): boolean | null => {
+        if (!state || typeof state !== 'string') return null;
+        const v = state.trim().toLowerCase();
+        const connectedSet = new Set(['open', 'connected', 'online', 'up', 'ready', 'authenticated', 'logged', 'active']);
+        const disconnectedSet = new Set(['close', 'closed', 'disconnected', 'offline', 'down', 'pairing', 'connecting', 'qr', 'waiting', 'timeout']);
+        if (connectedSet.has(v)) return true;
+        if (disconnectedSet.has(v)) return false;
+        return null;
+      };
+
+      const isNowConnectedRaw = connectionStateToBoolean(payload.state);
+      if (configs && isNowConnectedRaw !== null) {
         const wasConnected = configs.is_connected;
-        const isNowConnected = payload.state === 'open';
-        
+        const isNowConnected = isNowConnectedRaw === true;
+
         await supabase
           .from('evolution_config')
           .update({ 

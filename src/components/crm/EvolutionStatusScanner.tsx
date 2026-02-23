@@ -7,12 +7,16 @@ import { CheckCircle, XCircle, RefreshCw, AlertCircle } from "lucide-react";
 import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { useToast } from "@/hooks/use-toast";
 import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
+import { supabase } from "@/integrations/supabase/client";
 
 interface EvolutionStatusScannerProps {
   configs: EvolutionConfig[];
+  /** Se true, ao concluir a varredura os status são persistidos no banco (is_connected) e onAfterPersist é chamado (ex.: refetch). */
+  persistToDb?: boolean;
+  onAfterPersist?: () => void | Promise<void>;
 }
 
-export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps) {
+export function EvolutionStatusScanner({ configs, persistToDb, onAfterPersist }: EvolutionStatusScannerProps) {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<Record<string, { status: boolean | null; error?: string }>>({});
   const { toast } = useToast();
@@ -50,6 +54,24 @@ export function EvolutionStatusScanner({ configs }: EvolutionStatusScannerProps)
 
     setResults(map);
     setRunning(false);
+
+    // Persistir no banco quando o status difere de is_connected (para que a UI mostre conectado/desconectado corretamente)
+    if (persistToDb) {
+      try {
+        for (const cfg of configs) {
+          const r = map[cfg.id];
+          if (r?.status !== undefined && r?.status !== null && r.status !== cfg.is_connected) {
+            await supabase
+              .from('evolution_config')
+              .update({ is_connected: r.status, updated_at: new Date().toISOString() })
+              .eq('id', cfg.id);
+          }
+        }
+        await onAfterPersist?.();
+      } catch (err) {
+        console.warn('Erro ao persistir status das instâncias:', err);
+      }
+    }
 
     toast({
       title: "Varredura concluída",
