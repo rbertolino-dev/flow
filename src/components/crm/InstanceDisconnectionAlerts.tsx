@@ -1,6 +1,6 @@
 import { useInstanceDisconnectionAlert } from '@/hooks/useInstanceDisconnectionAlert';
 import { EvolutionConfig } from '@/hooks/useEvolutionConfigs';
-import { InstanceDisconnectionAlert } from './InstanceDisconnectionAlert';
+import { evolutionConnectResponseToQrDataUrl } from '@/lib/evolutionStatus';
 import { supabase } from '@/integrations/supabase/client';
 
 interface InstanceDisconnectionAlertsProps {
@@ -21,32 +21,21 @@ const normalizeApiUrl = (url: string) => {
   }
 };
 
-// Buscar QR code da Evolution API
+// Buscar QR code da Evolution API (endpoint correto: GET /instance/connect/)
 const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string): Promise<string | null> => {
   try {
     const base = normalizeApiUrl(apiUrl);
-    const url = `${base}/instance/qrcode/${instanceName}`;
-    
+    const url = `${base}/instance/connect/${instanceName}`;
     const response = await fetch(url, {
-      headers: {
-        'apikey': apiKey || '',
-      },
-      signal: AbortSignal.timeout(10000), // 10s timeout
+      headers: { 'apikey': apiKey || '' },
+      signal: AbortSignal.timeout(10000),
     });
-
     if (!response.ok) {
       console.warn(`⚠️ Erro ao buscar QR code: HTTP ${response.status}`);
       return null;
     }
-
     const data = await response.json();
-    let qrCode = data.base64 || data.qrcode || data.code || null;
-    
-    if (qrCode && !qrCode.startsWith('data:image')) {
-      qrCode = `data:image/png;base64,${qrCode}`;
-    }
-
-    return qrCode;
+    return evolutionConnectResponseToQrDataUrl(data);
   } catch (error) {
     console.error('❌ Erro ao buscar QR code:', error);
     return null;

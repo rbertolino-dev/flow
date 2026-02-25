@@ -15,7 +15,7 @@ import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
+import { extractConnectionState, evolutionApiUrlForFetch, evolutionConnectResponseToQrDataUrl } from "@/lib/evolutionStatus";
 
 interface ReconnectInstanceDialogProps {
   open: boolean;
@@ -48,14 +48,7 @@ const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string)
 
     const data = await response.json();
     console.log('📦 Dados recebidos:', data);
-    
-    let qrCode = data.base64 || data.qrcode || data.code || null;
-    
-    if (qrCode && !qrCode.startsWith('data:image')) {
-      qrCode = `data:image/png;base64,${qrCode}`;
-    }
-
-    return qrCode;
+    return evolutionConnectResponseToQrDataUrl(data);
   } catch (error) {
     console.error('❌ Erro ao buscar QR code:', error);
     return null;

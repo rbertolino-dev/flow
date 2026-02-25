@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import QRCode from "https://esm.sh/qrcode@1.5.4?target=deno";
 
 // Service role client para operações que não dependem de auth.uid()
 const supabaseServiceRole = createClient(
@@ -943,23 +944,26 @@ serve(async (req) => {
         if (wasConnected && !isNowConnected && configs.organization_id) {
           console.log(`🔔 Detectada desconexão via webhook para instância ${instance}`);
           
-          // Buscar QR code se disponível
+          // Buscar QR code: payload ou GET /instance/connect (endpoint correto na doc v2)
           let qrCode = payload.qrcode || null;
-          
-          // Se não veio no payload, tentar buscar da API
+          const isBase64Image = (s: string) => s && s.length > 100 && /^[A-Za-z0-9+/]+=*$/.test(s) && !s.includes('@');
+          const toDataUrl = (s: string) => s.startsWith('data:image') ? s : `data:image/png;base64,${s}`;
+
           if (!qrCode && configs.api_url && configs.api_key && configs.instance_name) {
             try {
               const baseUrl = configs.api_url.replace(/\/+$/, '').replace(/\/(manager|dashboard|app)$/i, '');
-              const qrResponse = await fetch(`${baseUrl}/instance/qrcode/${configs.instance_name}`, {
+              const qrResponse = await fetch(`${baseUrl}/instance/connect/${configs.instance_name}`, {
                 headers: { 'apikey': configs.api_key || '' },
                 signal: AbortSignal.timeout(10000),
               });
-              
               if (qrResponse.ok) {
                 const qrData = await qrResponse.json();
-                qrCode = qrData.base64 || qrData.qrcode || qrData.code || null;
-                if (qrCode && !qrCode.startsWith('data:image')) {
-                  qrCode = `data:image/png;base64,${qrCode}`;
+                const base64 = qrData.base64 ?? qrData.qrcode ?? null;
+                const code = qrData.code ?? null;
+                if (base64 && (base64.startsWith('data:image') || isBase64Image(base64))) {
+                  qrCode = base64.startsWith('data:image') ? base64 : toDataUrl(base64);
+                } else if (code && typeof code === 'string') {
+                  qrCode = await QRCode.toDataURL(code, { margin: 2 });
                 }
               }
             } catch (qrError) {
@@ -1024,14 +1028,26 @@ serve(async (req) => {
         .maybeSingle();
 
       if (configs && payload.qrcode) {
+        let qrToSave = payload.qrcode as string;
+        const isBase64Image = (s: string) => s.length > 100 && /^[A-Za-z0-9+/]+=*$/.test(s) && !s.includes('@');
+        if (!qrToSave.startsWith('data:image')) {
+          if (isBase64Image(qrToSave)) {
+            qrToSave = `data:image/png;base64,${qrToSave}`;
+          } else {
+            try {
+              qrToSave = await QRCode.toDataURL(qrToSave, { margin: 2 });
+            } catch (_) {
+              qrToSave = payload.qrcode as string;
+            }
+          }
+        }
         await supabase
           .from('evolution_config')
           .update({ 
-            qr_code: payload.qrcode,
+            qr_code: qrToSave,
             updated_at: new Date().toISOString()
           })
           .eq('id', configs.id);
-        
         console.log('✅ QR Code atualizado');
       }
     }

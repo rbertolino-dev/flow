@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { EvolutionConfig } from './useEvolutionConfigs';
-import { extractConnectionState } from '@/lib/evolutionStatus';
+import { extractConnectionState, evolutionConnectResponseToQrDataUrl } from '@/lib/evolutionStatus';
 import { useToast } from './use-toast';
 
 interface DisconnectionAlert {
@@ -54,14 +54,7 @@ const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string)
 
     const data = await response.json();
     console.log('📦 Dados recebidos:', data);
-    
-    let qrCode = data.base64 || data.qrcode || data.code || null;
-    
-    if (qrCode && !qrCode.startsWith('data:image')) {
-      qrCode = `data:image/png;base64,${qrCode}`;
-    }
-
-    return qrCode;
+    return evolutionConnectResponseToQrDataUrl(data);
   } catch (error) {
     console.error('❌ Erro ao buscar QR code:', error);
     return null;

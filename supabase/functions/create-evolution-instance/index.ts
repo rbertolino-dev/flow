@@ -1,10 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Gerar imagem do QR a partir do "code" (pairing string) quando a API retorna só code (Evolution API v2)
+import QRCode from 'https://esm.sh/qrcode@1.5.4?target=deno';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+/** Verifica se a string parece base64 de imagem (não é pairing code tipo "2@..."). */
+function isBase64ImageString(s: string): boolean {
+  if (!s || s.length < 100) return false;
+  return /^[A-Za-z0-9+/]+=*$/.test(s) && !s.includes('@');
+}
 
 serve(async (req) => {
   // Tratar OPTIONS primeiro
@@ -129,9 +137,10 @@ serve(async (req) => {
         hint: limitError.hint
       });
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Erro ao verificar limites da organização',
-          details: limitError.message
+          details: limitError.message,
+          code: limitError.code || undefined,
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -241,43 +250,52 @@ serve(async (req) => {
       throw new Error('Erro ao processar resposta da Evolution API');
     }
 
-    // 2. Extrair QR Code da resposta de criação
-    let qrCode = null;
+    // 2. Extrair QR Code: Evolution API v2 NÃO retorna qrcode na criação; usar GET /instance/connect
+    // Doc: POST /instance/create retorna só instance/hash/settings. QR vem de GET /instance/connect com pairingCode/code.
+    let qrCode: string | null = null;
+
+    // Tentar da resposta de criação (algumas versões antigas ainda retornam)
     if (instanceData.qrcode) {
-      // A Evolution API retorna o QR code diretamente na resposta de criação
-      qrCode = instanceData.qrcode.base64 || instanceData.qrcode.code || instanceData.qrcode;
-      if (qrCode && !qrCode.startsWith('data:image')) {
-        // Se não for base64 completo, adicionar o prefixo
-        qrCode = `data:image/png;base64,${qrCode}`;
+      const raw = instanceData.qrcode.base64 ?? instanceData.qrcode.code ?? instanceData.qrcode;
+      if (raw && typeof raw === 'string') {
+        if (raw.startsWith('data:image')) {
+          qrCode = raw;
+        } else if (isBase64ImageString(raw)) {
+          qrCode = `data:image/png;base64,${raw}`;
+        }
+        if (qrCode) console.log('✅ QR Code obtido da resposta de criação');
       }
-      console.log('✅ QR Code obtido da resposta de criação');
     }
-    
-    // Se não veio na resposta, tentar buscar pelo endpoint dedicado (com timeout)
+
+    // Sempre tentar GET /instance/connect (recomendado na doc v2) para obter code e gerar imagem
     if (!qrCode) {
-      console.log('[CREATE-EVOLUTION-INSTANCE] QR Code não veio na criação, tentando buscar...');
+      console.log('[CREATE-EVOLUTION-INSTANCE] Buscando QR via GET /instance/connect...');
       try {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2s
-        
+        await new Promise(resolve => setTimeout(resolve, 2000));
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-        
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         const qrResponse = await fetch(`${normalizedUrl}/instance/connect/${instanceName}`, {
           headers: { 'apikey': apiKey },
           signal: controller.signal,
         });
-        
         clearTimeout(timeoutId);
-        
+
         if (qrResponse.ok) {
           const qrData = await qrResponse.json();
-          qrCode = qrData.base64 || qrData.qrcode || qrData.code || null;
-          if (qrCode && !qrCode.startsWith('data:image')) {
-            qrCode = `data:image/png;base64,${qrCode}`;
+          // Resposta v2: { pairingCode, code, count } - "code" é a string de pairing (não base64)
+          const base64 = qrData.base64 ?? qrData.qrcode ?? null;
+          const code = qrData.code ?? null;
+
+          if (base64 && (base64.startsWith('data:image') || isBase64ImageString(base64))) {
+            qrCode = base64.startsWith('data:image') ? base64 : `data:image/png;base64,${base64}`;
+            console.log('[CREATE-EVOLUTION-INSTANCE] QR Code (base64) obtido do connect');
+          } else if (code && typeof code === 'string') {
+            // Gerar imagem do QR a partir do pairing code (Evolution API v2)
+            qrCode = await QRCode.toDataURL(code, { margin: 2 });
+            console.log('[CREATE-EVOLUTION-INSTANCE] QR Code gerado a partir do code (pairing)');
           }
-          console.log('[CREATE-EVOLUTION-INSTANCE] QR Code obtido do endpoint dedicado');
         } else {
-          console.log('[CREATE-EVOLUTION-INSTANCE] QR Code não disponível ainda (status:', qrResponse.status, ')');
+          console.log('[CREATE-EVOLUTION-INSTANCE] Connect retornou status:', qrResponse.status);
         }
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
@@ -285,7 +303,6 @@ serve(async (req) => {
         } else {
           console.error('[CREATE-EVOLUTION-INSTANCE] Erro ao buscar QR Code:', e);
         }
-        // Não é crítico - continuar sem QR Code
       }
     }
 
@@ -350,7 +367,9 @@ serve(async (req) => {
             .single();
           
           if (retryError) {
-            throw new Error(`Erro ao salvar após retry: ${retryError.message}`);
+            const err = new Error(retryError.message || 'Erro ao salvar após retry');
+            (err as any).status = 500;
+            throw err;
           }
           
           console.log('[CREATE-EVOLUTION-INSTANCE] Configuração salva após retry');
@@ -366,7 +385,9 @@ serve(async (req) => {
         }
       }
       
-      throw new Error(insertError.message || 'Erro ao salvar configuração no banco');
+      const err = new Error(insertError.message || 'Erro ao salvar configuração no banco');
+      (err as any).status = 400;
+      throw err;
     }
 
     console.log('[CREATE-EVOLUTION-INSTANCE] Configuração salva com sucesso:', config?.id);
@@ -420,7 +441,7 @@ serve(async (req) => {
     console.error('[CREATE-EVOLUTION-INSTANCE] Tipo do erro:', typeof error);
     console.error('[CREATE-EVOLUTION-INSTANCE] Erro:', error);
 
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    const errorMessage = error instanceof Error ? error.message : String(error);
     const errorDetails = error && typeof error === 'object' && 'code' in error
       ? { code: (error as any).code, message: (error as any).message }
       : null;
@@ -436,7 +457,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: errorMessage,
-          code: errorDetails?.code || undefined
+          code: errorDetails?.code || undefined,
         }),
         {
           status,
@@ -450,10 +471,10 @@ serve(async (req) => {
       // Se até retornar a resposta falhar, logar e retornar resposta mínima
       console.error('[CREATE-EVOLUTION-INSTANCE] ERRO CRÍTICO ao criar resposta:', responseError);
       return new Response(
-        'Internal Server Error',
+        JSON.stringify({ error: errorMessage }),
         { 
-          status: 500, 
-          headers: corsHeaders 
+          status: status, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }

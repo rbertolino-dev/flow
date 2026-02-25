@@ -1,6 +1,8 @@
 // Utilities to normalize and interpret Evolution API connection status responses
 // Handles multiple possible shapes returned by different deployments
 
+import QRCode from 'qrcode';
+
 /** Normaliza URL da Evolution API (remove barra final, /manager, /dashboard, etc.). */
 export function normalizeApiUrl(url: string): string {
   try {
@@ -82,5 +84,38 @@ function normalizeState(value: unknown): boolean | null {
   }
 
   // Unknown structure
+  return null;
+}
+
+/** Verifica se a string parece base64 de imagem (não é pairing code tipo "2@..."). */
+function isBase64ImageString(s: string): boolean {
+  if (!s || s.length < 100) return false;
+  return /^[A-Za-z0-9+/]+=*$/.test(s) && !s.includes('@');
+}
+
+/**
+ * Converte resposta do GET /instance/connect (Evolution API v2) em data URL para exibir QR.
+ * A API pode retornar base64/qrcode (imagem) ou code (pairing string) — gera imagem do code quando necessário.
+ */
+export async function evolutionConnectResponseToQrDataUrl(data: {
+  base64?: string;
+  qrcode?: string;
+  code?: string;
+}): Promise<string | null> {
+  if (!data) return null;
+  const base64 = data.base64 ?? data.qrcode ?? null;
+  const code = data.code ?? null;
+
+  if (base64 && typeof base64 === 'string') {
+    if (base64.startsWith('data:image')) return base64;
+    if (isBase64ImageString(base64)) return `data:image/png;base64,${base64}`;
+  }
+  if (code && typeof code === 'string') {
+    try {
+      return await QRCode.toDataURL(code, { margin: 2 });
+    } catch {
+      return null;
+    }
+  }
   return null;
 }

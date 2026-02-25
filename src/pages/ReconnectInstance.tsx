@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { QrCode, RefreshCw, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AuthGuard } from '@/components/auth/AuthGuard';
-import { extractConnectionState, evolutionApiUrlForFetch } from '@/lib/evolutionStatus';
+import { extractConnectionState, evolutionApiUrlForFetch, evolutionConnectResponseToQrDataUrl } from '@/lib/evolutionStatus';
 
 // Buscar QR code da Evolution API (endpoint correto: /instance/connect/)
 const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string): Promise<string | null> => {
@@ -33,14 +33,7 @@ const fetchQrCode = async (apiUrl: string, apiKey: string, instanceName: string)
 
     const data = await response.json();
     console.log('📦 Dados recebidos:', data);
-    
-    let qrCode = data.base64 || data.qrcode || data.code || null;
-    
-    if (qrCode && !qrCode.startsWith('data:image')) {
-      qrCode = `data:image/png;base64,${qrCode}`;
-    }
-
-    return qrCode;
+    return evolutionConnectResponseToQrDataUrl(data);
   } catch (error) {
     console.error('❌ Erro ao buscar QR code:', error);
     return null;
