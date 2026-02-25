@@ -827,7 +827,47 @@ if [ ! -f "$NGINX_CONFIG" ]; then
     fi
 else
     log "Nginx já está configurado"
+    # Garantir que kanban-buzz tem o proxy create-evolution-instance (config antigo pode não ter)
+    NGINX_SNIPPETS="/etc/nginx/snippets"
+    SNIPPET_NAME="create-evolution-instance.conf"
+    if [ -f "$NGINX_CONFIG" ] && ! grep -q "create-evolution-instance" "$NGINX_CONFIG" && [ -f "$PROJECT_DIR/scripts/nginx-snippet-create-evolution-instance.conf" ]; then
+      log "Inserindo proxy create-evolution-instance em kanban-buzz..."
+      sudo mkdir -p "$NGINX_SNIPPETS"
+      sudo cp "$PROJECT_DIR/scripts/nginx-snippet-create-evolution-instance.conf" "$NGINX_SNIPPETS/$SNIPPET_NAME"
+      INCLUDE_LINE="    include $NGINX_SNIPPETS/$SNIPPET_NAME;"
+      if grep -q "location / " "$NGINX_CONFIG"; then
+        awk -v line="$INCLUDE_LINE" '/location \/ / && !done { print line; done=1 } 1' "$NGINX_CONFIG" | sudo tee "$NGINX_CONFIG.tmp" >/dev/null && sudo mv "$NGINX_CONFIG.tmp" "$NGINX_CONFIG"
+      fi
+      sudo nginx -t 2>/dev/null && sudo systemctl reload nginx 2>/dev/null || true
+    fi
 fi
+
+# Garantir proxy create-evolution-instance no agilizeflow.com.br (QR sem CORS)
+NGINX_SNIPPETS="/etc/nginx/snippets"
+SNIPPET_NAME="create-evolution-instance.conf"
+for AGILIZE_CFG in /etc/nginx/sites-available/agilizeflow.com.br /etc/nginx/sites-enabled/agilizeflow.com.br; do
+  [ -f "$AGILIZE_CFG" ] || continue
+  grep -q "create-evolution-instance" "$AGILIZE_CFG" && break
+  log "Inserindo proxy create-evolution-instance em $AGILIZE_CFG..."
+  sudo mkdir -p "$NGINX_SNIPPETS"
+  if [ -f "$PROJECT_DIR/scripts/nginx-snippet-create-evolution-instance.conf" ]; then
+    sudo cp "$PROJECT_DIR/scripts/nginx-snippet-create-evolution-instance.conf" "$NGINX_SNIPPETS/$SNIPPET_NAME"
+    INCLUDE_LINE="    include $NGINX_SNIPPETS/$SNIPPET_NAME;"
+    if grep -q "location / " "$AGILIZE_CFG"; then
+      awk -v line="$INCLUDE_LINE" '/location \/ / && !done { print line; done=1 } 1' "$AGILIZE_CFG" | sudo tee "$AGILIZE_CFG.tmp" >/dev/null && sudo mv "$AGILIZE_CFG.tmp" "$AGILIZE_CFG"
+    fi
+    if sudo nginx -t 2>/dev/null; then
+      sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
+      log_success "Nginx atualizado com proxy create-evolution-instance"
+    else
+      log_warn "Revertendo alteração (nginx -t falhou)"
+      sudo sed -i "/include.*$SNIPPET_NAME/d" "$AGILIZE_CFG" 2>/dev/null || true
+    fi
+  else
+    log_warn "Snippet scripts/nginx-snippet-create-evolution-instance.conf não encontrado"
+  fi
+  break
+done
 
 # Alternar tráfego para nova versão
 log "8/9 - Alternando tráfego para ${NEW_VERSION}..."

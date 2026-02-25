@@ -1,12 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-// Gerar imagem do QR a partir do "code" (pairing string) quando a API retorna só code (Evolution API v2)
-import QRCode from 'https://esm.sh/qrcode@1.5.4?target=deno';
+// QR imagem a partir do "code" é gerada no frontend (evita 500 por dependência npm no Deno)
 
-const corsHeaders = {
+const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
+
+/** Preflight CORS — doc Supabase: retornar 'ok' com 200 para o navegador aceitar */
+function corsPreflightResponse(): Response {
+  return new Response('ok', { status: 200, headers: corsHeaders });
+}
 
 /** Verifica se a string parece base64 de imagem (não é pairing code tipo "2@..."). */
 function isBase64ImageString(s: string): boolean {
@@ -15,9 +21,9 @@ function isBase64ImageString(s: string): boolean {
 }
 
 serve(async (req) => {
-  // Tratar OPTIONS primeiro
+  // Preflight CORS — retornar 200 + 'ok' (doc Supabase; navegador exige status 2xx)
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse();
   }
 
   // Garantir que sempre retornamos uma resposta válida
@@ -241,9 +247,10 @@ serve(async (req) => {
       throw err;
     }
 
-    let instanceData: any;
+    let instanceData: Record<string, unknown> = {};
     try {
-      instanceData = await createResponse.json();
+      const parsed = await createResponse.json();
+      instanceData = parsed && typeof parsed === 'object' ? parsed : {};
       console.log('[CREATE-EVOLUTION-INSTANCE] Instância criada com sucesso');
     } catch (e) {
       console.error('[CREATE-EVOLUTION-INSTANCE] Erro ao fazer parse da resposta:', e);
@@ -251,12 +258,14 @@ serve(async (req) => {
     }
 
     // 2. Extrair QR Code: Evolution API v2 NÃO retorna qrcode na criação; usar GET /instance/connect
-    // Doc: POST /instance/create retorna só instance/hash/settings. QR vem de GET /instance/connect com pairingCode/code.
+    // Imagem do QR a partir de "code" é gerada no frontend (evita 500 por lib npm no Deno).
     let qrCode: string | null = null;
+    let qrCodeData: string | null = null; // pairing code para o frontend gerar a imagem
 
     // Tentar da resposta de criação (algumas versões antigas ainda retornam)
-    if (instanceData.qrcode) {
-      const raw = instanceData.qrcode.base64 ?? instanceData.qrcode.code ?? instanceData.qrcode;
+    const creationQr = instanceData?.qrcode;
+    if (creationQr && typeof creationQr === 'object' && creationQr !== null) {
+      const raw = (creationQr as Record<string, unknown>).base64 ?? (creationQr as Record<string, unknown>).code ?? creationQr;
       if (raw && typeof raw === 'string') {
         if (raw.startsWith('data:image')) {
           qrCode = raw;
@@ -267,7 +276,7 @@ serve(async (req) => {
       }
     }
 
-    // Sempre tentar GET /instance/connect (recomendado na doc v2) para obter code e gerar imagem
+    // GET /instance/connect (doc v2) — retorna base64 ou code (pairing)
     if (!qrCode) {
       console.log('[CREATE-EVOLUTION-INSTANCE] Buscando QR via GET /instance/connect...');
       try {
@@ -281,18 +290,21 @@ serve(async (req) => {
         clearTimeout(timeoutId);
 
         if (qrResponse.ok) {
-          const qrData = await qrResponse.json();
-          // Resposta v2: { pairingCode, code, count } - "code" é a string de pairing (não base64)
+          let qrData: Record<string, unknown> = {};
+          try {
+            const parsed = await qrResponse.json();
+            qrData = parsed && typeof parsed === 'object' ? parsed : {};
+          } catch (_) {
+            console.log('[CREATE-EVOLUTION-INSTANCE] Resposta do connect não é JSON válido');
+          }
           const base64 = qrData.base64 ?? qrData.qrcode ?? null;
           const code = qrData.code ?? null;
-
-          if (base64 && (base64.startsWith('data:image') || isBase64ImageString(base64))) {
+          if (typeof base64 === 'string' && (base64.startsWith('data:image') || isBase64ImageString(base64))) {
             qrCode = base64.startsWith('data:image') ? base64 : `data:image/png;base64,${base64}`;
             console.log('[CREATE-EVOLUTION-INSTANCE] QR Code (base64) obtido do connect');
-          } else if (code && typeof code === 'string') {
-            // Gerar imagem do QR a partir do pairing code (Evolution API v2)
-            qrCode = await QRCode.toDataURL(code, { margin: 2 });
-            console.log('[CREATE-EVOLUTION-INSTANCE] QR Code gerado a partir do code (pairing)');
+          } else if (typeof code === 'string' && code) {
+            qrCodeData = code;
+            console.log('[CREATE-EVOLUTION-INSTANCE] Pairing code obtido — frontend gera imagem do QR');
           }
         } else {
           console.log('[CREATE-EVOLUTION-INSTANCE] Connect retornou status:', qrResponse.status);
@@ -377,8 +389,8 @@ serve(async (req) => {
             JSON.stringify({
               success: true,
               config: retryConfig,
-              qrCode: qrCode,
-              instanceData: instanceData,
+              qrCode: qrCode ?? null,
+              qrCodeData: qrCodeData ?? null,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -426,15 +438,22 @@ serve(async (req) => {
       // Não é crítico - instância já foi criada e salva
     }
 
-    return new Response(
-      JSON.stringify({
+    let body: string;
+    try {
+      body = JSON.stringify({
         success: true,
         config: config,
-        qrCode: qrCode,
-        instanceData: instanceData,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+        qrCode: qrCode ?? null,
+        qrCodeData: qrCodeData ?? null,
+      });
+    } catch (serializeErr) {
+      console.error('[CREATE-EVOLUTION-INSTANCE] Erro ao serializar resposta:', serializeErr);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao montar resposta', success: true, config: config }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    return new Response(body, { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
     console.error('[CREATE-EVOLUTION-INSTANCE] ========== ERRO CAPTURADO ==========');

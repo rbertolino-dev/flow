@@ -14,6 +14,7 @@ import { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { evolutionConnectResponseToQrDataUrl } from "@/lib/evolutionStatus";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -22,6 +23,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+/**
+ * Usa proxy same-origin em qualquer origem que não seja localhost (evita CORS).
+ * Em dev (localhost/127.0.0.1) usa invoke; em produção usa /api/create-evolution-instance.
+ */
+function shouldUseProxy(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h !== "localhost" && h !== "127.0.0.1" && !h.endsWith(".local");
+}
+
+async function callCreateEvolutionInstance(body: Record<string, unknown>): Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return { data: null, error: { message: "Usuário não autenticado" } };
+
+  if (shouldUseProxy()) {
+    try {
+      const res = await fetch("/api/create-evolution-instance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const contentType = res.headers.get("Content-Type") || "";
+      if (!contentType.includes("application/json")) {
+        return { data: null, error: { message: "Resposta inválida do servidor. Verifique se o proxy está configurado." } };
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { data: null, error: { message: (data as { error?: string }).error || res.statusText || "Erro ao criar instância" } };
+      }
+      return { data: data as Record<string, unknown>, error: null };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { data: null, error: { message: msg } };
+    }
+  }
+
+  const { data, error } = await supabase.functions.invoke("create-evolution-instance", { body });
+  return { data: data as Record<string, unknown> | null, error: error ? { message: error.message } : null };
+}
 
 interface EvolutionInstanceDialogProps {
   open: boolean;
@@ -206,26 +251,35 @@ export function EvolutionInstanceDialog({
           throw new Error("URL e API Key são obrigatórios");
         }
 
-        const { data, error } = await supabase.functions.invoke('create-evolution-instance', {
-          body: {
-            apiUrl,
-            apiKey,
-            instanceName: formData.instance_name,
-            organizationId: orgId,
-            userId: user.id,
-            ...(formData.proxy_host?.trim() && { proxyHost: formData.proxy_host.trim() }),
-            ...(formData.proxy_port?.trim() && { proxyPort: formData.proxy_port.trim() }),
-            ...(formData.proxy_protocol?.trim() && { proxyProtocol: formData.proxy_protocol.trim() }),
-            ...(formData.proxy_username?.trim() && { proxyUsername: formData.proxy_username.trim() }),
-            ...(formData.proxy_password?.trim() && { proxyPassword: formData.proxy_password.trim() }),
-          },
-        });
+        const body = {
+          apiUrl,
+          apiKey,
+          instanceName: formData.instance_name,
+          organizationId: orgId,
+          userId: user.id,
+          ...(formData.proxy_host?.trim() && { proxyHost: formData.proxy_host.trim() }),
+          ...(formData.proxy_port?.trim() && { proxyPort: formData.proxy_port.trim() }),
+          ...(formData.proxy_protocol?.trim() && { proxyProtocol: formData.proxy_protocol.trim() }),
+          ...(formData.proxy_username?.trim() && { proxyUsername: formData.proxy_username.trim() }),
+          ...(formData.proxy_password?.trim() && { proxyPassword: formData.proxy_password.trim() }),
+        };
 
-        if (error) throw error;
+        // Chamar via proxy same-origin para evitar CORS (gateway Supabase bloqueia OPTIONS)
+        const { data, error } = await callCreateEvolutionInstance(body);
+        if (error) throw new Error(error.message);
+        if (!data) throw new Error("Resposta inválida");
 
-        setQrCode(data.qrCode);
+        // QR: usar imagem (qrCode) ou gerar no frontend a partir do pairing code (qrCodeData)
+        if (data.qrCode) {
+          setQrCode(data.qrCode);
+        } else if (data.qrCodeData) {
+          const dataUrl = await evolutionConnectResponseToQrDataUrl({ code: data.qrCodeData });
+          setQrCode(dataUrl ?? null);
+        } else {
+          setQrCode(null);
+        }
         setCreatedInstance(data.config);
-        
+
         toast({
           title: "✅ Instância criada",
           description: "Escaneie o QR Code para conectar",
