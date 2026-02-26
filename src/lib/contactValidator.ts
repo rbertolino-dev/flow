@@ -3,6 +3,8 @@
  * Valida números brasileiros e verifica WhatsApp via Evolution API
  */
 
+import { evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
+
 export interface ParsedContact {
   phone: string;
   name?: string;
@@ -329,8 +331,8 @@ export async function validateWhatsAppNumbers(
   }
 
   try {
-    // Montar URL da API
-    const apiUrl = evolutionConfig.api_url.replace(/\/+$/, "");
+    // Montar URL da API (evolutionApiUrlForFetch evita Mixed Content: HTTPS página → HTTP API bloqueado)
+    const apiUrl = evolutionApiUrlForFetch(evolutionConfig.api_url);
     const endpoint = `${apiUrl}/chat/whatsappNumbers/${evolutionConfig.instance_name}`;
 
     // Criar mapa de números normalizados para contatos originais
