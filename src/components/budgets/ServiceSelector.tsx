@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { BudgetService } from '@/types/budget';
-import { Service } from '@/types/budget';
-import { Plus, X, Search, Wrench, TrendingUp, Loader2 } from 'lucide-react';
+import { BudgetService, Service } from '@/types/budget';
+import { Plus, X, Search, Wrench, TrendingUp, Loader2, ImagePlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useServices } from '@/hooks/useServices';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
+const BUCKET_ID = 'whatsapp-workflow-media';
 
 interface ServiceSelectorProps {
   services: Service[];
@@ -22,6 +25,7 @@ interface ServiceSelectorProps {
 }
 
 export function ServiceSelector({ services, selectedServices, onServicesChange, loading, onCreateService }: ServiceSelectorProps) {
+  const { activeOrgId } = useActiveOrganization();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
@@ -31,6 +35,10 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
   const [newServiceDescription, setNewServiceDescription] = useState('');
   const [newServicePrice, setNewServicePrice] = useState<string>('0');
   const [newServiceQuantity, setNewServiceQuantity] = useState<number>(1);
+  const [newServiceImageUrl, setNewServiceImageUrl] = useState<string | null>(null);
+  const [newServiceImagePreview, setNewServiceImagePreview] = useState<string | null>(null);
+  const [uploadingNewServiceImage, setUploadingNewServiceImage] = useState(false);
+  const newServiceFileInputRef = useRef<HTMLInputElement>(null);
   const { createService } = useServices();
   const { toast } = useToast();
 
@@ -104,6 +112,7 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
         name: newServiceName,
         description: newServiceDescription || undefined,
         price: price,
+        image_url: newServiceImageUrl || undefined,
         is_active: true,
       });
 
@@ -129,6 +138,8 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
       setNewServiceDescription('');
       setNewServicePrice('0');
       setNewServiceQuantity(1);
+      setNewServiceImageUrl(null);
+      setNewServiceImagePreview(null);
       setShowCreateDialog(false);
 
       toast({
@@ -325,6 +336,56 @@ export function ServiceSelector({ services, selectedServices, onServicesChange, 
                 rows={3}
                 className="text-base resize-none"
               />
+            </div>
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <Label className="text-sm font-medium">📷 Imagem do serviço (opcional)</Label>
+              <input
+                ref={newServiceFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !activeOrgId) return;
+                  setUploadingNewServiceImage(true);
+                  try {
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+                    const filePath = `${activeOrgId}/services/${fileName}`;
+                    const { error } = await supabase.storage.from(BUCKET_ID).upload(filePath, file, { upsert: false, cacheControl: '86400' });
+                    if (error) throw error;
+                    const { data } = supabase.storage.from(BUCKET_ID).getPublicUrl(filePath);
+                    setNewServiceImageUrl(data.publicUrl);
+                    setNewServiceImagePreview(data.publicUrl);
+                    toast({ title: 'Imagem enviada', description: 'Imagem carregada' });
+                  } catch (err: any) {
+                    toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+                  } finally {
+                    setUploadingNewServiceImage(false);
+                    if (newServiceFileInputRef.current) newServiceFileInputRef.current.value = '';
+                  }}
+                }}
+              />
+              {newServiceImagePreview ? (
+                <div className="flex items-center gap-3">
+                  <img src={newServiceImagePreview} alt="Preview" className="h-20 w-20 rounded-md object-cover border" />
+                  <div className="flex flex-col gap-1">
+                    <Button type="button" variant="outline" size="sm" disabled={uploadingNewServiceImage} onClick={() => newServiceFileInputRef.current?.click()}>
+                      {uploadingNewServiceImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                      Trocar
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => { setNewServiceImageUrl(null); setNewServiceImagePreview(null); if (newServiceFileInputRef.current) newServiceFileInputRef.current.value = ''; }}>
+                      <X className="w-4 h-4" /> Remover
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" disabled={uploadingNewServiceImage} onClick={() => newServiceFileInputRef.current?.click()}>
+                  {uploadingNewServiceImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
+                  Adicionar imagem
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">JPG, PNG ou WebP.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">

@@ -213,20 +213,8 @@ export function CreateProductDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="product-description">Descrição</Label>
-            <Textarea
-              id="product-description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Descreva o produto ou serviço..."
-              rows={3}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Imagem do produto</Label>
+          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+            <Label className="text-sm font-medium">📷 Imagem do produto (opcional)</Label>
             <input
               ref={fileInputRef}
               type="file"
@@ -282,7 +270,19 @@ export function CreateProductDialog({
                 Adicionar imagem
               </Button>
             )}
-            <p className="text-xs text-muted-foreground">Opcional. Formatos: JPG, PNG, WebP.</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG ou WebP.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-description">Descrição</Label>
+            <Textarea
+              id="product-description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Descreva o produto ou serviço..."
+              rows={3}
+              disabled={loading}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

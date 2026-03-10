@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
 import { EditBudgetDialog } from '@/components/budgets/EditBudgetDialog';
 import { useBudgets } from '@/hooks/useBudgets';
 import { Budget, Service, type Budget as BudgetType } from '@/types/budget';
-import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
 import { useServices } from '@/hooks/useServices';
 import { useProducts } from '@/hooks/useProducts';
 import { useLeads } from '@/hooks/useLeads';
@@ -55,7 +56,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const BUCKET_ID = 'whatsapp-workflow-media';
+
 export default function Budgets() {
+  const { activeOrgId } = useActiveOrganization();
   const [activeTab, setActiveTab] = useState('budgets');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
@@ -88,13 +92,21 @@ export default function Budgets() {
     description: '',
     price: '0',
     category: '',
+    image_url: null as string | null,
     is_active: true,
   });
-  
+  const [serviceImagePreview, setServiceImagePreview] = useState<string | null>(null);
+  const [uploadingServiceImage, setUploadingServiceImage] = useState(false);
+  const serviceFileInputRef = useRef<HTMLInputElement>(null);
+
   // Estados para criar serviço (dialog rápido)
   const [newServiceName, setNewServiceName] = useState('');
   const [newServiceDescription, setNewServiceDescription] = useState('');
   const [newServicePrice, setNewServicePrice] = useState<string>('0');
+  const [newServiceImageUrl, setNewServiceImageUrl] = useState<string | null>(null);
+  const [newServiceImagePreview, setNewServiceImagePreview] = useState<string | null>(null);
+  const [uploadingNewServiceImage, setUploadingNewServiceImage] = useState(false);
+  const newServiceFileInputRef = useRef<HTMLInputElement>(null);
   
   // Estados para produtos
   const [productSearchQuery, setProductSearchQuery] = useState('');
@@ -153,6 +165,37 @@ export default function Budgets() {
     });
   }, [services, serviceSearchQuery, serviceCategoryFilter, serviceStatusFilter]);
 
+  const uploadServiceImage = async (file: File) => {
+    if (!activeOrgId) {
+      toast({ title: 'Erro', description: 'Organização não encontrada', variant: 'destructive' });
+      return;
+    }
+    setUploadingServiceImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+      const filePath = `${activeOrgId}/services/${fileName}`;
+      const { error } = await supabase.storage.from(BUCKET_ID).upload(filePath, file, { upsert: false, cacheControl: '86400' });
+      if (error) throw error;
+      const { data } = supabase.storage.from(BUCKET_ID).getPublicUrl(filePath);
+      setServiceFormData((prev) => ({ ...prev, image_url: data.publicUrl }));
+      setServiceImagePreview(data.publicUrl);
+      toast({ title: 'Imagem enviada', description: 'Imagem do serviço carregada' });
+    } catch (err: any) {
+      toast({ title: 'Erro no upload', description: err.message || 'Falha ao enviar imagem', variant: 'destructive' });
+      setServiceImagePreview(null);
+    } finally {
+      setUploadingServiceImage(false);
+      if (serviceFileInputRef.current) serviceFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveServiceImage = () => {
+    setServiceFormData((prev) => ({ ...prev, image_url: null }));
+    setServiceImagePreview(null);
+    if (serviceFileInputRef.current) serviceFileInputRef.current.value = '';
+  };
+
   const handleOpenServiceDialog = (service?: Service) => {
     if (service) {
       setEditingService(service);
@@ -161,8 +204,10 @@ export default function Budgets() {
         description: service.description || '',
         price: service.price.toString(),
         category: service.category || '',
+        image_url: service.image_url || null,
         is_active: service.is_active,
       });
+      setServiceImagePreview(service.image_url || null);
     } else {
       setEditingService(null);
       setServiceFormData({
@@ -170,20 +215,25 @@ export default function Budgets() {
         description: '',
         price: '0',
         category: '',
+        image_url: null,
         is_active: true,
       });
+      setServiceImagePreview(null);
     }
+    if (serviceFileInputRef.current) serviceFileInputRef.current.value = '';
     setServiceDialogOpen(true);
   };
 
   const handleCloseServiceDialog = () => {
     setServiceDialogOpen(false);
     setEditingService(null);
+    setServiceImagePreview(null);
     setServiceFormData({
       name: '',
       description: '',
       price: '0',
       category: '',
+      image_url: null,
       is_active: true,
     });
   };
@@ -218,6 +268,7 @@ export default function Budgets() {
           description: serviceFormData.description.trim() || undefined,
           price: price,
           category: serviceFormData.category.trim() || undefined,
+          image_url: serviceFormData.image_url || undefined,
           is_active: serviceFormData.is_active,
         });
       } else {
@@ -226,6 +277,7 @@ export default function Budgets() {
           description: serviceFormData.description.trim() || undefined,
           price: price,
           category: serviceFormData.category.trim() || undefined,
+          image_url: serviceFormData.image_url || undefined,
           is_active: serviceFormData.is_active,
         });
       }
@@ -1299,6 +1351,40 @@ export default function Budgets() {
                 />
               </div>
 
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <Label className="text-sm font-medium">📷 Imagem do serviço (opcional)</Label>
+                <input
+                  ref={serviceFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadServiceImage(file);
+                  }}
+                />
+                {serviceImagePreview ? (
+                  <div className="flex items-center gap-3">
+                    <img src={serviceImagePreview} alt="Preview" className="h-20 w-20 rounded-md object-cover border" />
+                    <div className="flex flex-col gap-1">
+                      <Button type="button" variant="outline" size="sm" disabled={uploadingServiceImage} onClick={() => serviceFileInputRef.current?.click()}>
+                        {uploadingServiceImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                        Trocar
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={handleRemoveServiceImage}>
+                        <X className="w-4 h-4" /> Remover
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" disabled={uploadingServiceImage} onClick={() => serviceFileInputRef.current?.click()}>
+                    {uploadingServiceImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
+                    Adicionar imagem
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">JPG, PNG ou WebP.</p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="service-description" className="text-base font-semibold">
                   Descrição
@@ -1447,6 +1533,56 @@ export default function Budgets() {
                   className="h-12 text-base"
                 />
               </div>
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <Label className="text-sm font-medium">📷 Imagem do serviço (opcional)</Label>
+                <input
+                  ref={newServiceFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !activeOrgId) return;
+                    setUploadingNewServiceImage(true);
+                    try {
+                      const fileExt = file.name.split('.').pop();
+                      const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+                      const filePath = `${activeOrgId}/services/${fileName}`;
+                      const { error } = await supabase.storage.from(BUCKET_ID).upload(filePath, file, { upsert: false, cacheControl: '86400' });
+                      if (error) throw error;
+                      const { data } = supabase.storage.from(BUCKET_ID).getPublicUrl(filePath);
+                      setNewServiceImageUrl(data.publicUrl);
+                      setNewServiceImagePreview(data.publicUrl);
+                      toast({ title: 'Imagem enviada', description: 'Imagem carregada' });
+                    } catch (err: any) {
+                      toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+                    } finally {
+                      setUploadingNewServiceImage(false);
+                      if (newServiceFileInputRef.current) newServiceFileInputRef.current.value = '';
+                    }
+                  }}
+                />
+                {newServiceImagePreview ? (
+                  <div className="flex items-center gap-3">
+                    <img src={newServiceImagePreview} alt="Preview" className="h-20 w-20 rounded-md object-cover border" />
+                    <div className="flex flex-col gap-1">
+                      <Button type="button" variant="outline" size="sm" disabled={uploadingNewServiceImage} onClick={() => newServiceFileInputRef.current?.click()}>
+                        {uploadingNewServiceImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                        Trocar
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => { setNewServiceImageUrl(null); setNewServiceImagePreview(null); if (newServiceFileInputRef.current) newServiceFileInputRef.current.value = ''; }}>
+                        <X className="w-4 h-4" /> Remover
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" disabled={uploadingNewServiceImage} onClick={() => newServiceFileInputRef.current?.click()}>
+                    {uploadingNewServiceImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
+                    Adicionar imagem
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">JPG, PNG ou WebP.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -1457,6 +1593,8 @@ export default function Budgets() {
                   setNewServiceName('');
                   setNewServiceDescription('');
                   setNewServicePrice('0');
+                  setNewServiceImageUrl(null);
+                  setNewServiceImagePreview(null);
                 }}
                 className="h-11 text-base"
               >
@@ -1489,6 +1627,7 @@ export default function Budgets() {
                       name: newServiceName,
                       description: newServiceDescription || undefined,
                       price: price,
+                      image_url: newServiceImageUrl || undefined,
                       is_active: true,
                     });
 
@@ -1501,6 +1640,8 @@ export default function Budgets() {
                     setNewServiceName('');
                     setNewServiceDescription('');
                     setNewServicePrice('0');
+                    setNewServiceImageUrl(null);
+                    setNewServiceImagePreview(null);
                   } catch (error: any) {
                     // Erro já é tratado pelo hook
                     console.error('Erro ao criar serviço:', error);

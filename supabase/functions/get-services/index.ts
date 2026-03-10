@@ -16,6 +16,7 @@ interface Service {
   description?: string;
   price: number;
   category?: string;
+  image_url?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -125,6 +126,7 @@ serve(async (req) => {
           description,
           price,
           category,
+          image_url,
           is_active,
           created_at,
           updated_at
@@ -205,7 +207,7 @@ serve(async (req) => {
     // POST para criar/atualizar serviço
     if (req.method === 'POST') {
       const body = await req.json();
-      const { id, name, description, price, category, is_active } = body;
+      const { id, name, description, price, category, is_active, image_url } = body;
 
       if (!name || price === undefined) {
         return new Response(
@@ -224,13 +226,14 @@ serve(async (req) => {
             price = $3,
             category = $4,
             is_active = $5,
+            image_url = $6,
             updated_at = now()
-          WHERE id = $6 AND organization_id = $7
+          WHERE id = $7 AND organization_id = $8
           RETURNING *
         `;
         const result = await client.queryObject<Service>(
           updateQuery,
-          [name, description || null, price, category || null, is_active !== false, id, organizationId]
+          [name, description || null, price, category || null, is_active !== false, image_url ?? null, id, organizationId]
         );
         await client.end();
 
@@ -248,13 +251,13 @@ serve(async (req) => {
       } else {
         // Criar novo serviço
         const insertQuery = `
-          INSERT INTO services (organization_id, name, description, price, category, is_active)
-          VALUES ($1, $2, $3, $4, $5, $6)
+          INSERT INTO services (organization_id, name, description, price, category, is_active, image_url)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           RETURNING *
         `;
         const result = await client.queryObject<Service>(
           insertQuery,
-          [organizationId, name, description || null, price, category || null, is_active !== false]
+          [organizationId, name, description || null, price, category || null, is_active !== false, image_url ?? null]
         );
         
         if (result.rows.length === 0) {
