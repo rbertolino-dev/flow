@@ -14,7 +14,7 @@ import { useLandingPage, useLandingPageItems } from "@/hooks/useLandingPage";
 import { useProducts } from "@/hooks/useProducts";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { LandingPageConfig } from "@/types/landing-page";
-import { Loader2, Image as ImageIcon, X, Eye, ExternalLink, Upload, Globe, MessageSquare, Settings, Palette, Layout, ShoppingBag, FileText, Zap, Video } from "lucide-react";
+import { Loader2, Image as ImageIcon, X, Eye, ExternalLink, Upload, Globe, MessageSquare, Settings, Palette, Layout, ShoppingBag, FileText, Zap, Video, Clock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const BUCKET_ID = "whatsapp-workflow-media";
