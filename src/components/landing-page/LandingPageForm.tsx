@@ -25,11 +25,17 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name.trim() || !formData.phone.trim()) {
+
+    const fields = landingPage.form_fields ?? { name: true, phone: true, email: false, message: false };
+    const needName = fields.name && (!formData.name || !formData.name.trim());
+    const needPhone = fields.phone && (!formData.phone || !formData.phone.trim());
+    if (needName || needPhone) {
+      const missing: string[] = [];
+      if (needName) missing.push('Nome');
+      if (needPhone) missing.push('WhatsApp');
       toast({
         title: "Erro",
-        description: "Nome e WhatsApp são obrigatórios",
+        description: `${missing.join(' e ')} ${missing.length > 1 ? 'são obrigatórios' : 'é obrigatório'}`,
         variant: "destructive",
       });
       return;
@@ -54,10 +60,10 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
         body: JSON.stringify({
           landing_page_id: landingPage.id,
           organization_id: landingPage.organization_id,
-          name: formData.name.trim(),
-          phone: formData.phone.trim(),
-          email: formData.email.trim() || null,
-          message: formData.message.trim() || null,
+          name: (fields.name ? formData.name.trim() : null) || 'Não informado',
+          phone: (fields.phone ? formData.phone.trim() : null) || 'Não informado',
+          email: (fields.email ? formData.email.trim() : null) || null,
+          message: (fields.message ? formData.message.trim() : null) || null,
           product_id: selectedProduct || null,
           product_name: selectedProduct
             ? landingPage.items.find(i => i.product_id === selectedProduct)?.product?.name || null
@@ -69,7 +75,15 @@ export function LandingPageForm({ landingPage, selectedProduct }: LandingPageFor
         }),
       });
 
-      const result = await response.json();
+      let result: { success?: boolean; error?: string };
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error(response.ok ? 'Resposta inválida do servidor' : 'Erro de conexão. Tente novamente.');
+      }
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao enviar formulário');
+      }
       if (!result.success) {
         throw new Error(result.error || 'Erro ao enviar formulário');
       }

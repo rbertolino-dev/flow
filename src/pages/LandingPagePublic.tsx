@@ -13,8 +13,11 @@ export default function LandingPagePublic() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (slug) {
+    if (slug?.trim()) {
       fetchLandingPage();
+    } else {
+      setLoading(false);
+      setError(slug === undefined ? null : "URL inválida");
     }
   }, [slug]);
 
