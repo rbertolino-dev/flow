@@ -7,6 +7,8 @@ interface InstanceDisconnectionAlertsProps {
   instances: EvolutionConfig[];
   enabled?: boolean;
   whatsappNotificationPhone?: string;
+  /** Se informado, chamado após reconexão em vez de recarregar a página (evita reload) */
+  onReconnected?: () => void;
 }
 
 // Normaliza URLs de API removendo sufixos como /manager ou /dashboard e a barra final
@@ -46,6 +48,7 @@ export function InstanceDisconnectionAlerts({
   instances,
   enabled = true,
   whatsappNotificationPhone,
+  onReconnected,
 }: InstanceDisconnectionAlertsProps) {
   const { activeAlerts, dismissAlert } = useInstanceDisconnectionAlert({
     instances,
@@ -92,8 +95,11 @@ export function InstanceDisconnectionAlerts({
   }
 
   const handleReconnected = () => {
-    // Recarregar alertas após reconexão
-    window.location.reload();
+    if (onReconnected) {
+      onReconnected();
+    } else {
+      window.location.reload();
+    }
   };
 
   return (

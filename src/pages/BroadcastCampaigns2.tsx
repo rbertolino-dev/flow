@@ -23,7 +23,10 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
+import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
+import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
+import type { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
 import { TimeWindowConflictDialog } from "@/components/crm/TimeWindowConflictDialog";
@@ -861,6 +864,14 @@ export default function BroadcastCampaigns2() {
       }
     }
   }, [activeOrgId, fetchCampaigns, fetchInstances, fetchMessageTemplates, fetchCampaignTemplates, fetchActiveTimeWindow, fetchInstanceGroups]);
+
+  // Atualiza is_connected no banco periodicamente (somente evolution_config; zero impacto em fila/campanhas)
+  useInstanceHealthCheck({
+    instances: instances as EvolutionConfig[],
+    enabled: !!activeOrgId && instances.length > 0,
+    intervalMs: 45000,
+    stableIntervalMs: 120000,
+  });
 
   const parseCSV = (text: string): Array<{ phone: string; name?: string }> => {
     const lines = text.split("\n").filter((line) => line.trim());
@@ -2223,6 +2234,12 @@ export default function BroadcastCampaigns2() {
       <CRMLayout activeView="broadcast-2" onViewChange={handleViewChange}>
         <div className="h-full overflow-y-auto">
           <div className="p-4 md:p-6 pb-20 md:pb-6">
+          {/* Alertas de instâncias desconectadas (refetch sem reload ao reconectar) */}
+          <InstanceDisconnectionAlerts
+            instances={instances as EvolutionConfig[]}
+            enabled={!!activeOrgId}
+            onReconnected={fetchInstances}
+          />
           {/* Quadro de Status das Instâncias */}
           <InstanceStatusPanel 
             instances={instances} 
