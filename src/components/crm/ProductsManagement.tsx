@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,13 +30,18 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useProducts } from "@/hooks/useProducts";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Product, ProductFormData } from "@/types/product";
-import { Plus, Edit, Trash2, Package, Search } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus, Edit, Trash2, Package, Search, ImagePlus, X, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 
+const BUCKET_ID = "whatsapp-workflow-media";
+
 export function ProductsManagement() {
+  const { activeOrgId } = useActiveOrganization();
   const {
     products,
     loading,
@@ -46,10 +51,13 @@ export function ProductsManagement() {
     getProductsByCategory,
   } = useProducts();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
@@ -57,6 +65,7 @@ export function ProductsManagement() {
     price: 0,
     category: "",
     is_active: true,
+    image_url: null,
   });
 
   const categories = Array.from(new Set(products.map((p) => p.category))).sort();
@@ -73,6 +82,43 @@ export function ProductsManagement() {
 
   const groupedProducts = getProductsByCategory();
 
+  const uploadImage = async (file: File) => {
+    if (!activeOrgId) {
+      toast({ title: "Erro", description: "Organização não encontrada", variant: "destructive" });
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+      const filePath = `${activeOrgId}/products/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_ID)
+        .upload(filePath, file, { upsert: false, cacheControl: "86400" });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from(BUCKET_ID).getPublicUrl(filePath);
+      setFormData((prev) => ({ ...prev, image_url: data.publicUrl }));
+      setImagePreview(data.publicUrl);
+      toast({ title: "Imagem enviada", description: "Imagem do produto carregada com sucesso" });
+    } catch (err: any) {
+      toast({
+        title: "Erro no upload",
+        description: err.message || "Falha ao enviar imagem",
+        variant: "destructive",
+      });
+      setImagePreview(null);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({ ...prev, image_url: null }));
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleOpenDialog = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
@@ -85,7 +131,9 @@ export function ProductsManagement() {
         is_active: product.is_active,
         commission_percentage: product.commission_percentage || 0,
         commission_fixed: product.commission_fixed || 0,
+        image_url: product.image_url || null,
       });
+      setImagePreview(product.image_url || null);
     } else {
       setEditingProduct(null);
       setFormData({
@@ -97,20 +145,25 @@ export function ProductsManagement() {
         is_active: true,
         commission_percentage: 0,
         commission_fixed: 0,
+        image_url: null,
       });
+      setImagePreview(null);
     }
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingProduct(null);
+    setImagePreview(null);
     setFormData({
       name: "",
       description: "",
       price: 0,
       category: "",
       is_active: true,
+      image_url: null,
     });
   };
 
@@ -228,6 +281,71 @@ export function ProductsManagement() {
                   placeholder="Descreva o produto ou serviço..."
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Imagem do produto</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadImage(file);
+                  }}
+                />
+                {imagePreview ? (
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="h-20 w-20 rounded-md object-cover border"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImage}
+                      >
+                        {uploadingImage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ImagePlus className="w-4 h-4" />
+                        )}
+                        Trocar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={handleRemoveImage}
+                      >
+                        <X className="w-4 h-4" /> Remover
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <ImagePlus className="w-4 h-4 mr-2" />
+                    )}
+                    Adicionar imagem
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Opcional. Formatos: JPG, PNG, WebP.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
