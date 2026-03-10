@@ -24,11 +24,13 @@ export function useLandingPage() {
 
     try {
       setLoading(true);
-      
+      // Multi-empresa: uma org pode ter mais de uma página; pegamos a mais recente
       const { data, error } = await supabase
         .from('landing_pages')
         .select('*')
         .eq('organization_id', activeOrgId)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -52,6 +54,22 @@ export function useLandingPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
+
+      // Slug único globalmente (páginas ativas): evita colisão entre organizações em /p/:slug
+      let baseSlug = (config.title || 'landing-page').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'landing-page';
+      let slug = baseSlug;
+      let attempt = 1;
+      while (true) {
+        const { data: existing } = await supabase
+          .from('landing_pages')
+          .select('id')
+          .eq('slug', slug)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (!existing) break;
+        attempt += 1;
+        slug = `${baseSlug}-${attempt}`;
+      }
 
       const { data, error } = await supabase
         .from('landing_pages')
@@ -98,7 +116,7 @@ export function useLandingPage() {
           footer_enabled: config.footerEnabled,
           footer_text: config.footerText,
           footer_links: config.footerLinks || [],
-          slug: config.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+          slug,
           created_by: user.id,
         })
         .select()
@@ -233,9 +251,12 @@ export function useLandingPage() {
       });
     } catch (error: any) {
       console.error("Erro ao alterar status da landing page:", error);
+      const isSlugConflict = isActive && /unique|duplicate key|idx_landing_pages_slug_active|violates unique constraint/i.test(String(error?.message ?? ""));
       toast({
         title: "Erro ao alterar status",
-        description: error.message,
+        description: isSlugConflict
+          ? "Este endereço da página já está em uso por outra empresa. Altere o título da página (em Geral) para gerar um endereço único e tente ativar novamente."
+          : error?.message ?? "Erro desconhecido",
         variant: "destructive",
       });
       throw error;

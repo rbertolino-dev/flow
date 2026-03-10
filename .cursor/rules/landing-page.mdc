@@ -1,0 +1,113 @@
+---
+description: Regras para evitar erros na funcionalidade Landing Page (ícones, formulário, slug, CORS)
+globs: "**/landing-page/**/*.tsx,**/LandingPage*.tsx,**/LandingPagePublic.tsx"
+alwaysApply: false
+---
+
+# Landing Page - Erros que quebraram a página (evitar)
+
+## 1. Ícones lucide-react – SEMPRE importar o que usar
+
+**Erro:** `ReferenceError: Clock is not defined` / `Phone is not defined` / `MapPin is not defined` em produção.
+
+**Causa:** Uso de componente de ícone no JSX sem estar no import de `lucide-react`.
+
+**Regra:** Todo ícone usado no JSX (ex: `<Clock />`, `<Phone />`, `<MapPin />`) DEVE estar na linha de import.
+
+```tsx
+// ❌ ERRADO – usa Clock, Phone, MapPin no JSX mas não importa
+import { Loader2, Globe, MessageSquare, ... } from "lucide-react";
+
+// ✅ CORRETO – incluir TODOS os ícones usados no arquivo
+import { Loader2, Globe, MessageSquare, ..., Clock, Phone, MapPin } from "lucide-react";
+```
+
+**Checklist ao editar LandingPageConfigurator ou templates:** Buscar por `<NomeDoIcone ` no arquivo e conferir se `NomeDoIcone` está no import de `lucide-react`.
+
+---
+
+## 2. LandingPagePublic – slug vazio ou ausente
+
+**Erro:** Loading infinito ao acessar URL sem slug válido.
+
+**Regra:** No `useEffect` que depende de `slug`, quando não houver slug (ou for string vazia), chamar `setLoading(false)` e opcionalmente `setError(...)`.
+
+```tsx
+useEffect(() => {
+  if (slug?.trim()) {
+    fetchLandingPage();
+  } else {
+    setLoading(false);
+    setError(slug === undefined ? null : "URL inválida");
+  }
+}, [slug]);
+```
+
+---
+
+## 3. LandingPageForm – validação e payload conforme form_fields
+
+**Erro:** Exigir nome/telefone mesmo quando o admin desabilitou esses campos; backend exige valores para name/phone.
+
+**Regras:**
+- Validar apenas os campos **habilitados** em `landingPage.form_fields` (ex: `form_fields?.name`, `form_fields?.phone`).
+- Ao montar o payload, para campos desabilitados enviar placeholder (ex: `"Não informado"`) quando o backend exigir valor (ex: name/phone NOT NULL).
+
+```tsx
+const fields = landingPage.form_fields ?? { name: true, phone: true, email: false, message: false };
+const needName = fields.name && (!formData.name || !formData.name.trim());
+const needPhone = fields.phone && (!formData.phone || !formData.phone.trim());
+if (needName || needPhone) { /* toast erro */ return; }
+// No body: name: (fields.name ? formData.name.trim() : null) || 'Não informado'
+```
+
+---
+
+## 4. LandingPageForm – resposta da API (fetch)
+
+**Erro:** Falha ao parsear JSON em respostas de erro (4xx/5xx) ou quando o corpo não é JSON.
+
+**Regras:**
+- Fazer `await response.json()` dentro de try/catch.
+- Verificar `response.ok` antes de considerar sucesso.
+- Em caso de !response.ok ou JSON inválido, lançar erro com mensagem clara.
+
+```tsx
+let result;
+try {
+  result = await response.json();
+} catch {
+  throw new Error(response.ok ? 'Resposta inválida do servidor' : 'Erro de conexão. Tente novamente.');
+}
+if (!response.ok) throw new Error(result?.error || 'Erro ao enviar formulário');
+if (!result?.success) throw new Error(result?.error || 'Erro ao enviar formulário');
+```
+
+---
+
+## 5. Edge Function products – CORS
+
+**Erro:** `Request header field x-organization-id is not allowed by Access-Control-Allow-Headers`.
+
+**Regra:** A Edge Function `products` deve incluir `x-organization-id` em `Access-Control-Allow-Headers`. Após alterar CORS, fazer deploy: `npx supabase functions deploy products`.
+
+---
+
+## 6. Multi-empresa – slug único e itens por organização
+
+**Regras:**
+- Slug é único entre **páginas ativas** (índice parcial `WHERE is_active = true`). Ao criar, gerar slug sem conflito com páginas ativas (sufixo `-2`, `-3` se necessário).
+- Ao ativar página, se der erro de unique no slug, mostrar: "Este endereço já está em uso por outra empresa. Altere o título (Geral) para gerar endereço único."
+- Trigger em `landing_page_items` garante que `product_id` pertence à mesma organização da landing page. Não remover.
+
+---
+
+## Resumo rápido
+
+| Onde | O que evitar |
+|------|----------------|
+| LandingPageConfigurator / templates | Usar ícone no JSX sem importar de lucide-react |
+| LandingPagePublic | Não tratar slug vazio/ausente (loading infinito) |
+| LandingPageForm | Validar sempre name/phone sem olhar form_fields; não tratar response.ok/JSON |
+| products (Edge Function) | CORS sem x-organization-id; esquecer deploy após mudar CORS |
+| Multi-org | Remover índice único de slug ativo ou trigger de org em itens |

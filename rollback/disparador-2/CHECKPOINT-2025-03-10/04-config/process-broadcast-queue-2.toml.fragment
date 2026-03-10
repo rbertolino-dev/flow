@@ -1,0 +1,10 @@
+# ========== Fragmento para supabase/config.toml ==========
+# Inserir ou garantir que exista esta seção em [functions]:
+#
+# [functions.process-broadcast-queue-2]
+# verify_jwt = false
+#
+# ========== Fim do fragmento ==========
+
+[functions.process-broadcast-queue-2]
+verify_jwt = false
