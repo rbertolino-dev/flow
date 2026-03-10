@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,14 @@ export function ProductsManagement() {
   });
 
   const categories = Array.from(new Set(products.map((p) => p.category))).sort();
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+
+  // Ao abrir o diálogo, rolar para o topo para a seção de imagem ficar visível
+  useEffect(() => {
+    if (dialogOpen && dialogContentRef.current) {
+      dialogContentRef.current.scrollTop = 0;
+    }
+  }, [dialogOpen]);
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
@@ -243,35 +251,21 @@ export function ProductsManagement() {
               Novo Produto
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent ref={dialogContentRef} className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingProduct ? "Editar Produto" : "Novo Produto"}
               </DialogTitle>
               <DialogDescription>
                 {editingProduct
-                  ? "Atualize as informações do produto"
-                  : "Preencha os dados do novo produto ou serviço"}
+                  ? "Atualize as informações do produto (inclui imagem)"
+                  : "Preencha os dados do novo produto ou serviço. Você pode adicionar uma imagem no topo do formulário."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">
-                  Nome do Produto/Serviço <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="Ex: Consultoria, Software, Produto X"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                <Label className="text-sm font-medium">📷 Imagem do produto (opcional)</Label>
+              {/* Imagem em primeiro para ficar sempre visível ao abrir */}
+              <div className="space-y-2 rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+                <Label className="text-sm font-semibold">📷 Imagem do produto (opcional)</Label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -331,8 +325,23 @@ export function ProductsManagement() {
                   </Button>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  JPG, PNG ou WebP.
+                  JPG, PNG ou WebP. Você pode adicionar ou trocar a imagem aqui.
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="name">
+                  Nome do Produto/Serviço <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="Ex: Consultoria, Software, Produto X"
+                  required
+                />
               </div>
 
               <div className="space-y-2">

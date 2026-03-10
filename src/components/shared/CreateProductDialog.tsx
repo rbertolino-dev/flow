@@ -195,26 +195,13 @@ export function CreateProductDialog({
         <DialogHeader>
           <DialogTitle>Criar Novo Produto/Serviço</DialogTitle>
           <DialogDescription>
-            Crie um produto ou serviço rapidamente para usar no sistema
+            Crie um produto ou serviço para usar no sistema. Você pode adicionar uma imagem no topo.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="product-name">
-              Nome do Produto/Serviço <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="product-name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ex: Consultoria, Software, Produto X"
-              required
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-            <Label className="text-sm font-medium">📷 Imagem do produto (opcional)</Label>
+          {/* Imagem em primeiro para ficar sempre visível */}
+          <div className="space-y-2 rounded-lg border-2 border-primary/20 bg-primary/5 p-3">
+            <Label className="text-sm font-semibold">📷 Imagem do produto (opcional)</Label>
             <input
               ref={fileInputRef}
               type="file"
@@ -271,6 +258,20 @@ export function CreateProductDialog({
               </Button>
             )}
             <p className="text-xs text-muted-foreground">JPG, PNG ou WebP.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-name">
+              Nome do Produto/Serviço <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="product-name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ex: Consultoria, Software, Produto X"
+              required
+              disabled={loading}
+            />
           </div>
 
           <div className="space-y-2">
