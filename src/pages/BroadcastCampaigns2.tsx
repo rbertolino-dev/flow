@@ -2289,6 +2289,16 @@ export default function BroadcastCampaigns2() {
     });
   }, [campaigns, debouncedSearchQuery, dateFilter, sentDateFilter, dateFilterType, instanceFilter]);
 
+  /** Instâncias da campanha em ordem alfabética (nome) para o pop-up de simulação */
+  const simulationInstanceIdsSorted = useMemo(() => {
+    const ids = [...newCampaign.instanceIds];
+    return ids.sort((a, b) => {
+      const na = String(instances.find((i) => i.id === a)?.instance_name ?? "");
+      const nb = String(instances.find((i) => i.id === b)?.instance_name ?? "");
+      return na.localeCompare(nb, "pt-BR", { sensitivity: "base" });
+    });
+  }, [newCampaign.instanceIds, instances]);
+
   if (loading && campaigns.length === 0) {
     return <div className="p-6">Carregando...</div>;
   }
@@ -4158,7 +4168,13 @@ export default function BroadcastCampaigns2() {
                   {/* Distribuição por Instância */}
                   <div className="space-y-3">
                     <h3 className="font-semibold">Distribuição por Instância</h3>
-                    <div className="space-y-2">
+                    <div
+                      className={
+                        newCampaign.sendingMethod === "single"
+                          ? "space-y-2"
+                          : "grid grid-cols-1 sm:grid-cols-2 gap-2"
+                      }
+                    >
                       {newCampaign.sendingMethod === "single" ? (
                         <div className="p-3 border rounded-lg bg-muted/30">
                           <div className="flex items-center justify-between">
@@ -4172,39 +4188,44 @@ export default function BroadcastCampaigns2() {
                           </div>
                         </div>
                       ) : newCampaign.sendingMethod === "rotate" ? (
-                        newCampaign.instanceIds.map((instanceId, index) => {
-                          const messagesPerInstance = Math.floor(validationResult.whatsappValid / newCampaign.instanceIds.length);
-                          const remainder = validationResult.whatsappValid % newCampaign.instanceIds.length;
-                          const messages = messagesPerInstance + (index < remainder ? 1 : 0);
-                          
+                        simulationInstanceIdsSorted.map((instanceId) => {
+                          const origIndex = newCampaign.instanceIds.indexOf(instanceId);
+                          const n = newCampaign.instanceIds.length;
+                          const messagesPerInstance = Math.floor(validationResult.whatsappValid / n);
+                          const remainder = validationResult.whatsappValid % n;
+                          const messages =
+                            origIndex >= 0
+                              ? messagesPerInstance + (origIndex < remainder ? 1 : 0)
+                              : 0;
+
                           return (
                             <div key={instanceId} className="p-3 border rounded-lg bg-muted/30">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="font-mono">
-                                    {instances.find(i => i.id === instanceId)?.instance_name || `Instância ${index + 1}`}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Badge variant="outline" className="font-mono truncate max-w-[min(100%,14rem)]">
+                                    {instances.find(i => i.id === instanceId)?.instance_name || "Instância"}
                                   </Badge>
-                                  <span className="text-xs text-muted-foreground">rotação automática</span>
+                                  <span className="text-xs text-muted-foreground shrink-0">rotação automática</span>
                                 </div>
-                                <Badge>~{messages} mensagens</Badge>
+                                <Badge className="shrink-0">~{messages} mensagens</Badge>
                               </div>
                             </div>
                           );
                         })
                       ) : (
                         // Modo "separate"
-                        newCampaign.instanceIds.map((instanceId, index) => (
+                        simulationInstanceIdsSorted.map((instanceId) => (
                           <div key={instanceId} className="p-3 border rounded-lg bg-amber-500/5 border-amber-500/20">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="font-mono">
-                                  {instances.find(i => i.id === instanceId)?.instance_name || `Instância ${index + 1}`}
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Badge variant="outline" className="font-mono truncate max-w-[min(100%,14rem)]">
+                                  {instances.find(i => i.id === instanceId)?.instance_name || "Instância"}
                                 </Badge>
-                                <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                                <span className="text-xs text-amber-700 dark:text-amber-400 font-medium shrink-0">
                                   lista completa
                                 </span>
                               </div>
-                              <Badge className="bg-amber-500 text-white">
+                              <Badge className="bg-amber-500 text-white shrink-0">
                                 {validationResult.whatsappValid} mensagens
                               </Badge>
                             </div>
