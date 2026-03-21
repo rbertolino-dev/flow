@@ -1,5 +1,5 @@
 import { Lead } from "@/types/lead";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -39,7 +39,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
+import { buildCopyNumber, formatBrazilianPhone, normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useProducts } from "@/hooks/useProducts";
+import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
+import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { ChatHistory } from "./ChatHistory";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
@@ -78,6 +82,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
+  const { stages: pipelineStages } = usePipelineStages();
+  const { getActiveProducts, refetch: refetchProducts } = useProducts();
+  const activeProducts = getActiveProducts();
   const { templates, applyTemplate } = useMessageTemplates();
   const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
   const { toast } = useToast();
@@ -111,17 +118,88 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [editedCompany, setEditedCompany] = useState(lead.company || "");
   const [editedNotes, setEditedNotes] = useState(lead.notes || "");
   const [editedCpfCnpj, setEditedCpfCnpj] = useState(lead.cpf_cnpj || "");
+  const [editedValueStr, setEditedValueStr] = useState("");
+  const [editedStageId, setEditedStageId] = useState("");
+  const [editedSourceInstanceId, setEditedSourceInstanceId] = useState("");
+  const [editedProductId, setEditedProductId] = useState<string>("");
+  const [linkedProductId, setLinkedProductId] = useState<string>("");
+  const [createProductDialogOpen, setCreateProductDialogOpen] = useState(false);
+
+  const syncEditFieldsFromLead = useCallback(
+    (l: Lead) => {
+      setEditedName(l.name);
+      setEditedPhone(l.phone);
+      setEditedEmail(l.email || "");
+      setEditedCompany(l.company || "");
+      setEditedNotes(l.notes || "");
+      setEditedCpfCnpj(l.cpf_cnpj || "");
+      const manual = l.estimatedValueStored;
+      setEditedValueStr(
+        manual != null && Number.isFinite(Number(manual)) ? String(manual) : ""
+      );
+      setEditedStageId(l.stageId || "");
+      setEditedSourceInstanceId(l.sourceInstanceId || "");
+    },
+    []
+  );
+
+  const stageNameForLead = useMemo(() => {
+    if (!currentLead.stageId) return null;
+    return pipelineStages.find((s) => s.id === currentLead.stageId)?.name ?? null;
+  }, [currentLead.stageId, pipelineStages]);
+
+  const linkedProductName = useMemo(() => {
+    if (!linkedProductId) return null;
+    return activeProducts.find((p) => p.id === linkedProductId)?.name ?? null;
+  }, [linkedProductId, activeProducts]);
+
+  const sourceInstanceName = useMemo(() => {
+    if (currentLead.sourceInstanceName?.trim()) {
+      return currentLead.sourceInstanceName.trim();
+    }
+    if (!currentLead.sourceInstanceId || !configs?.length) return null;
+    return (
+      configs.find((c) => c.id === currentLead.sourceInstanceId)?.instance_name ?? null
+    );
+  }, [
+    currentLead.sourceInstanceId,
+    currentLead.sourceInstanceName,
+    configs,
+  ]);
 
   // Atualizar currentLead e editedName quando o lead prop mudar
   useEffect(() => {
     setCurrentLead(lead);
-    setEditedName(lead.name);
-    setEditedPhone(lead.phone);
-    setEditedEmail(lead.email || "");
-    setEditedCompany(lead.company || "");
-    setEditedNotes(lead.notes || "");
-    setEditedCpfCnpj(lead.cpf_cnpj || "");
-  }, [lead]);
+    syncEditFieldsFromLead(lead);
+  }, [lead, syncEditFieldsFromLead]);
+
+  useEffect(() => {
+    if (lead.sourceInstanceId) {
+      setEditedSourceInstanceId(lead.sourceInstanceId);
+    } else if (configs?.[0]?.id) {
+      setEditedSourceInstanceId((prev) => prev || configs[0].id);
+    }
+  }, [lead.sourceInstanceId, configs]);
+
+  useEffect(() => {
+    if (!open || !lead.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("lead_products")
+        .select("product_id")
+        .eq("lead_id", lead.id)
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      const pid = (data as { product_id?: string } | null)?.product_id || "";
+      setLinkedProductId(pid);
+      setEditedProductId(pid);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, lead.id]);
 
   // Controlar visibilidade inicial da seção de mensagem e agendamento
   useEffect(() => {
@@ -793,47 +871,136 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
   const handleSaveLeadInfo = async () => {
     try {
-      const updates: any = {};
-      
-      if (editedPhone !== currentLead.phone) {
-        updates.phone = editedPhone.trim();
+      const phoneNormalized = normalizePhone(editedPhone.trim());
+      if (!isValidBrazilianPhone(editedPhone)) {
+        toast({
+          title: "Telefone inválido",
+          description: "Use um telefone brasileiro válido (10 ou 11 dígitos).",
+          variant: "destructive",
+        });
+        return;
       }
-      if (editedEmail !== (currentLead.email || "")) {
+
+      const updates: Record<string, unknown> = {};
+
+      if (phoneNormalized !== normalizePhone(currentLead.phone)) {
+        updates.phone = phoneNormalized;
+      }
+      if (editedEmail.trim() !== (currentLead.email || "")) {
         updates.email = editedEmail.trim() || null;
       }
-      if (editedCompany !== (currentLead.company || "")) {
+      if (editedCompany.trim() !== (currentLead.company || "")) {
         updates.company = editedCompany.trim() || null;
       }
-      if (editedCpfCnpj !== (currentLead.cpf_cnpj || "")) {
-        const cpfCnpjClean = editedCpfCnpj.replace(/\D/g, "");
+      const cpfCnpjClean = editedCpfCnpj.replace(/\D/g, "");
+      const prevCpf = (currentLead.cpf_cnpj || "").replace(/\D/g, "");
+      if (cpfCnpjClean !== prevCpf) {
         updates.cpf_cnpj = cpfCnpjClean || null;
       }
-      if (editedNotes !== (currentLead.notes || "")) {
+      if (editedNotes.trim() !== (currentLead.notes || "")) {
         updates.notes = editedNotes.trim() || null;
       }
 
-      if (Object.keys(updates).length === 0) {
+      const parseManualValue = (): number | null => {
+        const t = editedValueStr.trim();
+        if (!t) return null;
+        const n = Number(t.replace(",", "."));
+        return Number.isFinite(n) && n >= 0 ? n : null;
+      };
+      const newManual = parseManualValue();
+      if (editedValueStr.trim() !== "" && newManual === null) {
+        toast({
+          title: "Valor inválido",
+          description: "Informe um valor estimado válido (≥ 0) ou deixe em branco.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const prevManual = currentLead.estimatedValueStored;
+      const prevStr =
+        prevManual != null && Number.isFinite(Number(prevManual)) ? String(prevManual) : "";
+      const manualChanged = editedValueStr.trim() !== prevStr;
+      if (manualChanged) {
+        updates.value = newManual;
+      }
+
+      if (editedStageId && editedStageId !== (currentLead.stageId || "")) {
+        updates.stage_id = editedStageId;
+      }
+
+      const prevInst = currentLead.sourceInstanceId || "";
+      if ((editedSourceInstanceId || "") !== prevInst) {
+        updates.source_instance_id = editedSourceInstanceId || null;
+        const inst = configs?.find((c) => c.id === editedSourceInstanceId);
+        updates.source_instance_name = inst?.instance_name ?? null;
+      }
+
+      const productChanged = editedProductId !== linkedProductId;
+      const hasLeadUpdates = Object.keys(updates).length > 0;
+
+      if (!hasLeadUpdates && !productChanged) {
         setIsEditingInfo(false);
         return;
       }
 
-      const { error } = await supabase
-        .from("leads")
-        .update(updates)
-        .eq("id", currentLead.id);
+      if (hasLeadUpdates) {
+        const { error } = await supabase
+          .from("leads")
+          .update(updates)
+          .eq("id", currentLead.id);
+        if (error) throw error;
+      }
 
-      if (error) throw error;
+      if (productChanged) {
+        await supabase.from("lead_products").delete().eq("lead_id", currentLead.id);
+        if (editedProductId) {
+          const selectedProduct = activeProducts.find((p) => p.id === editedProductId);
+          if (selectedProduct) {
+            const { error: insErr } = await supabase.from("lead_products").insert({
+              lead_id: currentLead.id,
+              product_id: editedProductId,
+              quantity: 1,
+              unit_price: selectedProduct.price,
+              total_price: selectedProduct.price,
+            });
+            if (insErr && insErr.code !== "23505") throw insErr;
+          }
+        }
+        setLinkedProductId(editedProductId);
+      }
 
-      // ✅ Atualizar localmente para feedback imediato
       setCurrentLead({
         ...currentLead,
-        ...updates,
+        ...(updates.phone !== undefined ? { phone: updates.phone as string } : {}),
+        ...(updates.email !== undefined ? { email: (updates.email as string) || undefined } : {}),
+        ...(updates.company !== undefined ? { company: (updates.company as string) || undefined } : {}),
+        ...(updates.cpf_cnpj !== undefined
+          ? { cpf_cnpj: (updates.cpf_cnpj as string) || undefined }
+          : {}),
+        ...(updates.notes !== undefined ? { notes: (updates.notes as string) || undefined } : {}),
+        ...(updates.value !== undefined
+          ? {
+              estimatedValueStored:
+                updates.value === null || updates.value === undefined
+                  ? undefined
+                  : Number(updates.value),
+            }
+          : {}),
+        ...(updates.stage_id !== undefined ? { stageId: updates.stage_id as string } : {}),
+        ...(updates.source_instance_id !== undefined
+          ? {
+              sourceInstanceId: (updates.source_instance_id as string) || undefined,
+              sourceInstanceName: (updates.source_instance_name as string) || undefined,
+            }
+          : {}),
       });
-      
-      // ✅ Disparar evento de refresh para atualizar em tempo real na aba CRM
-      window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead', leadId: currentLead.id }
-      }));
+
+      window.dispatchEvent(
+        new CustomEvent("data-refresh", {
+          detail: { type: "update", entity: "lead", leadId: currentLead.id },
+        })
+      );
+      broadcastRefreshEvent("update", "lead");
 
       toast({
         title: "Informações atualizadas",
@@ -853,11 +1020,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   };
 
   const handleCancelEditInfo = () => {
-    setEditedPhone(currentLead.phone);
-    setEditedEmail(currentLead.email || "");
-    setEditedCompany(currentLead.company || "");
-    setEditedCpfCnpj(currentLead.cpf_cnpj || "");
-    setEditedNotes(currentLead.notes || "");
+    syncEditFieldsFromLead(currentLead);
+    setEditedProductId(linkedProductId);
     setIsEditingInfo(false);
   };
 
@@ -981,15 +1145,31 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                 <Badge variant="outline" className="text-xs sm:text-sm">{lead.status}</Badge>
               </div>
             </div>
-            {lead.value && (
+            {currentLead.value != null && currentLead.value > 0 && (
               <div className="text-right shrink-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Valor</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  {currentLead.budgetSummary?.kind === "approved"
+                    ? "Valor (orçamentos aprovados)"
+                    : "Valor estimado"}
+                </p>
                 <p className="text-lg sm:text-2xl font-bold text-primary">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
-                  }).format(lead.value)}
+                  }).format(currentLead.value)}
                 </p>
+                {currentLead.budgetSummary?.kind === "approved" &&
+                  currentLead.estimatedValueStored != null &&
+                  currentLead.estimatedValueStored > 0 &&
+                  currentLead.estimatedValueStored !== currentLead.value && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5 max-w-[200px] ml-auto">
+                      Estimativa manual:{" "}
+                      {new Intl.NumberFormat("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      }).format(currentLead.estimatedValueStored)}
+                    </p>
+                  )}
               </div>
             )}
           </div>
@@ -1102,6 +1282,94 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                       rows={3}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-value">Valor estimado (R$)</Label>
+                    <Input
+                      id="edit-value"
+                      type="text"
+                      inputMode="decimal"
+                      value={editedValueStr}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "" || /^[\d.,]+$/.test(v)) setEditedValueStr(v);
+                      }}
+                      placeholder="0,00"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Usado no funil quando não há soma de orçamentos aprovados. Com orçamentos aprovados, o card usa a soma deles.
+                    </p>
+                  </div>
+                  {configs && configs.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Instância de origem</Label>
+                      <Select
+                        value={editedSourceInstanceId || configs[0]?.id || ""}
+                        onValueChange={setEditedSourceInstanceId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Instância WhatsApp" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {configs.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.instance_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {pipelineStages.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Etapa do funil</Label>
+                      <Select value={editedStageId || pipelineStages[0]?.id || ""} onValueChange={setEditedStageId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Etapa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pipelineStages.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>Produto / serviço</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCreateProductDialogOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Novo
+                      </Button>
+                    </div>
+                    <Select
+                      value={editedProductId || "none"}
+                      onValueChange={(v) => setEditedProductId(v === "none" ? "" : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {activeProducts.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name} —{" "}
+                            {new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            }).format(p.price)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex gap-2 justify-end">
                     <Button size="sm" variant="outline" onClick={handleCancelEditInfo}>
                       Cancelar
@@ -1205,6 +1473,31 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                   <span className="text-muted-foreground">Criado em:</span>
                   <span className="font-medium">
                     {format(lead.createdAt, "dd/MM/yyyy", { locale: ptBR })}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Etapa do funil:</span>
+                  <span className="font-medium text-right">{stageNameForLead ?? "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Produto / serviço:</span>
+                  <span className="font-medium text-right">{linkedProductName ?? "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Instância de origem:</span>
+                  <span className="font-medium text-right">{sourceInstanceName ?? "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Estimativa manual (funil):</span>
+                  <span className="font-medium text-right">
+                    {currentLead.estimatedValueStored != null &&
+                    Number.isFinite(Number(currentLead.estimatedValueStored)) &&
+                    Number(currentLead.estimatedValueStored) > 0
+                      ? new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(Number(currentLead.estimatedValueStored))
+                      : "—"}
                   </span>
                 </div>
               </div>
@@ -1704,6 +1997,14 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         onTagCreated={async () => {
           // Refetch tags para garantir que a lista está atualizada
           await refetchTags();
+        }}
+      />
+
+      <CreateProductDialog
+        open={createProductDialogOpen}
+        onOpenChange={setCreateProductDialogOpen}
+        onProductCreated={async () => {
+          await refetchProducts();
         }}
       />
     </Dialog>

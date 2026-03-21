@@ -34,7 +34,10 @@ export interface Lead {
   phone: string;
   email?: string;
   company?: string;
+  /** Valor exibido no funil: soma dos orçamentos aprovados, se houver; senão estimativa manual (`estimatedValueStored`). */
   value?: number;
+  /** Valor salvo em `leads.value` (estimativa manual); pode diferir de `value` quando há orçamentos aprovados. */
+  estimatedValueStored?: number;
   status: LeadStatus;
   source: string;
   assignedTo: string;

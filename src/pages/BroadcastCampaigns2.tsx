@@ -470,6 +470,15 @@ export default function BroadcastCampaigns2() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<any[]>([]);
+  const [logsCampaignQueueTotals, setLogsCampaignQueueTotals] = useState<{
+    source_version: string;
+    inserted_count: number;
+    sent_count: number;
+    failed_count: number;
+    pending_count: number;
+    scheduled_count: number;
+    cancelled_count: number;
+  } | null>(null);
   const [instances, setInstances] = useState<any[]>([]);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
   const [reconnectingInstance, setReconnectingInstance] = useState<any | null>(null);
@@ -2093,18 +2102,42 @@ export default function BroadcastCampaigns2() {
 
   const handleViewLogs = async (campaignId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("broadcast_queue_2")
-        .select(`
+      setLogsCampaignQueueTotals(null);
+      const rpcClient = supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: { p_campaign_id: string },
+        ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+      };
+      const [queueRes, totalsRes] = await Promise.all([
+        supabase
+          .from("broadcast_queue_2")
+          .select(`
           *,
           instance:evolution_config!instance_id(id, instance_name)
         `)
-        .eq("campaign_id", campaignId)
-        .order("created_at", { ascending: false });
+          .eq("campaign_id", campaignId)
+          .order("created_at", { ascending: false }),
+        rpcClient.rpc("get_broadcast_campaign_queue_totals", { p_campaign_id: campaignId }),
+      ]);
 
-      if (error) throw error;
+      if (queueRes.error) throw queueRes.error;
 
-      setSelectedCampaignLogs(data || []);
+      setSelectedCampaignLogs(queueRes.data || []);
+
+      if (!totalsRes.error && totalsRes.data && Array.isArray(totalsRes.data) && totalsRes.data.length > 0) {
+        const t = totalsRes.data[0] as Record<string, unknown>;
+        setLogsCampaignQueueTotals({
+          source_version: String(t.source_version ?? ""),
+          inserted_count: Number(t.inserted_count ?? 0),
+          sent_count: Number(t.sent_count ?? 0),
+          failed_count: Number(t.failed_count ?? 0),
+          pending_count: Number(t.pending_count ?? 0),
+          scheduled_count: Number(t.scheduled_count ?? 0),
+          cancelled_count: Number(t.cancelled_count ?? 0),
+        });
+      }
+
       setLogsDialogOpen(true);
     } catch (error: any) {
       toast({
@@ -3638,7 +3671,13 @@ export default function BroadcastCampaigns2() {
             </TabsContent>
           </Tabs>
 
-      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+      <Dialog
+        open={logsDialogOpen}
+        onOpenChange={(open) => {
+          setLogsDialogOpen(open);
+          if (!open) setLogsCampaignQueueTotals(null);
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Logs de Disparo</DialogTitle>
@@ -3646,6 +3685,34 @@ export default function BroadcastCampaigns2() {
               Histórico detalhado de todos os disparos desta campanha
             </DialogDescription>
           </DialogHeader>
+          {logsCampaignQueueTotals && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+              <div>
+                <div className="text-muted-foreground text-xs">Total na fila</div>
+                <div className="font-semibold">{logsCampaignQueueTotals.inserted_count.toLocaleString("pt-BR")}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Enviados / Falhas</div>
+                <div className="font-semibold">
+                  {logsCampaignQueueTotals.sent_count.toLocaleString("pt-BR")} /{" "}
+                  {logsCampaignQueueTotals.failed_count.toLocaleString("pt-BR")}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Pend. / Agend.</div>
+                <div className="font-semibold">
+                  {logsCampaignQueueTotals.pending_count.toLocaleString("pt-BR")} /{" "}
+                  {logsCampaignQueueTotals.scheduled_count.toLocaleString("pt-BR")}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Cancel. · Motor</div>
+                <div className="font-semibold">
+                  {logsCampaignQueueTotals.cancelled_count.toLocaleString("pt-BR")} · {logsCampaignQueueTotals.source_version}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="mb-4 space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="relative">

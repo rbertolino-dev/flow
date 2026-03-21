@@ -114,6 +114,19 @@ function rowToPreview(row: BudgetRowForLeadCard, now: Date): LeadBudgetPreview {
 }
 
 /** Últimos 3 orçamentos por lead (mais recentes por created_at) + total para "ver outros". */
+/** Soma dos totais de orçamentos aprovados por lead (vários aprovados somam). */
+export function sumApprovedBudgetTotalsByLeadId(
+  rows: Array<Pick<BudgetRowForLeadCard, "lead_id" | "approved" | "total">>
+): Record<string, number> {
+  const sums: Record<string, number> = {};
+  for (const r of rows) {
+    if (!r.lead_id || r.approved !== true) continue;
+    const t = Number(r.total) || 0;
+    sums[r.lead_id] = (sums[r.lead_id] || 0) + t;
+  }
+  return sums;
+}
+
 export function buildBudgetPreviewsByLeadId(
   rows: BudgetRowForLeadCard[],
   now: Date = new Date()

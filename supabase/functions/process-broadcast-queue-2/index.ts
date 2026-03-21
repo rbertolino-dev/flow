@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { classifyBroadcastError } from "../_shared/broadcast-error-classify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -379,13 +380,18 @@ serve(async (req) => {
             }
           }
         }
-        
+
+        const classified = classifyBroadcastError(error?.message);
+
         // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
         const { count: updateCount } = await supabase
           .from("broadcast_queue_2")
           .update({
             status: "failed",
             error_message: error.message,
+            failure_code: classified.code,
+            failure_detail: classified.detail || null,
+            failed_at: new Date().toISOString(),
           })
           .eq("id", item.id)
           .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'

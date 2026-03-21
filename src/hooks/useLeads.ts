@@ -7,6 +7,7 @@ import { forceRefreshAfterMutation, broadcastRefreshEvent } from "@/utils/forceR
 import {
   buildBudgetSummaryByLeadId,
   buildBudgetPreviewsByLeadId,
+  sumApprovedBudgetTotalsByLeadId,
   type BudgetRowForLeadCard,
 } from "@/lib/leadBudgetSummary";
 
@@ -257,6 +258,7 @@ export function useLeads() {
       );
 
       const budgetPreviewsByLead = buildBudgetPreviewsByLeadId(budgetRowsNormalized);
+      const approvedTotalsByLeadId = sumApprovedBudgetTotalsByLeadId(budgetRowsNormalized);
 
       // ✅ DEBUG: Log tags encontradas
       const totalTags = Object.keys(tagsByLead).length;
@@ -297,14 +299,23 @@ export function useLeads() {
             : lead.assigned_to?.trim()
               ? lead.assigned_to
               : "Não atribuído";
-        
+
+        const storedEstimate =
+          lead.value != null && lead.value !== ""
+            ? Number(lead.value)
+            : undefined;
+        const approvedSum = approvedTotalsByLeadId[lead.id] || 0;
+        const funnelValue =
+          approvedSum > 0 ? approvedSum : storedEstimate;
+
         return {
           id: lead.id,
           name: lead.name,
           phone: lead.phone,
           email: lead.email || undefined,
           company: lead.company || undefined,
-          value: lead.value || undefined,
+          value: funnelValue,
+          estimatedValueStored: storedEstimate,
           status: mappedStatus,
           source: lead.source || 'WhatsApp',
           assignees,
