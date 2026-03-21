@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, AlertTriangle, History } from "lucide-react";
+import { Upload, Send, Pause, Play, Trash2, Plus, FileText, CheckCircle2, XCircle, Clock, Loader2, Search, CalendarIcon, BarChart3, X, Copy, Download, Users, Shield, List, Edit, Image as ImageIcon, Video, Wifi, WifiOff, AlertTriangle, History } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
@@ -95,6 +95,17 @@ interface Template {
   min_delay_seconds: number;
   max_delay_seconds: number;
 }
+
+type Broadcast2CreateCampaignContact = {
+  phone: string;
+  name?: string;
+  empresa?: string;
+  nome_empresa?: string;
+  email?: string;
+  cpf?: string;
+  cnpj?: string;
+  custom_fields?: Record<string, string>;
+};
 
 interface WhatsAppStatusTabProps {
   instances: Array<{ id: string; instance_name: string; is_connected: boolean }>;
@@ -571,6 +582,22 @@ export default function BroadcastCampaigns2() {
     missingCount: number;
     contacts: Array<{ phone: string; name?: string; empresa?: string; nome_empresa?: string; email?: string; cpf?: string; cnpj?: string; custom_fields?: Record<string, string> }>;
   } | null>(null);
+
+  type DisconnectedInstanceInfo = { id: string; name: string };
+  const [disconnectedInstanceDialog, setDisconnectedInstanceDialog] = useState<
+    | null
+    | {
+        mode: "create";
+        disconnected: DisconnectedInstanceInfo[];
+        contacts: Broadcast2CreateCampaignContact[];
+      }
+    | {
+        mode: "start";
+        disconnected: DisconnectedInstanceInfo[];
+        campaignId: string;
+        scheduleForNextWindow: boolean;
+      }
+  >(null);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "kanban") navigate('/');
@@ -1230,18 +1257,13 @@ export default function BroadcastCampaigns2() {
     }
   };
 
-  type CreateCampaignContact = {
-    phone: string;
-    name?: string;
-    empresa?: string;
-    nome_empresa?: string;
-    email?: string;
-    cpf?: string;
-    cnpj?: string;
-    custom_fields?: Record<string, string>;
-  };
+  type CreateCampaignContact = Broadcast2CreateCampaignContact;
 
-  const doInsertCampaign = async (contacts: CreateCampaignContact[]) => {
+  const doInsertCampaign = async (
+    contacts: CreateCampaignContact[],
+    formOverride?: Partial<typeof newCampaign>
+  ) => {
+    const nc = { ...newCampaign, ...formOverride };
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Usuário não autenticado");
     if (!activeOrgId) throw new Error("Organização não identificada");
@@ -1251,30 +1273,30 @@ export default function BroadcastCampaigns2() {
       .insert({
         user_id: user.id,
         organization_id: activeOrgId,
-        name: newCampaign.name,
-        instance_id: newCampaign.sendingMethod === "single" ? newCampaign.instanceId : null,
-        message_template_id: newCampaign.templateId || null,
-        custom_message: newCampaign.customMessage || null,
-        min_delay_seconds: newCampaign.minDelay,
-        max_delay_seconds: newCampaign.maxDelay,
+        name: nc.name,
+        instance_id: nc.sendingMethod === "single" ? nc.instanceId : null,
+        message_template_id: nc.templateId || null,
+        custom_message: nc.customMessage || null,
+        min_delay_seconds: nc.minDelay,
+        max_delay_seconds: nc.maxDelay,
         total_contacts: contacts.length,
         status: "draft",
-        sending_method: newCampaign.sendingMethod,
-        instance_ids: newCampaign.instanceIds?.length ? newCampaign.instanceIds : null,
+        sending_method: nc.sendingMethod,
+        instance_ids: nc.instanceIds?.length ? nc.instanceIds : null,
       })
       .select()
       .single();
 
     if (campaignError) throw campaignError;
 
-    const messagesToUse = newCampaign.messageVariations.length > 0
-      ? newCampaign.messageVariations
-      : [newCampaign.customMessage];
+    const messagesToUse = nc.messageVariations.length > 0
+      ? nc.messageVariations
+      : [nc.customMessage];
 
     let queueItems: any[] = [];
 
-    if (newCampaign.sendingMethod === "separate") {
-      newCampaign.instanceIds.forEach((instanceId: string) => {
+    if (nc.sendingMethod === "separate") {
+      nc.instanceIds.forEach((instanceId: string) => {
         contacts.forEach((contact, index) => {
           const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
           const personalizedMessage = messagesToUse[messageIndex];
@@ -1296,9 +1318,9 @@ export default function BroadcastCampaigns2() {
         });
       });
     } else {
-      const instancesForRotation = newCampaign.sendingMethod === "single"
-        ? [newCampaign.instanceId]
-        : newCampaign.instanceIds;
+      const instancesForRotation = nc.sendingMethod === "single"
+        ? [nc.instanceId]
+        : nc.instanceIds;
       queueItems = contacts.map((contact, index) => {
         const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
         const personalizedMessage = messagesToUse[messageIndex];
@@ -1327,9 +1349,9 @@ export default function BroadcastCampaigns2() {
       .insert(queueItems);
     if (queueError) throw queueError;
 
-    const instanceCount = newCampaign.sendingMethod === "single" ? 1 : newCampaign.instanceIds.length;
+    const instanceCount = nc.sendingMethod === "single" ? 1 : nc.instanceIds.length;
     const instanceLabel = instanceCount === 1 ? "1 instância" : `${instanceCount} instâncias`;
-    const totalMessages = newCampaign.sendingMethod === "separate"
+    const totalMessages = nc.sendingMethod === "separate"
       ? contacts.length * instanceCount
       : contacts.length;
 
@@ -1340,6 +1362,97 @@ export default function BroadcastCampaigns2() {
 
     setCreateDialogOpen(false);
     fetchCampaigns();
+  };
+
+  const getDisconnectedSelectedInstances = useCallback((): DisconnectedInstanceInfo[] => {
+    const ids =
+      newCampaign.sendingMethod === "single"
+        ? newCampaign.instanceId
+          ? [newCampaign.instanceId]
+          : []
+        : newCampaign.instanceIds;
+    const out: DisconnectedInstanceInfo[] = [];
+    for (const id of ids) {
+      const inst = instances.find((i) => i.id === id);
+      if (inst && inst.is_connected !== true) {
+        out.push({ id: inst.id, name: String(inst.instance_name ?? "Instância") });
+      }
+    }
+    return out;
+  }, [newCampaign.sendingMethod, newCampaign.instanceId, newCampaign.instanceIds, instances]);
+
+  const tryCreateCampaign = async (contacts: CreateCampaignContact[]) => {
+    const disc = getDisconnectedSelectedInstances();
+    if (disc.length > 0) {
+      setDisconnectedInstanceDialog({
+        mode: "create",
+        disconnected: disc,
+        contacts,
+      });
+      setLoading(false);
+      return;
+    }
+    await doInsertCampaign(contacts);
+  };
+
+  const removeDisconnectedInstancesFromDraftCampaign = async (
+    campaignId: string,
+    disconnectedIds: string[]
+  ): Promise<{ ok: true; pendingCount: number } | { ok: false; message: string }> => {
+    const { error: delErr } = await supabase
+      .from("broadcast_queue_2")
+      .delete()
+      .eq("campaign_id", campaignId)
+      .eq("status", "pending")
+      .in("instance_id", disconnectedIds);
+    if (delErr) return { ok: false, message: delErr.message };
+
+    const { data: pendingRows, error: pendingErr } = await supabase
+      .from("broadcast_queue_2")
+      .select("instance_id")
+      .eq("campaign_id", campaignId)
+      .eq("status", "pending");
+    if (pendingErr) return { ok: false, message: pendingErr.message };
+
+    const unique = [
+      ...new Set((pendingRows || []).map((r: { instance_id: string }) => r.instance_id).filter(Boolean)),
+    ] as string[];
+
+    if (unique.length === 0) {
+      await supabase
+        .from("broadcast_campaigns_2")
+        .update({
+          total_contacts: 0,
+          instance_ids: null,
+          instance_id: null,
+        })
+        .eq("id", campaignId);
+      return { ok: false, message: "empty" };
+    }
+
+    const { data: camp, error: campErr } = await supabase
+      .from("broadcast_campaigns_2")
+      .select("sending_method")
+      .eq("id", campaignId)
+      .single();
+    if (campErr) return { ok: false, message: campErr.message };
+
+    const pendingCount = pendingRows?.length ?? 0;
+    const updates: Record<string, unknown> = {
+      total_contacts: pendingCount,
+    };
+    if (camp?.sending_method === "single") {
+      updates.instance_id = unique[0];
+      updates.instance_ids = null;
+    } else {
+      updates.instance_ids = unique;
+      updates.instance_id = unique[0] ?? null;
+    }
+
+    const { error: upErr } = await supabase.from("broadcast_campaigns_2").update(updates).eq("id", campaignId);
+    if (upErr) return { ok: false, message: upErr.message };
+
+    return { ok: true, pendingCount };
   };
 
   const handleCreateCampaign = async () => {
@@ -1560,7 +1673,7 @@ export default function BroadcastCampaigns2() {
         return;
       }
 
-      await doInsertCampaign(contacts);
+      await tryCreateCampaign(contacts);
     } catch (error: any) {
       toast({
         title: "Erro ao criar campanha",
@@ -1572,16 +1685,52 @@ export default function BroadcastCampaigns2() {
     }
   };
 
-  const proceedWithCampaignStart = async (campaignId: string, scheduleForNextWindow: boolean) => {
+  const proceedWithCampaignStart = async (
+    campaignId: string,
+    scheduleForNextWindow: boolean,
+    skipInstanceConnectionCheck = false
+  ) => {
     try {
-      // Buscar configurações da campanha primeiro (inclui sending_method para ordenação correta)
       const { data: campaign, error: campaignError } = await supabase
         .from("broadcast_campaigns_2")
-        .select("min_delay_seconds, max_delay_seconds, sending_method")
+        .select("min_delay_seconds, max_delay_seconds, sending_method, instance_id, instance_ids")
         .eq("id", campaignId)
         .single();
 
       if (campaignError) throw campaignError;
+
+      if (!skipInstanceConnectionCheck) {
+        const idSet = new Set<string>();
+        if (campaign.instance_id) idSet.add(campaign.instance_id as string);
+        const idsCol = campaign.instance_ids as string[] | null;
+        if (Array.isArray(idsCol)) idsCol.forEach((id) => idSet.add(id));
+        if (idSet.size === 0) {
+          const { data: qrows } = await supabase
+            .from("broadcast_queue_2")
+            .select("instance_id")
+            .eq("campaign_id", campaignId)
+            .eq("status", "pending");
+          (qrows || []).forEach((r: { instance_id: string }) => {
+            if (r.instance_id) idSet.add(r.instance_id);
+          });
+        }
+        const disconnected: DisconnectedInstanceInfo[] = [];
+        for (const id of idSet) {
+          const inst = instances.find((i) => i.id === id);
+          if (inst && inst.is_connected !== true) {
+            disconnected.push({ id: inst.id, name: String(inst.instance_name ?? "Instância") });
+          }
+        }
+        if (disconnected.length > 0) {
+          setDisconnectedInstanceDialog({
+            mode: "start",
+            disconnected,
+            campaignId,
+            scheduleForNextWindow,
+          });
+          return;
+        }
+      }
 
       // Buscar itens pendentes na ordem correta:
       // - rotate: por created_at (ordem de inserção = round-robin inst1, inst2, inst1, inst2...)
@@ -2776,6 +2925,7 @@ export default function BroadcastCampaigns2() {
                         {instancesSortedAlphabetically.map((instance) => (
                           <SelectItem key={instance.id} value={instance.id}>
                             {instance.instance_name}
+                            {instance.is_connected !== true ? " — desconectada" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -2850,6 +3000,14 @@ export default function BroadcastCampaigns2() {
                               className="h-4 w-4 shrink-0"
                             />
                             <span className="text-sm truncate min-w-0">{instance.instance_name}</span>
+                            {instance.is_connected !== true && (
+                              <span className="flex items-center gap-1 shrink-0 text-amber-700 dark:text-amber-400" title="Não conectada à Evolution API">
+                                <WifiOff className="h-3.5 w-3.5" />
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-600/50 text-amber-800 dark:text-amber-300">
+                                  Desconectada
+                                </Badge>
+                              </span>
+                            )}
                           </label>
                         ))}
                       </div>
@@ -4028,7 +4186,7 @@ export default function BroadcastCampaigns2() {
                   setPersonalizationWarningDialog(null);
                   try {
                     setLoading(true);
-                    await doInsertCampaign(contactsToUse);
+                    await tryCreateCampaign(contactsToUse);
                   } catch (err: any) {
                     toast({
                       title: "Erro ao criar campanha",
@@ -4041,6 +4199,157 @@ export default function BroadcastCampaigns2() {
                 }}
               >
                 Prosseguir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Aviso: instâncias selecionadas desconectadas da Evolution API */}
+        <AlertDialog
+          open={!!disconnectedInstanceDialog}
+          onOpenChange={(open) => {
+            if (!open) setDisconnectedInstanceDialog(null);
+          }}
+        >
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <WifiOff className="h-5 w-5 text-amber-600" />
+                Instância(s) desconectada(s)
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <p>
+                    {disconnectedInstanceDialog?.mode === "create"
+                      ? "Ao criar a campanha, estas instâncias não estão conectadas à Evolution API (WhatsApp). O envio pode falhar até reconectarem."
+                      : "Ao iniciar a campanha, estas instâncias não estão conectadas à Evolution API. O envio pode falhar até reconectarem."}
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 font-medium text-foreground">
+                    {disconnectedInstanceDialog?.disconnected.map((d) => (
+                      <li key={d.id}>{d.name}</li>
+                    ))}
+                  </ul>
+                  <p>Deseja continuar assim mesmo ou remover as desconectadas?</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:justify-end">
+              <AlertDialogCancel
+                onClick={() => setDisconnectedInstanceDialog(null)}
+                className="sm:mt-0"
+              >
+                Cancelar
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={async () => {
+                  const d = disconnectedInstanceDialog;
+                  if (!d) return;
+                  if (d.mode === "create") {
+                    const discIds = new Set(d.disconnected.map((x) => x.id));
+                    const effective = {
+                      ...newCampaign,
+                      selectedGroupId: "",
+                      instanceIds: newCampaign.instanceIds.filter((id) => !discIds.has(id)),
+                      instanceId: discIds.has(newCampaign.instanceId) ? "" : newCampaign.instanceId,
+                    };
+                    if (effective.sendingMethod === "single" && !effective.instanceId) {
+                      setNewCampaign(effective);
+                      setDisconnectedInstanceDialog(null);
+                      toast({
+                        title: "Nenhuma instância conectada selecionada",
+                        description: "Remova a desconectada e escolha uma instância conectada antes de criar.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    if (effective.sendingMethod !== "single" && effective.instanceIds.length === 0) {
+                      setNewCampaign(effective);
+                      setDisconnectedInstanceDialog(null);
+                      toast({
+                        title: "Selecione ao menos uma instância conectada",
+                        description: "Todas as selecionadas estavam desconectadas e foram removidas.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    setNewCampaign(effective);
+                    setDisconnectedInstanceDialog(null);
+                    try {
+                      setLoading(true);
+                      await doInsertCampaign(d.contacts, effective);
+                    } catch (err: any) {
+                      toast({
+                        title: "Erro ao criar campanha",
+                        description: err.message,
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setLoading(false);
+                    }
+                    return;
+                  }
+                  const result = await removeDisconnectedInstancesFromDraftCampaign(
+                    d.campaignId,
+                    d.disconnected.map((x) => x.id)
+                  );
+                  setDisconnectedInstanceDialog(null);
+                  if (!result.ok) {
+                    if (result.message === "empty") {
+                      toast({
+                        title: "Campanha sem mensagens pendentes",
+                        description:
+                          "Todas as mensagens pendentes eram das instâncias desconectadas. Ajuste a campanha ou reconecte as instâncias.",
+                        variant: "destructive",
+                      });
+                    } else {
+                      toast({
+                        title: "Não foi possível atualizar a campanha",
+                        description: result.message,
+                        variant: "destructive",
+                      });
+                    }
+                    await fetchCampaigns();
+                    return;
+                  }
+                  toast({
+                    title: "Instâncias desconectadas removidas",
+                    description: `${result.pendingCount} mensagem(ns) pendente(s) restante(s). Iniciando campanha…`,
+                  });
+                  await fetchCampaigns();
+                  await proceedWithCampaignStart(d.campaignId, d.scheduleForNextWindow, true);
+                }}
+              >
+                Não, remover desconectadas
+              </Button>
+              <AlertDialogAction
+                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const d = disconnectedInstanceDialog;
+                  if (!d) return;
+                  setDisconnectedInstanceDialog(null);
+                  if (d.mode === "create") {
+                    try {
+                      setLoading(true);
+                      await doInsertCampaign(d.contacts);
+                    } catch (err: any) {
+                      toast({
+                        title: "Erro ao criar campanha",
+                        description: err.message,
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setLoading(false);
+                    }
+                  } else {
+                    await proceedWithCampaignStart(d.campaignId, d.scheduleForNextWindow, true);
+                  }
+                }}
+              >
+                Sim, continuar assim
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
