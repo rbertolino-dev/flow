@@ -16,6 +16,7 @@ import { InstanceDetailDialog } from "./InstanceDetailDialog";
 import { SegmentManagerDialog } from "./SegmentManagerDialog";
 import { EditDispatchLimitsDialog } from "./EditDispatchLimitsDialog";
 import { AddReserveAgentDialog } from "./AddReserveAgentDialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Instance {
   id: string;
@@ -338,6 +339,22 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [successfulDispatches, setSuccessfulDispatches] = useState(0);
   const [failedDispatches, setFailedDispatches] = useState(0);
   const [loadingDateDispatches, setLoadingDateDispatches] = useState(false);
+  const [queueInsertedPeriod, setQueueInsertedPeriod] = useState(0);
+  const [pendingSnapshot, setPendingSnapshot] = useState(0);
+  const [scheduledSnapshot, setScheduledSnapshot] = useState(0);
+  const [cancelledSnapshot, setCancelledSnapshot] = useState(0);
+  const [failedByCodeEntries, setFailedByCodeEntries] = useState<Array<{ code: string; count: number }>>([]);
+  const [campaignBreakdown, setCampaignBreakdown] = useState<
+    Array<{
+      campaign_id: string;
+      source_version: string;
+      campaign_name: string;
+      sent_in_period: number;
+      failed_in_period: number;
+      inserted_in_period: number;
+    }>
+  >([]);
+  const [campaignDetailOpen, setCampaignDetailOpen] = useState(false);
 
   /** Refs para realtime atualizar indicadores por período com filtros atuais */
   const dateFilterRef = useRef({ selectedDate, dateFilterType });
@@ -394,7 +411,9 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       }
 
       const todayRow = Array.isArray(todayStatsRes.data) ? todayStatsRes.data[0] : todayStatsRes.data;
-      const total = Number(todayRow?.sent_total ?? 0);
+      const sentToday = Number(todayRow?.sent_total ?? 0);
+      const failedToday = Number(todayRow?.failed_total ?? 0);
+      const total = sentToday + failedToday;
 
       const counts: Record<string, number> = {};
       const instRows = (byInstanceRes.data || []) as Array<{ instance_id: string; sent_count: number | string }>;
@@ -409,7 +428,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
       if (!yesterdayStatsRes.error) {
         const yRow = Array.isArray(yesterdayStatsRes.data) ? yesterdayStatsRes.data[0] : yesterdayStatsRes.data;
-        const yesterdayTotal = Number(yRow?.sent_total ?? 0);
+        const yesterdayTotal =
+          Number(yRow?.sent_total ?? 0) + Number(yRow?.failed_total ?? 0);
         if (yesterdayTotal > 0) {
           setDispatchesTrend(((total - yesterdayTotal) / yesterdayTotal) * 100);
         } else {
@@ -432,6 +452,12 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       setTotalDispatchesByDate(0);
       setSuccessfulDispatches(0);
       setFailedDispatches(0);
+      setQueueInsertedPeriod(0);
+      setPendingSnapshot(0);
+      setScheduledSnapshot(0);
+      setCancelledSnapshot(0);
+      setFailedByCodeEntries([]);
+      setCampaignBreakdown([]);
       return;
     }
 
@@ -481,25 +507,83 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         rpc: (name: string, params: Record<string, string>) => Promise<{ data: unknown; error: { message?: string } | null }>;
       };
 
-      const { data: statsData, error: statsError } = await client.rpc("get_broadcast_dispatch_stats", {
-        p_organization_id: orgId,
-        p_start: startDate.toISOString(),
-        p_end: endDate.toISOString(),
-      });
+      const pStart = startDate.toISOString();
+      const pEnd = endDate.toISOString();
 
-      if (statsError) {
-        console.error("Erro ao buscar disparos por data (RPC):", statsError);
-        throw statsError;
+      const [extRes, byCampRes] = await Promise.all([
+        client.rpc("get_broadcast_dispatch_extended_stats", {
+          p_organization_id: orgId,
+          p_start: pStart,
+          p_end: pEnd,
+        }),
+        client.rpc("get_broadcast_dispatch_by_campaign_period", {
+          p_organization_id: orgId,
+          p_start: pStart,
+          p_end: pEnd,
+        }),
+      ]);
+
+      if (extRes.error) {
+        console.error("Erro ao buscar métricas estendidas de disparo:", extRes.error);
+        throw extRes.error;
       }
 
-      const row = Array.isArray(statsData) ? statsData[0] : statsData;
-      const successful = Number((row as { sent_total?: number | string })?.sent_total ?? 0);
-      const failed = Number((row as { failed_total?: number | string })?.failed_total ?? 0);
+      const row = Array.isArray(extRes.data) ? extRes.data[0] : extRes.data;
+      const r = row as {
+        sent_total?: number | string;
+        failed_total?: number | string;
+        queued_inserted_total?: number | string;
+        pending_total?: number | string;
+        scheduled_total?: number | string;
+        cancelled_total?: number | string;
+        failed_by_code?: Record<string, number | string> | null;
+      };
+      const successful = Number(r?.sent_total ?? 0);
+      const failed = Number(r?.failed_total ?? 0);
       const total = successful + failed;
 
       setTotalDispatchesByDate(total);
       setSuccessfulDispatches(successful);
       setFailedDispatches(failed);
+      setQueueInsertedPeriod(Number(r?.queued_inserted_total ?? 0));
+      setPendingSnapshot(Number(r?.pending_total ?? 0));
+      setScheduledSnapshot(Number(r?.scheduled_total ?? 0));
+      setCancelledSnapshot(Number(r?.cancelled_total ?? 0));
+
+      const fbc = r?.failed_by_code;
+      if (fbc && typeof fbc === "object") {
+        const entries = Object.entries(fbc)
+          .map(([code, v]) => ({ code, count: Number(v) || 0 }))
+          .filter((e) => e.count > 0)
+          .sort((a, b) => b.count - a.count);
+        setFailedByCodeEntries(entries);
+      } else {
+        setFailedByCodeEntries([]);
+      }
+
+      if (byCampRes.error) {
+        console.error("Erro ao buscar disparos por campanha:", byCampRes.error);
+        setCampaignBreakdown([]);
+      } else {
+        const rows = (byCampRes.data || []) as Array<{
+          campaign_id: string;
+          source_version: string;
+          campaign_name: string;
+          sent_in_period: number | string;
+          failed_in_period: number | string;
+          inserted_in_period: number | string;
+        }>;
+        setCampaignBreakdown(
+          rows.map((x) => ({
+            campaign_id: x.campaign_id,
+            source_version: x.source_version,
+            campaign_name: x.campaign_name,
+            sent_in_period: Number(x.sent_in_period ?? 0),
+            failed_in_period: Number(x.failed_in_period ?? 0),
+            inserted_in_period: Number(x.inserted_in_period ?? 0),
+          }))
+        );
+      }
     } catch (error: any) {
       console.error("Erro ao buscar disparos por data:", error);
     } finally {
@@ -747,6 +831,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               DISPAROS HOJE
             </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Sucesso + falha (data do evento hoje)</p>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex items-end justify-between">
@@ -890,6 +975,135 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           </CardContent>
         </Card>
       </div>
+
+      <p className="text-xs text-muted-foreground -mt-2 mb-2">
+        Total no período = enviados com sucesso + falhas cuja data do evento cai no intervalo (usa{" "}
+        <code className="text-[10px]">failed_at</code> quando existir).
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Novos na fila
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Linhas criadas no período (v1+v2)</p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-semibold">
+              {loadingDateDispatches ? "…" : queueInsertedPeriod.toLocaleString("pt-BR")}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Pendentes
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Estado atual até o fim do período</p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-semibold">
+              {loadingDateDispatches ? "…" : pendingSnapshot.toLocaleString("pt-BR")}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Agendados
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Estado atual até o fim do período</p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-semibold">
+              {loadingDateDispatches ? "…" : scheduledSnapshot.toLocaleString("pt-BR")}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Cancelados
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Snapshot até o fim do período</p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-semibold">
+              {loadingDateDispatches ? "…" : cancelledSnapshot.toLocaleString("pt-BR")}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {failedByCodeEntries.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Falhas por código (período)</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 flex flex-wrap gap-2">
+            {failedByCodeEntries.slice(0, 12).map(({ code, count }) => (
+              <Badge key={code} variant="secondary" className="text-xs font-normal">
+                {code}: {count.toLocaleString("pt-BR")}
+              </Badge>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {campaignBreakdown.length > 0 && (
+        <Collapsible open={campaignDetailOpen} onOpenChange={setCampaignDetailOpen}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="pb-2 cursor-pointer select-none hover:bg-muted/40 rounded-t-lg">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">Por campanha (período)</CardTitle>
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${campaignDetailOpen ? "rotate-180" : ""}`}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground font-normal">
+                  Enviados e falhas com evento no intervalo; &quot;Novos na fila&quot; = criados no intervalo.
+                </p>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0 max-h-72 overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Campanha</TableHead>
+                      <TableHead className="w-20">Versão</TableHead>
+                      <TableHead className="text-right">Enviados</TableHead>
+                      <TableHead className="text-right">Falhas</TableHead>
+                      <TableHead className="text-right">Novos na fila</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {campaignBreakdown.map((c) => (
+                      <TableRow key={`${c.source_version}-${c.campaign_id}`}>
+                        <TableCell className="font-medium max-w-[200px] truncate" title={c.campaign_name}>
+                          {c.campaign_name}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{c.source_version}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {c.sent_in_period.toLocaleString("pt-BR")}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-red-600">
+                          {c.failed_in_period.toLocaleString("pt-BR")}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {c.inserted_in_period.toLocaleString("pt-BR")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
 
       {/* Painel de Instâncias */}
       <Card className="mb-6">
