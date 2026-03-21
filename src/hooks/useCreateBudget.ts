@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BudgetFormData, Budget } from "@/types/budget-module";
 import { useToast } from "@/hooks/use-toast";
+import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
 
@@ -241,6 +242,7 @@ export function useCreateBudget() {
     },
     onSuccess: (budget) => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      broadcastRefreshEvent('create', 'budget');
       // Exibir toast de sucesso apenas se PDF foi gerado
       if (budget.pdf_url) {
         toast({

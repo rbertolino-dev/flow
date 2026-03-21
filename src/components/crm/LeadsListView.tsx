@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Lead, CallQueueItem } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
+import { LeadBudgetBadge } from "./LeadBudgetBadge";
 import { MessageSquare, Phone, Calendar, ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -334,6 +335,7 @@ export function LeadsListView({
                             <TableCell>
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
+                                  <LeadBudgetBadge summary={lead.budgetSummary} compact />
                                   <span className="font-medium">{lead.name}</span>
                                   {lead.has_unread_messages && (
                                     <Badge variant="destructive" className="text-xs px-1.5 py-0">

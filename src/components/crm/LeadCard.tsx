@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
+import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
+import { LeadBudgetBadge } from "./LeadBudgetBadge";
 
 interface LeadCardProps {
   lead: Lead;
@@ -209,11 +211,14 @@ export const LeadCard = memo(function LeadCard({
               </div>
             </div>
 
-            {isInCallQueue && (
-              <Badge variant="default" className="text-[10px] px-1.5 py-0.5 shrink-0 bg-blue-600">
-                <PhoneCall className="h-2.5 w-2.5" />
-              </Badge>
-            )}
+            <div className="flex items-center gap-1 shrink-0">
+              <LeadBudgetBadge summary={lead.budgetSummary} compact />
+              {isInCallQueue && (
+                <Badge variant="default" className="text-[10px] px-1.5 py-0.5 shrink-0 bg-blue-600">
+                  <PhoneCall className="h-2.5 w-2.5" />
+                </Badge>
+              )}
+            </div>
           </div>
 
           {lead.phone && (
@@ -325,6 +330,13 @@ export const LeadCard = memo(function LeadCard({
             >
               <ArrowRightCircle className="h-3 w-3" />
             </Button>
+
+            <LeadAssigneesPopover
+              leadId={lead.id}
+              assignees={lead.assignees ?? []}
+              onRefetch={onRefetch}
+              compact
+            />
             
             {onDelete && (
               <Button
@@ -428,11 +440,14 @@ export const LeadCard = memo(function LeadCard({
                 </>
               )}
             </div>
-            {isInCallQueue && (
-              <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600">
-                <PhoneCall className="h-3.5 w-3.5" />
-              </Badge>
-            )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <LeadBudgetBadge summary={lead.budgetSummary} />
+              {isInCallQueue && (
+                <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600">
+                  <PhoneCall className="h-3.5 w-3.5" />
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
@@ -544,6 +559,12 @@ export const LeadCard = memo(function LeadCard({
             <ArrowRightCircle className="h-4 w-4 mr-2" />
             Transferir
           </Button>
+
+          <LeadAssigneesPopover
+            leadId={lead.id}
+            assignees={lead.assignees ?? []}
+            onRefetch={onRefetch}
+          />
           
           {onDelete && (
             <Button
@@ -581,9 +602,11 @@ export const LeadCard = memo(function LeadCard({
     prevProps.lead.stageId === nextProps.lead.stageId &&
     prevProps.lead.status === nextProps.lead.status &&
     prevProps.lead.value === nextProps.lead.value &&
+    prevProps.lead.assignedTo === nextProps.lead.assignedTo &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.compact === nextProps.compact &&
     prevProps.instanceName === nextProps.instanceName &&
-    JSON.stringify(prevProps.lead.tags) === JSON.stringify(nextProps.lead.tags)
+    JSON.stringify(prevProps.lead.tags) === JSON.stringify(nextProps.lead.tags) &&
+    JSON.stringify(prevProps.lead.assignees) === JSON.stringify(nextProps.lead.assignees)
   );
 });

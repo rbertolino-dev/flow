@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useActiveOrganization } from './useActiveOrganization';
 import { Budget, BudgetFormData, BudgetProduct, BudgetService } from '@/types/budget';
 import { useToast } from './use-toast';
+import { broadcastRefreshEvent } from '@/utils/forceRefreshAfterMutation';
 // Usar módulo antigo que estava funcionando
 import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
@@ -370,6 +371,8 @@ export function useBudgets(filters?: BudgetFilters) {
         description: 'Orçamento criado e PDF gerado com sucesso',
       });
 
+      broadcastRefreshEvent('create', 'budget');
+
       return { ...data, pdf_url: pdfUrl } as Budget;
     } catch (error: any) {
       console.error('Erro ao criar orçamento:', error);
@@ -485,6 +488,7 @@ export function useBudgets(filters?: BudgetFilters) {
       if (error) throw error;
 
       await fetchBudgets();
+      broadcastRefreshEvent('delete', 'budget');
       toast({
         title: 'Orçamento excluído',
         description: 'Orçamento excluído com sucesso',
@@ -507,7 +511,7 @@ export function useBudgets(filters?: BudgetFilters) {
       // @ts-ignore - Tabela budgets existe
       const { error } = await supabase
         .from('budgets')
-        .update({ approved: true })
+        .update({ approved: true, rejected: false })
         .eq('id', budgetId)
         .eq('organization_id', activeOrgId);
 
@@ -515,8 +519,10 @@ export function useBudgets(filters?: BudgetFilters) {
 
       // Atualizar na lista local
       setBudgets((prev) =>
-        prev.map((b) => (b.id === budgetId ? { ...b, approved: true } : b))
+        prev.map((b) => (b.id === budgetId ? { ...b, approved: true, rejected: false } : b))
       );
+
+      broadcastRefreshEvent('update', 'budget');
 
       toast({
         title: 'Orçamento aprovado',
@@ -527,6 +533,40 @@ export function useBudgets(filters?: BudgetFilters) {
       toast({
         title: 'Erro',
         description: error.message || 'Erro ao aprovar orçamento',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const rejectBudget = async (budgetId: string) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+
+    try {
+      // @ts-ignore - Tabela budgets existe
+      const { error } = await supabase
+        .from('budgets')
+        .update({ rejected: true, approved: false })
+        .eq('id', budgetId)
+        .eq('organization_id', activeOrgId);
+
+      if (error) throw error;
+
+      setBudgets((prev) =>
+        prev.map((b) => (b.id === budgetId ? { ...b, rejected: true, approved: false } : b))
+      );
+
+      broadcastRefreshEvent('update', 'budget');
+
+      toast({
+        title: 'Orçamento recusado',
+        description: 'Orçamento marcado como recusado.',
+      });
+    } catch (error: any) {
+      console.error('Erro ao recusar orçamento:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao recusar orçamento',
         variant: 'destructive',
       });
       throw error;
@@ -616,6 +656,7 @@ export function useBudgets(filters?: BudgetFilters) {
       });
 
       await fetchBudgets();
+      broadcastRefreshEvent('update', 'budget');
       return updatedBudget as Budget;
     } catch (error: any) {
       console.error('Erro ao atualizar orçamento:', error);
@@ -635,6 +676,7 @@ export function useBudgets(filters?: BudgetFilters) {
     regenerateBudgetPDF,
     deleteBudget,
     approveBudget,
+    rejectBudget,
     updateBudget,
     refetch: fetchBudgets,
   };

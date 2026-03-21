@@ -47,6 +47,7 @@ import { AddLeadToListDialog } from "./AddLeadToListDialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { TransferToPostSaleDialog } from "./TransferToPostSaleDialog";
 import { EnhancedActivityHistory } from "./EnhancedActivityHistory";
+import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -1187,9 +1188,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Detalhes</h3>
               <div className="grid gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Responsável:</span>
-                  <span className="font-medium">{lead.assignedTo}</span>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start">
+                  <span className="text-muted-foreground">Responsáveis:</span>
+                  <div className="flex flex-col items-end gap-2 text-right">
+                    <span className="font-medium">{lead.assignedTo}</span>
+                    <LeadAssigneesPopover
+                      leadId={lead.id}
+                      assignees={lead.assignees ?? []}
+                      showManageLabel
+                      onRefetch={() => onUpdated?.()}
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Criado em:</span>

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Lead, LeadStatus, Activity } from "@/types/lead";
+import { Lead, LeadStatus, Activity, LeadAssignee } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { forceRefreshAfterMutation, broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
+import { buildBudgetSummaryByLeadId } from "@/lib/leadBudgetSummary";
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -88,8 +89,48 @@ export function useLeads() {
       // ✅ CORREÇÃO: Limitar a máximo de 1000 activities para evitar erro 400
       const maxActivitiesLimit = Math.min(leadIds.length * 5, 1000);
       
-      // Buscar activities e tags em lotes
-      const [activitiesResults, tagsResults] = await Promise.all([
+      const loadBudgetRowsForLeads = async (): Promise<any[]> => {
+        const batches = await Promise.all(
+          leadIdBatches.map((batch) =>
+            (supabase as any)
+              .from("budgets")
+              .select("lead_id, expires_at, approved, rejected")
+              .eq("organization_id", activeOrgId)
+              .in("lead_id", batch)
+          )
+        );
+        const budgetErr = batches.find((r) => r.error)?.error;
+        const budgetErrMsg = String(budgetErr?.message || "").toLowerCase();
+        const missingRejectedColumn =
+          budgetErr &&
+          (budgetErrMsg.includes("rejected") ||
+            (budgetErrMsg.includes("column") && budgetErrMsg.includes("does not exist")));
+        if (missingRejectedColumn) {
+          console.warn("⚠️ Coluna rejected indisponível em budgets; usando select sem rejected.");
+          const retry = await Promise.all(
+            leadIdBatches.map((batch) =>
+              (supabase as any)
+                .from("budgets")
+                .select("lead_id, expires_at, approved")
+                .eq("organization_id", activeOrgId)
+                .in("lead_id", batch)
+            )
+          );
+          const err2 = retry.find((r) => r.error)?.error;
+          if (err2) throw err2;
+          return retry.flatMap((r) =>
+            (r.data || []).map((row: any) => ({ ...row, rejected: false }))
+          );
+        }
+        if (budgetErr) {
+          console.warn("⚠️ Orçamentos não carregados para selo no funil:", budgetErr);
+          return [];
+        }
+        return batches.flatMap((r) => r.data || []);
+      };
+
+      // Buscar activities, tags, responsáveis e orçamentos em lotes
+      const [activitiesResults, tagsResults, assigneesResults, allBudgetRows] = await Promise.all([
         Promise.all(
           leadIdBatches.map(batch =>
             (supabase as any)
@@ -108,12 +149,38 @@ export function useLeads() {
               .in('lead_id', batch)
               .limit(500) // Limite por lote
           )
-        )
+        ),
+        Promise.all(
+          leadIdBatches.map(batch =>
+            supabase
+              .from('lead_assignees')
+              .select('lead_id, user_id, created_at, profiles(id, full_name, email)')
+              .in('lead_id', batch)
+          )
+        ),
+        loadBudgetRowsForLeads(),
       ]);
 
       // Combinar resultados de todos os lotes
       const allActivities = activitiesResults.flatMap(r => r.data || []).slice(0, maxActivitiesLimit);
       let allLeadTags = tagsResults.flatMap(r => r.data || []);
+
+      let allLeadAssigneeRows: any[] = [];
+      const assigneesBatchError = assigneesResults.find((r) => r.error)?.error;
+      if (assigneesBatchError) {
+        const msg = assigneesBatchError.message || "";
+        if (
+          msg.includes("does not exist") ||
+          (assigneesBatchError as any).code === "42P01" ||
+          (assigneesBatchError as any).code === "PGRST205"
+        ) {
+          console.warn("⚠️ Tabela lead_assignees indisponível, ignorando responsáveis múltiplos.");
+        } else {
+          throw assigneesBatchError;
+        }
+      } else {
+        allLeadAssigneeRows = assigneesResults.flatMap((r) => r.data || []);
+      }
 
       // ✅ FALLBACK: Se tags falharam, tentar buscar individualmente para alguns leads
       if (allLeadTags.length === 0 && leadIds.length > 0) {
@@ -150,6 +217,28 @@ export function useLeads() {
         return acc;
       }, {} as Record<string, any[]>);
 
+      const assigneesByLead = allLeadAssigneeRows.reduce((acc, row) => {
+        if (!acc[row.lead_id]) acc[row.lead_id] = [];
+        acc[row.lead_id].push(row);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      for (const lid of Object.keys(assigneesByLead)) {
+        assigneesByLead[lid].sort(
+          (a: any, b: any) =>
+            new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+        );
+      }
+
+      const budgetSummaryByLead = buildBudgetSummaryByLeadId(
+        (allBudgetRows || []).map((row: any) => ({
+          lead_id: row.lead_id ?? null,
+          expires_at: row.expires_at ?? null,
+          approved: row.approved ?? null,
+          rejected: row.rejected ?? null,
+        }))
+      );
+
       // ✅ DEBUG: Log tags encontradas
       const totalTags = Object.keys(tagsByLead).length;
       const leadsWithTags = Object.values(tagsByLead).filter(tags => tags.length > 0).length;
@@ -159,6 +248,7 @@ export function useLeads() {
       const leadsWithActivities = (leadsData || []).map((lead) => {
         const activities = activitiesByLead[lead.id] || [];
         const leadTags = tagsByLead[lead.id] || [];
+        const assigneeRows = assigneesByLead[lead.id] || [];
 
         // ✅ DEBUG: Log tags por lead (apenas primeiros 5 para não poluir console)
         if (leadTags.length > 0 && leadsData.indexOf(lead) < 5) {
@@ -173,6 +263,21 @@ export function useLeads() {
         const processedTags = (leadTags || [])
           .map((lt: any) => lt.tags)
           .filter((tag: any) => tag && tag.id && tag.name); // Filtrar tags válidas
+
+        const assignees: LeadAssignee[] = (assigneeRows || [])
+          .map((row: any) => ({
+            userId: row.user_id,
+            fullName: row.profiles?.full_name ?? null,
+            email: row.profiles?.email ?? "",
+          }))
+          .filter((a: LeadAssignee) => a.userId);
+
+        const assignedTo =
+          assignees.length > 0
+            ? assignees.map((a) => a.fullName || a.email).join(", ")
+            : lead.assigned_to?.trim()
+              ? lead.assigned_to
+              : "Não atribuído";
         
         return {
           id: lead.id,
@@ -183,7 +288,8 @@ export function useLeads() {
           value: lead.value || undefined,
           status: mappedStatus,
           source: lead.source || 'WhatsApp',
-          assignedTo: lead.assigned_to || 'Não atribuído',
+          assignees,
+          assignedTo,
           lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
           createdAt: new Date(lead.created_at!),
           returnDate: lead.return_date ? (() => {
@@ -208,6 +314,7 @@ export function useLeads() {
             user: a.user_name || 'Sistema',
           })),
           tags: processedTags, // ✅ Usar tags processadas
+          budgetSummary: budgetSummaryByLead[lead.id] ?? { kind: "none" as const, count: 0 },
         } as Lead;
       });
 
@@ -308,6 +415,13 @@ export function useLeads() {
             const updatedLeads = [...prev];
             const oldLead = updatedLeads[leadIndex];
             
+            const nextAssignedTo =
+              oldLead.assignees && oldLead.assignees.length > 0
+                ? oldLead.assignees.map((a) => a.fullName || a.email).join(", ")
+                : updated.assigned_to?.trim()
+                  ? updated.assigned_to
+                  : "Não atribuído";
+
             updatedLeads[leadIndex] = {
               ...oldLead,
               name: updated.name ?? oldLead.name,
@@ -316,7 +430,7 @@ export function useLeads() {
               company: updated.company ?? oldLead.company,
               value: updated.value ?? oldLead.value,
               status: (updated.status as LeadStatus) ?? oldLead.status,
-              assignedTo: updated.assigned_to || oldLead.assignedTo || 'Não atribuído',
+              assignedTo: nextAssignedTo,
               lastContact: updated.last_contact ? new Date(updated.last_contact) : (updated.updated_at ? new Date(updated.updated_at) : oldLead.lastContact),
               returnDate: updated.return_date ? (() => {
                 try {
@@ -353,6 +467,27 @@ export function useLeads() {
         (payload) => {
           console.log('🏷️ Tags do lead alteradas:', payload);
           // Refetch para atualizar as tags dos leads
+          fetchFn();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lead_assignees' },
+        (payload) => {
+          console.log('👤 Responsáveis do lead alterados:', payload);
+          fetchFn();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'budgets',
+          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined,
+        },
+        (payload) => {
+          console.log('💰 Orçamento alterado (realtime):', payload);
           fetchFn();
         }
       )
@@ -485,7 +620,7 @@ export function useLeads() {
     // Escutar eventos de refresh disparados por outros componentes
     const handleRefreshEvent = (event: CustomEvent) => {
       const { type, entity } = event.detail;
-      if (entity === 'lead') {
+      if (entity === 'lead' || entity === 'budget') {
         console.log(`🔄 Evento de refresh recebido: ${type} ${entity}. Atualizando leads...`);
         fetchLeads();
       }

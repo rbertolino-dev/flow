@@ -71,6 +71,7 @@ export interface Budget {
   updated_at: string;
   created_by?: string;
   approved?: boolean; // Indica se o orçamento foi aprovado
+  rejected?: boolean; // Indica se o orçamento foi recusado
   creator?: {
     id: string;
     email?: string;

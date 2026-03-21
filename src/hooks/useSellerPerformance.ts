@@ -74,47 +74,73 @@ export function useSellerPerformance({
       });
     });
 
-    // Agrupar leads por vendedor (assignedTo)
-    leads.forEach((lead) => {
-      if (!lead.assignedTo || lead.assignedTo === "Não atribuído") {
-        const sellerKey = "Não atribuído";
-        if (!sellerMap.has(sellerKey)) {
-          sellerMap.set(sellerKey, {
-            id: sellerKey,
-            name: "Não atribuído",
-            email: "",
+    const pushLeadToSeller = (lead: Lead, sellerId: string, displayName: string, email: string) => {
+      if (!sellerMap.has(sellerId)) {
+        sellerMap.set(sellerId, {
+          id: sellerId,
+          name: displayName,
+          email,
+          leads: [],
+        });
+      }
+      sellerMap.get(sellerId)!.leads.push(lead);
+    };
+
+    const pushUnassigned = (lead: Lead) => {
+      const sellerKey = "Não atribuído";
+      if (!sellerMap.has(sellerKey)) {
+        sellerMap.set(sellerKey, {
+          id: sellerKey,
+          name: "Não atribuído",
+          email: "",
+          leads: [],
+        });
+      }
+      sellerMap.get(sellerKey)!.leads.push(lead);
+    };
+
+    const assignToLegacyString = (lead: Lead) => {
+      const key = lead.assignedTo;
+      let seller = Array.from(sellerMap.values()).find(
+        (s) =>
+          s.id === key ||
+          s.email === key ||
+          s.email.toLowerCase() === key.toLowerCase() ||
+          s.name === key ||
+          s.name.toLowerCase() === key.toLowerCase()
+      );
+      if (!seller) {
+        if (!sellerMap.has(key)) {
+          sellerMap.set(key, {
+            id: key,
+            name: key,
+            email: key.includes("@") ? key : "",
             leads: [],
           });
         }
-        sellerMap.get(sellerKey)!.leads.push(lead);
+        seller = sellerMap.get(key)!;
+      }
+      seller.leads.push(lead);
+    };
+
+    // Vários responsáveis: o lead entra na métrica de cada um; fallback para assignedTo legado
+    leads.forEach((lead) => {
+      if (lead.assignees && lead.assignees.length > 0) {
+        lead.assignees.forEach((a) => {
+          const orgUser = users.find((u) => u.id === a.userId);
+          const displayName = orgUser?.full_name || a.fullName || a.email;
+          const email = orgUser?.email || a.email;
+          pushLeadToSeller(lead, a.userId, displayName, email);
+        });
         return;
       }
 
-      // Tentar encontrar vendedor pelo assignedTo (pode ser email, ID ou nome)
-      let seller = Array.from(sellerMap.values()).find(
-        (s) =>
-          s.id === lead.assignedTo ||
-          s.email === lead.assignedTo ||
-          s.email.toLowerCase() === lead.assignedTo.toLowerCase() ||
-          s.name === lead.assignedTo ||
-          s.name.toLowerCase() === lead.assignedTo.toLowerCase()
-      );
-
-      // Se não encontrou, criar entrada para vendedor desconhecido
-      if (!seller) {
-        const sellerKey = lead.assignedTo;
-        if (!sellerMap.has(sellerKey)) {
-          sellerMap.set(sellerKey, {
-            id: sellerKey,
-            name: lead.assignedTo,
-            email: lead.assignedTo.includes("@") ? lead.assignedTo : "",
-            leads: [],
-          });
-        }
-        seller = sellerMap.get(sellerKey)!;
+      if (!lead.assignedTo || lead.assignedTo === "Não atribuído") {
+        pushUnassigned(lead);
+        return;
       }
 
-      seller.leads.push(lead);
+      assignToLegacyString(lead);
     });
 
     // Filtrar por vendedor específico ou múltiplos vendedores se fornecido

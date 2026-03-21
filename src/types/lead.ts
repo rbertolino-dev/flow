@@ -1,6 +1,16 @@
+import type { LeadBudgetSummary } from "@/lib/leadBudgetSummary";
+
+export type { LeadBudgetSummary } from "@/lib/leadBudgetSummary";
+
 export type LeadStatus = "novo" | "contatado" | "proposta" | "negociacao" | "ganho" | "perdido" | string;
 
 export type ActivityType = "whatsapp" | "call" | "note" | "status_change";
+
+export interface LeadAssignee {
+  userId: string;
+  fullName: string | null;
+  email: string;
+}
 
 export interface Tag {
   id: string;
@@ -28,6 +38,8 @@ export interface Lead {
   status: LeadStatus;
   source: string;
   assignedTo: string;
+  /** Responsáveis explícitos (tabela lead_assignees); vazio = usar só assignedTo legado */
+  assignees?: LeadAssignee[];
   lastContact: Date;
   createdAt: Date;
   returnDate?: Date;
@@ -50,6 +62,8 @@ export interface Lead {
     category: string;
   };
   cpf_cnpj?: string | null;
+  /** Preenchido pelo useLeads a partir da tabela budgets */
+  budgetSummary?: LeadBudgetSummary;
 }
 
 export interface CallQueueItem {

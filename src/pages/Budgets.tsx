@@ -116,7 +116,7 @@ export default function Budgets() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const { budgets, loading, regenerateBudgetPDF, deleteBudget, approveBudget, updateBudget, refetch } = useBudgets({
+  const { budgets, loading, regenerateBudgetPDF, deleteBudget, approveBudget, rejectBudget, updateBudget, refetch } = useBudgets({
     search: searchQuery || undefined,
     lead_id: budgetClientFilter !== 'all' ? budgetClientFilter : undefined,
     expired_only: budgetStatusFilter === 'expired',
@@ -702,6 +702,15 @@ export default function Budgets() {
                     refetch();
                   } catch (error) {
                     console.error('Erro ao aprovar orçamento:', error);
+                  }
+                }}
+                onReject={async (budget) => {
+                  if (!confirm('Marcar este orçamento como recusado pelo cliente?')) return;
+                  try {
+                    await rejectBudget(budget.id);
+                    refetch();
+                  } catch (error) {
+                    console.error('Erro ao recusar orçamento:', error);
                   }
                 }}
               />

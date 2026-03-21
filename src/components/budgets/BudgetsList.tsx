@@ -2,9 +2,8 @@ import { Budget } from '@/types/budget';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Download, Send, RefreshCw, Trash2, Loader2, Edit, Check } from 'lucide-react';
-import { format } from 'date-fns';
-import { differenceInDays } from 'date-fns';
+import { Eye, Download, Send, RefreshCw, Trash2, Loader2, Edit, Check, XCircle } from 'lucide-react';
+import { format, differenceInDays } from 'date-fns';
 
 interface BudgetsListProps {
   budgets: Budget[];
@@ -16,6 +15,7 @@ interface BudgetsListProps {
   onDelete: (budget: Budget) => void;
   onEdit?: (budget: Budget) => void;
   onApprove?: (budget: Budget) => void;
+  onReject?: (budget: Budget) => void;
 }
 
 export function BudgetsList({
@@ -28,6 +28,7 @@ export function BudgetsList({
   onDelete,
   onEdit,
   onApprove,
+  onReject,
 }: BudgetsListProps) {
   const getStatus = (budget: Budget) => {
     if (!budget.expires_at) return { label: 'Válido', variant: 'default' as const };
@@ -94,6 +95,11 @@ export function BudgetsList({
                         Aprovado
                       </Badge>
                     )}
+                    {budget.rejected && (
+                      <Badge variant="secondary" className="bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-200">
+                        Recusado
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -121,15 +127,26 @@ export function BudgetsList({
                         <Edit className="w-4 h-4" />
                       </Button>
                     )}
-                    {onApprove && !budget.approved && (
+                    {onApprove && !budget.approved && !budget.rejected && (
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => onApprove(budget)}
                         title="Aprovar orçamento"
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/40"
                       >
                         <Check className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {onReject && !budget.approved && !budget.rejected && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onReject(budget)}
+                        title="Marcar como recusado"
+                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                      >
+                        <XCircle className="w-4 h-4" />
                       </Button>
                     )}
                     <Button
