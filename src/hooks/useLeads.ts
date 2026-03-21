@@ -336,6 +336,11 @@ export function useLeads() {
           stageId: lead.stage_id || undefined,
           excluded_from_funnel: lead.excluded_from_funnel ?? false,
           cpf_cnpj: lead.cpf_cnpj || undefined,
+          birthDate: lead.birth_date || undefined,
+          address: lead.address || undefined,
+          neighborhood: lead.neighborhood || undefined,
+          city: lead.city || undefined,
+          postalCode: lead.postal_code || undefined,
           activities: (activities || []).map((a) => ({
             id: a.id,
             type: a.type as Activity['type'],
@@ -473,6 +478,11 @@ export function useLeads() {
               })() : oldLead.returnDate,
               notes: updated.notes ?? oldLead.notes,
               stageId: updated.stage_id ?? oldLead.stageId,
+              birthDate: updated.birth_date ?? oldLead.birthDate,
+              address: updated.address ?? oldLead.address,
+              neighborhood: updated.neighborhood ?? oldLead.neighborhood,
+              city: updated.city ?? oldLead.city,
+              postalCode: updated.postal_code ?? oldLead.postalCode,
             };
             
             console.log('✅ Lead atualizado via realtime:', updated.name || updated.phone, 'Campo alterado detectado');

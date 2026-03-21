@@ -1,8 +1,8 @@
 import { Lead } from "@/types/lead";
-import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
+import { buildCopyNumber, formatBrazilianPhone, formatBrazilianCep, normalizeCep } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil } from "lucide-react";
+import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, memo } from "react";
@@ -14,6 +14,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 import { LeadBudgetBadge } from "./LeadBudgetBadge";
+
+function leadCardLocationLine(lead: Lead): string | null {
+  const parts: string[] = [];
+  if (lead.neighborhood) parts.push(lead.neighborhood);
+  if (lead.city) parts.push(lead.city);
+  if (lead.postalCode && normalizeCep(lead.postalCode).length === 8) {
+    parts.push(formatBrazilianCep(lead.postalCode));
+  }
+  if (parts.length > 0) return parts.join(" · ");
+  const addr = lead.address?.trim();
+  if (addr) return addr.length > 44 ? `${addr.slice(0, 42)}…` : addr;
+  return null;
+}
 
 interface LeadCardProps {
   lead: Lead;
@@ -48,6 +61,7 @@ export const LeadCard = memo(function LeadCard({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
+  const locationLine = leadCardLocationLine(lead);
 
   const [isInCallQueue, setIsInCallQueue] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -225,6 +239,13 @@ export const LeadCard = memo(function LeadCard({
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Smartphone className="h-3 w-3 shrink-0" />
               <span className="truncate">{formatBrazilianPhone(lead.phone)}</span>
+            </div>
+          )}
+
+          {locationLine && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3 shrink-0" />
+              <span className="truncate">{locationLine}</span>
             </div>
           )}
 
@@ -458,6 +479,13 @@ export const LeadCard = memo(function LeadCard({
           </div>
         )}
 
+        {locationLine && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <MapPin className="h-4 w-4 shrink-0" />
+            <span className="truncate">{locationLine}</span>
+          </div>
+        )}
+
         <div className="space-y-1">
           {lead.createdAt && (
             <div className="text-xs text-muted-foreground/70">
@@ -608,6 +636,11 @@ export const LeadCard = memo(function LeadCard({
     prevProps.instanceName === nextProps.instanceName &&
     JSON.stringify(prevProps.lead.tags) === JSON.stringify(nextProps.lead.tags) &&
     JSON.stringify(prevProps.lead.assignees) === JSON.stringify(nextProps.lead.assignees) &&
-    JSON.stringify(prevProps.lead.budgetSummary) === JSON.stringify(nextProps.lead.budgetSummary)
+    JSON.stringify(prevProps.lead.budgetSummary) === JSON.stringify(nextProps.lead.budgetSummary) &&
+    prevProps.lead.city === nextProps.lead.city &&
+    prevProps.lead.postalCode === nextProps.lead.postalCode &&
+    prevProps.lead.neighborhood === nextProps.lead.neighborhood &&
+    prevProps.lead.address === nextProps.lead.address &&
+    prevProps.lead.birthDate === nextProps.lead.birthDate
   );
 });

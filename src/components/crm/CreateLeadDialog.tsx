@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
+import { normalizePhone, isValidBrazilianPhone, normalizeCep } from "@/lib/phoneUtils";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProducts } from "@/hooks/useProducts";
@@ -47,6 +47,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
     notes: "",
     cpfCnpj: "",
     sourceInstanceId: "", // ✅ Instância de origem
+    birthDate: "",
+    address: "",
+    neighborhood: "",
+    city: "",
+    postalCode: "",
   });
 
   // Resetar formulário quando o dialog abrir ou quando stages mudar
@@ -63,6 +68,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         notes: "",
         cpfCnpj: "",
         sourceInstanceId: configs?.[0]?.id || "", // ✅ Primeira instância como padrão
+        birthDate: "",
+        address: "",
+        neighborhood: "",
+        city: "",
+        postalCode: "",
       });
       setSelectedTagIds([]);
       setAddToQueue(true);
@@ -137,6 +147,8 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           p_source: 'manual',
         });
 
+      if (error) throw error;
+
       // ✅ Atualizar instância de origem após criar lead
       if (leadId && formData.sourceInstanceId) {
         await supabase
@@ -148,16 +160,33 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
           .eq('id', leadId);
       }
 
-      if (error) throw error;
-
-      // Atualizar CPF/CNPJ se fornecido (após criar lead)
-      if (formData.cpfCnpj && leadId) {
+      // CPF/CNPJ, data de nascimento e endereço (colunas opcionais na tabela leads)
+      if (leadId) {
+        const extra: Record<string, string | null> = {};
         const cpfCnpjClean = formData.cpfCnpj.replace(/\D/g, "");
         if (cpfCnpjClean.length === 11 || cpfCnpjClean.length === 14) {
-          await supabase
-            .from('leads')
-            .update({ cpf_cnpj: cpfCnpjClean })
-            .eq('id', leadId);
+          extra.cpf_cnpj = cpfCnpjClean;
+        }
+        if (formData.birthDate?.trim()) {
+          extra.birth_date = formData.birthDate.trim();
+        }
+        if (formData.address.trim()) extra.address = formData.address.trim();
+        if (formData.neighborhood.trim()) extra.neighborhood = formData.neighborhood.trim();
+        if (formData.city.trim()) extra.city = formData.city.trim();
+        const cepDigits = normalizeCep(formData.postalCode);
+        if (cepDigits.length === 8) extra.postal_code = cepDigits;
+        else if (cepDigits.length > 0) {
+          toast({
+            title: "CEP não salvo",
+            description: "Use 8 dígitos para gravar o CEP; os demais dados foram salvos.",
+          });
+        }
+        if (Object.keys(extra).length > 0) {
+          const { error: extraErr } = await (supabase as any)
+            .from("leads")
+            .update(extra)
+            .eq("id", leadId);
+          if (extraErr) throw extraErr;
         }
       }
 
@@ -250,6 +279,11 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
         notes: "",
         cpfCnpj: "",
         sourceInstanceId: configs?.[0]?.id || "",
+        birthDate: "",
+        address: "",
+        neighborhood: "",
+        city: "",
+        postalCode: "",
       });
       setSelectedTagIds([]);
       setAddToQueue(true);
@@ -272,7 +306,7 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Criar Novo Contato</DialogTitle>
           <DialogDescription>
@@ -324,6 +358,59 @@ export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: 
               onChange={(e) => setFormData({ ...formData, company: e.target.value })}
               placeholder="Nome da empresa"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="birthDate">Data de nascimento</Label>
+            <Input
+              id="birthDate"
+              type="date"
+              value={formData.birthDate}
+              onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address">Endereço</Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              placeholder="Rua, número, complemento"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="neighborhood">Bairro</Label>
+              <Input
+                id="neighborhood"
+                value={formData.neighborhood}
+                onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                placeholder="Bairro"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city">Cidade</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                placeholder="Cidade"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="postalCode">CEP</Label>
+            <Input
+              id="postalCode"
+              value={formData.postalCode}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+              placeholder="00000-000"
+              maxLength={9}
+            />
+            <p className="text-xs text-muted-foreground">8 dígitos ou deixe em branco</p>
           </div>
 
           {/* ✅ Campo de instância de origem */}

@@ -9,8 +9,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight, Ban, CheckCircle2 } from "lucide-react";
-import { format } from "date-fns";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight, Ban, CheckCircle2, MapPin, Cake } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { buildCopyNumber, formatBrazilianPhone, normalizePhone, isValidBrazilianPhone } from "@/lib/phoneUtils";
+import { buildCopyNumber, formatBrazilianPhone, normalizePhone, isValidBrazilianPhone, normalizeCep, formatBrazilianCep } from "@/lib/phoneUtils";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useProducts } from "@/hooks/useProducts";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
@@ -118,6 +118,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [editedCompany, setEditedCompany] = useState(lead.company || "");
   const [editedNotes, setEditedNotes] = useState(lead.notes || "");
   const [editedCpfCnpj, setEditedCpfCnpj] = useState(lead.cpf_cnpj || "");
+  const [editedBirthDate, setEditedBirthDate] = useState(lead.birthDate || "");
+  const [editedAddress, setEditedAddress] = useState(lead.address || "");
+  const [editedNeighborhood, setEditedNeighborhood] = useState(lead.neighborhood || "");
+  const [editedCity, setEditedCity] = useState(lead.city || "");
+  const [editedPostalCode, setEditedPostalCode] = useState(normalizeCep(lead.postalCode || ""));
   const [editedValueStr, setEditedValueStr] = useState("");
   const [editedStageId, setEditedStageId] = useState("");
   const [editedSourceInstanceId, setEditedSourceInstanceId] = useState("");
@@ -133,6 +138,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       setEditedCompany(l.company || "");
       setEditedNotes(l.notes || "");
       setEditedCpfCnpj(l.cpf_cnpj || "");
+      setEditedBirthDate(l.birthDate || "");
+      setEditedAddress(l.address || "");
+      setEditedNeighborhood(l.neighborhood || "");
+      setEditedCity(l.city || "");
+      setEditedPostalCode(normalizeCep(l.postalCode || ""));
       const manual = l.estimatedValueStored;
       setEditedValueStr(
         manual != null && Number.isFinite(Number(manual)) ? String(manual) : ""
@@ -897,6 +907,35 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       if (cpfCnpjClean !== prevCpf) {
         updates.cpf_cnpj = cpfCnpjClean || null;
       }
+      const nextBirth = editedBirthDate.trim();
+      if (nextBirth !== (currentLead.birthDate || "")) {
+        (updates as Record<string, unknown>).birth_date = nextBirth || null;
+      }
+      if (editedAddress.trim() !== (currentLead.address || "")) {
+        (updates as Record<string, unknown>).address = editedAddress.trim() || null;
+      }
+      if (editedNeighborhood.trim() !== (currentLead.neighborhood || "")) {
+        (updates as Record<string, unknown>).neighborhood = editedNeighborhood.trim() || null;
+      }
+      if (editedCity.trim() !== (currentLead.city || "")) {
+        (updates as Record<string, unknown>).city = editedCity.trim() || null;
+      }
+      const nextCep = normalizeCep(editedPostalCode);
+      const prevCep = normalizeCep(currentLead.postalCode || "");
+      if (nextCep !== prevCep) {
+        if (nextCep.length === 0) {
+          (updates as Record<string, unknown>).postal_code = null;
+        } else if (nextCep.length === 8) {
+          (updates as Record<string, unknown>).postal_code = nextCep;
+        } else {
+          toast({
+            title: "CEP inválido",
+            description: "Informe 8 dígitos ou deixe em branco.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
       if (editedNotes.trim() !== (currentLead.notes || "")) {
         updates.notes = editedNotes.trim() || null;
       }
@@ -944,7 +983,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       }
 
       if (hasLeadUpdates) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("leads")
           .update(updates)
           .eq("id", currentLead.id);
@@ -976,6 +1015,27 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         ...(updates.company !== undefined ? { company: (updates.company as string) || undefined } : {}),
         ...(updates.cpf_cnpj !== undefined
           ? { cpf_cnpj: (updates.cpf_cnpj as string) || undefined }
+          : {}),
+        ...((updates as Record<string, unknown>).birth_date !== undefined
+          ? {
+              birthDate: ((updates as Record<string, unknown>).birth_date as string) || undefined,
+            }
+          : {}),
+        ...((updates as Record<string, unknown>).address !== undefined
+          ? { address: ((updates as Record<string, unknown>).address as string) || undefined }
+          : {}),
+        ...((updates as Record<string, unknown>).neighborhood !== undefined
+          ? {
+              neighborhood: ((updates as Record<string, unknown>).neighborhood as string) || undefined,
+            }
+          : {}),
+        ...((updates as Record<string, unknown>).city !== undefined
+          ? { city: ((updates as Record<string, unknown>).city as string) || undefined }
+          : {}),
+        ...((updates as Record<string, unknown>).postal_code !== undefined
+          ? {
+              postalCode: ((updates as Record<string, unknown>).postal_code as string) || undefined,
+            }
           : {}),
         ...(updates.notes !== undefined ? { notes: (updates.notes as string) || undefined } : {}),
         ...(updates.value !== undefined
@@ -1273,6 +1333,55 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                     </p>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="edit-birth-date">Data de nascimento</Label>
+                    <Input
+                      id="edit-birth-date"
+                      type="date"
+                      value={editedBirthDate}
+                      onChange={(e) => setEditedBirthDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-address">Endereço</Label>
+                    <Input
+                      id="edit-address"
+                      value={editedAddress}
+                      onChange={(e) => setEditedAddress(e.target.value)}
+                      placeholder="Rua, número, complemento"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-neighborhood">Bairro</Label>
+                      <Input
+                        id="edit-neighborhood"
+                        value={editedNeighborhood}
+                        onChange={(e) => setEditedNeighborhood(e.target.value)}
+                        placeholder="Bairro"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-city">Cidade</Label>
+                      <Input
+                        id="edit-city"
+                        value={editedCity}
+                        onChange={(e) => setEditedCity(e.target.value)}
+                        placeholder="Cidade"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-cep">CEP</Label>
+                    <Input
+                      id="edit-cep"
+                      value={editedPostalCode.length === 8 ? formatBrazilianCep(editedPostalCode) : editedPostalCode}
+                      onChange={(e) => setEditedPostalCode(normalizeCep(e.target.value))}
+                      placeholder="00000-000"
+                      maxLength={9}
+                    />
+                    <p className="text-xs text-muted-foreground">8 dígitos ou vazio</p>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="edit-notes">Observações</Label>
                     <Textarea
                       id="edit-notes"
@@ -1417,6 +1526,53 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                       </span>
                     </div>
                   )}
+                  {currentLead.birthDate && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Cake className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span>
+                        {(() => {
+                          try {
+                            return format(parseISO(currentLead.birthDate), "dd/MM/yyyy", {
+                              locale: ptBR,
+                            });
+                          } catch {
+                            return currentLead.birthDate;
+                          }
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                  {(() => {
+                    const subLine = [
+                      currentLead.neighborhood,
+                      currentLead.city,
+                      currentLead.postalCode
+                        ? formatBrazilianCep(currentLead.postalCode)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    if (!currentLead.address && !subLine) return null;
+                    return (
+                      <div className="flex items-start gap-3 text-sm">
+                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <div className="space-y-0.5 min-w-0">
+                          {currentLead.address && (
+                            <p className="break-words">{currentLead.address}</p>
+                          )}
+                          {subLine ? (
+                            <p
+                              className={
+                                currentLead.address ? "text-muted-foreground" : "break-words"
+                              }
+                            >
+                              {subLine}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-3 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span>

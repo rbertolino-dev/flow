@@ -65,6 +65,13 @@ export interface Lead {
     category: string;
   };
   cpf_cnpj?: string | null;
+  /** Data de nascimento (YYYY-MM-DD) */
+  birthDate?: string | null;
+  address?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  /** CEP somente dígitos (até 8) */
+  postalCode?: string | null;
   /** Preenchido pelo useLeads a partir da tabela budgets */
   budgetSummary?: LeadBudgetSummary;
   /** Até 3 orçamentos mais recentes no card; totalCount para "ver outros" */

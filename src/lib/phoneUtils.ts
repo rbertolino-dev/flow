@@ -38,3 +38,15 @@ export function buildCopyNumber(phone: string): string {
   const cleanDigits = digits.startsWith('55') ? digits.substring(2) : digits;
   return `021${cleanDigits}`;
 }
+
+/** CEP apenas dígitos (até 8). */
+export function normalizeCep(cep: string): string {
+  return normalizePhone(cep).slice(0, 8);
+}
+
+/** Exibe CEP no formato 00000-000 quando há 8 dígitos. */
+export function formatBrazilianCep(cep: string): string {
+  const d = normalizeCep(cep);
+  if (d.length === 8) return `${d.slice(0, 5)}-${d.slice(5)}`;
+  return d;
+}
