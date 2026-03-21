@@ -338,11 +338,6 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [successfulDispatches, setSuccessfulDispatches] = useState(0);
   const [failedDispatches, setFailedDispatches] = useState(0);
   const [loadingDateDispatches, setLoadingDateDispatches] = useState(false);
-  const [queueInsertedInPeriod, setQueueInsertedInPeriod] = useState(0);
-  const [queuePendingSnapshot, setQueuePendingSnapshot] = useState(0);
-  const [queueScheduledSnapshot, setQueueScheduledSnapshot] = useState(0);
-  const [queueCancelledSnapshot, setQueueCancelledSnapshot] = useState(0);
-  const [failureByCode, setFailureByCode] = useState<Record<string, number>>({});
 
   /** Refs para realtime atualizar indicadores por período com filtros atuais */
   const dateFilterRef = useRef({ selectedDate, dateFilterType });
@@ -437,11 +432,6 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       setTotalDispatchesByDate(0);
       setSuccessfulDispatches(0);
       setFailedDispatches(0);
-      setQueueInsertedInPeriod(0);
-      setQueuePendingSnapshot(0);
-      setQueueScheduledSnapshot(0);
-      setQueueCancelledSnapshot(0);
-      setFailureByCode({});
       return;
     }
 
@@ -491,47 +481,25 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         rpc: (name: string, params: Record<string, string>) => Promise<{ data: unknown; error: { message?: string } | null }>;
       };
 
-      const { data: statsData, error: statsError } = await client.rpc("get_broadcast_dispatch_extended_stats", {
+      const { data: statsData, error: statsError } = await client.rpc("get_broadcast_dispatch_stats", {
         p_organization_id: orgId,
         p_start: startDate.toISOString(),
         p_end: endDate.toISOString(),
       });
 
       if (statsError) {
-        console.error("Erro ao buscar disparos por data (RPC estendida):", statsError);
+        console.error("Erro ao buscar disparos por data (RPC):", statsError);
         throw statsError;
       }
 
       const row = Array.isArray(statsData) ? statsData[0] : statsData;
-      const ext = row as {
-        sent_total?: number | string;
-        failed_total?: number | string;
-        queued_inserted_total?: number | string;
-        pending_total?: number | string;
-        scheduled_total?: number | string;
-        cancelled_total?: number | string;
-        failed_by_code?: Record<string, unknown> | null;
-      };
-      const successful = Number(ext?.sent_total ?? 0);
-      const failed = Number(ext?.failed_total ?? 0);
+      const successful = Number((row as { sent_total?: number | string })?.sent_total ?? 0);
+      const failed = Number((row as { failed_total?: number | string })?.failed_total ?? 0);
       const total = successful + failed;
 
       setTotalDispatchesByDate(total);
       setSuccessfulDispatches(successful);
       setFailedDispatches(failed);
-      setQueueInsertedInPeriod(Number(ext?.queued_inserted_total ?? 0));
-      setQueuePendingSnapshot(Number(ext?.pending_total ?? 0));
-      setQueueScheduledSnapshot(Number(ext?.scheduled_total ?? 0));
-      setQueueCancelledSnapshot(Number(ext?.cancelled_total ?? 0));
-
-      const codes: Record<string, number> = {};
-      const fb = ext?.failed_by_code;
-      if (fb && typeof fb === "object" && !Array.isArray(fb)) {
-        Object.entries(fb).forEach(([k, v]) => {
-          codes[k] = Number(v) || 0;
-        });
-      }
-      setFailureByCode(codes);
     } catch (error: any) {
       console.error("Erro ao buscar disparos por data:", error);
     } finally {
@@ -922,104 +890,6 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           </CardContent>
         </Card>
       </div>
-
-      <p className="text-xs text-muted-foreground mt-3 max-w-3xl">
-        <strong>Total</strong> acima = enviados + falhas com data de referência no período.{" "}
-        <strong>Inseridos na fila</strong> usa <code className="text-[11px]">created_at</code>.{" "}
-        Pendentes/agendados/cancelados são snapshot atual (linhas da org criadas antes do fim do período).{" "}
-        Se inseridos ≠ enviados + falhas, a diferença costuma estar em itens ainda na fila ou cancelados.
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              INSERIDOS NA FILA (PERÍODO)
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              v1 + v2 · created_at no intervalo
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-3xl font-bold">
-              {loadingDateDispatches ? (
-                <span className="text-muted-foreground">...</span>
-              ) : (
-                queueInsertedInPeriod.toLocaleString("pt-BR")
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              PENDENTES (SNAPSHOT)
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Na fila agora · criadas antes do fim do período
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-amber-600 dark:text-amber-500">
-              {loadingDateDispatches ? (
-                <span className="text-muted-foreground">...</span>
-              ) : (
-                queuePendingSnapshot.toLocaleString("pt-BR")
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              AGENDADOS + CANCELADOS
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Snapshot · scheduled / cancelled
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex flex-col gap-1">
-              <div className="text-lg font-semibold">
-                {loadingDateDispatches ? "..." : `${queueScheduledSnapshot.toLocaleString("pt-BR")} agend.`}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {loadingDateDispatches ? "" : `${queueCancelledSnapshot.toLocaleString("pt-BR")} cancel.`}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {(failedDispatches > 0 || Object.keys(failureByCode).length > 0) && (
-        <Card className="mt-4">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Falhas por tipo (período)</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Códigos gravados nas novas falhas; registros antigos aparecem como UNSPECIFIED.
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {Object.keys(failureByCode).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {failedDispatches > 0
-                  ? "Sem breakdown de código para estas falhas (dados legados)."
-                  : "Nenhuma falha no período."}
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(failureByCode)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([code, count]) => (
-                    <Badge key={code} variant="outline" className="text-xs font-mono">
-                      {code}: {count.toLocaleString("pt-BR")}
-                    </Badge>
-                  ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Painel de Instâncias */}
       <Card className="mb-6">
