@@ -339,7 +339,13 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [failedDispatches, setFailedDispatches] = useState(0);
   const [loadingDateDispatches, setLoadingDateDispatches] = useState(false);
 
-  // Função para buscar disparos por instância (do dia atual)
+  /** Refs para realtime atualizar indicadores por período com filtros atuais */
+  const dateFilterRef = useRef({ selectedDate, dateFilterType });
+  useEffect(() => {
+    dateFilterRef.current = { selectedDate, dateFilterType };
+  }, [selectedDate, dateFilterType]);
+
+  // Função para buscar disparos por instância (do dia atual) — v1 + v2 via RPC (sem teto de linhas)
   const fetchDispatchesByInstance = useCallback(async () => {
     setLoadingDispatches(true);
     try {
@@ -353,61 +359,67 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
 
-      // Buscar disparos do dia atual - contar TODOS, não apenas os com instance_id
-      const { data: queueData, error: queueError } = await supabase
-        .from("broadcast_queue")
-        .select("instance_id, sent_at")
-        .eq("status", "sent")
-        .eq("organization_id", orgId)
-        .gte("sent_at", today.toISOString())
-        .lt("sent_at", tomorrow.toISOString());
+      const client = supabase as unknown as {
+        rpc: (name: string, params: Record<string, string>) => Promise<{ data: unknown; error: Error | null }>;
+      };
 
-      if (queueError) {
-        console.error("Erro ao buscar disparos:", queueError);
-        throw queueError;
+      const [todayStatsRes, yesterdayStatsRes, byInstanceRes] = await Promise.all([
+        client.rpc("get_broadcast_dispatch_stats", {
+          p_organization_id: orgId,
+          p_start: today.toISOString(),
+          p_end: tomorrow.toISOString(),
+        }),
+        client.rpc("get_broadcast_dispatch_stats", {
+          p_organization_id: orgId,
+          p_start: yesterday.toISOString(),
+          p_end: today.toISOString(),
+        }),
+        client.rpc("get_broadcast_dispatch_sent_by_instance", {
+          p_organization_id: orgId,
+          p_start: today.toISOString(),
+          p_end: tomorrow.toISOString(),
+        }),
+      ]);
+
+      if (todayStatsRes.error) {
+        console.error("Erro ao buscar stats de disparos (hoje):", todayStatsRes.error);
+        throw todayStatsRes.error;
+      }
+      if (byInstanceRes.error) {
+        console.error("Erro ao buscar disparos por instância:", byInstanceRes.error);
+        throw byInstanceRes.error;
       }
 
-      // Contar disparos por instance_id e total
+      const todayRow = Array.isArray(todayStatsRes.data) ? todayStatsRes.data[0] : todayStatsRes.data;
+      const total = Number(todayRow?.sent_total ?? 0);
+
       const counts: Record<string, number> = {};
-      let total = 0;
-      
-      if (queueData) {
-        queueData.forEach((item: any) => {
-          total++;
-          if (item.instance_id) {
-            counts[item.instance_id] = (counts[item.instance_id] || 0) + 1;
-          }
-        });
-      }
+      const instRows = (byInstanceRes.data || []) as Array<{ instance_id: string; sent_count: number | string }>;
+      instRows.forEach((r) => {
+        if (r.instance_id) {
+          counts[r.instance_id] = Number(r.sent_count);
+        }
+      });
 
       setDispatchesByInstance(counts);
       setTotalDispatchesToday(total);
 
-      // Buscar disparos de ontem para calcular tendência
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      const { data: yesterdayData, error: yesterdayError, count: yesterdayCount } = await supabase
-        .from("broadcast_queue")
-        .select("id", { count: 'exact' })
-        .eq("status", "sent")
-        .eq("organization_id", orgId)
-        .gte("sent_at", yesterday.toISOString())
-        .lt("sent_at", today.toISOString());
-
-      if (!yesterdayError) {
-        const yesterdayTotal = yesterdayCount || (Array.isArray(yesterdayData) ? yesterdayData.length : 0);
+      if (!yesterdayStatsRes.error) {
+        const yRow = Array.isArray(yesterdayStatsRes.data) ? yesterdayStatsRes.data[0] : yesterdayStatsRes.data;
+        const yesterdayTotal = Number(yRow?.sent_total ?? 0);
         if (yesterdayTotal > 0) {
-          const trend = ((total - yesterdayTotal) / yesterdayTotal) * 100;
-          setDispatchesTrend(trend);
+          setDispatchesTrend(((total - yesterdayTotal) / yesterdayTotal) * 100);
         } else {
           setDispatchesTrend(total > 0 ? 100 : null);
         }
       } else {
+        console.error("Erro ao buscar stats de disparos (ontem):", yesterdayStatsRes.error);
         setDispatchesTrend(null);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao buscar disparos:", error);
     } finally {
       setLoadingDispatches(false);
@@ -465,54 +477,25 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           break;
       }
 
-      // Buscar todos os disparos do período (sent e failed) - AMBOS os sistemas
-      const [queueResult, queue2Result] = await Promise.all([
-        supabase
-          .from("broadcast_queue")
-          .select("status, sent_at, created_at")
-          .eq("organization_id", orgId)
-          .in("status", ["sent", "failed"])
-          .gte("created_at", startDate.toISOString())
-          .lt("created_at", endDate.toISOString()),
-        supabase
-          .from("broadcast_queue_2")
-          .select("status, sent_at, created_at")
-          .eq("organization_id", orgId)
-          .in("status", ["sent", "failed"])
-          .gte("created_at", startDate.toISOString())
-          .lt("created_at", endDate.toISOString()),
-      ]);
+      const client = supabase as unknown as {
+        rpc: (name: string, params: Record<string, string>) => Promise<{ data: unknown; error: { message?: string } | null }>;
+      };
 
-      if (queueResult.error) {
-        console.error("Erro ao buscar disparos por data (broadcast_queue):", queueResult.error);
-      }
-      if (queue2Result.error) {
-        console.error("Erro ao buscar disparos por data (broadcast_queue_2):", queue2Result.error);
+      const { data: statsData, error: statsError } = await client.rpc("get_broadcast_dispatch_stats", {
+        p_organization_id: orgId,
+        p_start: startDate.toISOString(),
+        p_end: endDate.toISOString(),
+      });
+
+      if (statsError) {
+        console.error("Erro ao buscar disparos por data (RPC):", statsError);
+        throw statsError;
       }
 
-      const queueData = [...(queueResult.data || []), ...(queue2Result.data || [])];
-
-      // Contar disparos por status
-      let total = 0;
-      let successful = 0;
-      let failed = 0;
-
-      if (queueData.length > 0) {
-        queueData.forEach((item: any) => {
-          // Usar sent_at se disponível, senão usar created_at
-          const dispatchDate = item.sent_at ? new Date(item.sent_at) : new Date(item.created_at);
-          
-          // Verificar se o disparo foi feito no período selecionado
-          if (dispatchDate >= startDate && dispatchDate < endDate) {
-            total++;
-            if (item.status === "sent") {
-              successful++;
-            } else if (item.status === "failed") {
-              failed++;
-            }
-          }
-        });
-      }
+      const row = Array.isArray(statsData) ? statsData[0] : statsData;
+      const successful = Number((row as { sent_total?: number | string })?.sent_total ?? 0);
+      const failed = Number((row as { failed_total?: number | string })?.failed_total ?? 0);
+      const total = successful + failed;
 
       setTotalDispatchesByDate(total);
       setSuccessfulDispatches(successful);
@@ -543,49 +526,72 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     fetchDispatchesByDate(selectedDate, dateFilterType);
   }, [selectedDate, dateFilterType, fetchDispatchesByDate]);
 
-  // Configurar Realtime para atualizar quando novos disparos são enviados
+  // Realtime: refetch dos indicadores quando fila v1 ou v2 conclui envio ou falha (sem tocar na lógica de disparo)
   useEffect(() => {
     let mounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    
+
     const setupRealtime = async () => {
       try {
         const orgId = await getUserOrganizationId();
         if (!orgId || !mounted) return;
 
-        // Canal para escutar mudanças na broadcast_queue
+        const onQueueStatusFinal = () => {
+          if (!mounted) return;
+          void fetchDispatchesByInstance();
+          const { selectedDate: sd, dateFilterType: dft } = dateFilterRef.current;
+          void fetchDispatchesByDate(sd, dft);
+        };
+
+        const handlePayload = (payload: {
+          new?: { status?: string };
+          old?: { status?: string };
+        }) => {
+          if (!mounted || !payload.new) return;
+          const ns = payload.new.status;
+          const os = payload.old?.status;
+          if ((ns === "sent" && os !== "sent") || (ns === "failed" && os !== "failed")) {
+            onQueueStatusFinal();
+          }
+        };
+
         channel = supabase
-          .channel(`broadcast_queue_changes_${orgId}`)
+          .channel(`broadcast_dispatch_stats_${orgId}`)
           .on(
-            'postgres_changes',
+            "postgres_changes",
             {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'broadcast_queue',
+              event: "UPDATE",
+              schema: "public",
+              table: "broadcast_queue",
               filter: `organization_id=eq.${orgId}`,
             },
-            (payload) => {
-              if (mounted && payload.new && payload.new.status === 'sent') {
-                const oldStatus = payload.old?.status || null;
-                if (oldStatus !== 'sent') fetchDispatchesByInstance();
-              }
-            }
+            handlePayload
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "broadcast_queue_2",
+              filter: `organization_id=eq.${orgId}`,
+            },
+            handlePayload
           )
           .subscribe();
       } catch (error) {
-        console.error('Erro ao configurar Realtime:', error);
+        console.error("Erro ao configurar Realtime:", error);
       }
     };
 
     setupRealtime();
-    
+
     return () => {
       mounted = false;
       if (channel) {
         supabase.removeChannel(channel);
       }
     };
-  }, [fetchDispatchesByInstance]);
+  }, [fetchDispatchesByInstance, fetchDispatchesByDate]);
 
   // Agrupar instâncias por segmento para visualização de segmento
   const instancesBySegment = useMemo(() => {
