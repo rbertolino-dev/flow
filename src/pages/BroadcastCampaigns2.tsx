@@ -467,6 +467,10 @@ function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
   );
 }
 
+/** Intervalo fixo entre envios no Disparador 2 (segundos) */
+const FIXED_BROADCAST_2_MIN_DELAY_SEC = 1200;
+const FIXED_BROADCAST_2_MAX_DELAY_SEC = 1600;
+
 export default function BroadcastCampaigns2() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
@@ -584,13 +588,55 @@ export default function BroadcastCampaigns2() {
     templateId: "",
     customMessage: "",
     messageVariations: [] as string[],
-    minDelay: 1200,
-    maxDelay: 1600,
+    minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
+    maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
     scheduledStart: undefined as Date | undefined,
     fromTemplate: false,
     useLatamValidator: false, // Nova opção para validador LATAM
   });
   const [selectedCampaignTemplate, setSelectedCampaignTemplate] = useState<Template | null>(null);
+
+  const resetCreateCampaignForm = useCallback(() => {
+    setNewCampaign({
+      name: "",
+      instanceId: "",
+      instanceIds: [],
+      selectedGroupId: "",
+      sendingMethod: "single",
+      templateId: "",
+      customMessage: "",
+      messageVariations: [],
+      minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
+      maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
+      scheduledStart: undefined,
+      fromTemplate: false,
+      useLatamValidator: false,
+    });
+    setSelectedCampaignTemplate(null);
+    setCsvFile(null);
+    setPastedList("");
+    setImportMode("csv");
+    setSelectedListId("");
+    setValidationResult(null);
+    setValidatedContactsList([]);
+    setSimulationDialogOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!createDialogOpen) {
+      resetCreateCampaignForm();
+    }
+  }, [createDialogOpen, resetCreateCampaignForm]);
+
+  useEffect(() => {
+    if (createDialogOpen) {
+      setNewCampaign((prev) => ({
+        ...prev,
+        minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
+        maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
+      }));
+    }
+  }, [createDialogOpen]);
 
   const handleTemplateSelectFromManager = (template: Template) => {
     setSelectedCampaignTemplate(template);
@@ -603,8 +649,8 @@ export default function BroadcastCampaigns2() {
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
-      minDelay: template.min_delay_seconds,
-      maxDelay: template.max_delay_seconds,
+      minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
+      maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
       scheduledStart: undefined,
       fromTemplate: true,
       useLatamValidator: false,
@@ -686,8 +732,8 @@ export default function BroadcastCampaigns2() {
         templateId: campaignData.message_template_id || "",
         customMessage: campaignData.custom_message || "",
         messageVariations: [],
-        minDelay: campaignData.min_delay_seconds || 30,
-        maxDelay: campaignData.max_delay_seconds || 60,
+        minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
+        maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
         scheduledStart: undefined,
         fromTemplate: false,
         useLatamValidator: false,
@@ -1293,27 +1339,6 @@ export default function BroadcastCampaigns2() {
     });
 
     setCreateDialogOpen(false);
-    setNewCampaign({
-      name: "",
-      instanceId: "",
-      instanceIds: [],
-      selectedGroupId: "",
-      sendingMethod: "single",
-      templateId: "",
-      customMessage: "",
-      messageVariations: [],
-      minDelay: 1200,
-      maxDelay: 1600,
-      scheduledStart: undefined,
-      fromTemplate: false,
-      useLatamValidator: false,
-    });
-    setSelectedCampaignTemplate(null);
-    setCsvFile(null);
-    setPastedList("");
-    setImportMode("csv");
-    setValidationResult(null);
-    setValidatedContactsList([]);
     fetchCampaigns();
   };
 
@@ -1942,6 +1967,7 @@ export default function BroadcastCampaigns2() {
       });
 
       fetchCampaigns();
+      resetCreateCampaignForm();
     } catch (error: any) {
       toast({
         title: "Erro ao agendar mensagens",
@@ -2963,30 +2989,21 @@ export default function BroadcastCampaigns2() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="minDelay">Delay Mínimo (segundos)</Label>
-                    <Input
-                      id="minDelay"
-                      type="number"
-                      min="10"
-                      value={newCampaign.minDelay}
-                      onChange={(e) =>
-                        setNewCampaign({ ...newCampaign, minDelay: parseInt(e.target.value) })
-                      }
-                    />
+                    <Label>Delay Mínimo (segundos)</Label>
+                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm">
+                      {FIXED_BROADCAST_2_MIN_DELAY_SEC}
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="maxDelay">Delay Máximo (segundos)</Label>
-                    <Input
-                      id="maxDelay"
-                      type="number"
-                      min="10"
-                      value={newCampaign.maxDelay}
-                      onChange={(e) =>
-                        setNewCampaign({ ...newCampaign, maxDelay: parseInt(e.target.value) })
-                      }
-                    />
+                    <Label>Delay Máximo (segundos)</Label>
+                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm">
+                      {FIXED_BROADCAST_2_MAX_DELAY_SEC}
+                    </div>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground -mt-2">
+                  Intervalo fixo entre mensagens (não editável).
+                </p>
 
                 <div className="space-y-2">
                   <Label htmlFor="scheduledStart">Agendar Início da Campanha (opcional)</Label>
