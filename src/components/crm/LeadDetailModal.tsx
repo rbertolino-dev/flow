@@ -53,6 +53,7 @@ import { TransferToPostSaleDialog } from "./TransferToPostSaleDialog";
 import { EnhancedActivityHistory } from "./EnhancedActivityHistory";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 import { LeadCardBudgetsSection } from "./LeadCardBudgetsSection";
+import { LeadAttachmentsSection } from "./LeadAttachmentsSection";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -1664,6 +1665,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                 </div>
               )}
             </div>
+
+            <Separator />
+
+            <LeadAttachmentsSection
+              leadId={currentLead.id}
+              onChanged={() => onUpdated?.()}
+            />
 
             <Separator />
 

@@ -76,6 +76,8 @@ export interface Lead {
   budgetSummary?: LeadBudgetSummary;
   /** Até 3 orçamentos mais recentes no card; totalCount para "ver outros" */
   budgetsPreview?: { previews: LeadBudgetPreview[]; totalCount: number };
+  /** Quantidade de anexos (tabela lead_attachments), agregada no useLeads */
+  attachmentCount?: number;
 }
 
 export interface CallQueueItem {

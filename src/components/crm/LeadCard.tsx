@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { buildCopyNumber, formatBrazilianPhone, formatBrazilianCep, normalizeCep } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin } from "lucide-react";
+import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, memo } from "react";
@@ -227,6 +227,16 @@ export const LeadCard = memo(function LeadCard({
 
             <div className="flex items-center gap-1 shrink-0">
               <LeadBudgetBadge summary={lead.budgetSummary} compact />
+              {(lead.attachmentCount ?? 0) > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0.5 shrink-0 gap-0.5"
+                  title={`${lead.attachmentCount} anexo(s)`}
+                >
+                  <Paperclip className="h-2.5 w-2.5" />
+                  {lead.attachmentCount}
+                </Badge>
+              )}
               {isInCallQueue && (
                 <Badge variant="default" className="text-[10px] px-1.5 py-0.5 shrink-0 bg-blue-600">
                   <PhoneCall className="h-2.5 w-2.5" />
@@ -463,6 +473,16 @@ export const LeadCard = memo(function LeadCard({
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <LeadBudgetBadge summary={lead.budgetSummary} />
+              {(lead.attachmentCount ?? 0) > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs px-2 py-1 shrink-0 gap-1"
+                  title={`${lead.attachmentCount} anexo(s)`}
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  {lead.attachmentCount}
+                </Badge>
+              )}
               {isInCallQueue && (
                 <Badge variant="default" className="text-xs px-2 py-1 shrink-0 bg-blue-600">
                   <PhoneCall className="h-3.5 w-3.5" />
@@ -637,6 +657,7 @@ export const LeadCard = memo(function LeadCard({
     JSON.stringify(prevProps.lead.tags) === JSON.stringify(nextProps.lead.tags) &&
     JSON.stringify(prevProps.lead.assignees) === JSON.stringify(nextProps.lead.assignees) &&
     JSON.stringify(prevProps.lead.budgetSummary) === JSON.stringify(nextProps.lead.budgetSummary) &&
+    prevProps.lead.attachmentCount === nextProps.lead.attachmentCount &&
     prevProps.lead.city === nextProps.lead.city &&
     prevProps.lead.postalCode === nextProps.lead.postalCode &&
     prevProps.lead.neighborhood === nextProps.lead.neighborhood &&

@@ -134,8 +134,43 @@ export function useLeads() {
         return batches.flatMap((r) => r.data || []);
       };
 
-      // Buscar activities, tags, responsáveis e orçamentos em lotes
-      const [activitiesResults, tagsResults, assigneesResults, allBudgetRows] = await Promise.all([
+      const loadAttachmentCountsByLead = async (): Promise<Record<string, number>> => {
+        const batches = await Promise.all(
+          leadIdBatches.map((batch) =>
+            (supabase as any)
+              .from("lead_attachments")
+              .select("lead_id")
+              .eq("organization_id", activeOrgId)
+              .in("lead_id", batch)
+          )
+        );
+        const attachErr = batches.find((r) => r.error)?.error;
+        if (attachErr) {
+          const msg = attachErr.message || "";
+          if (
+            msg.includes("does not exist") ||
+            attachErr.code === "42P01" ||
+            attachErr.code === "PGRST205"
+          ) {
+            console.warn(
+              "⚠️ Tabela lead_attachments indisponível; selo de anexos desativado até a migration."
+            );
+            return {};
+          }
+          throw attachErr;
+        }
+        const rows = batches.flatMap((r) => r.data || []);
+        const counts: Record<string, number> = {};
+        for (const row of rows) {
+          const lid = row.lead_id as string | undefined;
+          if (lid) counts[lid] = (counts[lid] || 0) + 1;
+        }
+        return counts;
+      };
+
+      // Buscar activities, tags, responsáveis, orçamentos e contagens de anexos em lotes
+      const [activitiesResults, tagsResults, assigneesResults, allBudgetRows, attachmentCountByLead] =
+        await Promise.all([
         Promise.all(
           leadIdBatches.map(batch =>
             (supabase as any)
@@ -164,6 +199,7 @@ export function useLeads() {
           )
         ),
         loadBudgetRowsForLeads(),
+        loadAttachmentCountsByLead(),
       ]);
 
       // Combinar resultados de todos os lotes
@@ -351,6 +387,7 @@ export function useLeads() {
           tags: processedTags, // ✅ Usar tags processadas
           budgetSummary: budgetSummaryByLead[lead.id] ?? { kind: "none" as const, count: 0 },
           budgetsPreview: budgetPreviewsByLead[lead.id] ?? { previews: [], totalCount: 0 },
+          attachmentCount: attachmentCountByLead[lead.id] ?? 0,
         } as Lead;
       });
 
@@ -529,6 +566,19 @@ export function useLeads() {
         },
         (payload) => {
           console.log('💰 Orçamento alterado (realtime):', payload);
+          fetchFn();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "lead_attachments",
+          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined,
+        },
+        (payload) => {
+          console.log("📎 Anexo do lead alterado (realtime):", payload);
           fetchFn();
         }
       )
