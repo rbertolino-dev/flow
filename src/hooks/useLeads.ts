@@ -90,42 +90,42 @@ export function useLeads() {
       const maxActivitiesLimit = Math.min(leadIds.length * 5, 1000);
       
       const loadBudgetRowsForLeads = async (): Promise<any[]> => {
-        const batches = await Promise.all(
-          leadIdBatches.map((batch) =>
-            (supabase as any)
-              .from("budgets")
-              .select("lead_id, expires_at, approved, rejected")
-              .eq("organization_id", activeOrgId)
-              .in("lead_id", batch)
-          )
-        );
-        const budgetErr = batches.find((r) => r.error)?.error;
-        const budgetErrMsg = String(budgetErr?.message || "").toLowerCase();
-        const missingRejectedColumn =
-          budgetErr &&
-          (budgetErrMsg.includes("rejected") ||
-            (budgetErrMsg.includes("column") && budgetErrMsg.includes("does not exist")));
-        if (missingRejectedColumn) {
-          console.warn("⚠️ Coluna rejected indisponível em budgets; usando select sem rejected.");
-          const retry = await Promise.all(
+        const fetchBudgetSummaryBatches = (select: string) =>
+          Promise.all(
             leadIdBatches.map((batch) =>
               (supabase as any)
                 .from("budgets")
-                .select("lead_id, expires_at, approved")
+                .select(select)
                 .eq("organization_id", activeOrgId)
                 .in("lead_id", batch)
             )
           );
-          const err2 = retry.find((r) => r.error)?.error;
-          if (err2) throw err2;
-          return retry.flatMap((r) =>
-            (r.data || []).map((row: any) => ({ ...row, rejected: false }))
-          );
-        }
+
+        let batches = await fetchBudgetSummaryBatches(
+          "lead_id, expires_at, approved, rejected"
+        );
+        let budgetErr = batches.find((r) => r.error)?.error;
+
+        // Migration 20260321120000_add_budget_rejected pode não estar aplicada no Supabase:
+        // PostgREST devolve 400; a mensagem nem sempre menciona "rejected".
         if (budgetErr) {
-          console.warn("⚠️ Orçamentos não carregados para selo no funil:", budgetErr);
+          console.warn(
+            "⚠️ Batch budgets (com rejected) falhou; tentando sem coluna rejected:",
+            budgetErr
+          );
+          const retry = await fetchBudgetSummaryBatches(
+            "lead_id, expires_at, approved"
+          );
+          const err2 = retry.find((r) => r.error)?.error;
+          if (!err2) {
+            return retry.flatMap((r) =>
+              (r.data || []).map((row: any) => ({ ...row, rejected: false }))
+            );
+          }
+          console.warn("⚠️ Orçamentos não carregados para selo no funil:", budgetErr, err2);
           return [];
         }
+
         return batches.flatMap((r) => r.data || []);
       };
 

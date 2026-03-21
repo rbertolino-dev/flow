@@ -4,7 +4,7 @@
 -- Agregação no banco: sem limite de linhas do PostgREST.
 -- SECURITY INVOKER: RLS das tabelas continua aplicável.
 -- Enviados: status = sent e sent_at em [p_start, p_end).
--- Falhas: status = failed e COALESCE(sent_at, last_attempt_at, created_at) no intervalo.
+-- Falhas: status = failed e COALESCE(sent_at, created_at) no intervalo (last_attempt_at opcional no schema).
 -- ============================================
 
 CREATE OR REPLACE FUNCTION public.get_broadcast_dispatch_stats(
@@ -57,21 +57,21 @@ BEGIN
        FROM public.broadcast_queue q
        WHERE q.organization_id = p_organization_id
          AND q.status = 'failed'
-         AND COALESCE(q.sent_at, q.last_attempt_at, q.created_at) >= p_start
-         AND COALESCE(q.sent_at, q.last_attempt_at, q.created_at) < p_end)
+         AND COALESCE(q.sent_at, q.created_at) >= p_start
+         AND COALESCE(q.sent_at, q.created_at) < p_end)
       +
       (SELECT COUNT(*)::bigint
        FROM public.broadcast_queue_2 q
        WHERE q.organization_id = p_organization_id
          AND q.status = 'failed'
-         AND COALESCE(q.sent_at, q.last_attempt_at, q.created_at) >= p_start
-         AND COALESCE(q.sent_at, q.last_attempt_at, q.created_at) < p_end)
+         AND COALESCE(q.sent_at, q.created_at) >= p_start
+         AND COALESCE(q.sent_at, q.created_at) < p_end)
     ) AS failed_total;
 END;
 $$;
 
 COMMENT ON FUNCTION public.get_broadcast_dispatch_stats(uuid, timestamptz, timestamptz) IS
-  'Totais de enviados (sent_at) e falhas (COALESCE sent_at, last_attempt_at, created_at) para broadcast_queue + broadcast_queue_2, sem paginação.';
+  'Totais de enviados (sent_at) e falhas (COALESCE sent_at, created_at) para broadcast_queue + broadcast_queue_2, sem paginação.';
 
 CREATE OR REPLACE FUNCTION public.get_broadcast_dispatch_sent_by_instance(
   p_organization_id uuid,
@@ -137,13 +137,13 @@ CREATE INDEX IF NOT EXISTS idx_broadcast_queue_2_org_sent_at_sent
   ON public.broadcast_queue_2 (organization_id, sent_at)
   WHERE status = 'sent' AND sent_at IS NOT NULL;
 
--- Falhas: filtro por COALESCE(sent_at, last_attempt_at, created_at) — last_attempt_at costuma preencher tentativas
-CREATE INDEX IF NOT EXISTS idx_broadcast_queue_org_last_attempt_failed
-  ON public.broadcast_queue (organization_id, last_attempt_at)
+-- Falhas: apoio a COUNT por org + created_at (quando sent_at nulo)
+CREATE INDEX IF NOT EXISTS idx_broadcast_queue_org_created_failed
+  ON public.broadcast_queue (organization_id, created_at)
   WHERE status = 'failed';
 
-CREATE INDEX IF NOT EXISTS idx_broadcast_queue_2_org_last_attempt_failed
-  ON public.broadcast_queue_2 (organization_id, last_attempt_at)
+CREATE INDEX IF NOT EXISTS idx_broadcast_queue_2_org_created_failed
+  ON public.broadcast_queue_2 (organization_id, created_at)
   WHERE status = 'failed';
 
 -- Realtime UPDATE com payload.old (status anterior) — só infraestrutura de leitura/indicadores

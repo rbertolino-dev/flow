@@ -509,11 +509,21 @@ export function useBudgets(filters?: BudgetFilters) {
 
     try {
       // @ts-ignore - Tabela budgets existe
-      const { error } = await supabase
+      let { error } = await supabase
         .from('budgets')
         .update({ approved: true, rejected: false })
         .eq('id', budgetId)
         .eq('organization_id', activeOrgId);
+
+      // Sem coluna rejected no banco, update acima retorna 400 — fallback só approved
+      if (error) {
+        const { error: errFallback } = await supabase
+          .from('budgets')
+          .update({ approved: true })
+          .eq('id', budgetId)
+          .eq('organization_id', activeOrgId);
+        error = errFallback;
+      }
 
       if (error) throw error;
 
@@ -564,9 +574,19 @@ export function useBudgets(filters?: BudgetFilters) {
       });
     } catch (error: any) {
       console.error('Erro ao recusar orçamento:', error);
+      const msg = String(error?.message || '').toLowerCase();
+      const code = String(error?.code || '');
+      const likelyMissingRejected =
+        code === '42703' ||
+        code === 'PGRST204' ||
+        msg.includes('rejected') ||
+        msg.includes('schema cache') ||
+        (msg.includes('column') && msg.includes('budgets'));
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao recusar orçamento',
+        description: likelyMissingRejected
+          ? 'Recusar orçamento exige a coluna rejected no Supabase. Aplique a migration 20260321120000_add_budget_rejected.sql (SQL Editor ou script de migrations).'
+          : error.message || 'Erro ao recusar orçamento',
         variant: 'destructive',
       });
       throw error;

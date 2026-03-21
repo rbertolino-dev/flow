@@ -1,0 +1,24 @@
+---
+description: Após concluir alterações de código — commit, push e deploy sem perguntar ao utilizador
+alwaysApply: true
+---
+
+# Pós-modificação: commit, push e deploy (automático)
+
+Quando uma tarefa de código estiver **concluída** (funcionalidade, correção ou migration entregue no repo):
+
+1. **Não perguntar** se deve fazer commit, push ou deploy. Executar o fluxo abaixo de forma proativa.
+
+2. **Staging**: incluir apenas ficheiros relevantes (`src/`, `supabase/migrations/`, `package.json`, `package-lock.json`, scripts, etc.). **Nunca** adicionar `playwright-report/`, `test-results/`, artefactos de teste ou ficheiros gerados.
+
+3. **Commit**: mensagem clara em português ou inglês convencional (`fix:`, `feat:`, `chore:`). Se o hook pre-commit falhar por `eslint .` no repo inteiro (erros fora do âmbito da alteração), usar `git commit --no-verify`.
+
+4. **Push**: `git push` para o branch atual (normalmente `main`), salvo indicação explícita em contrário.
+
+5. **Testes** (conforme `.cursorrules`): após funcionalidade CRUD ou correção crítica, correr `npm run test:e2e:auto` quando o tempo de sessão o permitir; caso contrário, pelo menos `npm run build` antes do deploy.
+
+6. **Deploy**: da raiz do projeto, `./scripts/deploy-zero-downtime.sh --confirm` (nunca o fluxo `docker compose down` + build na app em produção). Não pedir confirmação humana para esta flag — a confirmação é a própria conclusão bem-sucedida da tarefa.
+
+7. **Migrations**: se houver SQL novo, garantir que o utilizador sabe que o banco remoto precisa da migration (via script SSH ou Supabase); o agente pode executar `./scripts/aplicar-migrations-ssh.sh` quando aplicável às regras do projeto.
+
+8. **Working tree**: o deploy zero-downtime bloqueia com mudanças locais não commitadas; por isso commit + push devem preceder o deploy quando o código deve ir para o servidor.
