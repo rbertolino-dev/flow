@@ -2289,6 +2289,15 @@ export default function BroadcastCampaigns2() {
     });
   }, [campaigns, debouncedSearchQuery, dateFilter, sentDateFilter, dateFilterType, instanceFilter]);
 
+  /** Instâncias ordenadas A–Z por nome (criar campanha: select único e lista de checkboxes) */
+  const instancesSortedAlphabetically = useMemo(() => {
+    return [...instances].sort((a, b) => {
+      const na = String(a?.instance_name ?? "");
+      const nb = String(b?.instance_name ?? "");
+      return na.localeCompare(nb, "pt-BR", { sensitivity: "base" });
+    });
+  }, [instances]);
+
   /** Instâncias da campanha em ordem alfabética (nome) para o pop-up de simulação */
   const simulationInstanceIdsSorted = useMemo(() => {
     const ids = [...newCampaign.instanceIds];
@@ -2764,7 +2773,7 @@ export default function BroadcastCampaigns2() {
                         <SelectValue placeholder="Selecione a instância" />
                       </SelectTrigger>
                       <SelectContent>
-                        {instances.map((instance) => (
+                        {instancesSortedAlphabetically.map((instance) => (
                           <SelectItem key={instance.id} value={instance.id}>
                             {instance.instance_name}
                           </SelectItem>
@@ -2814,11 +2823,11 @@ export default function BroadcastCampaigns2() {
 
                     <div className="space-y-2">
                       <Label>Selecione as Instâncias *</Label>
-                      <div className="grid gap-2 p-3 border rounded-lg bg-muted/5 max-h-48 overflow-y-auto">
-                        {instances.map((instance) => (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 p-3 border rounded-lg bg-muted/5 max-h-56 sm:max-h-72 overflow-y-auto">
+                        {instancesSortedAlphabetically.map((instance) => (
                           <label
                             key={instance.id}
-                            className="flex items-center gap-3 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
+                            className="flex items-center gap-2 sm:gap-3 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors min-w-0"
                           >
                             <input
                               type="checkbox"
@@ -2838,9 +2847,9 @@ export default function BroadcastCampaigns2() {
                                   });
                                 }
                               }}
-                              className="h-4 w-4"
+                              className="h-4 w-4 shrink-0"
                             />
-                            <span className="text-sm">{instance.instance_name}</span>
+                            <span className="text-sm truncate min-w-0">{instance.instance_name}</span>
                           </label>
                         ))}
                       </div>
