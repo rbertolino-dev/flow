@@ -14,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 import { LeadBudgetBadge } from "./LeadBudgetBadge";
-import { LeadCardBudgetsSection } from "./LeadCardBudgetsSection";
 
 interface LeadCardProps {
   lead: Lead;
@@ -275,13 +274,6 @@ export const LeadCard = memo(function LeadCard({
             </div>
           )}
 
-          <LeadCardBudgetsSection
-            leadId={lead.id}
-            previews={lead.budgetsPreview?.previews ?? []}
-            totalCount={lead.budgetsPreview?.totalCount ?? 0}
-            compact
-          />
-
           {/* ✅ Instância de origem - sempre visível */}
           {(instanceName || lead.sourceInstanceName) && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 shrink-0">
@@ -512,12 +504,6 @@ export const LeadCard = memo(function LeadCard({
           </div>
         )}
 
-        <LeadCardBudgetsSection
-          leadId={lead.id}
-          previews={lead.budgetsPreview?.previews ?? []}
-          totalCount={lead.budgetsPreview?.totalCount ?? 0}
-        />
-
         {/* ✅ Instância de origem - sempre visível */}
         {(instanceName || lead.sourceInstanceName) && (
           <Badge variant="secondary" className="text-xs px-2 py-1 shrink-0">
@@ -622,7 +608,6 @@ export const LeadCard = memo(function LeadCard({
     prevProps.instanceName === nextProps.instanceName &&
     JSON.stringify(prevProps.lead.tags) === JSON.stringify(nextProps.lead.tags) &&
     JSON.stringify(prevProps.lead.assignees) === JSON.stringify(nextProps.lead.assignees) &&
-    JSON.stringify(prevProps.lead.budgetsPreview) === JSON.stringify(nextProps.lead.budgetsPreview) &&
     JSON.stringify(prevProps.lead.budgetSummary) === JSON.stringify(nextProps.lead.budgetSummary)
   );
 });

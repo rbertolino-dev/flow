@@ -48,6 +48,7 @@ import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { TransferToPostSaleDialog } from "./TransferToPostSaleDialog";
 import { EnhancedActivityHistory } from "./EnhancedActivityHistory";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
+import { LeadCardBudgetsSection } from "./LeadCardBudgetsSection";
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -1213,6 +1214,20 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                   <p className="text-sm mt-1">{currentLead.notes}</p>
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Orçamentos
+              </h3>
+              <LeadCardBudgetsSection
+                leadId={currentLead.id}
+                previews={currentLead.budgetsPreview?.previews ?? []}
+                totalCount={currentLead.budgetsPreview?.totalCount ?? 0}
+              />
             </div>
 
             <Separator />
