@@ -107,6 +107,47 @@ type Broadcast2CreateCampaignContact = {
   custom_fields?: Record<string, string>;
 };
 
+/** IDs vindos de grupos (Postgres uuid[] / JSON) podem não bater com `===` contra evolution_config sem normalizar. */
+function normalizeInstanceIdList(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x).trim()).filter(Boolean);
+}
+
+type EvoRowForDisconnect = {
+  id: string;
+  instance_name?: string | null;
+  is_connected?: boolean | null;
+};
+
+function getDisconnectedForInstanceIds(
+  ids: string[],
+  instancesList: EvoRowForDisconnect[],
+): Array<{ id: string; name: string }> {
+  const out: Array<{ id: string; name: string }> = [];
+  const seen = new Set<string>();
+  for (const rawId of ids) {
+    const id = String(rawId).trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const inst = instancesList.find((i) => String(i.id) === id);
+    if (!inst) {
+      out.push({
+        id,
+        name: "Instância não encontrada (removida ou indisponível)",
+      });
+      continue;
+    }
+    if (inst.is_connected !== true) {
+      out.push({
+        id: String(inst.id),
+        name: String(inst.instance_name ?? "Instância"),
+      });
+    }
+  }
+  return out;
+}
+
 interface WhatsAppStatusTabProps {
   instances: Array<{ id: string; instance_name: string; is_connected: boolean }>;
 }
@@ -596,6 +637,10 @@ export default function BroadcastCampaigns2() {
         disconnected: DisconnectedInstanceInfo[];
         campaignId: string;
         scheduleForNextWindow: boolean;
+      }
+    | {
+        mode: "groupPreview";
+        disconnected: DisconnectedInstanceInfo[];
       }
   >(null);
 
@@ -1365,20 +1410,14 @@ export default function BroadcastCampaigns2() {
   };
 
   const getDisconnectedSelectedInstances = useCallback((): DisconnectedInstanceInfo[] => {
-    const ids =
+    const rawIds =
       newCampaign.sendingMethod === "single"
         ? newCampaign.instanceId
           ? [newCampaign.instanceId]
           : []
         : newCampaign.instanceIds;
-    const out: DisconnectedInstanceInfo[] = [];
-    for (const id of ids) {
-      const inst = instances.find((i) => i.id === id);
-      if (inst && inst.is_connected !== true) {
-        out.push({ id: inst.id, name: String(inst.instance_name ?? "Instância") });
-      }
-    }
-    return out;
+    const ids = normalizeInstanceIdList(rawIds);
+    return getDisconnectedForInstanceIds(ids, instances);
   }, [newCampaign.sendingMethod, newCampaign.instanceId, newCampaign.instanceIds, instances]);
 
   const tryCreateCampaign = async (contacts: CreateCampaignContact[]) => {
@@ -1714,13 +1753,8 @@ export default function BroadcastCampaigns2() {
             if (r.instance_id) idSet.add(r.instance_id);
           });
         }
-        const disconnected: DisconnectedInstanceInfo[] = [];
-        for (const id of idSet) {
-          const inst = instances.find((i) => i.id === id);
-          if (inst && inst.is_connected !== true) {
-            disconnected.push({ id: inst.id, name: String(inst.instance_name ?? "Instância") });
-          }
-        }
+        const idList = normalizeInstanceIdList(Array.from(idSet));
+        const disconnected = getDisconnectedForInstanceIds(idList, instances);
         if (disconnected.length > 0) {
           setDisconnectedInstanceDialog({
             mode: "start",
@@ -2544,16 +2578,21 @@ export default function BroadcastCampaigns2() {
                 organizationId={activeOrgId!}
                 instances={instances}
                 onGroupSelect={(group) => {
-                  setNewCampaign({
-                    ...newCampaign,
+                  const ids = normalizeInstanceIdList(group.instance_ids);
+                  setNewCampaign((prev) => ({
+                    ...prev,
                     selectedGroupId: group.id,
-                    instanceIds: group.instance_ids,
+                    instanceIds: ids,
                     sendingMethod: "separate",
-                  });
+                  }));
+                  const disc = getDisconnectedForInstanceIds(ids, instances);
+                  if (disc.length > 0) {
+                    setDisconnectedInstanceDialog({ mode: "groupPreview", disconnected: disc });
+                  }
                   setCreateDialogOpen(true);
                   toast({
                     title: "Grupo selecionado!",
-                    description: `Grupo "${group.name}" com ${group.instance_ids.length} instância(s) carregado`,
+                    description: `Grupo "${group.name}" com ${ids.length} instância(s) carregado`,
                   });
                 }}
               />
@@ -2940,18 +2979,22 @@ export default function BroadcastCampaigns2() {
                         <Select
                           value={newCampaign.selectedGroupId}
                           onValueChange={(groupId) => {
-                            const group = instanceGroups.find(g => g.id === groupId);
-                            if (group) {
-                              setNewCampaign({
-                                ...newCampaign,
-                                selectedGroupId: group.id,
-                                instanceIds: group.instance_ids,
-                              });
-                              toast({
-                                title: "Grupo selecionado!",
-                                description: `Grupo "${group.name}" com ${group.instance_ids.length} instância(s)`,
-                              });
+                            const group = instanceGroups.find((g) => g.id === groupId);
+                            if (!group) return;
+                            const ids = normalizeInstanceIdList(group.instance_ids);
+                            setNewCampaign((prev) => ({
+                              ...prev,
+                              selectedGroupId: group.id,
+                              instanceIds: ids,
+                            }));
+                            const disc = getDisconnectedForInstanceIds(ids, instances);
+                            if (disc.length > 0) {
+                              setDisconnectedInstanceDialog({ mode: "groupPreview", disconnected: disc });
                             }
+                            toast({
+                              title: "Grupo selecionado!",
+                              description: `Grupo "${group.name}" com ${ids.length} instância(s)`,
+                            });
                           }}
                         >
                           <SelectTrigger>
@@ -4220,19 +4263,51 @@ export default function BroadcastCampaigns2() {
               <AlertDialogDescription asChild>
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <p>
-                    {disconnectedInstanceDialog?.mode === "create"
-                      ? "Ao criar a campanha, estas instâncias não estão conectadas à Evolution API (WhatsApp). O envio pode falhar até reconectarem."
-                      : "Ao iniciar a campanha, estas instâncias não estão conectadas à Evolution API. O envio pode falhar até reconectarem."}
+                    {disconnectedInstanceDialog?.mode === "groupPreview"
+                      ? "O grupo inclui instância(s) não conectadas à Evolution API (WhatsApp) ou não encontradas na organização. O envio pode falhar até reconectarem ou corrigir a seleção."
+                      : disconnectedInstanceDialog?.mode === "create"
+                        ? "Ao criar a campanha, estas instâncias não estão conectadas à Evolution API (WhatsApp). O envio pode falhar até reconectarem."
+                        : "Ao iniciar a campanha, estas instâncias não estão conectadas à Evolution API. O envio pode falhar até reconectarem."}
                   </p>
                   <ul className="list-disc pl-5 space-y-1 font-medium text-foreground">
                     {disconnectedInstanceDialog?.disconnected.map((d) => (
                       <li key={d.id}>{d.name}</li>
                     ))}
                   </ul>
-                  <p>Deseja continuar assim mesmo ou remover as desconectadas?</p>
+                  {disconnectedInstanceDialog?.mode !== "groupPreview" && (
+                    <p>Deseja continuar assim mesmo ou remover as desconectadas?</p>
+                  )}
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {disconnectedInstanceDialog?.mode === "groupPreview" ? (
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:justify-end">
+                <AlertDialogCancel className="sm:mt-0">Entendi</AlertDialogCancel>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    const d = disconnectedInstanceDialog;
+                    if (!d || d.mode !== "groupPreview") return;
+                    const discIds = new Set(d.disconnected.map((x) => String(x.id)));
+                    setNewCampaign((prev) => ({
+                      ...prev,
+                      selectedGroupId: "",
+                      instanceIds: normalizeInstanceIdList(prev.instanceIds).filter((id) => !discIds.has(id)),
+                      instanceId: discIds.has(String(prev.instanceId)) ? "" : prev.instanceId,
+                    }));
+                    setDisconnectedInstanceDialog(null);
+                    toast({
+                      title: "Seleção atualizada",
+                      description: "Instâncias com problema foram removidas da seleção.",
+                    });
+                  }}
+                >
+                  Remover da seleção
+                </Button>
+              </AlertDialogFooter>
+            ) : (
             <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:justify-end">
               <AlertDialogCancel
                 onClick={() => setDisconnectedInstanceDialog(null)}
@@ -4248,12 +4323,12 @@ export default function BroadcastCampaigns2() {
                   const d = disconnectedInstanceDialog;
                   if (!d) return;
                   if (d.mode === "create") {
-                    const discIds = new Set(d.disconnected.map((x) => x.id));
+                    const discIds = new Set(d.disconnected.map((x) => String(x.id)));
                     const effective = {
                       ...newCampaign,
                       selectedGroupId: "",
-                      instanceIds: newCampaign.instanceIds.filter((id) => !discIds.has(id)),
-                      instanceId: discIds.has(newCampaign.instanceId) ? "" : newCampaign.instanceId,
+                      instanceIds: normalizeInstanceIdList(newCampaign.instanceIds).filter((id) => !discIds.has(id)),
+                      instanceId: discIds.has(String(newCampaign.instanceId)) ? "" : newCampaign.instanceId,
                     };
                     if (effective.sendingMethod === "single" && !effective.instanceId) {
                       setNewCampaign(effective);
@@ -4352,6 +4427,7 @@ export default function BroadcastCampaigns2() {
                 Sim, continuar assim
               </AlertDialogAction>
             </AlertDialogFooter>
+            )}
           </AlertDialogContent>
         </AlertDialog>
 
