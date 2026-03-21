@@ -1,6 +1,6 @@
-import type { LeadBudgetSummary } from "@/lib/leadBudgetSummary";
+import type { LeadBudgetSummary, LeadBudgetPreview } from "@/lib/leadBudgetSummary";
 
-export type { LeadBudgetSummary } from "@/lib/leadBudgetSummary";
+export type { LeadBudgetSummary, LeadBudgetPreview } from "@/lib/leadBudgetSummary";
 
 export type LeadStatus = "novo" | "contatado" | "proposta" | "negociacao" | "ganho" | "perdido" | string;
 
@@ -64,6 +64,8 @@ export interface Lead {
   cpf_cnpj?: string | null;
   /** Preenchido pelo useLeads a partir da tabela budgets */
   budgetSummary?: LeadBudgetSummary;
+  /** Até 3 orçamentos mais recentes no card; totalCount para "ver outros" */
+  budgetsPreview?: { previews: LeadBudgetPreview[]; totalCount: number };
 }
 
 export interface CallQueueItem {

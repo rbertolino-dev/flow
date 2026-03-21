@@ -64,3 +64,75 @@ export function buildBudgetSummaryByLeadId(rows: BudgetRowForSummary[]): Record<
   }
   return out;
 }
+
+/** Linha mínima de budgets para lista no card do funil */
+export interface BudgetRowForLeadCard {
+  id: string;
+  lead_id: string | null;
+  budget_number: string;
+  total: number;
+  created_at: string;
+  expires_at: string | null;
+  approved: boolean | null;
+  rejected: boolean | null;
+}
+
+export type LeadBudgetPreviewStatus = "approved" | "rejected" | "expired" | "open";
+
+export interface LeadBudgetPreview {
+  id: string;
+  budgetNumber: string;
+  total: number;
+  createdAt: string;
+  expiresAt: string | null;
+  approved: boolean;
+  rejected: boolean;
+  status: LeadBudgetPreviewStatus;
+}
+
+export function getBudgetRowStatus(
+  row: Pick<BudgetRowForLeadCard, "expires_at" | "approved" | "rejected">,
+  now: Date = new Date()
+): LeadBudgetPreviewStatus {
+  if (row.approved) return "approved";
+  if (row.rejected) return "rejected";
+  if (isBudgetDateExpired(row.expires_at, now)) return "expired";
+  return "open";
+}
+
+function rowToPreview(row: BudgetRowForLeadCard, now: Date): LeadBudgetPreview {
+  return {
+    id: row.id,
+    budgetNumber: row.budget_number || "—",
+    total: Number(row.total) || 0,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at ?? null,
+    approved: !!row.approved,
+    rejected: !!row.rejected,
+    status: getBudgetRowStatus(row, now),
+  };
+}
+
+/** Últimos 3 orçamentos por lead (mais recentes por created_at) + total para "ver outros". */
+export function buildBudgetPreviewsByLeadId(
+  rows: BudgetRowForLeadCard[],
+  now: Date = new Date()
+): Record<string, { previews: LeadBudgetPreview[]; totalCount: number }> {
+  const byLead: Record<string, BudgetRowForLeadCard[]> = {};
+  for (const r of rows) {
+    if (!r.lead_id) continue;
+    if (!byLead[r.lead_id]) byLead[r.lead_id] = [];
+    byLead[r.lead_id].push(r);
+  }
+  const out: Record<string, { previews: LeadBudgetPreview[]; totalCount: number }> = {};
+  for (const leadId of Object.keys(byLead)) {
+    const sorted = [...byLead[leadId]].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    out[leadId] = {
+      previews: sorted.slice(0, 3).map((row) => rowToPreview(row, now)),
+      totalCount: sorted.length,
+    };
+  }
+  return out;
+}

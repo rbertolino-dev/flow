@@ -4,7 +4,11 @@ import { Lead, LeadStatus, Activity, LeadAssignee } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { forceRefreshAfterMutation, broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
-import { buildBudgetSummaryByLeadId } from "@/lib/leadBudgetSummary";
+import {
+  buildBudgetSummaryByLeadId,
+  buildBudgetPreviewsByLeadId,
+  type BudgetRowForLeadCard,
+} from "@/lib/leadBudgetSummary";
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -102,7 +106,7 @@ export function useLeads() {
           );
 
         let batches = await fetchBudgetSummaryBatches(
-          "lead_id, expires_at, approved, rejected"
+          "id, lead_id, budget_number, total, created_at, expires_at, approved, rejected"
         );
         let budgetErr = batches.find((r) => r.error)?.error;
 
@@ -114,7 +118,7 @@ export function useLeads() {
             budgetErr
           );
           const retry = await fetchBudgetSummaryBatches(
-            "lead_id, expires_at, approved"
+            "id, lead_id, budget_number, total, created_at, expires_at, approved"
           );
           const err2 = retry.find((r) => r.error)?.error;
           if (!err2) {
@@ -230,14 +234,29 @@ export function useLeads() {
         );
       }
 
-      const budgetSummaryByLead = buildBudgetSummaryByLeadId(
-        (allBudgetRows || []).map((row: any) => ({
+      const budgetRowsNormalized: BudgetRowForLeadCard[] = (allBudgetRows || []).map(
+        (row: any) => ({
+          id: row.id,
           lead_id: row.lead_id ?? null,
+          budget_number: row.budget_number ?? "",
+          total: Number(row.total) || 0,
+          created_at: row.created_at,
           expires_at: row.expires_at ?? null,
           approved: row.approved ?? null,
           rejected: row.rejected ?? null,
+        })
+      );
+
+      const budgetSummaryByLead = buildBudgetSummaryByLeadId(
+        budgetRowsNormalized.map((row) => ({
+          lead_id: row.lead_id,
+          expires_at: row.expires_at,
+          approved: row.approved,
+          rejected: row.rejected,
         }))
       );
+
+      const budgetPreviewsByLead = buildBudgetPreviewsByLeadId(budgetRowsNormalized);
 
       // ✅ DEBUG: Log tags encontradas
       const totalTags = Object.keys(tagsByLead).length;
@@ -315,6 +334,7 @@ export function useLeads() {
           })),
           tags: processedTags, // ✅ Usar tags processadas
           budgetSummary: budgetSummaryByLead[lead.id] ?? { kind: "none" as const, count: 0 },
+          budgetsPreview: budgetPreviewsByLead[lead.id] ?? { previews: [], totalCount: 0 },
         } as Lead;
       });
 
