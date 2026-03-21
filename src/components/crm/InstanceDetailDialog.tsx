@@ -19,6 +19,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, Edit2, Save, X } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { InstanceConnectionMonthStats } from "@/components/crm/InstanceConnectionMonthStats";
+import { Badge } from "@/components/ui/badge";
 
 interface Instance {
   id: string;
@@ -201,6 +203,15 @@ export function InstanceDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Status agora:</span>
+            <Badge variant={instance.is_connected ? "default" : "secondary"}>
+              {instance.is_connected ? "Conectado" : "Desconectado"}
+            </Badge>
+          </div>
+
+          <InstanceConnectionMonthStats instanceId={instance.id} enabled={open} />
+
           {/* Agente Reserva */}
           <div className="space-y-2">
             <Label htmlFor="reserve-agent">Agente Reserva</Label>

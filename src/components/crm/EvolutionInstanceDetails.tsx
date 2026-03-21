@@ -12,6 +12,7 @@ import { WebhookTestPanel } from "./WebhookTestPanel";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InstanceConnectionMonthStats } from "@/components/crm/InstanceConnectionMonthStats";
 
 interface EvolutionInstanceDetailsProps {
   config: EvolutionConfig;
@@ -49,7 +50,9 @@ export function EvolutionInstanceDetails({ config }: EvolutionInstanceDetailsPro
           Detalhes da Instância: {config.instance_name}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <InstanceConnectionMonthStats instanceId={config.id} />
+
         <Tabs defaultValue="webhook" className="w-full">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="webhook">Webhook</TabsTrigger>
