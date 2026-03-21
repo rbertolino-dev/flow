@@ -1,0 +1,29 @@
+Rollback — Disparador 2 (Disparo em massa / Broadcast 2)
+=========================================================
+
+Checkpoints para pedir alterações com rollback seguro.
+
+Checkpoints disponíveis
+-----------------------
+1) Tag Git disparador-2-baseline-2026-03-21 (2026-03-21) — RECOMENDADO
+   - Baseline completo versionado num commit.
+   - Restaurar: ./rollback/disparador-2/restaurar-modulo-desde-git-tag.sh disparador-2-baseline-2026-03-21
+   - Detalhes: CHECKPOINT-2026-03-21/MANIFEST.disparador2
+
+2) Pasta CHECKPOINT-2026-03-21
+   - PATHS.checkout, MANIFEST.disparador2, RESTAURAR.disparador2
+
+3) CHECKPOINT-2025-03-10 / CHECKPOINT-2025-01-27
+   - Cópias estáticas de ficheiros (edge, frontend, DB, scripts).
+   - Ver RESTAURAR.md dentro de cada pasta (se existir no teu clone).
+
+Verificação (checkpoints antigos com cópia de ficheiros)
+--------------------------------------------------------
+  ./rollback/disparador-2/verificar-checkpoint.sh CHECKPOINT-2025-03-10
+
+Conteúdo típico do módulo
+-------------------------
+- Edge: process-broadcast-queue-2
+- Frontend: rota /broadcast-2, menu Disparador Inteligente, BroadcastCampaigns2.tsx
+- Banco: broadcast_campaigns_2, broadcast_queue_2, RLS, RPCs de estatísticas
+- Config: verify_jwt = false na função; cron que chama a edge

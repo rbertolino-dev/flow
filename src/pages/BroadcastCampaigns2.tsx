@@ -1,3 +1,7 @@
+/**
+ * Disparo em massa 2 (Disparador Inteligente) — baseline Git: disparador-2-baseline-2026-03-21
+ * Rollback: rollback/disparador-2/README.disparador2 e restaurar-modulo-desde-git-tag.sh
+ */
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";

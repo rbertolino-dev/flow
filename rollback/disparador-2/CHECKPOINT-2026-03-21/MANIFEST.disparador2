@@ -1,0 +1,38 @@
+Checkpoint Disparador 2 — 2026-03-21
+======================================
+
+Tag Git (referência principal)
+------------------------------
+Tag: disparador-2-baseline-2026-03-21
+Objetivo: estado conhecido do Disparo em massa 2 antes de alterações experimentais.
+
+Ver commit:
+  git show -s --oneline disparador-2-baseline-2026-03-21
+
+O que cobre (código + SQL versionado)
+--------------------------------------
+Ficheiros listados em PATHS.checkout:
+
+- Página e rota: BroadcastCampaigns2.tsx, App.tsx, Index.tsx, CRMLayout.tsx
+- Integrações UI: InstanceStatusPanel.tsx, BroadcastPerformanceReport.tsx
+- Edge: supabase/functions/process-broadcast-queue-2/index.ts
+- Config: [functions.process-broadcast-queue-2] em supabase/config.toml
+- Migrations: tabelas/RPCs broadcast_*_2 e dispatch stats associadas ao v2
+- Scripts: aplicar-disparador-2-*, configurar-cron-disparador-2, deploy-disparador-2-completo
+
+Limitação — base de dados
+-------------------------
+git checkout restaura ficheiros; NÃO desfaz migrations já aplicadas no Supabase.
+Para reverter schema em remoto: migrations novas, SQL manual ou backup.
+
+Dependências partilhadas (só se alteraste e quebrou o v2)
+---------------------------------------------------------
+- src/lib/contactValidator.ts, csvParser.ts, broadcastTimeWindow.ts
+- supabase/functions/_shared/broadcast-error-classify.ts
+- Componentes CRM partilhados entre BroadcastCampaigns.tsx e BroadcastCampaigns2.tsx
+
+Após restaurar
+--------------
+1. npm run build
+2. supabase functions deploy process-broadcast-queue-2 (se a edge mudou)
+3. Deploy app quando for para produção

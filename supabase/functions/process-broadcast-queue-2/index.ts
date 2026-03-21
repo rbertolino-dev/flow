@@ -7,6 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Disparo em massa 2 — baseline: disparador-2-baseline-2026-03-21 | rollback/disparador-2/README.disparador2 */
+
 /**
  * Substitui todas as tags dinâmicas em uma mensagem de template
  * Suporta: {nome}, {empresa}, {nome_empresa}, {email}, {cpf}, {cnpj}, e campos customizados

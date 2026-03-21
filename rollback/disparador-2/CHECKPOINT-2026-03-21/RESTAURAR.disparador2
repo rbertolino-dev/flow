@@ -1,0 +1,23 @@
+Restaurar Disparador 2 a partir da tag Git
+===========================================
+
+Pré-requisitos: tag disparador-2-baseline-2026-03-21 (git fetch --tags se necessário).
+
+Opção A — script
+----------------
+  chmod +x rollback/disparador-2/restaurar-modulo-desde-git-tag.sh
+  ./rollback/disparador-2/restaurar-modulo-desde-git-tag.sh disparador-2-baseline-2026-03-21
+
+Opção B — manual
+----------------
+  xargs git checkout disparador-2-baseline-2026-03-21 -- \\
+    < rollback/disparador-2/CHECKPOINT-2026-03-21/PATHS.checkout
+
+  (na raiz do repositório; o redirecionamento alimenta o xargs com um path por linha)
+
+Depois: git status && git diff --stat
+
+Base de dados: ver MANIFEST.disparador2 (secção Limitação).
+
+Edge Function após restaurar código:
+  supabase functions deploy process-broadcast-queue-2
