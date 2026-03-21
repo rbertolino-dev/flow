@@ -50,6 +50,7 @@ import { BroadcastPerformanceReport } from "@/components/crm/BroadcastPerformanc
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
+import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisconnectionReportDialog";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { ReconnectInstanceDialog } from "@/components/crm/ReconnectInstanceDialog";
 import { BroadcastTimeWindowManager } from "@/components/crm/BroadcastTimeWindowManager";
@@ -2005,6 +2006,9 @@ export default function BroadcastCampaigns() {
       <CRMLayout activeView="broadcast" onViewChange={handleViewChange}>
         <div className="h-full overflow-y-auto">
           <div className="p-4 md:p-6 pb-20 md:pb-6">
+          <div className="flex justify-end mb-2">
+            <InstanceDisconnectionReportDialog organizationId={activeOrgId} />
+          </div>
           {/* Quadro de Status das Instâncias */}
           <InstanceStatusPanel 
             instances={instances} 

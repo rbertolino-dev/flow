@@ -24,6 +24,7 @@ import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCamp
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
+import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisconnectionReportDialog";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import type { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
@@ -2273,6 +2274,9 @@ export default function BroadcastCampaigns2() {
             enabled={!!activeOrgId}
             onReconnected={fetchInstances}
           />
+          <div className="flex justify-end mb-2">
+            <InstanceDisconnectionReportDialog organizationId={activeOrgId} />
+          </div>
           {/* Quadro de Status das Instâncias */}
           <InstanceStatusPanel 
             instances={instances} 
