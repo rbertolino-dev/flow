@@ -18,15 +18,22 @@
 -- - "[SERVICE_ROLE_KEY]" literal: esqueceram de substituir o placeholder.
 --
 -- Este ficheiro NÃO coloca segredos em texto: usa só current_setting acima.
+--
+-- IMPORTANTE: CRON-JOBS-FINAL.sql e este ficheiro são o MESMO conjunto de jobs.
+-- Não executar os dois em sequência sem precisar — cada execução recria os 9 jobs.
+-- Se já correste os dois, ficaste com nomes duplicados (vários jobid, mesmo jobname):
+--   pg_cron.unschedule(nome) só remove UMA linha por nome. Por isso o bloco abaixo
+--   remove por jobid em ciclo até não restar nenhum com esse nome.
 -- ============================================
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS http;
 
--- Remover jobs com estes nomes para poder reexecutar o script sem duplicar
+-- Remover TODAS as entradas com estes jobnames (inclui duplicados de execuções repetidas)
 DO $$
 DECLARE
   j text;
+  jid bigint;
   names text[] := ARRAY[
     'sync-daily-metrics',
     'process-whatsapp-workflows',
@@ -40,10 +47,12 @@ DECLARE
   ];
 BEGIN
   FOREACH j IN ARRAY names LOOP
-    IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = j) THEN
-      PERFORM cron.unschedule(j);
-      RAISE NOTICE 'Removido cron job: %', j;
-    END IF;
+    LOOP
+      SELECT jobid INTO jid FROM cron.job WHERE jobname = j ORDER BY jobid LIMIT 1;
+      EXIT WHEN jid IS NULL;
+      PERFORM cron.unschedule(jid);
+      RAISE NOTICE 'Removido cron jobid=% jobname=%', jid, j;
+    END LOOP;
   END LOOP;
 END $$;
 
