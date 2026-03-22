@@ -1,3 +1,4 @@
+// Cron: agendar no Supabase (ver CRON-JOBS-FINAL.sql e scripts/configurar-cron-jobs-completo.sql).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

@@ -3,6 +3,37 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 
+type PublishStatusFnResponse = {
+  success?: boolean;
+  error?: string;
+};
+
+function ensurePublishInvokeOk(
+  response: {
+    error?: Error | { message?: string };
+    data?: unknown;
+  },
+  fallbackMessage: string,
+): void {
+  if (response.error) {
+    const err = response.error;
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err && "message" in err
+          ? String((err as { message?: string }).message)
+          : fallbackMessage;
+    throw new Error(msg || fallbackMessage);
+  }
+  const data = response.data as PublishStatusFnResponse | null | undefined;
+  if (!data || data.success !== true) {
+    if (typeof data?.error === "string" && data.error.trim()) {
+      throw new Error(data.error);
+    }
+    throw new Error(fallbackMessage);
+  }
+}
+
 export interface WhatsAppStatusPost {
   id: string;
   organization_id: string;
@@ -97,9 +128,7 @@ export function useWhatsAppStatus() {
           },
         });
 
-        if (response.error) {
-          throw new Error(response.error.message || 'Erro ao publicar status');
-        }
+        ensurePublishInvokeOk(response, "Erro ao publicar status");
       }
 
       return data;
@@ -209,9 +238,7 @@ export function useWhatsAppStatus() {
         },
       });
 
-      if (response.error) {
-        throw response.error;
-      }
+      ensurePublishInvokeOk(response, "Erro ao republicar status");
 
       return statusPost;
     },

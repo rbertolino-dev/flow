@@ -1,9 +1,8 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, X, Image as ImageIcon, Video, Loader2 } from "lucide-react";
+import { Upload, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -11,16 +10,14 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { compressImage, validateImageFile } from "@/lib/imageCompression";
 
 const BUCKET_ID = "whatsapp-workflow-media";
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (após compressão)
 const MAX_FILE_SIZE_BEFORE_COMPRESSION = 16 * 1024 * 1024; // 16MB (antes da compressão)
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
 interface StatusMediaUploadProps {
-  onMediaSelected: (mediaUrl: string, mediaType: 'image' | 'video') => void;
+  onMediaSelected: (mediaUrl: string, mediaType: "image") => void;
   onCaptionChange?: (caption: string) => void;
   initialMediaUrl?: string;
-  initialMediaType?: 'image' | 'video';
+  initialMediaType?: "image";
   initialCaption?: string;
 }
 
@@ -33,8 +30,10 @@ export function StatusMediaUpload({
 }: StatusMediaUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | undefined>(initialMediaUrl);
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(initialMediaType || null);
-  const [caption, setCaption] = useState<string>(initialCaption || '');
+  const [mediaType, setMediaType] = useState<"image" | null>(
+    initialMediaType ?? null,
+  );
+  const [caption, setCaption] = useState<string>(initialCaption || "");
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,20 +41,18 @@ export function StatusMediaUpload({
   const { activeOrgId } = useActiveOrganization();
 
   const handleFileSelect = async (file: File) => {
-    // Validar tipo de arquivo
     const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
-    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
 
-    if (!isImage && !isVideo) {
+    if (!isImage) {
       toast({
         title: "Tipo de arquivo inválido",
-        description: "Apenas imagens (JPG, PNG, WEBP) e vídeos (MP4) são permitidos",
+        description:
+          "Apenas imagens (JPG, PNG, WEBP) são permitidas. A Evolution API não documenta envio de vídeo no status.",
         variant: "destructive",
       });
       return;
     }
 
-    // Validar tamanho antes da compressão
     if (file.size > MAX_FILE_SIZE_BEFORE_COMPRESSION) {
       toast({
         title: "Arquivo muito grande",
@@ -65,48 +62,42 @@ export function StatusMediaUpload({
       return;
     }
 
-    // Para imagens, validar e comprimir
     let fileToUpload = file;
-    if (isImage) {
-      const validation = validateImageFile(file);
-      if (!validation.valid) {
-        toast({
-          title: "Erro na validação",
-          description: validation.error,
-          variant: "destructive",
-        });
-        return;
-      }
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      toast({
+        title: "Erro na validação",
+        description: validation.error,
+        variant: "destructive",
+      });
+      return;
+    }
 
-      // Comprimir imagem
-      try {
-        setUploading(true);
-        fileToUpload = await compressImage(file);
-      } catch (error: any) {
-        console.error('Erro ao comprimir imagem:', error);
-        toast({
-          title: "Erro ao comprimir imagem",
-          description: "Tentando fazer upload do arquivo original...",
-          variant: "default",
-        });
-        fileToUpload = file; // Usar original em caso de erro
-      } finally {
-        setUploading(false);
-      }
+    try {
+      setUploading(true);
+      fileToUpload = await compressImage(file);
+    } catch (error: unknown) {
+      console.error("Erro ao comprimir imagem:", error);
+      toast({
+        title: "Erro ao comprimir imagem",
+        description: "Tentando fazer upload do arquivo original...",
+        variant: "default",
+      });
+      fileToUpload = file;
+    } finally {
+      setUploading(false);
     }
 
     setSelectedFile(fileToUpload);
-    setMediaType(isImage ? 'image' : 'video');
+    setMediaType("image");
 
-    // Criar preview com arquivo original para melhor visualização
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
 
-    // Fazer upload do arquivo (comprimido se for imagem)
-    await uploadFile(fileToUpload, isImage ? 'image' : 'video');
+    await uploadFile(fileToUpload);
   };
 
-  const uploadFile = async (file: File, type: 'image' | 'video') => {
+  const uploadFile = async (file: File) => {
     if (!activeOrgId) {
       toast({
         title: "Erro",
@@ -119,40 +110,39 @@ export function StatusMediaUpload({
     setUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
       const filePath = `${activeOrgId}/status/${fileName}`;
 
-      // Upload para Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_ID)
         .upload(filePath, file, {
           upsert: false,
-          cacheControl: '86400', // 24 horas (otimização de cache)
+          cacheControl: "86400",
         });
 
       if (uploadError) {
         throw uploadError;
       }
 
-      // Obter URL pública
       const { data: publicUrlData } = supabase.storage
         .from(BUCKET_ID)
         .getPublicUrl(filePath);
 
       const publicUrl = publicUrlData.publicUrl;
       setMediaUrl(publicUrl);
-      onMediaSelected(publicUrl, type);
+      onMediaSelected(publicUrl, "image");
 
       toast({
         title: "Upload concluído",
-        description: "Mídia carregada com sucesso",
+        description: "Imagem carregada com sucesso",
       });
-    } catch (error: any) {
-      console.error('Erro no upload:', error);
+    } catch (error: unknown) {
+      console.error("Erro no upload:", error);
       toast({
         title: "Erro no upload",
-        description: error.message || "Falha ao fazer upload do arquivo",
+        description:
+          error instanceof Error ? error.message : "Falha ao fazer upload do arquivo",
         variant: "destructive",
       });
       setSelectedFile(null);
@@ -176,7 +166,7 @@ export function StatusMediaUpload({
     setMediaType(null);
     setPreviewUrl(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
@@ -200,7 +190,7 @@ export function StatusMediaUpload({
   return (
     <div className="space-y-4">
       <div>
-        <Label>Mídia (Imagem ou Vídeo)</Label>
+        <Label>Imagem</Label>
         {!mediaUrl ? (
           <div
             className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-gray-400 transition-colors"
@@ -210,45 +200,28 @@ export function StatusMediaUpload({
           >
             <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
             <p className="text-sm text-gray-600 mb-1">
-              Clique ou arraste uma imagem ou vídeo aqui
+              Clique ou arraste uma imagem aqui
             </p>
             <p className="text-xs text-gray-500">
-              JPG, PNG, WEBP ou MP4 (máx. 16MB - imagens serão comprimidas automaticamente)
+              JPG, PNG ou WEBP (máx. 16MB — compressão automática). Vídeo não é
+              suportado pelo status na Evolution API.
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/quicktime,video/x-msvideo"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
               onChange={handleFileInputChange}
               className="hidden"
             />
           </div>
         ) : (
           <div className="mt-2 relative">
-            {mediaType === 'image' && previewUrl && (
+            {mediaType === "image" && previewUrl && (
               <div className="relative border rounded-lg overflow-hidden">
                 <img
                   src={previewUrl}
                   alt="Preview"
                   className="w-full h-auto max-h-64 object-contain"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  onClick={handleRemove}
-                  disabled={uploading}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            {mediaType === 'video' && previewUrl && (
-              <div className="relative border rounded-lg overflow-hidden">
-                <video
-                  src={previewUrl}
-                  controls
-                  className="w-full h-auto max-h-64"
                 />
                 <Button
                   variant="destructive"
@@ -287,5 +260,3 @@ export function StatusMediaUpload({
     </div>
   );
 }
-
-

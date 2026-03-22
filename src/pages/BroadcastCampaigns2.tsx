@@ -169,7 +169,7 @@ function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
   const [mediaUrl, setMediaUrl] = useState<string>("");
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | null>(null);
   const [caption, setCaption] = useState<string>("");
   const [publishNow, setPublishNow] = useState(true);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(new Date());
@@ -262,7 +262,7 @@ function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
           <div>
             <CardTitle>Status do WhatsApp</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Agende ou publique imagens e vídeos no status das instâncias conectadas
+              Agende ou publique imagens no status das instâncias conectadas (a Evolution API não documenta vídeo em status)
             </p>
           </div>
           <Button onClick={() => setCreateDialogOpen(true)}>
@@ -387,7 +387,7 @@ function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
           <DialogHeader>
             <DialogTitle>Criar Status</DialogTitle>
             <DialogDescription>
-              Publique ou agende uma imagem ou vídeo no status do WhatsApp
+              Publique ou agende uma imagem no status do WhatsApp
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
