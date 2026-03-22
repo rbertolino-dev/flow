@@ -8,24 +8,58 @@ type PublishStatusFnResponse = {
   error?: string;
 };
 
-function ensurePublishInvokeOk(
-  response: {
-    error?: Error | { message?: string };
+/** Corpo JSON das Edge Functions em erro (ex.: publish-whatsapp-status devolve 400 + { error }). */
+async function messageFromFunctionsFailure(
+  result: {
+    error: Error | null;
+    data: unknown;
+    response?: Response;
+  },
+  fallback: string,
+): Promise<string> {
+  if (result.response) {
+    try {
+      const ct = result.response.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        const body = (await result.response.json()) as { error?: string };
+        if (typeof body?.error === "string" && body.error.trim()) {
+          return body.error.trim();
+        }
+      } else {
+        const text = (await result.response.text()).trim();
+        if (text) return text.slice(0, 800);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (result.error instanceof Error) {
+    const m = result.error.message;
+    if (m && m !== "Edge Function returned a non-2xx status code") return m;
+  }
+  return fallback;
+}
+
+async function ensurePublishInvokeOk(
+  result: {
+    error: Error | null;
     data?: unknown;
+    response?: Response;
   },
   fallbackMessage: string,
-): void {
-  if (response.error) {
-    const err = response.error;
-    const msg =
-      err instanceof Error
-        ? err.message
-        : typeof err === "object" && err && "message" in err
-          ? String((err as { message?: string }).message)
-          : fallbackMessage;
-    throw new Error(msg || fallbackMessage);
+): Promise<void> {
+  if (result.error) {
+    const msg = await messageFromFunctionsFailure(
+      {
+        error: result.error,
+        data: result.data,
+        response: result.response,
+      },
+      fallbackMessage,
+    );
+    throw new Error(msg);
   }
-  const data = response.data as PublishStatusFnResponse | null | undefined;
+  const data = result.data as PublishStatusFnResponse | null | undefined;
   if (!data || data.success !== true) {
     if (typeof data?.error === "string" && data.error.trim()) {
       throw new Error(data.error);
@@ -128,7 +162,7 @@ export function useWhatsAppStatus() {
           },
         });
 
-        ensurePublishInvokeOk(response, "Erro ao publicar status");
+        await ensurePublishInvokeOk(response, "Erro ao publicar status");
       }
 
       return data;
@@ -238,7 +272,7 @@ export function useWhatsAppStatus() {
         },
       });
 
-      ensurePublishInvokeOk(response, "Erro ao republicar status");
+      await ensurePublishInvokeOk(response, "Erro ao republicar status");
 
       return statusPost;
     },
