@@ -519,9 +519,24 @@ function WhatsAppStatusTab({ instances }: WhatsAppStatusTabProps) {
   );
 }
 
-/** Intervalo fixo entre envios no Disparador 2 (segundos) */
-const FIXED_BROADCAST_2_MIN_DELAY_SEC = 1200;
-const FIXED_BROADCAST_2_MAX_DELAY_SEC = 1600;
+/** Valores sugeridos ao abrir o formulário de nova campanha (segundos); editáveis pelo utilizador */
+const DEFAULT_BROADCAST_2_MIN_DELAY_SEC = 1200;
+const DEFAULT_BROADCAST_2_MAX_DELAY_SEC = 1600;
+/** Teto para evitar erros de digitação (24h) */
+const MAX_BROADCAST_2_DELAY_SEC = 86400;
+
+function delaysFromSource(minRaw: unknown, maxRaw: unknown): { minDelay: number; maxDelay: number } {
+  const dmin = DEFAULT_BROADCAST_2_MIN_DELAY_SEC;
+  const dmax = DEFAULT_BROADCAST_2_MAX_DELAY_SEC;
+  let min = minRaw != null && minRaw !== "" ? Number(minRaw) : NaN;
+  let max = maxRaw != null && maxRaw !== "" ? Number(maxRaw) : NaN;
+  if (!Number.isFinite(min) || min < 1) min = dmin;
+  if (!Number.isFinite(max) || max < 1) max = dmax;
+  min = Math.floor(Math.min(Math.max(1, min), MAX_BROADCAST_2_DELAY_SEC));
+  max = Math.floor(Math.min(Math.max(1, max), MAX_BROADCAST_2_DELAY_SEC));
+  if (min > max) return { minDelay: max, maxDelay: min };
+  return { minDelay: min, maxDelay: max };
+}
 
 export default function BroadcastCampaigns2() {
   const navigate = useNavigate();
@@ -660,8 +675,8 @@ export default function BroadcastCampaigns2() {
     templateId: "",
     customMessage: "",
     messageVariations: [] as string[],
-    minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
-    maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
+    minDelay: DEFAULT_BROADCAST_2_MIN_DELAY_SEC,
+    maxDelay: DEFAULT_BROADCAST_2_MAX_DELAY_SEC,
     scheduledStart: undefined as Date | undefined,
     fromTemplate: false,
     useLatamValidator: false, // Nova opção para validador LATAM
@@ -678,8 +693,8 @@ export default function BroadcastCampaigns2() {
       templateId: "",
       customMessage: "",
       messageVariations: [],
-      minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
-      maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
+      minDelay: DEFAULT_BROADCAST_2_MIN_DELAY_SEC,
+      maxDelay: DEFAULT_BROADCAST_2_MAX_DELAY_SEC,
       scheduledStart: undefined,
       fromTemplate: false,
       useLatamValidator: false,
@@ -700,16 +715,6 @@ export default function BroadcastCampaigns2() {
     }
   }, [createDialogOpen, resetCreateCampaignForm]);
 
-  useEffect(() => {
-    if (createDialogOpen) {
-      setNewCampaign((prev) => ({
-        ...prev,
-        minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
-        maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
-      }));
-    }
-  }, [createDialogOpen]);
-
   const handleTemplateSelectFromManager = (template: Template) => {
     setSelectedCampaignTemplate(template);
     setNewCampaign({
@@ -721,8 +726,7 @@ export default function BroadcastCampaigns2() {
       templateId: template.message_template_id || "",
       customMessage: template.custom_message || "",
       messageVariations: template.message_variations || [],
-      minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
-      maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
+      ...delaysFromSource(template.min_delay_seconds, template.max_delay_seconds),
       scheduledStart: undefined,
       fromTemplate: true,
       useLatamValidator: false,
@@ -804,8 +808,7 @@ export default function BroadcastCampaigns2() {
         templateId: campaignData.message_template_id || "",
         customMessage: campaignData.custom_message || "",
         messageVariations: [],
-        minDelay: FIXED_BROADCAST_2_MIN_DELAY_SEC,
-        maxDelay: FIXED_BROADCAST_2_MAX_DELAY_SEC,
+        ...delaysFromSource(campaignData.min_delay_seconds, campaignData.max_delay_seconds),
         scheduledStart: undefined,
         fromTemplate: false,
         useLatamValidator: false,
@@ -1322,8 +1325,8 @@ export default function BroadcastCampaigns2() {
         instance_id: nc.sendingMethod === "single" ? nc.instanceId : null,
         message_template_id: nc.templateId || null,
         custom_message: nc.customMessage || null,
-        min_delay_seconds: nc.minDelay,
-        max_delay_seconds: nc.maxDelay,
+        min_delay_seconds: Math.floor(Number(nc.minDelay)),
+        max_delay_seconds: Math.floor(Number(nc.maxDelay)),
         total_contacts: contacts.length,
         status: "draft",
         sending_method: nc.sendingMethod,
@@ -1522,6 +1525,33 @@ export default function BroadcastCampaigns2() {
       toast({
         title: "Validação necessária",
         description: "Por favor, valide os contatos antes de criar a campanha",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const minD = Math.floor(Number(newCampaign.minDelay));
+    const maxD = Math.floor(Number(newCampaign.maxDelay));
+    if (!Number.isFinite(minD) || !Number.isFinite(maxD) || minD < 1 || maxD < 1) {
+      toast({
+        title: "Delays inválidos",
+        description: "Use números inteiros de pelo menos 1 segundo.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (minD > maxD) {
+      toast({
+        title: "Delays inválidos",
+        description: "O delay mínimo não pode ser maior que o máximo.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (minD > MAX_BROADCAST_2_DELAY_SEC || maxD > MAX_BROADCAST_2_DELAY_SEC) {
+      toast({
+        title: "Delays muito altos",
+        description: `O máximo permitido é ${MAX_BROADCAST_2_DELAY_SEC} segundos (24 horas).`,
         variant: "destructive",
       });
       return;
@@ -3209,20 +3239,42 @@ export default function BroadcastCampaigns2() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Delay Mínimo (segundos)</Label>
-                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm">
-                      {FIXED_BROADCAST_2_MIN_DELAY_SEC}
-                    </div>
+                    <Label htmlFor="broadcast2-min-delay">Delay mínimo (segundos)</Label>
+                    <Input
+                      id="broadcast2-min-delay"
+                      type="number"
+                      min={1}
+                      max={MAX_BROADCAST_2_DELAY_SEC}
+                      value={newCampaign.minDelay}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        setNewCampaign((prev) => ({
+                          ...prev,
+                          minDelay: Number.isNaN(n) ? prev.minDelay : n,
+                        }));
+                      }}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Delay Máximo (segundos)</Label>
-                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm">
-                      {FIXED_BROADCAST_2_MAX_DELAY_SEC}
-                    </div>
+                    <Label htmlFor="broadcast2-max-delay">Delay máximo (segundos)</Label>
+                    <Input
+                      id="broadcast2-max-delay"
+                      type="number"
+                      min={1}
+                      max={MAX_BROADCAST_2_DELAY_SEC}
+                      value={newCampaign.maxDelay}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        setNewCampaign((prev) => ({
+                          ...prev,
+                          maxDelay: Number.isNaN(n) ? prev.maxDelay : n,
+                        }));
+                      }}
+                    />
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground -mt-2">
-                  Intervalo fixo entre mensagens (não editável).
+                  Sugestão ao abrir: {DEFAULT_BROADCAST_2_MIN_DELAY_SEC}–{DEFAULT_BROADCAST_2_MAX_DELAY_SEC} s entre mensagens. Pode alterar; máximo {MAX_BROADCAST_2_DELAY_SEC} s (24 h).
                 </p>
 
                 <div className="space-y-2">
