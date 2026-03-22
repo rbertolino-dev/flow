@@ -298,7 +298,7 @@ export function useEvolutionConfig() {
     steps.push({ step: "Testando conexão com API...", status: "loading" });
     
     try {
-      const response = await fetch(buildApiPath(`/instance/connectionState/${config.instance_name}`), {
+      const response = await fetch(buildApiPath(`/instance/connectionState/${encodeURIComponent(config.instance_name)}`), {
         headers: {
           'apikey': config.api_key || '',
         },

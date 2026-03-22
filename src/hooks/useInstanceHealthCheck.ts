@@ -133,7 +133,7 @@ export function useInstanceHealthCheck({
             message: error?.message,
             name: error?.name,
             stack: error?.stack,
-            url: `${base}/instance/connectionState/${instance.instance_name}`
+            url: `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`
           });
           // Não marcar como desconectado em erro de rede/CORS/timeout (doc Evolution)
           health.consecutiveSuccesses = 0;
