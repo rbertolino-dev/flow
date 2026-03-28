@@ -4,75 +4,7 @@ import { BudgetPdfOptions, Budget } from '@/types/budget';
 import { formatPaymentMethods } from '@/lib/paymentMethods';
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
-
-// Função auxiliar para carregar imagem
-async function loadImage(url: string): Promise<string | null> {
-  try {
-    if (url.includes('storage.googleapis.com')) {
-      try {
-        const response = await fetch(url, {
-          mode: 'cors',
-          credentials: 'omit',
-          cache: 'no-cache',
-        });
-        
-        if (!response.ok) {
-          console.warn('⚠️ Imagem do Google Cloud Storage não acessível:', response.statusText);
-          return null;
-        }
-        
-        const blob = await response.blob();
-        if (!blob || blob.size === 0) {
-          console.warn('⚠️ Imagem vazia ou inválida. Pulando...');
-          return null;
-        }
-        
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(blob);
-        });
-      } catch (corsError: any) {
-        console.warn('⚠️ Erro de CORS ao carregar imagem:', url);
-        return null;
-      }
-    }
-    
-    const response = await fetch(url, {
-      mode: 'cors',
-      credentials: 'omit',
-    });
-    
-    if (!response.ok) {
-      console.warn('⚠️ Erro ao carregar imagem:', response.statusText);
-      return null;
-    }
-    
-    const blob = await response.blob();
-    if (!blob || blob.size === 0) {
-      console.warn('⚠️ Imagem vazia ou inválida. Pulando...');
-      return null;
-    }
-    
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch (error: any) {
-    if (error.message?.includes('CORS') || 
-        error.message?.includes('Failed to fetch') ||
-        error.message?.includes('ERR_FAILED') ||
-        error.name === 'TypeError') {
-      console.warn('⚠️ Erro ao carregar imagem (CORS/Network):', url);
-      return null;
-    }
-    console.warn('⚠️ Erro ao carregar imagem:', error.message || error);
-    return null;
-  }
-}
+import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 
 export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob> {
   const doc = new jsPDF({
@@ -91,7 +23,12 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
 
   const budget = options.budget;
   const headerColor = options.headerColor || (budget as any).header_color || '#3b82f6';
-  const logoUrl = options.logoUrl || (budget as any).logo_url || options.organizationData?.logo_url;
+  // Logo: campo do orçamento ou o mesmo da organização (Editar organização → Logo da Empresa)
+  const logoUrl =
+    options.logoUrl ||
+    (budget as any).logo_url ||
+    options.organizationData?.logo_url ||
+    undefined;
   const organizationData = options.organizationData;
 
   // Função para converter hex para RGB
@@ -141,95 +78,132 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   };
 
   // ==========================================
-  // HEADER - Primeira página
+  // CABEÇALHO — faixa da marca + logo da organização + dados
   // ==========================================
-  yPosition = margin;
-
-  // ==========================================
-  // CABEÇALHO COM LOGO E DADOS DA ORGANIZAÇÃO
-  // Layout: Esquerda = Dados org | Direita = Logo + Datas
-  // ==========================================
-  const headerStartY = margin;
-  const logoSize = 20;
   const leftColumnX = margin;
   const rightColumnX = pageWidth - margin;
-  const logoRightX = rightColumnX - logoSize - 5;
-  
-  // Carregar logo
-  let logoLoaded = false;
-  let logoHeight = logoSize;
+  const barH = 9;
+  const [br, bg, bb] = hexToRgb(headerColor);
+
+  let loadedLogo = null as Awaited<ReturnType<typeof loadImageForBudgetPdf>>;
   if (logoUrl) {
-    try {
-      const logoDataUrl = await loadImage(logoUrl);
-      if (logoDataUrl) {
-        const imageType = logoUrl.toLowerCase().endsWith('.png') ? 'PNG' : 'JPEG';
-        doc.addImage(logoDataUrl, imageType, logoRightX, headerStartY, logoSize, logoSize);
-        logoLoaded = true;
-      }
-    } catch (error) {
-      console.warn('Erro ao carregar logo:', error);
-    }
+    loadedLogo = await loadImageForBudgetPdf(logoUrl);
   }
 
-  // Dados da organização no topo esquerdo
-  let orgDataY = headerStartY;
-  const orgName = organizationData?.name || '';
-  
+  doc.setFillColor(br, bg, bb);
+  doc.rect(0, 0, pageWidth, barH, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(30, 30, 30);
-  doc.text(orgName, leftColumnX, orgDataY);
-  orgDataY += lineHeight * 0.9;
-  
+  doc.setFontSize(12);
+  doc.setTextColor(255, 255, 255);
+  doc.text('ORCAMENTO', pageWidth / 2, barH / 2 + 2.2, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+
+  const headerStartY = barH + 5;
+  const logoMaxW = 42;
+  const logoMaxH = 24;
+  let logoDrawW = 0;
+  let logoDrawH = 0;
+  let logoBoxOuterH = 0;
+
+  const logoPad = 1.2;
+  if (loadedLogo) {
+    const fitted = fitImageInBox(loadedLogo.naturalW, loadedLogo.naturalH, logoMaxW, logoMaxH);
+    logoDrawW = fitted.w;
+    logoDrawH = fitted.h;
+    doc.setFillColor(252, 252, 252);
+    doc.setDrawColor(228, 228, 228);
+    doc.setLineWidth(0.2);
+    doc.rect(leftColumnX, headerStartY, logoDrawW + logoPad * 2, logoDrawH + logoPad * 2, 'FD');
+    try {
+      doc.addImage(
+        loadedLogo.dataUrl,
+        loadedLogo.format,
+        leftColumnX + logoPad,
+        headerStartY + logoPad,
+        logoDrawW,
+        logoDrawH
+      );
+    } catch (e) {
+      console.warn('Erro ao inserir logo no PDF:', e);
+    }
+    logoBoxOuterH = logoDrawH + logoPad * 2;
+  }
+
+  const logoBoxOuterW = loadedLogo ? logoDrawW + logoPad * 2 : 0;
+  const textStartX = loadedLogo ? leftColumnX + logoBoxOuterW + 5 : leftColumnX;
+  const textBlockMaxW = loadedLogo ? pageWidth - textStartX - 52 : 95;
+
+  let orgDataY = headerStartY + 1.5;
+  const orgName = organizationData?.name || '';
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(22, 22, 22);
+  const nameLines = doc.splitTextToSize(orgName, textBlockMaxW);
+  nameLines.forEach((line: string) => {
+    doc.text(line, textStartX, orgDataY);
+    orgDataY += lineHeight * 1.05;
+  });
+
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(60, 60, 60);
-  
+  doc.setTextColor(70, 70, 70);
+
   if (organizationData?.cnpj) {
-    doc.text(`CNPJ: ${organizationData.cnpj}`, leftColumnX, orgDataY);
-    orgDataY += lineHeight * 0.8;
+    doc.text(`CNPJ: ${organizationData.cnpj}`, textStartX, orgDataY);
+    orgDataY += lineHeight * 0.85;
   }
-  
+
   if (organizationData?.address) {
-    const addressLines = doc.splitTextToSize(organizationData.address, 85);
+    const addressLines = doc.splitTextToSize(`Endereco: ${organizationData.address}`, textBlockMaxW);
     addressLines.forEach((line: string) => {
-      doc.text(`Endereco: ${line}`, leftColumnX, orgDataY);
+      doc.text(line, textStartX, orgDataY);
       orgDataY += lineHeight * 0.8;
     });
   }
-  
-  if (organizationData?.phone) {
-    doc.text(`Telefone: ${organizationData.phone}`, leftColumnX, orgDataY);
-    orgDataY += lineHeight * 0.8;
-  }
-  
-  if (organizationData?.contact_email) {
-    doc.text(`Email: ${organizationData.contact_email}`, leftColumnX, orgDataY);
-    orgDataY += lineHeight * 0.8;
-  }
-  
-  // Lado direito: Logo + Datas
-  let headerRightY = headerStartY;
-  if (logoLoaded) {
-    headerRightY += logoHeight / 2;
-  }
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(60, 60, 60);
-  doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, headerRightY, { align: 'right' });
-  headerRightY += lineHeight * 0.9;
-  
-  if (budget.delivery_date) {
-    doc.text(`Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`, rightColumnX, headerRightY, { align: 'right' });
-    headerRightY += lineHeight * 0.9;
+
+  if (organizationData?.city || organizationData?.state) {
+    const loc = [organizationData?.city, organizationData?.state].filter(Boolean).join(' - ');
+    if (loc) {
+      doc.text(loc, textStartX, orgDataY);
+      orgDataY += lineHeight * 0.8;
+    }
   }
 
-  // Linha separadora após cabeçalho
-  let currentY = Math.max(orgDataY, headerRightY) + lineHeight * 0.5;
+  if (organizationData?.phone) {
+    doc.text(`Telefone: ${organizationData.phone}`, textStartX, orgDataY);
+    orgDataY += lineHeight * 0.8;
+  }
+
+  if (organizationData?.contact_email) {
+    doc.text(`Email: ${organizationData.contact_email}`, textStartX, orgDataY);
+    orgDataY += lineHeight * 0.8;
+  }
+
+  let headerRightY = headerStartY + 2;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(70, 70, 70);
+  doc.text(`Emissao: ${format(new Date(budget.created_at), 'dd/MM/yyyy')}`, rightColumnX, headerRightY, {
+    align: 'right',
+  });
+  headerRightY += lineHeight * 0.95;
+
+  if (budget.delivery_date) {
+    doc.text(
+      `Entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`,
+      rightColumnX,
+      headerRightY,
+      { align: 'right' }
+    );
+    headerRightY += lineHeight * 0.95;
+  }
+
+  const blockBottom = Math.max(orgDataY, headerStartY + logoBoxOuterH, headerRightY);
+  let currentY = blockBottom + lineHeight * 0.6;
   drawSeparator(currentY);
-  currentY += lineHeight * 0.6;
-  
+  currentY += lineHeight * 0.65;
+
   yPosition = currentY;
 
   // ==========================================

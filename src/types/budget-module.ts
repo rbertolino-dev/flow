@@ -85,6 +85,17 @@ export interface BudgetPdfOptions {
   headerColor?: string; // Cor da barra superior (hex)
   logoUrl?: string; // URL do logo/imagem no cabeçalho
   fileName?: string;
+  /** Dados da organização (logo em Editar organização → Logo da Empresa) */
+  organizationData?: {
+    name?: string;
+    logo_url?: string;
+    address?: string;
+    cnpj?: string;
+    phone?: string;
+    contact_email?: string;
+    city?: string;
+    state?: string;
+  };
 }
 
 export interface Service {

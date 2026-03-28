@@ -88,11 +88,31 @@ export default function BudgetsModule() {
     setRegeneratingId(selectedBudget.id);
 
     try {
-      // Gerar PDF
+      const { data: orgRow } = await supabase
+        .from('organizations')
+        .select('name, logo_url, address, company_profile, city, state, cnpj, phone, contact_email')
+        .eq('id', selectedBudget.organization_id)
+        .maybeSingle();
+
+      const organizationData = orgRow
+        ? {
+            name: orgRow.name ?? undefined,
+            logo_url: orgRow.logo_url ?? undefined,
+            address: orgRow.address ?? undefined,
+            company_profile: orgRow.company_profile ?? undefined,
+            city: orgRow.city ?? undefined,
+            state: orgRow.state ?? undefined,
+            cnpj: orgRow.cnpj ?? undefined,
+            phone: orgRow.phone ?? undefined,
+            contact_email: orgRow.contact_email ?? undefined,
+          }
+        : undefined;
+
       const pdfBlob = await generateBudgetPDF({
         budget: selectedBudget,
         headerColor: selectedBudget.header_color,
-        logoUrl: selectedBudget.logo_url,
+        logoUrl: selectedBudget.logo_url ?? undefined,
+        organizationData,
       });
 
       // Upload para Supabase Storage

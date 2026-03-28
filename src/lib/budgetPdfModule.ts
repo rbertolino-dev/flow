@@ -3,6 +3,7 @@
 
 import { jsPDF } from 'jspdf';
 import { BudgetPdfOptions, Budget } from '@/types/budget-module';
+import { fitImageInBox, loadImageForBudgetPdf, type LoadedPdfImage } from '@/lib/budgetPdfImage';
 
 // ==========================================
 // CONSTANTES DE TÍTULOS (Estáticos - sem interferência)
@@ -18,88 +19,6 @@ const TITLE_SUBTOTAL = 'SUBTOTAL:';
 const TITLE_ADDITION = 'ACRESCIMO:';
 const TITLE_DISCOUNT = 'DESCONTO:';
 const TITLE_TOTAL = 'TOTAL:';
-
-// ==========================================
-// FUNÇÃO AUXILIAR PARA CARREGAR IMAGEM
-// ==========================================
-async function loadImage(url: string): Promise<string | null> {
-  try {
-    // Se for imagem do Google Cloud Storage, tratar CORS especial
-    if (url.includes('storage.googleapis.com')) {
-      try {
-        // Tentar com CORS primeiro
-        const response = await fetch(url, {
-          mode: 'cors',
-          credentials: 'omit',
-          cache: 'no-cache',
-        });
-        
-        if (!response.ok) {
-          console.warn('⚠️ Imagem do Google Cloud Storage não acessível (HTTP):', response.statusText);
-          return null;
-        }
-        
-        const blob = await response.blob();
-        if (!blob || blob.size === 0) {
-          console.warn('⚠️ Imagem do Google Cloud Storage vazia ou inválida. Pulando...');
-          return null;
-        }
-        
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => {
-            console.warn('⚠️ Erro ao converter imagem do Google Storage para base64. Pulando...');
-            resolve(null);
-          };
-          reader.readAsDataURL(blob);
-        });
-      } catch (corsError: any) {
-        // Erro de CORS - apenas logar e continuar sem a imagem
-        console.warn('⚠️ Erro de CORS ao carregar imagem do Google Cloud Storage. A imagem será pulada:', url);
-        return null;
-      }
-    }
-    
-    // Para outras URLs, tentar normalmente
-    const response = await fetch(url, {
-      mode: 'cors',
-      credentials: 'omit',
-    });
-    
-    if (!response.ok) {
-      console.warn('⚠️ Erro ao carregar imagem (HTTP):', response.statusText);
-      return null;
-    }
-    
-    const blob = await response.blob();
-    if (!blob || blob.size === 0) {
-      console.warn('⚠️ Imagem vazia ou inválida. Pulando...');
-      return null;
-    }
-    
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => {
-        console.warn('⚠️ Erro ao converter imagem para base64. Pulando...');
-        resolve(null);
-      };
-      reader.readAsDataURL(blob);
-    });
-  } catch (error: any) {
-    // Tratar todos os tipos de erro (CORS, network, etc.)
-    if (error.message?.includes('CORS') || 
-        error.message?.includes('Failed to fetch') ||
-        error.message?.includes('ERR_FAILED') ||
-        error.name === 'TypeError') {
-      console.warn('⚠️ Erro ao carregar imagem (CORS/Network). A imagem será pulada:', url);
-      return null;
-    }
-    console.warn('⚠️ Erro ao carregar imagem. A imagem será pulada:', error.message || error);
-    return null;
-  }
-}
 
 // ==========================================
 // FUNÇÃO PRINCIPAL DE GERAÇÃO DE PDF
@@ -121,7 +40,13 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
 
   const budget = options.budget;
   const headerColor = options.headerColor || budget.header_color || '#3b82f6';
-  const logoUrl = options.logoUrl || budget.logo_url;
+  const org = options.organizationData;
+  const logoUrl = options.logoUrl || budget.logo_url || org?.logo_url || undefined;
+
+  let firstPageLogo: LoadedPdfImage | null = null;
+  if (logoUrl) {
+    firstPageLogo = await loadImageForBudgetPdf(logoUrl);
+  }
 
   // Função para converter hex para RGB
   const hexToRgb = (hex: string): [number, number, number] => {
@@ -143,48 +68,144 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     }).format(value);
   };
 
-  // Função para desenhar header da página (barra colorida)
-  const drawPageHeader = () => {
-    const barHeight = 12.5;
+  const drawContinuationHeader = () => {
+    const barHeight = 11;
     const [r, g, b] = hexToRgb(headerColor);
     doc.setFillColor(r, g, b);
     doc.rect(0, 0, pageWidth, barHeight, 'F');
-    
-    // Logo (se fornecido)
-    if (logoUrl) {
-      loadImage(logoUrl).then((logoData) => {
-        if (logoData) {
-          try {
-            doc.addImage(logoData, 'PNG', margin, 2, 20, 8);
-          } catch (e) {
-            console.warn('Erro ao adicionar logo:', e);
-          }
-        }
-      });
-    }
-    
-    // Título estático
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
     doc.text(TITLE_HEADER, pageWidth / 2, barHeight / 2 + 2, { align: 'center' });
-    
     doc.setTextColor(0, 0, 0);
     yPosition = barHeight + 5;
   };
 
-  // Função para adicionar nova página se necessário
+  const drawFirstPageHeader = () => {
+    const barH = 9;
+    const [r, g, b] = hexToRgb(headerColor);
+    doc.setFillColor(r, g, b);
+    doc.rect(0, 0, pageWidth, barH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text(TITLE_HEADER, pageWidth / 2, barH / 2 + 2.2, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+
+    const headerStartY = barH + 5;
+    const logoMaxW = 42;
+    const logoMaxH = 24;
+    const logoPad = 1.2;
+    let logoBoxOuterH = 0;
+    let logoBoxOuterW = 0;
+
+    if (firstPageLogo) {
+      const fitted = fitImageInBox(firstPageLogo.naturalW, firstPageLogo.naturalH, logoMaxW, logoMaxH);
+      const lw = fitted.w;
+      const lh = fitted.h;
+      logoBoxOuterW = lw + logoPad * 2;
+      doc.setFillColor(252, 252, 252);
+      doc.setDrawColor(228, 228, 228);
+      doc.setLineWidth(0.2);
+      doc.rect(margin, headerStartY, logoBoxOuterW, lh + logoPad * 2, 'FD');
+      try {
+        doc.addImage(
+          firstPageLogo.dataUrl,
+          firstPageLogo.format,
+          margin + logoPad,
+          headerStartY + logoPad,
+          lw,
+          lh
+        );
+      } catch (e) {
+        console.warn('Erro ao adicionar logo ao PDF:', e);
+      }
+      logoBoxOuterH = lh + logoPad * 2;
+    }
+
+    const textStartX = firstPageLogo ? margin + logoBoxOuterW + 5 : margin;
+    const textBlockMaxW = firstPageLogo ? pageWidth - textStartX - 52 : maxWidth;
+    let ty = headerStartY + 1.5;
+
+    if (org?.name) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(22, 22, 22);
+      const nameLines = doc.splitTextToSize(org.name, textBlockMaxW);
+      nameLines.forEach((line: string) => {
+        doc.text(line, textStartX, ty);
+        ty += lineHeight * 1.05;
+      });
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(70, 70, 70);
+    if (org?.cnpj) {
+      doc.text(`CNPJ: ${org.cnpj}`, textStartX, ty);
+      ty += lineHeight * 0.85;
+    }
+    if (org?.address) {
+      const lines = doc.splitTextToSize(`Endereco: ${org.address}`, textBlockMaxW);
+      lines.forEach((line: string) => {
+        doc.text(line, textStartX, ty);
+        ty += lineHeight * 0.8;
+      });
+    }
+    if (org?.city || org?.state) {
+      const loc = [org.city, org.state].filter(Boolean).join(' - ');
+      if (loc) {
+        doc.text(loc, textStartX, ty);
+        ty += lineHeight * 0.8;
+      }
+    }
+    if (org?.phone) {
+      doc.text(`Telefone: ${org.phone}`, textStartX, ty);
+      ty += lineHeight * 0.8;
+    }
+    if (org?.contact_email) {
+      doc.text(`Email: ${org.contact_email}`, textStartX, ty);
+      ty += lineHeight * 0.8;
+    }
+
+    const rightX = pageWidth - margin;
+    let ry = headerStartY + 2;
+    doc.setFontSize(8);
+    doc.text(
+      `Emissao: ${new Date(budget.created_at).toLocaleDateString('pt-BR')}`,
+      rightX,
+      ry,
+      { align: 'right' }
+    );
+    ry += lineHeight * 0.95;
+    if (budget.expires_at) {
+      doc.text(
+        `Validade: ${new Date(budget.expires_at).toLocaleDateString('pt-BR')}`,
+        rightX,
+        ry,
+        { align: 'right' }
+      );
+      ry += lineHeight * 0.95;
+    }
+
+    const blockBottom = Math.max(ty, headerStartY + logoBoxOuterH, ry);
+    yPosition = blockBottom + lineHeight * 0.6;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += lineHeight * 1.2;
+  };
+
   const checkNewPage = (requiredHeight: number) => {
     if (yPosition + requiredHeight > pageHeight - margin) {
       doc.addPage();
-      drawPageHeader();
+      drawContinuationHeader();
       return true;
     }
     return false;
   };
 
-  // Desenhar header na primeira página
-  drawPageHeader();
+  drawFirstPageHeader();
 
   // Número do orçamento
   doc.setFontSize(10);
