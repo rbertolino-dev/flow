@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 /** Mesmo bucket usado em contratos / workflows (já configurado no projeto). */
 export const LEAD_ATTACHMENTS_BUCKET = "whatsapp-workflow-media";
 
-/** Limite por arquivo (2 MB), alinhado ao CHECK na tabela `lead_attachments`. */
-export const MAX_LEAD_ATTACHMENT_BYTES = 2 * 1024 * 1024;
+/** Limite por arquivo (5 MB), alinhado ao CHECK na tabela `lead_attachments`. */
+export const MAX_LEAD_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 const SAFE_NAME = /[^a-zA-Z0-9._-]/g;
 
