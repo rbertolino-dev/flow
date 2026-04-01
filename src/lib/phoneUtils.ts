@@ -31,12 +31,28 @@ export function formatBrazilianPhone(phone: string): string {
   return phone;
 }
 
+/**
+ * Número só com dígitos, no formato internacional BR para WhatsApp (wa.me) e cópia:
+ * `55` + DDD + número. Não usa prefixo trunk (0) nem DDD fixo — o DDD vem do cadastro do lead.
+ */
 export function buildCopyNumber(phone: string): string {
   const digits = normalizePhone(phone);
-  // Remove country code (55) if present and build: 021 + DDD + number
-  // Example: 5511977823434 -> 02111977823434
-  const cleanDigits = digits.startsWith('55') ? digits.substring(2) : digits;
-  return `021${cleanDigits}`;
+  if (!digits) return "";
+
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+    if (national.length >= 10 && national.length <= 11) {
+      return digits;
+    }
+    return digits;
+  }
+
+  if (digits.length >= 10 && digits.length <= 11) {
+    return `55${digits}`;
+  }
+
+  // Sem DDD completo (ex.: só 8–9 dígitos): não inventar DDD; devolve o que existe
+  return digits;
 }
 
 /** CEP apenas dígitos (até 8). */
