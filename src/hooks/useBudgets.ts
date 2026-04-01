@@ -40,9 +40,15 @@ export function useBudgets(filters?: BudgetFilters) {
             event: '*',
             schema: 'public',
             table: 'budgets',
-            filter: `organization_id=eq.${activeOrgId}`,
+            // Sem filter: evita "mismatch between server and client bindings" em alguns projetos Realtime.
+            // Filtramos por organização no callback (RLS já limita o que o usuário vê).
           },
           (payload) => {
+            const orgFromNew = (payload.new as { organization_id?: string } | null)?.organization_id;
+            const orgFromOld = (payload.old as { organization_id?: string } | null)?.organization_id;
+            if (orgFromNew !== activeOrgId && orgFromOld !== activeOrgId) {
+              return;
+            }
             console.log('📡 Realtime: Mudança detectada em orçamentos', payload);
             // Atualizar lista imediatamente baseado no evento
             if (payload.eventType === 'INSERT' && payload.new) {

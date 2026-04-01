@@ -562,9 +562,13 @@ export function useLeads() {
           event: '*',
           schema: 'public',
           table: 'budgets',
-          filter: activeOrgId ? `organization_id=eq.${activeOrgId}` : undefined,
         },
         (payload) => {
+          if (activeOrgId) {
+            const orgN = (payload.new as { organization_id?: string } | null)?.organization_id;
+            const orgO = (payload.old as { organization_id?: string } | null)?.organization_id;
+            if (orgN !== activeOrgId && orgO !== activeOrgId) return;
+          }
           console.log('💰 Orçamento alterado (realtime):', payload);
           fetchFn();
         }
