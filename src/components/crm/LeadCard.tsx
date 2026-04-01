@@ -1,5 +1,5 @@
 import { Lead } from "@/types/lead";
-import { buildCopyNumber, formatBrazilianPhone, formatBrazilianCep, normalizeCep } from "@/lib/phoneUtils";
+import { buildCopyNumber, buildTelUri, formatBrazilianPhone, formatBrazilianCep, normalizeCep } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip } from "lucide-react";
@@ -68,14 +68,6 @@ export const LeadCard = memo(function LeadCard({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
 
-  // Debug: verificar dados recebidos
-  console.log('LeadCard Debug:', {
-    leadName: lead.name,
-    callCount: lead.call_count,
-    hasOnEditName: !!onEditName,
-    compact
-  });
-
   // ✅ OTIMIZAÇÃO: Remover subscrição individual por card
   // A fila de chamadas é gerenciada no KanbanBoard
   useEffect(() => {
@@ -109,13 +101,13 @@ export const LeadCard = memo(function LeadCard({
   const handleWhatsAppClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const copyNumber = buildCopyNumber(lead.phone);
-    const whatsappUrl = `https://wa.me/${copyNumber}`;
-    window.open(whatsappUrl, '_blank');
+    if (!copyNumber) return;
+    window.open(`https://wa.me/${copyNumber}`, "_blank");
   };
 
   const handlePhoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.location.href = `tel:${lead.phone}`;
+    window.location.href = buildTelUri(lead.phone);
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {

@@ -47,21 +47,37 @@ function stripBrazilianTrunkZeroBeforeDdd(digits: string): string {
   return digits;
 }
 
+/** Remove prefixo internacional 00 (ex.: 005511... → 5511...). */
+function stripLeadingInternational00(digits: string): string {
+  if (digits.startsWith("00") && digits.length >= 12) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
 /**
- * Formato internacional BR para WhatsApp (wa.me) e cópia: `55` + DDD do estado + número local.
- * - 55 = país (Brasil), não é DDD.
- * - Os 2 dígitos seguintes ao país são o DDD (estado/região), vindos do cadastro do lead.
- * - Fixo: 10 dígitos nacionais (DDD + 8). Celular: 11 (DDD + 9).
- * Não inventa DDD; aceita números já com 55 ou com 0 de trunk antes do DDD.
+ * Dígitos para wa.me / WhatsApp: E.164 sem o "+".
+ * - 55 = código do país (Brasil), fixo; não é DDD.
+ * - Os 2 dígitos depois do 55 são o DDD (estado), sempre os do cadastro — nunca um DDD inventado.
+ * Corrige: 00 internacional, 0 trunk, 55 duplicado no meio do número.
  */
 export function buildCopyNumber(phone: string): string {
   let digits = normalizePhone(phone);
   if (!digits) return "";
 
+  digits = stripLeadingInternational00(digits);
+
   if (digits.startsWith("55")) {
-    const national = digits.slice(2);
+    let national = digits.slice(2);
+    // Erro comum: 55 + 55 + DDD + número (import / cópia duplicada)
+    if (national.startsWith("55") && national.length >= 12) {
+      const inner = national.slice(2);
+      if (inner.length >= 10 && inner.length <= 11) {
+        national = inner;
+      }
+    }
     if (national.length >= 10 && national.length <= 11) {
-      return digits;
+      return `55${national}`;
     }
     return digits;
   }
@@ -73,6 +89,18 @@ export function buildCopyNumber(phone: string): string {
   }
 
   return digits;
+}
+
+/**
+ * URI para o atalho de ligação no card: mesmo número internacional que o WhatsApp (E.164 com +).
+ */
+export function buildTelUri(phone: string): string {
+  const intl = buildCopyNumber(phone);
+  if (intl.length >= 12 && intl.startsWith("55")) {
+    return `tel:+${intl}`;
+  }
+  const d = normalizePhone(phone);
+  return d ? `tel:+${d}` : "tel:";
 }
 
 /** CEP apenas dígitos (até 8). */
