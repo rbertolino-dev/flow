@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { isAuthStorageLockError, sleep } from "@/lib/supabaseAuthLock";
 
 export interface Tag {
   id: string;
@@ -124,38 +125,48 @@ export function useTags() {
   }, []);
 
   const fetchTags = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setTags([]);
-        return;
-      }
+    const maxAttempts = 4;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setTags([]);
+          setLoading(false);
+          return;
+        }
 
-      // Filtrar pela organização ativa
-      const organizationId = await getUserOrganizationId();
-      if (!organizationId) {
-        setTags([]);
+        const organizationId = await getUserOrganizationId();
+        if (!organizationId) {
+          setTags([]);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await (supabase as any)
+          .from('tags')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+
+        setTags(data || []);
+        setLoading(false);
+        return;
+      } catch (error: unknown) {
+        const err = error as { message?: string };
+        if (isAuthStorageLockError(error) && attempt < maxAttempts - 1) {
+          await sleep(80 * (attempt + 1));
+          continue;
+        }
+        toast({
+          title: "Erro ao carregar etiquetas",
+          description: err?.message ?? "Tente novamente.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
-
-      const { data, error } = await (supabase as any)
-        .from('tags')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      setTags(data || []);
-    } catch (error: any) {
-      toast({
-        title: "Erro ao carregar etiquetas",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
