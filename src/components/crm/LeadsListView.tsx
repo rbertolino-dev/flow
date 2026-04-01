@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { buildCopyNumber } from "@/lib/phoneUtils";
 import { supabase } from "@/integrations/supabase/client";
 
 interface LeadsListViewProps {
@@ -74,8 +75,9 @@ export function LeadsListView({
   };
 
   const handleWhatsAppClick = (phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    const wa = buildCopyNumber(phone);
+    if (!wa) return;
+    window.open(`https://wa.me/${wa}`, '_blank');
   };
 
   const handlePhoneClick = (phone: string) => {

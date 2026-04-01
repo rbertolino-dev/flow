@@ -32,11 +32,30 @@ export function formatBrazilianPhone(phone: string): string {
 }
 
 /**
- * Número só com dígitos, no formato internacional BR para WhatsApp (wa.me) e cópia:
- * `55` + DDD + número. Não usa prefixo trunk (0) nem DDD fixo — o DDD vem do cadastro do lead.
+ * Remove o 0 de discagem nacional (longa distância) antes do DDD, quando presente.
+ * Ex.: 011987654321 → 11987654321; 01234567890 → 1234567890 (fixo: DDD estadual + 8 dígitos).
+ */
+function stripBrazilianTrunkZeroBeforeDdd(digits: string): string {
+  if (!digits.startsWith("0") || digits.length < 11) {
+    return digits;
+  }
+  const without = digits.slice(1);
+  // Após tirar o 0, deve sobrar DDD (2) + celular (9) ou fixo (8)
+  if (without.length >= 10 && without.length <= 11) {
+    return without;
+  }
+  return digits;
+}
+
+/**
+ * Formato internacional BR para WhatsApp (wa.me) e cópia: `55` + DDD do estado + número local.
+ * - 55 = país (Brasil), não é DDD.
+ * - Os 2 dígitos seguintes ao país são o DDD (estado/região), vindos do cadastro do lead.
+ * - Fixo: 10 dígitos nacionais (DDD + 8). Celular: 11 (DDD + 9).
+ * Não inventa DDD; aceita números já com 55 ou com 0 de trunk antes do DDD.
  */
 export function buildCopyNumber(phone: string): string {
-  const digits = normalizePhone(phone);
+  let digits = normalizePhone(phone);
   if (!digits) return "";
 
   if (digits.startsWith("55")) {
@@ -47,11 +66,12 @@ export function buildCopyNumber(phone: string): string {
     return digits;
   }
 
+  digits = stripBrazilianTrunkZeroBeforeDdd(digits);
+
   if (digits.length >= 10 && digits.length <= 11) {
     return `55${digits}`;
   }
 
-  // Sem DDD completo (ex.: só 8–9 dígitos): não inventar DDD; devolve o que existe
   return digits;
 }
 
