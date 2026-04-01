@@ -1,7 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 import { StorageService } from './StorageService';
 
-const BUCKET_ID = 'whatsapp-workflow-media'; // Usar o bucket existente ou criar um novo
+const BUCKET_CONTRACTS = 'whatsapp-workflow-media';
+/** Bucket dedicado a PDFs de orçamento (limite maior que o bucket de mídia do WhatsApp). */
+const BUCKET_BUDGET_PDFS = 'budget-pdfs';
 
 export class SupabaseStorageService implements StorageService {
   private organizationId: string;
@@ -11,6 +13,7 @@ export class SupabaseStorageService implements StorageService {
   }
 
   async uploadPDF(pdf: Blob, contractId: string, type: 'contract' | 'budget' = 'contract'): Promise<string> {
+    const bucketId = type === 'budget' ? BUCKET_BUDGET_PDFS : BUCKET_CONTRACTS;
     const fileExt = 'pdf';
     const fileName = `${contractId}-${Date.now()}.${fileExt}`;
     const folder = type === 'budget' ? 'budgets' : 'contracts';
@@ -18,7 +21,7 @@ export class SupabaseStorageService implements StorageService {
 
     // Upload para Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from(BUCKET_ID)
+      .from(bucketId)
       .upload(filePath, pdf, {
         upsert: false,
         cacheControl: '86400', // 24 horas
@@ -31,7 +34,7 @@ export class SupabaseStorageService implements StorageService {
 
     // Obter URL pública
     const { data: publicUrlData } = supabase.storage
-      .from(BUCKET_ID)
+      .from(bucketId)
       .getPublicUrl(filePath);
 
     return publicUrlData.publicUrl;
@@ -40,7 +43,7 @@ export class SupabaseStorageService implements StorageService {
   async getPDFUrl(contractId: string): Promise<string> {
     // Buscar arquivo no storage
     const { data: files, error } = await supabase.storage
-      .from(BUCKET_ID)
+      .from(BUCKET_CONTRACTS)
       .list(`${this.organizationId}/contracts`, {
         search: contractId,
       });
@@ -60,7 +63,7 @@ export class SupabaseStorageService implements StorageService {
   async deletePDF(contractId: string): Promise<void> {
     // Buscar arquivo no storage
     const { data: files, error } = await supabase.storage
-      .from(BUCKET_ID)
+      .from(BUCKET_CONTRACTS)
       .list(`${this.organizationId}/contracts`, {
         search: contractId,
       });
@@ -72,7 +75,7 @@ export class SupabaseStorageService implements StorageService {
     // Deletar arquivo
     const filePaths = files.map((file) => `${this.organizationId}/contracts/${file.name}`);
     const { error: deleteError } = await supabase.storage
-      .from(BUCKET_ID)
+      .from(BUCKET_CONTRACTS)
       .remove(filePaths);
 
     if (deleteError) {
@@ -82,7 +85,7 @@ export class SupabaseStorageService implements StorageService {
 
   async getFileSize(contractId: string): Promise<number> {
     const { data: files, error } = await supabase.storage
-      .from(BUCKET_ID)
+      .from(BUCKET_CONTRACTS)
       .list(`${this.organizationId}/contracts`, {
         search: contractId,
       });
@@ -96,7 +99,7 @@ export class SupabaseStorageService implements StorageService {
 
   async listFiles(organizationId: string): Promise<Array<{ contractId: string; url: string; size: number; createdAt: string }>> {
     const { data: files, error } = await supabase.storage
-      .from(BUCKET_ID)
+      .from(BUCKET_CONTRACTS)
       .list(`${organizationId}/contracts`);
 
     if (error) {

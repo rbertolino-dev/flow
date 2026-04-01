@@ -53,6 +53,53 @@ export interface LoadedPdfImage {
   naturalH: number;
 }
 
+/**
+ * Reduz logo para cabeçalho de PDF (evita PDF gigante por PNG em alta resolução embutido em base64).
+ */
+async function downscaleDataUrlForPdf(
+  dataUrl: string,
+  maxSide = 384
+): Promise<{ dataUrl: string; format: PdfImageFormat; naturalW: number; naturalH: number } | null> {
+  if (typeof Image === 'undefined') {
+    return null;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const w0 = img.naturalWidth;
+      const h0 = img.naturalHeight;
+      if (w0 <= 0 || h0 <= 0) {
+        resolve(null);
+        return;
+      }
+      const scale = Math.min(maxSide / w0, maxSide / h0, 1);
+      const cw = Math.max(1, Math.round(w0 * scale));
+      const ch = Math.max(1, Math.round(h0 * scale));
+      const canvas =
+        typeof document !== 'undefined' ? document.createElement('canvas') : (null as HTMLCanvasElement | null);
+      if (!canvas) {
+        resolve(null);
+        return;
+      }
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+      const jpeg = canvas.toDataURL('image/jpeg', 0.82);
+      resolve({ dataUrl: jpeg, format: 'JPEG', naturalW: cw, naturalH: ch });
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 export async function loadImageForBudgetPdf(url: string): Promise<LoadedPdfImage | null> {
   try {
     const response = await fetch(url, {
@@ -85,6 +132,13 @@ export async function loadImageForBudgetPdf(url: string): Promise<LoadedPdfImage
     if (!dataUrl) return null;
 
     const { w, h } = await measureImageFromDataUrl(dataUrl);
+    const largeEnoughToCompress = w > 400 || h > 400 || blob.size > 200_000;
+    if (largeEnoughToCompress) {
+      const small = await downscaleDataUrlForPdf(dataUrl, 384);
+      if (small) {
+        return small;
+      }
+    }
     return { dataUrl, format, naturalW: w, naturalH: h };
   } catch (e: unknown) {
     const err = e as { message?: string; name?: string };
