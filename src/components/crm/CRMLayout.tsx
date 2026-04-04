@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Repeat, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -121,8 +121,6 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "calendar" as const, label: "Agendamento", icon: Calendar },
     // "Disparo em Massa" (broadcast) oculto do menu – usar Disparador Inteligente
     { id: "broadcast-2" as const, label: "Disparador Inteligente", icon: Send },
-    { id: "workflows" as const, label: "Fluxo Automatizado", icon: Repeat },
-    { id: "automation-flows" as const, label: "Automações", icon: Repeat },
     { id: "form-builder" as const, label: "Criador de Formulários", icon: FileText },
     { id: "contracts" as const, label: "Contratos", icon: FileSignature },
     // { id: "digital-contracts" as const, label: "Contrato Digital", icon: FileSignature }, // REMOVIDO TEMPORARIAMENTE
