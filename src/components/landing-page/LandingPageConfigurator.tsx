@@ -96,6 +96,12 @@ export function LandingPageConfigurator() {
         formPosition: landingPage.form_position || "bottom",
         videoEnabled: landingPage.video_enabled ?? false,
         videoUrl: landingPage.video_url || "",
+        mapEnabled: landingPage.map_enabled ?? false,
+        mapEmbedUrl: landingPage.map_embed_url || "",
+        callEnabled: landingPage.call_enabled ?? false,
+        callNumber: landingPage.call_number || "",
+        businessHoursEnabled: landingPage.business_hours_enabled ?? false,
+        businessHoursText: landingPage.business_hours_text || "",
         formFields: landingPage.form_fields || {
           name: true,
           phone: true,
