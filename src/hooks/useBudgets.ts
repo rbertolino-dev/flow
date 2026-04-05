@@ -306,15 +306,16 @@ export function useBudgets(filters?: BudgetFilters) {
         }
       }
 
-      // Buscar dados completos da organização para o PDF
+      // Dados da org do orçamento (sempre o mesmo organization_id gravado no registro)
+      const orgIdForPdf = (data as { organization_id?: string }).organization_id || activeOrgId;
       let organizationData: any = null;
-      if (activeOrgId) {
+      if (orgIdForPdf) {
         const { data: orgData } = await supabase
           .from('organizations')
           .select('name, logo_url, address, company_profile, city, state, cnpj, phone, contact_email')
-          .eq('id', activeOrgId)
+          .eq('id', orgIdForPdf)
           .single();
-        
+
         if (orgData) {
           organizationData = {
             name: orgData.name,
@@ -408,16 +409,19 @@ export function useBudgets(filters?: BudgetFilters) {
 
       if (budgetError || !budget) throw new Error('Orçamento não encontrado');
 
+      const budgetOrgId =
+        (budget as { organization_id?: string }).organization_id || activeOrgId;
+
       // Logo: prioridade: orçamento > organização
       let logoUrl = budget.logo_url || undefined;
       
-      // Buscar dados completos da organização para o PDF
+      // Sempre a organização dona do orçamento (nome atualizado em Editar Organização)
       let organizationData: any = null;
-      if (activeOrgId) {
+      if (budgetOrgId) {
         const { data: orgData } = await supabase
           .from('organizations')
           .select('name, logo_url, address, company_profile, city, state, cnpj, phone, contact_email')
-          .eq('id', activeOrgId)
+          .eq('id', budgetOrgId)
           .single();
         
         if (orgData) {
@@ -449,8 +453,11 @@ export function useBudgets(filters?: BudgetFilters) {
         organizationData,
       });
 
+      const uploadOrgId = budgetOrgId || activeOrgId;
+      if (!uploadOrgId) throw new Error('Organização do orçamento não encontrada');
+
       // Upload do PDF
-      const storageService = new SupabaseStorageService(activeOrgId);
+      const storageService = new SupabaseStorageService(uploadOrgId);
       const pdfUrl = await storageService.uploadPDF(pdfBlob, budgetId, 'budget');
 
       // Atualizar orçamento com URL do PDF
@@ -464,7 +471,7 @@ export function useBudgets(filters?: BudgetFilters) {
 
       toast({
         title: 'PDF regenerado',
-        description: 'PDF do orçamento foi gerado com sucesso',
+        description: 'O PDF usa o nome e dados atuais da organização.',
       });
 
       await fetchBudgets();

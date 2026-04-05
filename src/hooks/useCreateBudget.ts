@@ -91,13 +91,13 @@ export function useCreateBudget() {
         // Logo: prioridade: formData > DB > Organization
         let logoUrl = formData.logoUrl || (data as any).logo_url;
         
-        // Buscar dados completos da organização para o PDF
+        const orgIdForPdf = (data as { organization_id?: string }).organization_id || activeOrgId;
         let organizationData: any = null;
-        if (activeOrgId) {
+        if (orgIdForPdf) {
           const { data: orgData } = await supabase
             .from('organizations')
             .select('name, logo_url, address, company_profile, city, state, cnpj, phone, contact_email')
-            .eq('id', activeOrgId)
+            .eq('id', orgIdForPdf)
             .single();
           
           if (orgData) {

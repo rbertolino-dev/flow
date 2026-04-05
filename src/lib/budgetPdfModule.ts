@@ -4,6 +4,7 @@
 import { jsPDF } from 'jspdf';
 import { BudgetPdfOptions, Budget } from '@/types/budget-module';
 import { fitImageInBox, loadImageForBudgetPdf, type LoadedPdfImage } from '@/lib/budgetPdfImage';
+import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 
 // ==========================================
 // CONSTANTES DE TÍTULOS (Estáticos - sem interferência)
@@ -127,11 +128,12 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
     const textBlockMaxW = firstPageLogo ? pageWidth - textStartX - 52 : maxWidth;
     let ty = headerStartY + 1.5;
 
-    if (org?.name) {
+    const orgHeaderName = organizationNameForDocuments(org);
+    if (orgHeaderName) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
       doc.setTextColor(22, 22, 22);
-      const nameLines = doc.splitTextToSize(org.name, textBlockMaxW);
+      const nameLines = doc.splitTextToSize(orgHeaderName, textBlockMaxW);
       nameLines.forEach((line: string) => {
         doc.text(line, textStartX, ty);
         ty += lineHeight * 1.05;

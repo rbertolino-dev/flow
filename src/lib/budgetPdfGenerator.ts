@@ -5,6 +5,7 @@ import { formatPaymentMethods } from '@/lib/paymentMethods';
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
+import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 
 export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob> {
   const doc = new jsPDF({
@@ -134,7 +135,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   const textBlockMaxW = loadedLogo ? pageWidth - textStartX - 52 : 95;
 
   let orgDataY = headerStartY + 1.5;
-  const orgName = organizationData?.name || '';
+  const orgName = organizationNameForDocuments(organizationData);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
