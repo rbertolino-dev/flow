@@ -270,7 +270,7 @@ export function LandingPageConfigurator() {
         <div>
           <h1 className="text-3xl font-bold">Landing Page de Vendas</h1>
           <p className="text-muted-foreground mt-1">
-            Configure sua página pública de produtos e serviços
+            Uma página pública por organização — produtos, WhatsApp e formulário
           </p>
         </div>
         {landingPage && (
@@ -294,7 +294,8 @@ export function LandingPageConfigurator() {
       {!landingPage && (
         <Alert>
           <AlertDescription>
-            Você ainda não criou uma landing page. Configure abaixo e clique em "Criar Landing Page".
+            Você ainda não criou a landing page desta organização. Configure abaixo e clique em
+            &quot;Criar Landing Page&quot; (cada empresa tem no máximo uma).
           </AlertDescription>
         </Alert>
       )}

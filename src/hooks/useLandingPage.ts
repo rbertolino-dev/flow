@@ -24,13 +24,11 @@ export function useLandingPage() {
 
     try {
       setLoading(true);
-      // Multi-empresa: uma org pode ter mais de uma página; pegamos a mais recente
+      // Uma landing page por organização (índice único no banco)
       const { data, error } = await supabase
         .from('landing_pages')
         .select('*')
         .eq('organization_id', activeOrgId)
-        .order('created_at', { ascending: false })
-        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -54,6 +52,22 @@ export function useLandingPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
+
+      const { data: existingOrgPage } = await supabase
+        .from('landing_pages')
+        .select('id')
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+      if (existingOrgPage) {
+        const msg =
+          'Esta organização já possui uma landing page. Recarregue a página e use "Salvar alterações".';
+        toast({
+          title: "Landing page já existe",
+          description: msg,
+          variant: "destructive",
+        });
+        throw new Error(msg);
+      }
 
       // Slug único globalmente (páginas ativas): evita colisão entre organizações em /p/:slug
       let baseSlug = (config.title || 'landing-page').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'landing-page';
@@ -133,9 +147,16 @@ export function useLandingPage() {
       return data;
     } catch (error: any) {
       console.error("Erro ao criar landing page:", error);
+      const dupOrg =
+        error?.code === "23505" &&
+        /organization_id|idx_landing_pages_one_per_organization/i.test(
+          String(error?.message ?? error?.details ?? "")
+        );
       toast({
         title: "Erro ao criar landing page",
-        description: error.message,
+        description: dupOrg
+          ? "Esta organização já possui uma landing page. Recarregue e use Salvar alterações."
+          : error.message,
         variant: "destructive",
       });
       throw error;
