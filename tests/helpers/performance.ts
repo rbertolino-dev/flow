@@ -29,15 +29,28 @@ export async function measurePerformance(
   
   // Executar medição no contexto da página
   const metrics = await page.evaluate(() => {
-    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
     const paint = performance.getEntriesByType('paint');
-    
+
     const firstPaint = paint.find(p => p.name === 'first-paint')?.startTime || 0;
     const firstContentfulPaint = paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0;
-    
-    // Calcular métricas
-    const domContentLoaded = navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart;
-    const loadComplete = navigation.loadEventEnd - navigation.loadEventStart;
+
+    if (!navigation) {
+      return {
+        domContentLoaded: 0,
+        loadComplete: 0,
+        firstPaint,
+        firstContentfulPaint,
+        timeToInteractive: 0,
+        totalBlockingTime: 0,
+        largestContentfulPaint: 0,
+        cumulativeLayoutShift: 0,
+      };
+    }
+
+    // Tempo desde o início da navegação até DOMContentLoaded / load (não a duração interna do evento)
+    const domContentLoaded = Math.max(0, navigation.domContentLoadedEventEnd - navigation.startTime);
+    const loadComplete = Math.max(0, navigation.loadEventEnd - navigation.startTime);
     
     // Web Vitals (se disponíveis)
     const vitals = (window as any).webVitals || {};

@@ -5,6 +5,7 @@
 # Uso: ./scripts/teste-automatico-completo.sh [--fix] [--report-only]
 
 set -e
+set -o pipefail
 
 # Cores
 RED='\033[0;31m'

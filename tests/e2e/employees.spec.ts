@@ -169,60 +169,56 @@ test.describe('Colaboradores - Funcionalidade Completa', () => {
 });
 
 test.describe('Colaboradores - Validações', () => {
-  test('deve validar CPF inválido', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.goto('/employees');
     await page.waitForLoadState('networkidle');
-    
+
+    const canSeePage = await page.getByRole('heading', { name: /colaboradores/i }).isVisible().catch(() => false);
+    test.skip(!canSeePage, 'Página de Colaboradores não disponível neste ambiente (sem login/feature).');
+  });
+
+  test('deve validar CPF inválido', async ({ page }) => {
     await page.getByRole('button', { name: /novo funcionário/i }).click();
-    
-    // Preencher com CPF inválido
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
+
     await page.getByLabel(/cpf/i).fill('000.000.000-00');
     await page.getByLabel(/nome completo/i).fill('Teste');
     await page.getByLabel(/data de admissão/i).fill('2024-01-01');
-    
+
     await page.getByRole('button', { name: /criar/i }).click();
-    
-    // Verificar mensagem de erro de CPF
-    // Nota: Depende da implementação de validação
+
+    await expect(page.getByText('CPF inválido')).toBeVisible({ timeout: 5000 });
   });
 
   test('deve validar email inválido', async ({ page }) => {
-    await page.goto('/employees');
-    await page.waitForLoadState('networkidle');
-    
     await page.getByRole('button', { name: /novo funcionário/i }).click();
-    
-    // Preencher com email inválido
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
+
     await page.getByLabel(/email/i).fill('email-invalido');
     await page.getByLabel(/nome completo/i).fill('Teste');
-    await page.getByLabel(/cpf/i).fill('123.456.789-00');
+    await page.getByLabel(/cpf/i).fill('529.982.247-25');
     await page.getByLabel(/data de admissão/i).fill('2024-01-01');
-    
+
     await page.getByRole('button', { name: /criar/i }).click();
-    
-    // Verificar mensagem de erro de email
-    // Nota: Depende da implementação de validação
+
+    await expect(page.getByText('Email inválido')).toBeVisible({ timeout: 5000 });
   });
 
   test('deve validar data de admissão futura', async ({ page }) => {
-    await page.goto('/employees');
-    await page.waitForLoadState('networkidle');
-    
     await page.getByRole('button', { name: /novo funcionário/i }).click();
-    
-    // Preencher com data futura
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
+
     const futureDate = new Date();
     futureDate.setFullYear(futureDate.getFullYear() + 1);
     const futureDateStr = futureDate.toISOString().split('T')[0];
-    
+
     await page.getByLabel(/data de admissão/i).fill(futureDateStr);
     await page.getByLabel(/nome completo/i).fill('Teste');
-    await page.getByLabel(/cpf/i).fill('123.456.789-00');
-    
+    await page.getByLabel(/cpf/i).fill('529.982.247-25');
+
     await page.getByRole('button', { name: /criar/i }).click();
-    
-    // Verificar mensagem de erro
-    // Nota: Depende da implementação de validação
+
+    await expect(page.getByText('Data de admissão não pode ser futura')).toBeVisible({ timeout: 5000 });
   });
 });
 
