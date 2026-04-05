@@ -190,16 +190,6 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   });
   headerRightY += lineHeight * 0.95;
 
-  if (budget.delivery_date) {
-    doc.text(
-      `Entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`,
-      rightColumnX,
-      headerRightY,
-      { align: 'right' }
-    );
-    headerRightY += lineHeight * 0.95;
-  }
-
   const blockBottom = Math.max(orgDataY, headerStartY + logoBoxOuterH, headerRightY);
   let currentY = blockBottom + lineHeight * 0.6;
   drawSeparator(currentY);
@@ -208,7 +198,7 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   yPosition = currentY;
 
   // ==========================================
-  // NÚMERO DO ORÇAMENTO E LOCAL DE ENTREGA
+  // NÚMERO DO ORÇAMENTO E DADOS DE ENTREGA (data + local num único bloco)
   // ==========================================
   checkNewPage(lineHeight * 3);
   
@@ -218,9 +208,17 @@ export async function generateBudgetPDF(options: BudgetPdfOptions): Promise<Blob
   doc.text(`Orcamento N°: ${budget.budget_number}`, leftColumnX, yPosition);
   yPosition += lineHeight * 0.9;
   
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  if (budget.delivery_date) {
+    doc.text(
+      `Data de entrega: ${format(new Date(budget.delivery_date), 'dd/MM/yyyy')}`,
+      leftColumnX,
+      yPosition
+    );
+    yPosition += lineHeight * 0.9;
+  }
   if (budget.delivery_location) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
     doc.text(`Local de entrega: ${budget.delivery_location}`, leftColumnX, yPosition);
     yPosition += lineHeight * 0.9;
   }
