@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity, LeadAssignee } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
@@ -16,13 +16,36 @@ import {
   type BudgetRowForLeadCard,
 } from "@/lib/leadBudgetSummary";
 
+/** Erros de rede/gateway: não devem derrubar o carregamento do funil inteiro. */
+function isTransientSupabaseError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { message?: string; code?: string; name?: string };
+  const msg = String(e.message || "").toLowerCase();
+  return (
+    e.name === "TypeError" ||
+    msg.includes("failed to fetch") ||
+    msg.includes("load failed") ||
+    msg.includes("networkerror") ||
+    msg.includes("network request failed") ||
+    msg.includes("bad gateway") ||
+    msg.includes("gateway timeout") ||
+    msg.includes("502") ||
+    msg.includes("503") ||
+    msg.includes("504")
+  );
+}
+
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
+  const fetchGenerationRef = useRef(0);
+  const notesTouchRef = useRef<Record<string, number>>({});
 
   const fetchLeads = useCallback(async () => {
+    const fetchStartedAt = Date.now();
+    const myGeneration = ++fetchGenerationRef.current;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -82,7 +105,9 @@ export function useLeads() {
       const leadIds = (leadsData || []).map(l => l.id);
       
       if (leadIds.length === 0) {
-        setLeads([]);
+        if (myGeneration === fetchGenerationRef.current) {
+          setLeads([]);
+        }
         setLoading(false);
         return;
       }
@@ -162,6 +187,12 @@ export function useLeads() {
             );
             return {};
           }
+          if (isTransientSupabaseError(attachErr)) {
+            console.warn(
+              "⚠️ lead_attachments: falha transitória (rede/gateway). Funil carregado sem selo de anexos."
+            );
+            return {};
+          }
           throw attachErr;
         }
         const rows = batches.flatMap((r) => r.data || []);
@@ -223,14 +254,9 @@ export function useLeads() {
         ) {
           console.warn("⚠️ Tabela lead_assignees indisponível, ignorando responsáveis múltiplos.");
           allLeadAssigneeRows = [];
-        } else if (
-          msg.includes("Failed to fetch") ||
-          msg.includes("Load failed") ||
-          msg.includes("NetworkError") ||
-          err.name === "TypeError"
-        ) {
+        } else if (isTransientSupabaseError(failedAssignee.error)) {
           console.warn(
-            "⚠️ lead_assignees: falha de rede. Funil carregado; responsáveis podem estar incompletos."
+            "⚠️ lead_assignees: falha de rede/gateway. Funil carregado; responsáveis podem estar incompletos."
           );
         } else {
           throw failedAssignee.error;
@@ -453,7 +479,28 @@ export function useLeads() {
         } as Lead;
       });
 
-      setLeads(leadsWithActivities);
+      if (myGeneration !== fetchGenerationRef.current) {
+        return;
+      }
+
+      setLeads((prev) => {
+        const prevById = new Map(prev.map((l) => [l.id, l]));
+        return leadsWithActivities.map((lead) => {
+          const p = prevById.get(lead.id);
+          const touched = notesTouchRef.current[lead.id] ?? 0;
+          if (p && touched >= fetchStartedAt) {
+            const prevActs = p.activities || [];
+            const nextActs = lead.activities || [];
+            return {
+              ...lead,
+              notes: p.notes ?? lead.notes,
+              activities:
+                prevActs.length > nextActs.length ? prevActs : nextActs,
+            };
+          }
+          return lead;
+        });
+      });
     } catch (error: any) {
       console.error('❌ Erro ao carregar leads:', error);
       toast({
@@ -842,6 +889,7 @@ export function useLeads() {
     const handleLeadNotesSaved = (event: Event) => {
       const { leadId, notes, activity } = (event as CustomEvent<LeadNotesSavedDetail>).detail || {};
       if (!leadId || notes === undefined || !activity?.id) return;
+      notesTouchRef.current[leadId] = Date.now();
       const act: Activity = {
         id: activity.id,
         type: activity.type,
