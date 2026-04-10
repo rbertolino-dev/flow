@@ -47,6 +47,15 @@ export default function CRM() {
   const { tags, addTagToLead } = useTags();
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (!prev) return prev;
+      const fresh = leads.find((l) => l.id === prev.id);
+      return fresh ?? prev;
+    });
+  }, [leads]);
+
   const [openModalWithMessage, setOpenModalWithMessage] = useState(false);
   const [openModalWithSchedule, setOpenModalWithSchedule] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);

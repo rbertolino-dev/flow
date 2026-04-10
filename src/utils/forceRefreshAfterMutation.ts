@@ -45,6 +45,26 @@ export function broadcastRefreshEvent(eventType: 'create' | 'update' | 'delete',
   console.log(`📢 Evento de refresh disparado: ${eventType} ${entityType}`);
 }
 
+/** Sincroniza lista em memória após gravar observação (sem refetch pesado; realtime pode atrasar). */
+export const LEAD_NOTES_SAVED_EVENT = "lead-notes-saved";
+
+export type LeadNotesSavedDetail = {
+  leadId: string;
+  notes: string;
+  activity: {
+    id: string;
+    type: "note";
+    content: string;
+    timestamp: string;
+    user: string;
+    user_name?: string;
+  };
+};
+
+export function broadcastLeadNotesSaved(detail: LeadNotesSavedDetail): void {
+  window.dispatchEvent(new CustomEvent(LEAD_NOTES_SAVED_EVENT, { detail }));
+}
+
 
 
 

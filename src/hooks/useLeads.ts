@@ -3,7 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity, LeadAssignee } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { forceRefreshAfterMutation, broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
+import {
+  forceRefreshAfterMutation,
+  broadcastRefreshEvent,
+  LEAD_NOTES_SAVED_EVENT,
+  type LeadNotesSavedDetail,
+} from "@/utils/forceRefreshAfterMutation";
 import {
   buildBudgetSummaryByLeadId,
   buildBudgetPreviewsByLeadId,
@@ -834,6 +839,33 @@ export function useLeads() {
       }
     }, 30000); // ✅ Reduzido de 15s para 30s quando realtime está OK
 
+    const handleLeadNotesSaved = (event: Event) => {
+      const { leadId, notes, activity } = (event as CustomEvent<LeadNotesSavedDetail>).detail || {};
+      if (!leadId || notes === undefined || !activity?.id) return;
+      const act: Activity = {
+        id: activity.id,
+        type: activity.type,
+        content: activity.content,
+        timestamp: new Date(activity.timestamp),
+        user: activity.user,
+        user_name: activity.user_name,
+      };
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id !== leadId) return l;
+          const existing = l.activities || [];
+          if (existing.some((a) => a.id === act.id)) {
+            return { ...l, notes };
+          }
+          return {
+            ...l,
+            notes,
+            activities: [act, ...existing].slice(0, 25),
+          };
+        })
+      );
+    };
+
     // Escutar eventos de refresh disparados por outros componentes
     const handleRefreshEvent = (event: CustomEvent) => {
       const { type, entity } = event.detail;
@@ -895,12 +927,14 @@ export function useLeads() {
         });
     };
 
+    window.addEventListener(LEAD_NOTES_SAVED_EVENT, handleLeadNotesSaved);
     window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
     window.addEventListener('tag-updated', handleTagUpdated as EventListener);
 
     return () => {
       console.log('🔌 Desconectando realtime de leads...');
       clearInterval(fallbackPolling);
+      window.removeEventListener(LEAD_NOTES_SAVED_EVENT, handleLeadNotesSaved);
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
       window.removeEventListener('tag-updated', handleTagUpdated as EventListener);
       if (channel) {

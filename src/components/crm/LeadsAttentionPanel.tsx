@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Lead } from "@/types/lead";
 import { CallQueueItem } from "@/types/lead";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,15 @@ interface AttentionLead extends Lead {
 
 export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAttentionPanelProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (!prev) return prev;
+      const fresh = leads.find((l) => l.id === prev.id);
+      return fresh ?? prev;
+    });
+  }, [leads]);
+
   const [daysWithoutContactThreshold, setDaysWithoutContactThreshold] = useState(7);
   const [daysInQueueThreshold, setDaysInQueueThreshold] = useState(3);
   

@@ -43,7 +43,10 @@ import { buildCopyNumber, formatBrazilianPhone, normalizePhone, isValidBrazilian
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useProducts } from "@/hooks/useProducts";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
-import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
+import {
+  broadcastRefreshEvent,
+  broadcastLeadNotesSaved,
+} from "@/utils/forceRefreshAfterMutation";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { ChatHistory } from "./ChatHistory";
@@ -652,6 +655,19 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       ]);
 
       if (leadRes.error) throw leadRes.error;
+
+      broadcastLeadNotesSaved({
+        leadId: lead.id,
+        notes: combinedNotes,
+        activity: {
+          id: newActivity.id,
+          type: "note",
+          content: newActivity.content,
+          timestamp: newActivity.timestamp.toISOString(),
+          user: newActivity.user,
+          user_name: newActivity.user_name,
+        },
+      });
 
       if (activityRes.error) {
         console.warn("Observação salva no lead; histórico de atividade:", activityRes.error);

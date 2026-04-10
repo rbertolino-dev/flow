@@ -56,6 +56,15 @@ export function LeadsListView({
   searchQuery = "",
 }: LeadsListViewProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (!prev) return prev;
+      const fresh = leads.find((l) => l.id === prev.id);
+      return fresh ?? prev;
+    });
+  }, [leads]);
+
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   // ✅ CORREÇÃO: Adicionar opções de ordenação por nome e valor

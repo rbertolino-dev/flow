@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,14 @@ export const CalendarView = ({ leads, onLeadUpdate, searchQuery = "" }: Calendar
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (!prev) return prev;
+      const fresh = leads.find((l) => l.id === prev.id);
+      return fresh ?? prev;
+    });
+  }, [leads]);
 
   // ✅ NOVO: Função para normalizar telefone (remover caracteres não numéricos)
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '');

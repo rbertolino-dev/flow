@@ -45,6 +45,14 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    setSelectedLead((prev) => {
+      if (!prev) return prev;
+      const fresh = leads.find((l) => l.id === prev.id);
+      return fresh ?? prev;
+    });
+  }, [leads]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
