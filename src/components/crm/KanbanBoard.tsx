@@ -764,7 +764,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         callQueue={callQueue}
       />
 
-      <div className="flex flex-1 min-h-0 flex-col min-h-[min(52dvh,680px)] overflow-hidden">
+      <div className="flex flex-1 min-h-0 flex-col min-h-[min(108dvh,1420px)] overflow-hidden">
       <DndContext 
         sensors={sensors}
         collisionDetection={closestCorners} 

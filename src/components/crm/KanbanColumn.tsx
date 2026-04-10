@@ -110,7 +110,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
+      <div className="flex-1 basis-0 min-h-[min(100dvh,1320px)] overflow-x-auto overflow-y-auto">
         <SortableContext
           items={visibleLeads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}

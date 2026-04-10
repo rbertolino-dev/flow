@@ -210,7 +210,7 @@ const Index = () => {
       {/* Removido: messages-center agora é uma página separada em /messages-center */}
 
       {activeView === "kanban" && (
-        <div className="h-full bg-background flex flex-col">
+        <div className="h-full min-h-[min(138dvh,1760px)] bg-background flex flex-col">
           <div className="p-3 sm:p-4 lg:p-6 border-b border-border space-y-3 sm:space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
@@ -461,7 +461,7 @@ const Index = () => {
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col min-h-[min(68dvh,880px)]">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col min-h-[min(120dvh,1580px)]">
             {viewMode === 'kanban' ? (
               <KanbanBoard 
                 leads={leads} 
