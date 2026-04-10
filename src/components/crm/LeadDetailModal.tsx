@@ -579,9 +579,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
     setIsSavingComment(true);
     try {
+      // getSession usa cache local quando possível — mais rápido que getUser() (menos round-trip ao Auth)
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) {
         toast({
           title: "Sessão expirada",
@@ -604,19 +606,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       const meta =
         (user.user_metadata as { full_name?: string } | undefined)?.full_name
           ?.trim() || null;
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("id", user.id)
-        .maybeSingle();
-
       const displayName =
-        (profile?.full_name && String(profile.full_name).trim()) ||
-        meta ||
-        profile?.email ||
-        user.email ||
-        "Usuário";
+        meta || user.email || "Usuário";
 
       const now = new Date();
       const stamp = format(now, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
@@ -625,26 +616,28 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       const prevNotes = (currentLead.notes || "").trim();
       const combinedNotes = prevNotes ? `${entry}\n\n${prevNotes}` : entry;
 
-      const { error: updateError } = await supabase
-        .from("leads")
-        .update({ notes: combinedNotes })
-        .eq("id", lead.id);
+      // Leads + activities em paralelo (mesma segurança RLS); evita somar latências
+      const [leadRes, activityRes] = await Promise.all([
+        supabase
+          .from("leads")
+          .update({ notes: combinedNotes })
+          .eq("id", lead.id),
+        supabase.from("activities").insert({
+          lead_id: lead.id,
+          organization_id: organizationId,
+          type: "note",
+          content: text,
+          user_name: displayName,
+        }),
+      ]);
 
-      if (updateError) throw updateError;
+      if (leadRes.error) throw leadRes.error;
 
-      const { error: activityError } = await supabase.from("activities").insert({
-        lead_id: lead.id,
-        organization_id: organizationId,
-        type: "note",
-        content: text,
-        user_name: displayName,
-      });
-
-      if (activityError) {
-        console.warn("Observação salva no lead; histórico de atividade:", activityError);
+      if (activityRes.error) {
+        console.warn("Observação salva no lead; histórico de atividade:", activityRes.error);
         toast({
           title: "Observação salva",
-          description: `Anotação gravada no contato. Aviso: registo no histórico falhou (${activityError.message || "verifique permissões"}).`,
+          description: `Anotação gravada no contato. Aviso: registo no histórico falhou (${activityRes.error.message || "verifique permissões"}).`,
         });
       } else {
         toast({
