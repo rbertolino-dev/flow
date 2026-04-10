@@ -592,20 +592,85 @@ export function useLeads() {
         { event: '*', schema: 'public', table: 'activities' },
         (payload) => {
           console.log('📝 Atividade do lead alterada:', payload);
-          const activity = payload.new || payload.old;
-          if (activity?.lead_id) {
-            // Atualizar apenas o lead específico que teve atividade
-            setLeads((prev) => {
-              const leadIndex = prev.findIndex(l => l.id === activity.lead_id);
-              if (leadIndex === -1) return prev;
-              
-              // Refetch apenas este lead para atualizar atividades
-              fetchFn();
-              return prev;
-            });
-          } else {
-            // Se não tem lead_id, refetch completo
-            fetchFn();
+          const eventType =
+            (payload as { eventType?: string; type?: string }).eventType ||
+            (payload as { type?: string }).type;
+          const rowNew = payload.new as Record<string, unknown> | null;
+          const rowOld = payload.old as Record<string, unknown> | null;
+          const row = rowNew || rowOld;
+          if (!row?.lead_id) return;
+          if (
+            activeOrgId &&
+            row.organization_id &&
+            String(row.organization_id) !== activeOrgId
+          ) {
+            return;
+          }
+
+          const mapRowToActivity = (n: Record<string, unknown>): Activity => ({
+            id: String(n.id),
+            type: (n.type as Activity["type"]) || "note",
+            content: String(n.content ?? ""),
+            timestamp: new Date(
+              (n.created_at as string) || Date.now()
+            ),
+            user: (n.user_name as string) || "Sistema",
+            user_name: (n.user_name as string) ?? undefined,
+          });
+
+          if (eventType === "INSERT" && rowNew) {
+            const act = mapRowToActivity(rowNew);
+            setLeads((prev) =>
+              prev.map((l) => {
+                if (l.id !== String(rowNew.lead_id)) return l;
+                const existing = l.activities || [];
+                if (existing.some((a) => a.id === act.id)) return l;
+                return {
+                  ...l,
+                  activities: [act, ...existing].slice(0, 25),
+                };
+              })
+            );
+            return;
+          }
+
+          if (eventType === "DELETE" && rowOld?.id) {
+            const delId = String(rowOld.id);
+            const lid = String(rowOld.lead_id);
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id !== lid
+                  ? l
+                  : {
+                      ...l,
+                      activities: (l.activities || []).filter((a) => a.id !== delId),
+                    }
+              )
+            );
+            return;
+          }
+
+          if (eventType === "UPDATE" && rowNew) {
+            const nid = String(rowNew.id);
+            const lid = String(rowNew.lead_id);
+            setLeads((prev) =>
+              prev.map((l) => {
+                if (l.id !== lid) return l;
+                return {
+                  ...l,
+                  activities: (l.activities || []).map((a) =>
+                    a.id === nid
+                      ? {
+                          ...a,
+                          content: String(rowNew.content ?? a.content),
+                          user_name: (rowNew.user_name as string) ?? a.user_name,
+                          user: (rowNew.user_name as string) || a.user,
+                        }
+                      : a
+                  ),
+                };
+              })
+            );
           }
         }
       )

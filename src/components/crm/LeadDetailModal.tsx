@@ -45,6 +45,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { ChatHistory } from "./ChatHistory";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
@@ -113,6 +114,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
   const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
   const [isMovingStage, setIsMovingStage] = useState(false);
+  const [isSavingComment, setIsSavingComment] = useState(false);
+  const { activeOrgId } = useActiveOrganization();
 
   // Estados para edição de informações do lead
   const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -572,8 +575,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || isSavingComment) return;
 
+    setIsSavingComment(true);
     try {
       const {
         data: { user },
@@ -587,7 +591,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         return;
       }
 
-      const organizationId = await getUserOrganizationId();
+      const organizationId = activeOrgId ?? (await getUserOrganizationId());
       if (!organizationId) {
         toast({
           title: "Organização",
@@ -597,6 +601,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         return;
       }
 
+      const meta =
+        (user.user_metadata as { full_name?: string } | undefined)?.full_name
+          ?.trim() || null;
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, email")
@@ -605,6 +613,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
       const displayName =
         (profile?.full_name && String(profile.full_name).trim()) ||
+        meta ||
         profile?.email ||
         user.email ||
         "Usuário";
@@ -616,17 +625,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       const prevNotes = (currentLead.notes || "").trim();
       const combinedNotes = prevNotes ? `${entry}\n\n${prevNotes}` : entry;
 
-      const { error: activityError } = await supabase.from("activities").insert({
-        lead_id: lead.id,
-        organization_id: organizationId,
-        type: "note",
-        content: text,
-        user_name: displayName,
-        direction: "internal",
-      });
-
-      if (activityError) throw activityError;
-
       const { error: updateError } = await supabase
         .from("leads")
         .update({ notes: combinedNotes })
@@ -634,16 +632,32 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
       if (updateError) throw updateError;
 
-      toast({
-        title: "Observação salva",
-        description: `${displayName} · ${stamp}`,
+      const { error: activityError } = await supabase.from("activities").insert({
+        lead_id: lead.id,
+        organization_id: organizationId,
+        type: "note",
+        content: text,
+        user_name: displayName,
       });
+
+      if (activityError) {
+        console.warn("Observação salva no lead; histórico de atividade:", activityError);
+        toast({
+          title: "Observação salva",
+          description: `Anotação gravada no contato. Aviso: registo no histórico falhou (${activityError.message || "verifique permissões"}).`,
+        });
+      } else {
+        toast({
+          title: "Observação salva",
+          description: `${displayName} · ${stamp}`,
+        });
+      }
 
       setNewComment("");
 
       window.dispatchEvent(
         new CustomEvent("data-refresh", {
-          detail: { type: "update", entity: "lead" },
+          detail: { type: "update", entity: "lead", leadId: lead.id },
         })
       );
       broadcastRefreshEvent("update", "lead");
@@ -663,14 +677,20 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
         activities: [newActivity, ...(prev.activities || [])],
       }));
       setEditedNotes(combinedNotes);
-
-      onUpdated?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message: unknown }).message)
+            : "Erro desconhecido";
       toast({
         title: "Erro ao salvar observação",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
+    } finally {
+      setIsSavingComment(false);
     }
   };
 
@@ -2017,12 +2037,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                 />
               </div>
               <Button
-                onClick={handleAddComment}
-                disabled={!newComment.trim()}
+                onClick={() => void handleAddComment()}
+                disabled={!newComment.trim() || isSavingComment}
                 size="sm"
               >
                 <Send className="h-4 w-4 mr-2" />
-                Adicionar Comentário
+                {isSavingComment ? "Salvando…" : "Adicionar Comentário"}
               </Button>
             </div>
 
