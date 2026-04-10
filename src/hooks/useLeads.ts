@@ -90,6 +90,14 @@ export function useLeads() {
         leadIdBatches.push(leadIds.slice(i, i + BATCH_SIZE));
       }
 
+      // lead_assignees + embed profiles(...) deixa o query string muito longo; proxies/gateway
+      // podem responder 502 sem cabeçalhos CORS → o browser mostra "CORS" + Failed to fetch.
+      const ASSIGNEE_IN_CHUNK = 25;
+      const assigneeLeadIdBatches: string[][] = [];
+      for (let i = 0; i < leadIds.length; i += ASSIGNEE_IN_CHUNK) {
+        assigneeLeadIdBatches.push(leadIds.slice(i, i + ASSIGNEE_IN_CHUNK));
+      }
+
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
       // ✅ CORREÇÃO: Limitar a máximo de 1000 activities para evitar erro 400
       const maxActivitiesLimit = Math.min(leadIds.length * 5, 1000);
@@ -191,11 +199,11 @@ export function useLeads() {
           )
         ),
         Promise.all(
-          leadIdBatches.map(batch =>
+          assigneeLeadIdBatches.map((batch) =>
             supabase
-              .from('lead_assignees')
-              .select('lead_id, user_id, created_at, profiles(id, full_name, email)')
-              .in('lead_id', batch)
+              .from("lead_assignees")
+              .select("lead_id, user_id, created_at, profiles(id, full_name, email)")
+              .in("lead_id", batch)
           )
         ),
         loadBudgetRowsForLeads(),
@@ -206,21 +214,30 @@ export function useLeads() {
       const allActivities = activitiesResults.flatMap(r => r.data || []).slice(0, maxActivitiesLimit);
       let allLeadTags = tagsResults.flatMap(r => r.data || []);
 
-      let allLeadAssigneeRows: any[] = [];
-      const assigneesBatchError = assigneesResults.find((r) => r.error)?.error;
-      if (assigneesBatchError) {
-        const msg = assigneesBatchError.message || "";
+      let allLeadAssigneeRows: any[] = assigneesResults.flatMap((r) => r.data || []);
+      const failedAssignee = assigneesResults.find((r) => r.error);
+      if (failedAssignee?.error) {
+        const err = failedAssignee.error as { message?: string; code?: string; name?: string };
+        const msg = String(err.message || "");
         if (
           msg.includes("does not exist") ||
-          (assigneesBatchError as any).code === "42P01" ||
-          (assigneesBatchError as any).code === "PGRST205"
+          err.code === "42P01" ||
+          err.code === "PGRST205"
         ) {
           console.warn("⚠️ Tabela lead_assignees indisponível, ignorando responsáveis múltiplos.");
+          allLeadAssigneeRows = [];
+        } else if (
+          msg.includes("Failed to fetch") ||
+          msg.includes("Load failed") ||
+          msg.includes("NetworkError") ||
+          err.name === "TypeError"
+        ) {
+          console.warn(
+            "⚠️ lead_assignees: falha de rede (ex.: URL longa ou 502). Funil carregado; responsáveis podem estar incompletos."
+          );
         } else {
-          throw assigneesBatchError;
+          throw failedAssignee.error;
         }
-      } else {
-        allLeadAssigneeRows = assigneesResults.flatMap((r) => r.data || []);
       }
 
       // ✅ FALLBACK: Se tags falharam, tentar buscar individualmente para alguns leads
