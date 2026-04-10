@@ -83,7 +83,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead, updateLeadStatus } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
-  const { stages: pipelineStages } = usePipelineStages();
+  const { stages: pipelineStages, loading: pipelineStagesLoading } = usePipelineStages();
   const { getActiveProducts, refetch: refetchProducts } = useProducts();
   const activeProducts = getActiveProducts();
   const { templates, applyTemplate } = useMessageTemplates();
@@ -1710,40 +1710,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
             <Separator />
 
-            {pipelineStages.length > 0 && (
-              <>
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
-                    <GitBranch className="h-5 w-5" />
-                    Etapa do funil
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Escolha outra etapa para mover este lead — a alteração é salva automaticamente.
-                  </p>
-                  <Select
-                    value={currentLead.stageId || ""}
-                    onValueChange={(v) => void handleQuickStageChange(v)}
-                    disabled={isMovingStage}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione a etapa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pipelineStages.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Separator />
-              </>
-            )}
-
-            {/* Tags Section */}
+            {/* Tags + etapa do funil no mesmo bloco do popup (perto das etiquetas) */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <h3 className="font-semibold text-lg flex items-center gap-2">
                   <TagIcon className="h-5 w-5" />
                   Etiquetas
@@ -1759,6 +1728,41 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                   </Button>
                 )}
               </div>
+
+              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <GitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span>Etapa do funil</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ao escolher outra etapa, o lead é movido na hora.
+                </p>
+                {pipelineStagesLoading ? (
+                  <p className="text-sm text-muted-foreground">Carregando etapas…</p>
+                ) : pipelineStages.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma etapa configurada no funil.
+                  </p>
+                ) : (
+                  <Select
+                    value={currentLead.stageId || ""}
+                    onValueChange={(v) => void handleQuickStageChange(v)}
+                    disabled={isMovingStage}
+                  >
+                    <SelectTrigger className="w-full bg-background">
+                      <SelectValue placeholder="Selecione a etapa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelineStages.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
               <div className="space-y-3">
                 {/* Tags existentes */}
                 {currentLead.tags && currentLead.tags.length > 0 && (
