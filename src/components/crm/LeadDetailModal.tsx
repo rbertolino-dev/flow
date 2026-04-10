@@ -648,12 +648,9 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
       setNewComment("");
 
-      window.dispatchEvent(
-        new CustomEvent("data-refresh", {
-          detail: { type: "update", entity: "lead", leadId: lead.id },
-        })
-      );
-      broadcastRefreshEvent("update", "lead");
+      // Não disparar data-refresh aqui: evita 2× fetchLeads + onRefetch em paralelo com os writes,
+      // o que pode causar "Failed to fetch" por excesso de ligações. Realtime já atualiza notes (leads)
+      // e a lista de activities.
 
       const newActivity = {
         id: `local-${now.getTime()}`,
@@ -1240,7 +1237,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col"
+        aria-describedby={undefined}
+      >
         <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex-1 min-w-0">
