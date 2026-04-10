@@ -836,6 +836,7 @@ export function useLeads() {
       // Forçar refresh automático após atualização
       await forceRefreshAfterMutation(fetchLeads);
       broadcastRefreshEvent('update', 'lead');
+      return true;
     } catch (error: any) {
       console.error('💥 Erro geral ao atualizar lead:', error);
       toast({
@@ -845,6 +846,7 @@ export function useLeads() {
       });
       // Rollback by refetching from server
       await fetchLeads();
+      return false;
     }
   };
 

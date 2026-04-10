@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight, Ban, CheckCircle2, MapPin, Cake } from "lucide-react";
+import { Phone, Mail, Building2, Calendar, DollarSign, MessageSquare, PhoneCall, FileText, TrendingUp, Tag as TagIcon, Plus, X, Trash2, Send, Sparkles, Clock, RefreshCw, Pencil, List, ArrowRight, Ban, CheckCircle2, MapPin, Cake, GitBranch } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
@@ -81,7 +81,7 @@ const activityColors = {
 export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, initialShowSchedule = false }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead, refetch: refetchTags } = useTags();
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
-  const { deleteLead } = useLeads();
+  const { deleteLead, updateLeadStatus } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
   const { stages: pipelineStages } = usePipelineStages();
   const { getActiveProducts, refetch: refetchProducts } = useProducts();
@@ -111,7 +111,8 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [transferToPostSaleDialogOpen, setTransferToPostSaleDialogOpen] = useState(false);
   const [isTogglingExclusion, setIsTogglingExclusion] = useState(false);
   const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
-  
+  const [isMovingStage, setIsMovingStage] = useState(false);
+
   // Estados para edição de informações do lead
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [editedPhone, setEditedPhone] = useState(lead.phone);
@@ -361,6 +362,25 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       });
     } finally {
       setIsTogglingExclusion(false);
+    }
+  };
+
+  const handleQuickStageChange = async (newStageId: string) => {
+    if (!newStageId || newStageId === (currentLead.stageId || "") || isMovingStage) return;
+    setIsMovingStage(true);
+    try {
+      const ok = await updateLeadStatus(currentLead.id, newStageId);
+      if (ok) {
+        setCurrentLead((prev) => ({
+          ...prev,
+          stageId: newStageId,
+          lastContact: new Date(),
+        }));
+        setEditedStageId(newStageId);
+        onUpdated?.();
+      }
+    } finally {
+      setIsMovingStage(false);
     }
   };
 
@@ -1689,6 +1709,37 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
             </div>
 
             <Separator />
+
+            {pipelineStages.length > 0 && (
+              <>
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <GitBranch className="h-5 w-5" />
+                    Etapa do funil
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Escolha outra etapa para mover este lead — a alteração é salva automaticamente.
+                  </p>
+                  <Select
+                    value={currentLead.stageId || ""}
+                    onValueChange={(v) => void handleQuickStageChange(v)}
+                    disabled={isMovingStage}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione a etapa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelineStages.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
+              </>
+            )}
 
             {/* Tags Section */}
             <div className="space-y-3">
