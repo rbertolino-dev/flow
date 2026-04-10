@@ -44,6 +44,7 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useProducts } from "@/hooks/useProducts";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
+import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { ChatHistory } from "./ChatHistory";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
@@ -574,44 +575,95 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
     if (!newComment.trim()) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // Atualizar o campo notes do lead
-      const { error: updateError } = await supabase
-        .from('leads')
-        .update({ notes: newComment })
-        .eq('id', lead.id);
-
-      if (updateError) throw updateError;
-
-      // Registrar a atividade no histórico
-      const { error: activityError } = await (supabase as any)
-        .from('activities')
-        .insert({
-          lead_id: lead.id,
-          type: 'note',
-          content: newComment,
-          user_name: user?.email || 'Usuário',
-          direction: 'internal',
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Sessão expirada",
+          description: "Faça login novamente para registrar observações.",
+          variant: "destructive",
         });
+        return;
+      }
+
+      const organizationId = await getUserOrganizationId();
+      if (!organizationId) {
+        toast({
+          title: "Organização",
+          description: "Não foi possível identificar a organização ativa.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const displayName =
+        (profile?.full_name && String(profile.full_name).trim()) ||
+        profile?.email ||
+        user.email ||
+        "Usuário";
+
+      const now = new Date();
+      const stamp = format(now, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+      const text = newComment.trim();
+      const entry = `[${stamp}] ${displayName}\n${text}`;
+      const prevNotes = (currentLead.notes || "").trim();
+      const combinedNotes = prevNotes ? `${entry}\n\n${prevNotes}` : entry;
+
+      const { error: activityError } = await supabase.from("activities").insert({
+        lead_id: lead.id,
+        organization_id: organizationId,
+        type: "note",
+        content: text,
+        user_name: displayName,
+        direction: "internal",
+      });
 
       if (activityError) throw activityError;
 
+      const { error: updateError } = await supabase
+        .from("leads")
+        .update({ notes: combinedNotes })
+        .eq("id", lead.id);
+
+      if (updateError) throw updateError;
+
       toast({
         title: "Observação salva",
-        description: "A observação foi salva no lead e registrada no histórico",
+        description: `${displayName} · ${stamp}`,
       });
 
       setNewComment("");
-      
-      // ✅ Disparar evento de refresh para atualizar em tempo real na Lista de Leads
-      window.dispatchEvent(new CustomEvent('data-refresh', {
-        detail: { type: 'update', entity: 'lead' }
+
+      window.dispatchEvent(
+        new CustomEvent("data-refresh", {
+          detail: { type: "update", entity: "lead" },
+        })
+      );
+      broadcastRefreshEvent("update", "lead");
+
+      const newActivity = {
+        id: `local-${now.getTime()}`,
+        type: "note" as const,
+        content: text,
+        timestamp: now,
+        user: displayName,
+        user_name: displayName,
+      };
+
+      setCurrentLead((prev) => ({
+        ...prev,
+        notes: combinedNotes,
+        activities: [newActivity, ...(prev.activities || [])],
       }));
-      
-      // Atualizar lead localmente
-      setCurrentLead(prev => ({ ...prev, notes: newComment }));
-      
+      setEditedNotes(combinedNotes);
+
       onUpdated?.();
     } catch (error: any) {
       toast({
@@ -1682,7 +1734,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
               {!isEditingInfo && currentLead.notes && (
                 <div className="mt-3 p-3 bg-muted rounded-md">
                   <p className="text-sm text-muted-foreground">Observações:</p>
-                  <p className="text-sm mt-1">{currentLead.notes}</p>
+                  <p className="text-sm mt-1 whitespace-pre-wrap">{currentLead.notes}</p>
                 </div>
               )}
             </div>

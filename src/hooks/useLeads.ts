@@ -383,6 +383,7 @@ export function useLeads() {
             content: a.content,
             timestamp: new Date(a.created_at!),
             user: a.user_name || 'Sistema',
+            user_name: a.user_name ?? undefined,
           })),
           tags: processedTags, // ✅ Usar tags processadas
           budgetSummary: budgetSummaryByLead[lead.id] ?? { kind: "none" as const, count: 0 },
