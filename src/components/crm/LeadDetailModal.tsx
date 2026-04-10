@@ -578,8 +578,11 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
     if (!newComment.trim() || isSavingComment) return;
 
     setIsSavingComment(true);
+    const text = newComment.trim();
+    const prevNotesSnapshot = (currentLead.notes || "").trim();
+    const prevActivitiesSnapshot = [...(currentLead.activities || [])];
+
     try {
-      // getSession usa cache local quando possível — mais rápido que getUser() (menos round-trip ao Auth)
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -611,12 +614,29 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
 
       const now = new Date();
       const stamp = format(now, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-      const text = newComment.trim();
       const entry = `[${stamp}] ${displayName}\n${text}`;
-      const prevNotes = (currentLead.notes || "").trim();
-      const combinedNotes = prevNotes ? `${entry}\n\n${prevNotes}` : entry;
+      const combinedNotes = prevNotesSnapshot
+        ? `${entry}\n\n${prevNotesSnapshot}`
+        : entry;
 
-      // Leads + activities em paralelo (mesma segurança RLS); evita somar latências
+      const newActivity = {
+        id: `local-${now.getTime()}`,
+        type: "note" as const,
+        content: text,
+        timestamp: now,
+        user: displayName,
+        user_name: displayName,
+      };
+
+      // UI otimista: resposta imediata; reverte se o update em leads falhar
+      setNewComment("");
+      setCurrentLead((prev) => ({
+        ...prev,
+        notes: combinedNotes,
+        activities: [newActivity, ...(prev.activities || [])],
+      }));
+      setEditedNotes(combinedNotes);
+
       const [leadRes, activityRes] = await Promise.all([
         supabase
           .from("leads")
@@ -645,29 +665,14 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
           description: `${displayName} · ${stamp}`,
         });
       }
-
-      setNewComment("");
-
-      // Não disparar data-refresh aqui: evita 2× fetchLeads + onRefetch em paralelo com os writes,
-      // o que pode causar "Failed to fetch" por excesso de ligações. Realtime já atualiza notes (leads)
-      // e a lista de activities.
-
-      const newActivity = {
-        id: `local-${now.getTime()}`,
-        type: "note" as const,
-        content: text,
-        timestamp: now,
-        user: displayName,
-        user_name: displayName,
-      };
-
+    } catch (error: unknown) {
+      setNewComment(text);
       setCurrentLead((prev) => ({
         ...prev,
-        notes: combinedNotes,
-        activities: [newActivity, ...(prev.activities || [])],
+        notes: prevNotesSnapshot,
+        activities: prevActivitiesSnapshot,
       }));
-      setEditedNotes(combinedNotes);
-    } catch (error: unknown) {
+      setEditedNotes(prevNotesSnapshot);
       const message =
         error instanceof Error
           ? error.message
@@ -1200,6 +1205,13 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       });
     }
   };
+
+  // Aquecer sessão ao abrir o modal — primeira gravação de observação fica mais rápida (getSession em cache)
+  useEffect(() => {
+    if (open) {
+      void supabase.auth.getSession();
+    }
+  }, [open]);
 
   // Marcar mensagens como lidas quando o modal abre
   useEffect(() => {

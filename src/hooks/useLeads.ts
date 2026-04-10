@@ -90,14 +90,6 @@ export function useLeads() {
         leadIdBatches.push(leadIds.slice(i, i + BATCH_SIZE));
       }
 
-      // lead_assignees + embed profiles(...) deixa o query string muito longo; proxies/gateway
-      // podem responder 502 sem cabeçalhos CORS → o browser mostra "CORS" + Failed to fetch.
-      const ASSIGNEE_IN_CHUNK = 25;
-      const assigneeLeadIdBatches: string[][] = [];
-      for (let i = 0; i < leadIds.length; i += ASSIGNEE_IN_CHUNK) {
-        assigneeLeadIdBatches.push(leadIds.slice(i, i + ASSIGNEE_IN_CHUNK));
-      }
-
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
       // ✅ CORREÇÃO: Limitar a máximo de 1000 activities para evitar erro 400
       const maxActivitiesLimit = Math.min(leadIds.length * 5, 1000);
@@ -199,10 +191,10 @@ export function useLeads() {
           )
         ),
         Promise.all(
-          assigneeLeadIdBatches.map((batch) =>
+          leadIdBatches.map((batch) =>
             supabase
               .from("lead_assignees")
-              .select("lead_id, user_id, created_at, profiles(id, full_name, email)")
+              .select("lead_id, user_id, created_at")
               .in("lead_id", batch)
           )
         ),
@@ -233,10 +225,57 @@ export function useLeads() {
           err.name === "TypeError"
         ) {
           console.warn(
-            "⚠️ lead_assignees: falha de rede (ex.: URL longa ou 502). Funil carregado; responsáveis podem estar incompletos."
+            "⚠️ lead_assignees: falha de rede. Funil carregado; responsáveis podem estar incompletos."
           );
         } else {
           throw failedAssignee.error;
+        }
+      }
+
+      // Hidratar profiles em pedidos à parte (URLs curtas) — evita 502/CORS por query string gigante com embed
+      if (allLeadAssigneeRows.length > 0) {
+        const userIds = [
+          ...new Set(
+            allLeadAssigneeRows
+              .map((r: { user_id?: string }) => r.user_id)
+              .filter((id): id is string => Boolean(id))
+          ),
+        ];
+        const profileById = new Map<
+          string,
+          { full_name?: string | null; email?: string | null }
+        >();
+        const PROFILE_IN_CHUNK = 80;
+        try {
+          const profileChunks: string[][] = [];
+          for (let i = 0; i < userIds.length; i += PROFILE_IN_CHUNK) {
+            profileChunks.push(userIds.slice(i, i + PROFILE_IN_CHUNK));
+          }
+          const profileRes = await Promise.all(
+            profileChunks.map((ids) =>
+              supabase.from("profiles").select("id, full_name, email").in("id", ids)
+            )
+          );
+          const profErr = profileRes.find((r) => r.error)?.error;
+          if (profErr) {
+            console.warn("⚠️ Perfis (responsáveis):", profErr.message || profErr);
+          }
+          for (const pr of profileRes) {
+            for (const p of pr.data || []) {
+              profileById.set(p.id, {
+                full_name: p.full_name,
+                email: p.email,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("⚠️ Falha ao carregar perfis para responsáveis:", e);
+        }
+        for (const row of allLeadAssigneeRows) {
+          const p = profileById.get(row.user_id);
+          row.profiles = p
+            ? { full_name: p.full_name, email: p.email ?? "" }
+            : null;
         }
       }
 
