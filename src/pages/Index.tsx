@@ -461,7 +461,7 @@ const Index = () => {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col min-h-[min(68dvh,880px)]">
             {viewMode === 'kanban' ? (
               <KanbanBoard 
                 leads={leads} 

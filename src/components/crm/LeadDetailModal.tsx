@@ -1623,6 +1623,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                       assignees={lead.assignees ?? []}
                       showManageLabel
                       onRefetch={() => onUpdated?.()}
+                      tooltipFallbackDisplay={lead.assignedTo}
                     />
                   </div>
                 </div>

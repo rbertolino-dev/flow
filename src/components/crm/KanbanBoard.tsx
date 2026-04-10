@@ -694,8 +694,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   }
 
   return (
-    <>
-      <div className="flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
+    <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
+      <div className="flex-shrink-0 flex items-center justify-between p-2 sm:p-4 border-b border-border gap-2">
         <div className="flex items-center gap-2">
           <FollowUpTemplateManager />
           
@@ -764,6 +764,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         callQueue={callQueue}
       />
 
+      <div className="flex flex-1 min-h-0 flex-col min-h-[min(52dvh,680px)] overflow-hidden">
       <DndContext 
         sensors={sensors}
         collisionDetection={closestCorners} 
@@ -771,7 +772,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="relative h-full">
+        <div className="relative flex flex-1 min-h-0 flex-col">
           <Button
             variant="outline"
             size="icon"
@@ -790,7 +791,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             <ChevronRight className="h-5 w-5" />
           </Button>
 
-          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 h-full overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-20 sm:pb-24 kanban-scroll pl-6 pr-6">
+          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-16 sm:pb-20 kanban-scroll pl-6 pr-6">
             {stages.map((stage) => {
               const columnLeads = normalizedLeads
                 .filter((lead) => lead.stageId === stage.id)
@@ -871,6 +872,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
           ) : null}
         </DragOverlay>
       </DndContext>
+      </div>
 
       {/* Barra de ações para seleção múltipla */}
       {selectedLeadIds.size > 0 && (
@@ -1095,6 +1097,6 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

@@ -67,7 +67,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 ${getColumnWidthClass(columnWidth)} bg-secondary/30 rounded-lg border transition-colors flex flex-col ${
+      className={`flex-shrink-0 h-full min-h-0 ${getColumnWidthClass(columnWidth)} bg-secondary/30 rounded-lg border transition-colors flex flex-col ${
         isOver ? "border-primary bg-primary/5" : "border-border"
       }`}
     >

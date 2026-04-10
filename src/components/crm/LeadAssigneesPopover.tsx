@@ -1,6 +1,7 @@
 import { LeadAssignee } from "@/types/lead";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Users, X } from "lucide-react";
 import { useOrganizationUsers } from "@/hooks/useOrganizationUsers";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +17,20 @@ import {
 } from "@/components/ui/select";
 import { useState } from "react";
 
+function buildAssigneesTooltipText(
+  assignees: LeadAssignee[],
+  fallbackDisplay?: string | null
+): string {
+  if (assignees.length > 0) {
+    return assignees.map((a) => a.fullName || a.email).join("\n");
+  }
+  const fb = fallbackDisplay?.trim();
+  if (fb && fb !== "Não atribuído") {
+    return fb;
+  }
+  return "Nenhum responsável\nClique para adicionar";
+}
+
 interface LeadAssigneesPopoverProps {
   leadId: string;
   assignees: LeadAssignee[];
@@ -23,6 +38,8 @@ interface LeadAssigneesPopoverProps {
   compact?: boolean;
   /** Ex.: no modal de detalhes — botão “Gerenciar” mais visível */
   showManageLabel?: boolean;
+  /** Texto legado de `lead.assignedTo` quando não há linhas em `lead_assignees` */
+  tooltipFallbackDisplay?: string | null;
 }
 
 export function LeadAssigneesPopover({
@@ -31,6 +48,7 @@ export function LeadAssigneesPopover({
   onRefetch,
   compact = false,
   showManageLabel = false,
+  tooltipFallbackDisplay,
 }: LeadAssigneesPopoverProps) {
   const { users, loading: usersLoading } = useOrganizationUsers();
   const { toast } = useToast();
@@ -91,34 +109,48 @@ export function LeadAssigneesPopover({
             .map((a) => a.fullName || a.email)
             .join(", ")} +${assignees.length - 2}`;
 
+  const tooltipBody = buildAssigneesTooltipText(assignees, tooltipFallbackDisplay);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant={showManageLabel ? "outline" : "ghost"}
-          size="sm"
-          className={
-            compact
-              ? "h-6 px-2 shrink-0"
-              : showManageLabel
-                ? "shrink-0"
-                : "h-8 px-2 shrink-0 max-w-[160px]"
-          }
-          disabled={busy}
-          title="Responsáveis"
-          aria-label="Gerenciar responsáveis do lead"
-          onClick={(e) => e.stopPropagation()}
+      <Tooltip delayDuration={250}>
+        <TooltipTrigger asChild>
+          <span className="inline-flex max-w-full shrink-0">
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant={showManageLabel ? "outline" : "ghost"}
+                size="sm"
+                className={
+                  compact
+                    ? "h-6 px-2 shrink-0"
+                    : showManageLabel
+                      ? "shrink-0"
+                      : "h-8 px-2 shrink-0 max-w-[160px]"
+                }
+                disabled={busy}
+                aria-label="Gerenciar responsáveis do lead"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Users className={compact ? "h-3 w-3" : "h-4 w-4"} />
+                {showManageLabel && (
+                  <span className="ml-2 text-sm">Gerenciar responsáveis</span>
+                )}
+                {!compact && !showManageLabel && summaryLabel && (
+                  <span className="ml-1 text-xs text-muted-foreground truncate">{summaryLabel}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          align="center"
+          className="max-w-[240px] whitespace-pre-line text-xs font-normal leading-snug"
         >
-          <Users className={compact ? "h-3 w-3" : "h-4 w-4"} />
-          {showManageLabel && (
-            <span className="ml-2 text-sm">Gerenciar responsáveis</span>
-          )}
-          {!compact && !showManageLabel && summaryLabel && (
-            <span className="ml-1 text-xs text-muted-foreground truncate">{summaryLabel}</span>
-          )}
-        </Button>
-      </PopoverTrigger>
+          {tooltipBody}
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent
         className="w-80"
         align="start"

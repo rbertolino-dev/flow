@@ -359,6 +359,7 @@ export const LeadCard = memo(function LeadCard({
               assignees={lead.assignees ?? []}
               onRefetch={onRefetch}
               compact
+              tooltipFallbackDisplay={lead.assignedTo}
             />
             
             {onDelete && (
@@ -604,6 +605,7 @@ export const LeadCard = memo(function LeadCard({
             leadId={lead.id}
             assignees={lead.assignees ?? []}
             onRefetch={onRefetch}
+            tooltipFallbackDisplay={lead.assignedTo}
           />
           
           {onDelete && (
