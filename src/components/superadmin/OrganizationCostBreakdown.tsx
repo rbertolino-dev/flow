@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, TrendingUp, Users, Database, Send, Calendar, DollarSign } from "lucide-react";
@@ -53,7 +54,7 @@ export function OrganizationCostBreakdown() {
         .gte('date', startDate)
         .not('organization_id', 'is', null);
 
-      if (metricsError) {
+      if (metricsError && !isMissingRestRelationError(metricsError)) {
         console.error('Error fetching daily metrics:', metricsError);
       }
 

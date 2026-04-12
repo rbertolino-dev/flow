@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -44,13 +45,21 @@ export function OrganizationCostComparison() {
       const previousMonthEnd = endOfMonth(previousMonth);
 
       // Buscar configuração de custos
-      const { data: costConfig } = await supabase
+      const { data: costConfig, error: costConfigError } = await supabase
         .from('cloud_cost_config')
         .select('*')
         .single();
 
+      if (costConfigError && isMissingRestRelationError(costConfigError)) {
+        setOrgCosts([]);
+        setLoading(false);
+        return;
+      }
+
       if (!costConfig) {
-        console.error('Configuração de custos não encontrada');
+        if (!costConfigError || !isMissingRestRelationError(costConfigError)) {
+          console.error('Configuração de custos não encontrada');
+        }
         setLoading(false);
         return;
       }

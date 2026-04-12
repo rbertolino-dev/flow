@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, TrendingUp, DollarSign, Bell } from "lucide-react";
@@ -39,11 +40,15 @@ export function CostAlertsPanel() {
       const FREE_TIER_LIMIT = 25; // $25/mês grátis
 
       // 1. Buscar métricas do mês atual
-      const { data: currentMetrics } = await supabase
+      const { data: currentMetrics, error: metricsErr } = await supabase
         .from('daily_usage_metrics')
         .select('*')
         .gte('date', currentMonthStart)
         .lte('date', currentMonthEnd);
+
+      if (metricsErr && !isMissingRestRelationError(metricsErr)) {
+        console.error('CostAlertsPanel: métricas diárias:', metricsErr);
+      }
 
       // Calcular custo total
       const totalCost = currentMetrics?.reduce(

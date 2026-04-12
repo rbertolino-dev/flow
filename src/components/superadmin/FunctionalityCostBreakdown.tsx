@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Send, MessageSquare, Calendar, Database, Users, Activity, HardDrive, Zap, Radio, Workflow, FileText, Bot } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 
 interface UsageMetrics {
   totalOrganizations: number;
@@ -58,7 +59,13 @@ export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdo
         .select('metric_type, metric_value')
         .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
 
-      if (error) throw error;
+      if (error) {
+        if (!isMissingRestRelationError(error)) {
+          console.error('Error fetching daily metrics:', error);
+        }
+        setDailyMetrics({});
+        return;
+      }
 
       // Agregar métricas por tipo
       const aggregated: Record<string, number> = {};
@@ -68,16 +75,25 @@ export function FunctionalityCostBreakdown({ metrics }: FunctionalityCostBreakdo
 
       setDailyMetrics(aggregated);
     } catch (error) {
-      console.error('Error fetching daily metrics:', error);
+      if (!isMissingRestRelationError(error)) {
+        console.error('Error fetching daily metrics:', error);
+      }
     }
   };
 
   const fetchCostConfig = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('cloud_cost_config')
         .select('*')
         .single();
+
+      if (error) {
+        if (!isMissingRestRelationError(error)) {
+          console.error('Error fetching cost config:', error);
+        }
+        return;
+      }
 
       if (data) {
         const extendedData = data as Record<string, any>;

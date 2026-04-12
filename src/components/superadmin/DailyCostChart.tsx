@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 
 interface DailyCost {
   date: string;
@@ -40,6 +41,21 @@ interface CostConfig {
   cost_per_agent_ai_call: number;
 }
 
+/** Permite carregar o gráfico com zeros quando as tabelas de custo não existem no projeto. */
+const PLACEHOLDER_COST_CONFIG: CostConfig = {
+  cost_per_incoming_message: 0,
+  cost_per_broadcast_message: 0,
+  cost_per_scheduled_message: 0,
+  cost_per_database_read: 0,
+  cost_per_database_write: 0,
+  cost_per_storage_gb: 0,
+  cost_per_edge_function_call: 0,
+  cost_per_realtime_message: 0,
+  cost_per_workflow_execution: 0,
+  cost_per_form_submission: 0,
+  cost_per_agent_ai_call: 0,
+};
+
 export function DailyCostChart() {
   const [loading, setLoading] = useState(true);
   const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
@@ -60,11 +76,16 @@ export function DailyCostChart() {
   }, [dateRange.start, dateRange.end, costConfig]);
 
   const fetchCostConfig = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('cloud_cost_config')
       .select('*')
       .single();
-    
+
+    if (error && isMissingRestRelationError(error)) {
+      setCostConfig(PLACEHOLDER_COST_CONFIG);
+      return;
+    }
+
     if (data) {
       const extendedData = data as Record<string, any>;
       setCostConfig({
@@ -101,7 +122,9 @@ export function DailyCostChart() {
         .order('date', { ascending: true });
 
       if (error) {
-        console.error('Erro ao buscar métricas diárias:', error);
+        if (!isMissingRestRelationError(error)) {
+          console.error('Erro ao buscar métricas diárias:', error);
+        }
         setDailyCosts([]);
         return;
       }

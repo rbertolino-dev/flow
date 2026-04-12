@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 import { Loader2, Save, DollarSign, MessageSquare, Database, Activity } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
@@ -44,7 +45,13 @@ export function CloudCostConfiguration() {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (isMissingRestRelationError(error)) {
+          setConfig(null);
+          return;
+        }
+        throw error;
+      }
 
       if (data) {
         const extendedData = data as Record<string, any>;
@@ -66,6 +73,10 @@ export function CloudCostConfiguration() {
         });
       }
     } catch (error: any) {
+      if (isMissingRestRelationError(error)) {
+        setConfig(null);
+        return;
+      }
       console.error('Error fetching config:', error);
       toast({
         title: "Erro ao carregar configuração",

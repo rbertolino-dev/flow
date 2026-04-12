@@ -11,6 +11,7 @@ import { OrganizationCostComparison } from "./OrganizationCostComparison";
 import { CostAlertsPanel } from "./CostAlertsPanel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { isMissingRestRelationError } from "@/utils/supabaseRestErrors";
 
 interface UsageMetrics {
   totalOrganizations: number;
@@ -88,18 +89,30 @@ export function CostsDashboard() {
         .limit(1)
         .maybeSingle();
 
+      if (error && isMissingRestRelationError(error)) {
+        setMetricsCount(0);
+        return;
+      }
+
       if (data && !error) {
         setLastSyncTime(new Date(data.created_at));
       }
 
       // Count total metrics
-      const { count } = await supabase
+      const { count, error: countError } = await supabase
         .from('daily_usage_metrics')
         .select('*', { count: 'exact', head: true });
-      
+
+      if (countError && isMissingRestRelationError(countError)) {
+        setMetricsCount(0);
+        return;
+      }
+
       setMetricsCount(count || 0);
     } catch (error) {
-      console.error('Error checking last sync:', error);
+      if (!isMissingRestRelationError(error)) {
+        console.error('Error checking last sync:', error);
+      }
     }
   };
 
