@@ -57,7 +57,7 @@ export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleShee
               <ScheduleMessagePanel
                 leadId={lead.id}
                 leadPhone={lead.phone}
-                instances={connectedInstances}
+                instances={instancesForPanel}
                 onClose={() => onOpenChange(false)}
               />
               {!instancesForPanel.length && (

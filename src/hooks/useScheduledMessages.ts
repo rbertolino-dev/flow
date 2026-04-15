@@ -438,6 +438,100 @@ export function useScheduledMessages(leadId?: string) {
     },
   });
 
+  /** Envia de imediato a mesma mensagem da linha falha e marca como enviada. */
+  const retryFailedScheduledMessage = useMutation({
+    mutationFn: async (msg: ScheduledMessage) => {
+      if (msg.status !== 'failed') {
+        throw new Error('Só é possível reenviar mensagens com status falhou.');
+      }
+
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
+        body: {
+          instanceId: msg.instance_id,
+          phone: msg.phone,
+          message: msg.message,
+          leadId: msg.lead_id,
+          mediaUrl: msg.media_url || undefined,
+          mediaType: msg.media_type || undefined,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Erro ao chamar envio de WhatsApp');
+      }
+      if (data?.error) {
+        const details = data.details ? String(data.details) : '';
+        throw new Error(details ? `${data.error}: ${details}` : String(data.error));
+      }
+
+      const { error: upErr } = await supabase
+        .from('scheduled_messages')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          error_message: null,
+        })
+        .eq('id', msg.id)
+        .eq('status', 'failed');
+
+      if (upErr) throw upErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
+      queryClient.invalidateQueries({ queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY] });
+      toast({
+        title: "Mensagem enviada",
+        description: "O envio manual foi concluído e o agendamento foi marcado como enviado.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Falha ao enviar agora",
+        description: error.message || 'Erro desconhecido',
+        variant: "destructive",
+      });
+    },
+  });
+
+  /** Volta a mensagem falha para pendente com nova data (processador enviará de novo). */
+  const requeueFailedScheduledMessage = useMutation({
+    mutationFn: async ({ messageId, scheduledFor }: { messageId: string; scheduledFor: Date }) => {
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      if (scheduledFor < fiveMinutesAgo) {
+        throw new Error('A nova data não pode ser mais de 5 minutos no passado.');
+      }
+
+      const { error } = await supabase
+        .from('scheduled_messages')
+        .update({
+          status: 'pending',
+          scheduled_for: scheduledFor.toISOString(),
+          error_message: null,
+          sent_at: null,
+        })
+        .eq('id', messageId)
+        .eq('status', 'failed');
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
+      queryClient.invalidateQueries({ queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY] });
+      toast({
+        title: "Reagendada",
+        description: "A mensagem voltou para a fila pendente com a nova data.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao reagendar",
+        description: error.message || 'Erro desconhecido',
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     scheduledMessages,
     isLoading,
@@ -445,5 +539,9 @@ export function useScheduledMessages(leadId?: string) {
     cancelScheduledMessage: (messageId: string, reason?: string) => 
       cancelScheduledMessage.mutateAsync({ messageId, reason }),
     deleteScheduledMessage: deleteScheduledMessage.mutateAsync,
+    retryFailedScheduledMessage: retryFailedScheduledMessage.mutateAsync,
+    isRetryingFailed: retryFailedScheduledMessage.isPending,
+    requeueFailedScheduledMessage: requeueFailedScheduledMessage.mutateAsync,
+    isRequeuingFailed: requeueFailedScheduledMessage.isPending,
   };
 }

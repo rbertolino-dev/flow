@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Clock, X, Trash2, Image as ImageIcon, Repeat, Link2 } from "lucide-react";
+import { Calendar, Clock, X, Trash2, Image as ImageIcon, Repeat, Link2, Send, Loader2, CalendarClock, AlertCircle } from "lucide-react";
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
 import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,9 @@ import { ptBR } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
 import { Badge } from "@/components/ui/badge";
 import { parseSaoPauloDateTime } from "@/lib/dateUtils";
+import { formatScheduledMessageError } from "@/lib/scheduledMessageErrors";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import type { ScheduledMessage } from "@/hooks/useScheduledMessages";
 
 interface ScheduleMessagePanelProps {
   leadId: string;
@@ -25,7 +28,16 @@ interface ScheduleMessagePanelProps {
 }
 
 export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: ScheduleMessagePanelProps) {
-  const { scheduledMessages, scheduleMessage, cancelScheduledMessage, deleteScheduledMessage } = useScheduledMessages(leadId);
+  const {
+    scheduledMessages,
+    scheduleMessage,
+    cancelScheduledMessage,
+    deleteScheduledMessage,
+    retryFailedScheduledMessage,
+    isRetryingFailed,
+    requeueFailedScheduledMessage,
+    isRequeuingFailed,
+  } = useScheduledMessages(leadId);
   const { hasFeature } = useOrganizationFeatures();
   const { toast } = useToast();
   
@@ -53,6 +65,10 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelMessageId, setCancelMessageId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState<string>("");
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<ScheduledMessage | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
 
   // Filtrar apenas instâncias conectadas
   const connectedInstances = useMemo(() => 
@@ -60,58 +76,29 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
     [instances]
   );
 
-  // Função para formatar mensagens de erro de forma mais clara
-  const formatErrorMessage = (errorMessage: string): string => {
-    if (!errorMessage) return 'Erro desconhecido';
+  const openRescheduleDialog = (msg: ScheduledMessage) => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 15);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setRescheduleDate(format(d, "yyyy-MM-dd"));
+    setRescheduleTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    setRescheduleTarget(msg);
+    setRescheduleOpen(true);
+  };
 
-    // Tentar parsear JSON se for um erro do Evolution API
+  const handleConfirmReschedule = async () => {
+    if (!rescheduleTarget || !rescheduleDate || !rescheduleTime) return;
     try {
-      // Verificar se contém "exists":false (número não existe no WhatsApp)
-      if (errorMessage.includes('"exists":false') || errorMessage.includes("exists: false")) {
-        // Tentar extrair número do erro
-        const numberMatch = errorMessage.match(/"number":\s*"([^"]+)"/);
-        const jidMatch = errorMessage.match(/"jid":\s*"([^"]+)"/);
-        const number = numberMatch ? numberMatch[1] : (jidMatch ? jidMatch[1].split('@')[0] : 'número desconhecido');
-        
-        return `O número ${number} não existe no WhatsApp ou não está cadastrado. Verifique se o número está correto e se o contato tem WhatsApp ativo.`;
-      }
-
-      // Verificar se é erro 400 do Evolution API
-      if (errorMessage.includes('Evolution API erro 400') || errorMessage.includes('Bad Request')) {
-        return 'Erro na API do WhatsApp: Requisição inválida. Verifique se a instância está configurada corretamente.';
-      }
-
-      // Verificar se é erro de autenticação
-      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('autenticação')) {
-        return 'Erro de autenticação: A instância do WhatsApp não está autenticada. Verifique as configurações da instância.';
-      }
-
-      // Verificar se é erro de conexão
-      if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('timeout') || errorMessage.includes('conexão')) {
-        return 'Erro de conexão: Não foi possível conectar com a API do WhatsApp. Verifique se a instância está online.';
-      }
-
-      // Se for muito longo, tentar resumir
-      if (errorMessage.length > 200) {
-        // Tentar extrair parte relevante
-        const jsonMatch = errorMessage.match(/\{[^}]+\}/);
-        if (jsonMatch) {
-          try {
-            const errorData = JSON.parse(jsonMatch[0]);
-            if (errorData.message) {
-              return `Erro: ${errorData.message}`;
-            }
-          } catch {
-            // Ignorar erro de parse
-          }
-        }
-        return errorMessage.substring(0, 200) + '...';
-      }
-    } catch (e) {
-      // Se der erro ao processar, retornar mensagem original
+      const scheduledFor = parseSaoPauloDateTime(rescheduleDate, rescheduleTime);
+      await requeueFailedScheduledMessage({
+        messageId: rescheduleTarget.id,
+        scheduledFor,
+      });
+      setRescheduleOpen(false);
+      setRescheduleTarget(null);
+    } catch {
+      // toast no hook
     }
-
-    return errorMessage;
   };
 
   const handleSchedule = async () => {
@@ -583,10 +570,73 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                         <strong>Motivo do cancelamento:</strong> {msg.cancel_reason}
                       </div>
                     )}
-                    {msg.error_message && (
+                    {msg.status === "failed" && (
+                      <div className="mt-3 space-y-3">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Envio automático falhou</AlertTitle>
+                          <AlertDescription>
+                            <p className="mb-2">
+                              {formatScheduledMessageError(msg.error_message)}
+                            </p>
+                            <p className="text-xs opacity-90">
+                              Instância:{" "}
+                              {(() => {
+                                const inst = instances.find((i) => i.id === msg.instance_id);
+                                if (!inst) return msg.instance_id;
+                                return (
+                                  <>
+                                    {inst.instance_name}
+                                    {!inst.is_connected
+                                      ? " (desconectada — reconecte em Configurações antes de reenviar)"
+                                      : ""}
+                                  </>
+                                );
+                              })()}
+                            </p>
+                          </AlertDescription>
+                        </Alert>
+                        {msg.error_message ? (
+                          <details className="text-xs text-muted-foreground rounded-md border border-border p-2 bg-muted/30">
+                            <summary className="cursor-pointer select-none font-medium text-foreground">
+                              Detalhes técnicos do erro
+                            </summary>
+                            <pre className="mt-2 whitespace-pre-wrap break-all text-[11px] leading-relaxed max-h-40 overflow-y-auto">
+                              {msg.error_message}
+                            </pre>
+                          </details>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isRetryingFailed || isRequeuingFailed}
+                            onClick={() => void retryFailedScheduledMessage(msg)}
+                          >
+                            {isRetryingFailed ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Send className="h-4 w-4 mr-2" />
+                            )}
+                            Enviar agora
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isRetryingFailed || isRequeuingFailed}
+                            onClick={() => openRescheduleDialog(msg)}
+                          >
+                            <CalendarClock className="h-4 w-4 mr-2" />
+                            Reagendar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {msg.status !== "failed" && msg.error_message && (
                       <div className="text-xs text-red-600 mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
                         <strong className="block mb-1">Erro:</strong>
-                        {formatErrorMessage(msg.error_message)}
+                        {formatScheduledMessageError(msg.error_message)}
                       </div>
                     )}
                   </div>
@@ -633,6 +683,57 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
             </Button>
             <Button variant="destructive" onClick={handleConfirmCancel}>
               Confirmar Cancelamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rescheduleOpen}
+        onOpenChange={(open) => {
+          setRescheduleOpen(open);
+          if (!open) setRescheduleTarget(null);
+        }}
+      >
+        <DialogContent aria-describedby="reschedule-dialog-description">
+          <DialogHeader>
+            <DialogTitle>Reagendar envio</DialogTitle>
+            <DialogDescription id="reschedule-dialog-description">
+              Escolha nova data e hora no fuso de São Paulo. O processador tentará o envio automático nesse horário.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="reschedule-date">Data</Label>
+              <Input
+                id="reschedule-date"
+                type="date"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reschedule-time">Hora</Label>
+              <Input
+                id="reschedule-time"
+                type="time"
+                value={rescheduleTime}
+                onChange={(e) => setRescheduleTime(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" type="button" onClick={() => setRescheduleOpen(false)}>
+              Voltar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleConfirmReschedule()}
+              disabled={!rescheduleDate || !rescheduleTime || isRequeuingFailed}
+            >
+              {isRequeuingFailed ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirmar reagendamento
             </Button>
           </DialogFooter>
         </DialogContent>
