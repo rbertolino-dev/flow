@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,12 +70,6 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [rescheduleTarget, setRescheduleTarget] = useState<ScheduledMessage | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
-
-  // Filtrar apenas instâncias conectadas
-  const connectedInstances = useMemo(() => 
-    instances.filter(i => i.is_connected === true),
-    [instances]
-  );
 
   const openRescheduleDialog = (msg: ScheduledMessage) => {
     const d = new Date();
@@ -304,10 +298,11 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
               <SelectTrigger id="schedule-instance">
                 <SelectValue placeholder="Selecione uma instância" />
               </SelectTrigger>
-              <SelectContent>
-                {connectedInstances.map((instance) => (
+              <SelectContent className="z-[200]">
+                {instances.map((instance) => (
                   <SelectItem key={instance.id} value={instance.id}>
                     {instance.instance_name}
+                    {!instance.is_connected ? " (desconectada)" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -348,7 +343,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                   <SelectTrigger id="schedule-media-type">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[200]">
                     <SelectItem value="image">Imagem</SelectItem>
                     <SelectItem value="video">Vídeo</SelectItem>
                     <SelectItem value="document">Documento</SelectItem>
@@ -403,7 +398,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                   <SelectTrigger id="repeat-period">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[200]">
                     <SelectItem value="daily">Diariamente</SelectItem>
                     <SelectItem value="weekly">Semanalmente</SelectItem>
                     <SelectItem value="monthly">Mensalmente (mesmo dia do mês)</SelectItem>
@@ -497,7 +492,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                       <SelectTrigger id="combo-media-type">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[200]">
                         <SelectItem value="image">Imagem</SelectItem>
                         <SelectItem value="video">Vídeo</SelectItem>
                         <SelectItem value="document">Documento</SelectItem>

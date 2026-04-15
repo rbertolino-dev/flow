@@ -38,11 +38,26 @@ export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleShee
     [instancesForPanel]
   );
 
+  const scheduleSheetInteractOutside = (e: Event) => {
+    const t = (e as unknown as { target?: EventTarget | null }).target;
+    if (!(t instanceof HTMLElement)) return;
+    // Select / Popper ficam fora do DOM do Sheet — sem isto o modal bloqueia cliques ou fecha o painel
+    if (
+      t.closest('[role="listbox"]') ||
+      t.closest("[data-radix-select-viewport]") ||
+      t.closest("[data-radix-popper-content-wrapper]")
+    ) {
+      e.preventDefault();
+    }
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet modal={false} open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         className="w-full sm:max-w-lg z-[60] flex flex-col p-0 gap-0 border-l"
+        onPointerDownOutside={scheduleSheetInteractOutside}
+        onInteractOutside={scheduleSheetInteractOutside}
       >
         {lead && (
           <>
