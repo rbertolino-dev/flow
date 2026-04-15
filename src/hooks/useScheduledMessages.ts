@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { PENDING_SCHEDULED_COUNTS_QUERY_KEY } from "@/hooks/usePendingScheduledCountsByLead";
+import { normalizeScheduledMessageMediaFields } from "@/lib/scheduledMessageMediaValidation";
 
 
 export interface ScheduledMessage {
@@ -131,6 +132,12 @@ export function useScheduledMessages(leadId?: string) {
         throw new Error('Telefone inválido. Deve conter pelo menos 10 dígitos');
       }
 
+      const mainMedia = normalizeScheduledMessageMediaFields(params.mediaUrl, params.mediaType);
+      const comboMedia = normalizeScheduledMessageMediaFields(
+        params.comboMediaUrl,
+        params.comboMediaUrl?.trim() ? params.comboMediaType : null
+      );
+
       // ✅ DEBUG: Log dados antes de inserir
       console.log('📅 Agendando mensagem:', {
         organizationId,
@@ -153,8 +160,8 @@ export function useScheduledMessages(leadId?: string) {
           message: params.message,
           scheduled_for: params.scheduledFor.toISOString(),
           status: 'pending', // ✅ Explícito (igual ao que funciona)
-          media_url: params.mediaUrl || null,
-          media_type: params.mediaType || null,
+          media_url: mainMedia.mediaUrl,
+          media_type: mainMedia.mediaType,
       };
 
       // ✅ Adicionar campos de repetição apenas se habilitado
@@ -247,11 +254,11 @@ export function useScheduledMessages(leadId?: string) {
               user_id: user.id,
               lead_id: params.leadId,
               instance_id: params.instanceId,
-              phone: params.phone,
+              phone: cleanPhone,
               message: params.message,
               scheduled_for: new Date(currentDate).toISOString(),
-              media_url: params.mediaUrl || null,
-              media_type: params.mediaType || null,
+              media_url: mainMedia.mediaUrl,
+              media_type: mainMedia.mediaType,
               repeat_enabled: false, // Mensagens repetidas não repetem novamente
               original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
               parent_message_id: parentMessageId, // Todas apontam para a primeira
@@ -294,11 +301,11 @@ export function useScheduledMessages(leadId?: string) {
           user_id: user.id,
           lead_id: params.leadId,
           instance_id: params.instanceId,
-          phone: params.phone,
+          phone: cleanPhone,
           message: params.comboMessage,
           scheduled_for: comboDate.toISOString(),
-          media_url: params.comboMediaUrl || null,
-          media_type: params.comboMediaType || null,
+          media_url: comboMedia.mediaUrl,
+          media_type: comboMedia.mediaType,
           is_combo_message: true,
           parent_message_id: parentMessageId,
           combo_delay_days: params.comboDelayDays,

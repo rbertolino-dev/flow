@@ -7,6 +7,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const EVOLUTION_MEDIA_TYPES = new Set(['image', 'document', 'video', 'audio']);
+
+/** URL trimada + tipo só se for enum válido da Evolution; senão type null. */
+function normalizeScheduledRowMedia(
+  media_url: string | null | undefined,
+  media_type: string | null | undefined
+): { url: string | null; type: string | null } {
+  const url = typeof media_url === 'string' && media_url.trim() ? media_url.trim() : null;
+  const raw = typeof media_type === 'string' ? media_type.toLowerCase().trim() : '';
+  const type = raw && EVOLUTION_MEDIA_TYPES.has(raw) ? raw : null;
+  if (!url) return { url: null, type: null };
+  return { url, type };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -314,9 +328,23 @@ serve(async (req) => {
         let evolutionUrl: string;
         let payload: any;
 
-        // ✅ MELHORADO: Processamento de mídia (verificar múltiplos níveis como broadcast)
-        const mediaUrl = message.media_url; // Para scheduled_messages, mídia vem direto da mensagem
-        const mediaType = message.media_type || 'image';
+        const mediaNorm = normalizeScheduledRowMedia(message.media_url, message.media_type);
+        if (mediaNorm.url && !mediaNorm.type) {
+          console.error(`❌ [process-scheduled-messages] Mídia com tipo inválido (id=${message.id})`);
+          await supabase
+            .from('scheduled_messages')
+            .update({
+              status: 'failed',
+              error_message:
+                'Tipo de mídia inválido para anexo. A API aceita apenas: image, document, video ou audio. Corrija o agendamento ou reagende sem URL de mídia para enviar só texto.',
+            })
+            .eq('id', message.id);
+          failureCount++;
+          continue;
+        }
+
+        const mediaUrl = mediaNorm.url;
+        const mediaType = mediaNorm.type || 'image';
 
         // ✅ CORREÇÃO: Codificar nome da instância na URL para suportar caracteres especiais
         const encodedInstanceName = encodeURIComponent(config.instance_name);
@@ -449,19 +477,27 @@ serve(async (req) => {
             // ✅ NOVO: Tentar fallback com sendMedia (às vezes é falso positivo)
             // Algumas instâncias da Evolution API retornam exists: false incorretamente para sendText
             // mas funcionam com sendMedia
-            console.warn(`⚠️ [process-scheduled-messages] Tentando fallback com sendMedia (às vezes é falso positivo)...`);
+            // sendMedia não aceita mediatype "text" na Evolution — evita 400 Bad Request no fallback
+            console.warn(`⚠️ [process-scheduled-messages] Tentando fallback: ${mediaUrl ? 'repetir sendMedia' : '2ª tentativa sendText'}...`);
             
             try {
-              const fallbackUrl = `${baseUrl}/message/sendMedia/${encodeURIComponent(config.instance_name)}`;
-              const fallbackPayload = {
-                number: remoteJid,
-                mediatype: 'text',
-                media: '',
-                caption: message.message || '',
-                delay: 1200,
-              };
+              const fallbackUrl = mediaUrl
+                ? `${baseUrl}/message/sendMedia/${encodeURIComponent(config.instance_name)}`
+                : `${baseUrl}/message/sendText/${encodedInstanceName}`;
+              const fallbackPayload = mediaUrl
+                ? {
+                    number: remoteJid,
+                    mediatype: mediaType,
+                    media: mediaUrl,
+                    caption: message.message || '',
+                    delay: 1200,
+                  }
+                : {
+                    number: remoteJid,
+                    text: message.message,
+                    delay: 1200,
+                  };
               
-              console.log('🔄 [process-scheduled-messages] Tentando fallback sendMedia...');
               const fallbackResponse = await fetch(fallbackUrl, {
                 method: 'POST',
                 headers: {

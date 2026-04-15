@@ -87,6 +87,23 @@ serve(async (req) => {
       );
     }
 
+    const mediaUrlTrim = typeof mediaUrl === 'string' ? mediaUrl.trim() : '';
+    const mediaTypeNorm = typeof mediaType === 'string' ? mediaType.toLowerCase().trim() : '';
+    const evolutionMediaTypes = new Set(['image', 'document', 'video', 'audio']);
+    if (mediaUrlTrim && !evolutionMediaTypes.has(mediaTypeNorm)) {
+      return new Response(
+        JSON.stringify({
+          error: 'Tipo de mídia inválido',
+          details:
+            'Com URL de mídia, mediaType deve ser um de: image, document, video, audio (API Evolution). Para só texto, omita mediaUrl.',
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     console.log(`🔍 [send-whatsapp-message] Buscando configuração da instância ${instanceId}...`);
 
     // Buscar configuração da instância Evolution
@@ -245,18 +262,18 @@ serve(async (req) => {
     let evolutionUrl: string;
     let payload: any;
 
-    if (mediaUrl) {
+    if (mediaUrlTrim) {
       // Enviar mensagem com mídia - campos vão direto no root do payload
       evolutionUrl = `${baseUrl}/message/sendMedia/${config.instance_name}`;
       payload = {
         number: finalRemoteJid,
-        mediatype: mediaType || 'image',
-        media: mediaUrl,
+        mediatype: mediaTypeNorm,
+        media: mediaUrlTrim,
         caption: message || '',
       };
       console.log('🖼️ [send-whatsapp-message] Enviando mensagem com mídia:', { 
-        mediatype: mediaType || 'image', 
-        mediaUrl,
+        mediatype: mediaTypeNorm, 
+        mediaUrl: mediaUrlTrim,
         to: finalRemoteJid,
         test_mode: testConfig.enabled
       });

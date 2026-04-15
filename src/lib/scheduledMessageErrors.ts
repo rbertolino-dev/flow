@@ -28,6 +28,13 @@ export function formatScheduledMessageError(errorMessage: string | null | undefi
       return "Modo de teste: o envio real foi desativado. Desative o modo de teste para enviar de verdade.";
     }
 
+    if (
+      errorMessage.includes("Tipo de mídia inválido para anexo") ||
+      errorMessage.includes("mediatype is not one of enum values")
+    ) {
+      return "O tipo de anexo não é aceite pelo WhatsApp (Evolution). Use imagem, documento, vídeo ou áudio, ou envie só texto sem URL de mídia.";
+    }
+
     if (errorMessage.includes('"exists":false') || errorMessage.includes("exists: false")) {
       const numberMatch = errorMessage.match(/"number":\s*"([^"]+)"/);
       const jidMatch = errorMessage.match(/"jid":\s*"([^"]+)"/);

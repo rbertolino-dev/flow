@@ -17,6 +17,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { Badge } from "@/components/ui/badge";
 import { parseSaoPauloDateTime } from "@/lib/dateUtils";
 import { formatScheduledMessageError } from "@/lib/scheduledMessageErrors";
+import { normalizeScheduledMessageMediaFields } from "@/lib/scheduledMessageMediaValidation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ScheduledMessage } from "@/hooks/useScheduledMessages";
 
@@ -46,7 +47,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [scheduledDate, setScheduledDate] = useState<string>("");
   const [scheduledTime, setScheduledTime] = useState<string>("");
   const [mediaUrl, setMediaUrl] = useState<string>("");
-  const [mediaType, setMediaType] = useState<'image' | 'video' | 'document'>('image');
+  const [mediaType, setMediaType] = useState<'image' | 'video' | 'document' | 'audio'>('image');
   const [isScheduling, setIsScheduling] = useState(false);
   
   // Campos de repetição
@@ -59,7 +60,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const [comboMessage, setComboMessage] = useState<string>("");
   const [comboDelayDays, setComboDelayDays] = useState<number>(1);
   const [comboMediaUrl, setComboMediaUrl] = useState<string>("");
-  const [comboMediaType, setComboMediaType] = useState<'image' | 'video' | 'document'>('image');
+  const [comboMediaType, setComboMediaType] = useState<'image' | 'video' | 'document' | 'audio'>('image');
   
   // Dialog de cancelamento
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -126,6 +127,23 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       return;
     }
 
+    let mainNorm: { mediaUrl: string | null; mediaType: string | null };
+    let comboNorm: { mediaUrl: string | null; mediaType: string | null };
+    try {
+      mainNorm = normalizeScheduledMessageMediaFields(mediaUrl, mediaUrl.trim() ? mediaType : null);
+      comboNorm = normalizeScheduledMessageMediaFields(
+        comboMediaUrl,
+        isCombo && comboMediaUrl.trim() ? comboMediaType : null
+      );
+    } catch (e) {
+      toast({
+        title: "Mídia inválida",
+        description: e instanceof Error ? e.message : "Verifique a URL e o tipo de mídia.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // ✅ CORREÇÃO: Permitir agendamento para "agora" ou até 5 minutos no passado
     // Isso permite que mensagens sejam agendadas para envio imediato
     // O process-scheduled-messages já filtra por scheduled_for <= NOW()
@@ -150,16 +168,16 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
         phone: leadPhone,
         message,
         scheduledFor,
-        mediaUrl: mediaUrl || undefined,
-        mediaType: mediaUrl ? mediaType : undefined,
+        mediaUrl: mainNorm.mediaUrl ?? undefined,
+        mediaType: mainNorm.mediaType ?? undefined,
         repeatEnabled: repeatEnabled,
         repeatPeriod: repeatEnabled ? repeatPeriod : undefined,
         repeatDuration: repeatEnabled ? repeatDuration : undefined,
         isCombo: isCombo,
         comboMessage: isCombo ? comboMessage : undefined,
         comboDelayDays: isCombo ? comboDelayDays : undefined,
-        comboMediaUrl: isCombo && comboMediaUrl ? comboMediaUrl : undefined,
-        comboMediaType: isCombo && comboMediaUrl ? comboMediaType : undefined,
+        comboMediaUrl: isCombo && comboNorm.mediaUrl ? comboNorm.mediaUrl : undefined,
+        comboMediaType: isCombo && comboNorm.mediaUrl ? (comboNorm.mediaType ?? undefined) : undefined,
       });
 
       // Limpar formulário
@@ -305,6 +323,40 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
               placeholder="Digite a mensagem..."
               rows={4}
             />
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Só texto: não precisa de URL. Anexo opcional: URL pública do ficheiro e tipo compatível com o WhatsApp.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="schedule-media-url">URL da mídia (opcional)</Label>
+            <Input
+              id="schedule-media-url"
+              type="url"
+              inputMode="url"
+              value={mediaUrl}
+              onChange={(e) => setMediaUrl(e.target.value)}
+              placeholder="https://… (vazio = enviar só o texto acima)"
+            />
+            {mediaUrl.trim().length > 0 && (
+              <div>
+                <Label htmlFor="schedule-media-type">Tipo da mídia</Label>
+                <Select
+                  value={mediaType}
+                  onValueChange={(v) => setMediaType(v as "image" | "video" | "document" | "audio")}
+                >
+                  <SelectTrigger id="schedule-media-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Imagem</SelectItem>
+                    <SelectItem value="video">Vídeo</SelectItem>
+                    <SelectItem value="document">Documento</SelectItem>
+                    <SelectItem value="audio">Áudio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -422,6 +474,38 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                   value={comboDelayDays}
                   onChange={(e) => setComboDelayDays(parseInt(e.target.value) || 1)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="combo-media-url">URL da mídia na 2ª mensagem (opcional)</Label>
+                <Input
+                  id="combo-media-url"
+                  type="url"
+                  value={comboMediaUrl}
+                  onChange={(e) => setComboMediaUrl(e.target.value)}
+                  placeholder="https://… (vazio = só texto na segunda parte)"
+                />
+                {comboMediaUrl.trim().length > 0 && (
+                  <div>
+                    <Label htmlFor="combo-media-type">Tipo da mídia</Label>
+                    <Select
+                      value={comboMediaType}
+                      onValueChange={(v) =>
+                        setComboMediaType(v as "image" | "video" | "document" | "audio")
+                      }
+                    >
+                      <SelectTrigger id="combo-media-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="image">Imagem</SelectItem>
+                        <SelectItem value="video">Vídeo</SelectItem>
+                        <SelectItem value="document">Documento</SelectItem>
+                        <SelectItem value="audio">Áudio</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
             </div>
