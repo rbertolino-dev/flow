@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { PENDING_SCHEDULED_COUNTS_QUERY_KEY } from "@/hooks/usePendingScheduledCountsByLead";
 
 
 export interface ScheduledMessage {
@@ -317,6 +318,7 @@ export function useScheduledMessages(leadId?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
+      queryClient.invalidateQueries({ queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY] });
       toast({
         title: "Mensagem agendada",
         description: "A mensagem será enviada no horário programado",
@@ -395,6 +397,7 @@ export function useScheduledMessages(leadId?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
+      queryClient.invalidateQueries({ queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY] });
       toast({
         title: "Mensagem cancelada",
         description: "O agendamento foi cancelado",
@@ -420,6 +423,7 @@ export function useScheduledMessages(leadId?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
+      queryClient.invalidateQueries({ queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY] });
       toast({
         title: "Mensagem excluída",
         description: "O agendamento foi removido",

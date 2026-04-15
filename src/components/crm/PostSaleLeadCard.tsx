@@ -2,7 +2,7 @@ import { PostSaleLead, PostSaleStage } from "@/types/postSaleLead";
 import { buildCopyNumber, formatBrazilianPhone } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, MessageCircle, Trash2, Pencil, Calendar } from "lucide-react";
+import { Phone, DollarSign, MessageCircle, Trash2, Clock } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ interface PostSaleLeadCardProps {
   compact?: boolean;
   onMessageClick?: () => void;
   onScheduleClick?: () => void;
+  pendingScheduledCount?: number;
 }
 
 export function PostSaleLeadCard({
@@ -33,7 +34,8 @@ export function PostSaleLeadCard({
   onRefetch,
   compact = false,
   onMessageClick,
-  onScheduleClick
+  onScheduleClick,
+  pendingScheduledCount = 0,
 }: PostSaleLeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -200,11 +202,20 @@ export function PostSaleLeadCard({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 px-2"
+                className="h-6 px-2 relative"
                 onClick={handleScheduleClick}
-                title="Agendar Mensagem"
+                title={
+                  pendingScheduledCount > 0
+                    ? `${pendingScheduledCount} mensagem(ns) agendada(s)`
+                    : "Agendar mensagens"
+                }
               >
-                <Calendar className="h-3 w-3" />
+                <Clock className="h-3 w-3" />
+                {pendingScheduledCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-primary text-[9px] font-medium text-primary-foreground flex items-center justify-center leading-none">
+                    {pendingScheduledCount > 99 ? "99+" : pendingScheduledCount}
+                  </span>
+                )}
               </Button>
               <Button
                 size="sm"

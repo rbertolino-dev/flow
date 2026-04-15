@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Lead, CallQueueItem } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
+import { LeadScheduleSheet } from "./LeadScheduleSheet";
 import { LeadBudgetBadge } from "./LeadBudgetBadge";
 import { MessageSquare, Phone, Calendar, ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ export function LeadsListView({
   }, [leads]);
 
   const [scheduleEventLead, setScheduleEventLead] = useState<Lead | null>(null);
+  const [scheduleMessageLead, setScheduleMessageLead] = useState<Lead | null>(null);
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   // ✅ CORREÇÃO: Adicionar opções de ordenação por nome e valor
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'value-asc' | 'value-desc'>('newest');
@@ -462,8 +464,27 @@ export function LeadsListView({
           open={!!selectedLead}
           onClose={() => setSelectedLead(null)}
           onUpdated={onRefetch}
+          onOpenScheduleModule={() => {
+            if (selectedLead) setScheduleMessageLead(selectedLead);
+          }}
         />
       )}
+
+      <LeadScheduleSheet
+        lead={
+          scheduleMessageLead
+            ? {
+                id: scheduleMessageLead.id,
+                name: scheduleMessageLead.name,
+                phone: scheduleMessageLead.phone,
+              }
+            : null
+        }
+        open={!!scheduleMessageLead}
+        onOpenChange={(o) => {
+          if (!o) setScheduleMessageLead(null);
+        }}
+      />
 
       {scheduleEventLead && (
         <ScheduleGoogleEventDialog

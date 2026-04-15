@@ -30,7 +30,6 @@ import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { extractConnectionState } from "@/lib/evolutionStatus";
-import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 
 interface PostSaleLeadDetailModalProps {
   lead: PostSaleLead;
@@ -38,10 +37,10 @@ interface PostSaleLeadDetailModalProps {
   onClose: () => void;
   onUpdated?: () => void;
   initialShowMessage?: boolean;
-  initialShowSchedule?: boolean;
+  onOpenScheduleModule?: () => void;
 }
 
-export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, initialShowSchedule = false }: PostSaleLeadDetailModalProps) {
+export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, onOpenScheduleModule }: PostSaleLeadDetailModalProps) {
   const { tags } = useTags();
   const { updateLead, deleteLead, leads } = usePostSaleLeads();
   const { stages } = usePostSaleStages();
@@ -58,7 +57,6 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
   const [selectedMessageTemplateId, setSelectedMessageTemplateId] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
-  const [showSchedulePanel, setShowSchedulePanel] = useState(false);
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const [liveStatus, setLiveStatus] = useState<Record<string, boolean | null>>({});
   const messageSectionRef = useRef<HTMLDivElement>(null);
@@ -140,23 +138,13 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
     }
   }, [open, configs]);
 
-  // Controlar visibilidade inicial da seção de mensagem e agendamento
   useEffect(() => {
-    if (open) {
-      if (initialShowSchedule) {
-        setShowSchedulePanel(true);
-      }
-      // Se initialShowMessage for true, fazer scroll para a seção de mensagem após um pequeno delay
-      if (initialShowMessage && messageSectionRef.current) {
-        setTimeout(() => {
-          messageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-      }
-    } else {
-      // Resetar estados quando modal fechar
-      setShowSchedulePanel(false);
+    if (open && initialShowMessage && messageSectionRef.current) {
+      setTimeout(() => {
+        messageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }
-  }, [open, initialShowMessage, initialShowSchedule]);
+  }, [open, initialShowMessage]);
 
   const handleRefreshStatus = async () => {
     setIsRefreshingStatus(true);
@@ -706,7 +694,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
                   />
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     onClick={handleSendWhatsApp}
                     disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
@@ -715,31 +703,22 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
                     <Send className="h-4 w-4 mr-2" />
                     {isSending ? 'Enviando...' : 'Enviar Agora'}
                   </Button>
-                  
-                  <Button
-                    onClick={() => setShowSchedulePanel(!showSchedulePanel)}
-                    variant={showSchedulePanel ? "default" : "outline"}
-                    disabled={!hasInstances}
-                    className={showSchedulePanel ? "flex-1" : ""}
-                  >
-                    <Clock className="h-4 w-4 mr-2" />
-                    {showSchedulePanel ? "Ocultar Agenda" : "Agendar"}
-                  </Button>
+
+                  {onOpenScheduleModule && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!hasInstances}
+                      className="flex-1"
+                      onClick={() => onOpenScheduleModule()}
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Agendar mensagens
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
-
-            {showSchedulePanel && (
-              <>
-                <Separator />
-                <ScheduleMessagePanel 
-                  leadId={currentLead.id}
-                  leadPhone={currentLead.phone}
-                  instances={connectedInstances}
-                  onClose={() => setShowSchedulePanel(false)}
-                />
-              </>
-            )}
 
             <Separator />
 

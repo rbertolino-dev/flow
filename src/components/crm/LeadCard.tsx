@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { buildCopyNumber, buildTelUri, formatBrazilianPhone, formatBrazilianCep, normalizeCep } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip } from "lucide-react";
+import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip, Clock } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, memo } from "react";
@@ -41,6 +41,8 @@ interface LeadCardProps {
   onRefetch?: () => void;
   onEditName?: (leadId: string, newName: string) => Promise<void>;
   compact?: boolean;
+  pendingScheduledCount?: number;
+  onScheduleLead?: (lead: Lead) => void;
 }
 
 // ✅ OTIMIZAÇÃO: Memoizar componente para evitar re-renders desnecessários
@@ -56,7 +58,9 @@ export const LeadCard = memo(function LeadCard({
   onDelete,
   onRefetch,
   onEditName,
-  compact = false
+  compact = false,
+  pendingScheduledCount = 0,
+  onScheduleLead,
 }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -108,6 +112,11 @@ export const LeadCard = memo(function LeadCard({
   const handlePhoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.location.href = buildTelUri(lead.phone);
+  };
+
+  const handleScheduleLeadClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onScheduleLead?.(lead);
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -333,6 +342,26 @@ export const LeadCard = memo(function LeadCard({
                 >
                   <MessageCircle className="h-3 w-3" />
                 </Button>
+                {onScheduleLead && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 relative"
+                    onClick={handleScheduleLeadClick}
+                    title={
+                      pendingScheduledCount > 0
+                        ? `${pendingScheduledCount} mensagem(ns) agendada(s)`
+                        : "Agendar mensagens"
+                    }
+                  >
+                    <Clock className="h-3 w-3" />
+                    {pendingScheduledCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-primary text-[9px] font-medium text-primary-foreground flex items-center justify-center leading-none">
+                        {pendingScheduledCount > 99 ? "99+" : pendingScheduledCount}
+                      </span>
+                    )}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
@@ -566,22 +595,43 @@ export const LeadCard = memo(function LeadCard({
           </Badge>
         )}
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2 pt-2 flex-wrap">
           {lead.phone && (
             <>
               <Button
                 size="sm"
                 variant="outline"
-                className="flex-1"
+                className="flex-1 min-w-[100px]"
                 onClick={handleWhatsAppClick}
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 WhatsApp
               </Button>
+              {onScheduleLead && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 min-w-[100px] relative"
+                  onClick={handleScheduleLeadClick}
+                  title={
+                    pendingScheduledCount > 0
+                      ? `${pendingScheduledCount} mensagem(ns) agendada(s)`
+                      : "Agendar mensagens"
+                  }
+                >
+                  <Clock className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">Agendar</span>
+                  {pendingScheduledCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center">
+                      {pendingScheduledCount > 99 ? "99+" : pendingScheduledCount}
+                    </span>
+                  )}
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
-                className="flex-1"
+                className="flex-1 min-w-[100px]"
                 onClick={handlePhoneClick}
               >
                 <Phone className="h-4 w-4 mr-2" />
@@ -656,6 +706,8 @@ export const LeadCard = memo(function LeadCard({
     prevProps.lead.postalCode === nextProps.lead.postalCode &&
     prevProps.lead.neighborhood === nextProps.lead.neighborhood &&
     prevProps.lead.address === nextProps.lead.address &&
-    prevProps.lead.birthDate === nextProps.lead.birthDate
+    prevProps.lead.birthDate === nextProps.lead.birthDate &&
+    prevProps.pendingScheduledCount === nextProps.pendingScheduledCount &&
+    prevProps.onScheduleLead === nextProps.onScheduleLead
   );
 });

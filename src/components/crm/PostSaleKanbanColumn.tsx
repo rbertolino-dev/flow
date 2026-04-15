@@ -20,6 +20,7 @@ interface PostSaleKanbanColumnProps {
   compact?: boolean;
   onMessageClick?: (lead: PostSaleLead) => void;
   onScheduleClick?: (lead: PostSaleLead) => void;
+  pendingScheduleCountByLead?: Record<string, number>;
 }
 
 export function PostSaleKanbanColumn({ 
@@ -35,7 +36,8 @@ export function PostSaleKanbanColumn({
   onRefetch,
   compact = false,
   onMessageClick,
-  onScheduleClick
+  onScheduleClick,
+  pendingScheduleCountByLead = {},
 }: PostSaleKanbanColumnProps) {
   const { setNodeRef } = useDroppable({
     id: stage.id,
@@ -94,6 +96,7 @@ export function PostSaleKanbanColumn({
                 compact={compact}
                 onMessageClick={() => onMessageClick?.(lead)}
                 onScheduleClick={() => onScheduleClick?.(lead)}
+                pendingScheduledCount={pendingScheduleCountByLead[lead.id] ?? 0}
               />
             ))}
           </div>

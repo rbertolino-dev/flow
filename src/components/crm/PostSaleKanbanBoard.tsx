@@ -2,6 +2,8 @@ import { useState, useRef, useMemo } from "react";
 import { PostSaleLead } from "@/types/postSaleLead";
 import { PostSaleLeadCard } from "./PostSaleLeadCard";
 import { PostSaleLeadDetailModal } from "./PostSaleLeadDetailModal";
+import { LeadScheduleSheet } from "./LeadScheduleSheet";
+import { usePendingScheduledCountsByLead } from "@/hooks/usePendingScheduledCountsByLead";
 import { PostSaleKanbanColumn } from "./PostSaleKanbanColumn";
 import { DndContext, DragEndEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { usePostSaleStages } from "@/hooks/usePostSaleStages";
@@ -22,7 +24,7 @@ interface PostSaleKanbanBoardProps {
 export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch }: PostSaleKanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<PostSaleLead | null>(null);
   const [openModalWithMessage, setOpenModalWithMessage] = useState(false);
-  const [openModalWithSchedule, setOpenModalWithSchedule] = useState(false);
+  const [scheduleLead, setScheduleLead] = useState<PostSaleLead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
@@ -51,6 +53,13 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
       return matchesName || matchesPhone || matchesEmail || matchesCompany;
     });
   }, [leads, searchQuery]);
+
+  const leadIdsForScheduledCounts = useMemo(
+    () => filteredLeads.map((l) => l.id),
+    [filteredLeads]
+  );
+  const { data: pendingScheduleCountByLead = {} } =
+    usePendingScheduledCountsByLead(leadIdsForScheduledCounts);
 
   if (stagesLoading) {
     return (
@@ -175,10 +184,8 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
                     setSelectedLead(lead);
                     setOpenModalWithMessage(true);
                   }}
-                  onScheduleClick={(lead) => {
-                    setSelectedLead(lead);
-                    setOpenModalWithSchedule(true);
-                  }}
+                  onScheduleClick={(lead) => setScheduleLead(lead)}
+                  pendingScheduleCountByLead={pendingScheduleCountByLead}
                 />
               ))}
             </div>
@@ -252,7 +259,7 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
           onClose={() => {
             setSelectedLead(null);
             setOpenModalWithMessage(false);
-            setOpenModalWithSchedule(false);
+            setScheduleLead(null);
           }}
           onUpdated={() => {
             // Real-time atualiza automaticamente
@@ -267,9 +274,27 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
             }, 300);
           }}
           initialShowMessage={openModalWithMessage}
-          initialShowSchedule={openModalWithSchedule}
+          onOpenScheduleModule={() => {
+            if (selectedLead) setScheduleLead(selectedLead);
+          }}
         />
       )}
+
+      <LeadScheduleSheet
+        lead={
+          scheduleLead
+            ? {
+                id: scheduleLead.id,
+                name: scheduleLead.name,
+                phone: scheduleLead.phone,
+              }
+            : null
+        }
+        open={!!scheduleLead}
+        onOpenChange={(o) => {
+          if (!o) setScheduleLead(null);
+        }}
+      />
 
       <CreatePostSaleLeadDialog
         open={createLeadOpen}

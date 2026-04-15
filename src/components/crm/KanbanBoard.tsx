@@ -2,6 +2,8 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { Lead, LeadStatus, CallQueueItem } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
+import { LeadScheduleSheet } from "./LeadScheduleSheet";
+import { usePendingScheduledCountsByLead } from "@/hooks/usePendingScheduledCountsByLead";
 import { KanbanColumn } from "./KanbanColumn";
 import { BulkImportPanel } from "./BulkImportPanel";
 import { KanbanSettings } from "./KanbanSettings";
@@ -45,6 +47,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [scheduleLead, setScheduleLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     setSelectedLead((prev) => {
@@ -220,6 +223,21 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       return l;
     });
   }, [filteredLeads, stageIdSet, firstStageId]);
+
+  const leadIdsForScheduledCounts = useMemo(
+    () => normalizedLeads.map((l) => l.id),
+    [normalizedLeads]
+  );
+  const { data: pendingScheduleCountByLead = {} } =
+    usePendingScheduledCountsByLead(leadIdsForScheduledCounts);
+
+  const openScheduleForLead = useCallback((lead: Lead) => {
+    setScheduleLead(lead);
+  }, []);
+
+  const handleScheduleSheetOpenChange = useCallback((open: boolean) => {
+    if (!open) setScheduleLead(null);
+  }, []);
 
   // Correção automática no banco APENAS para leads com etapa inválida
   useEffect(() => {
@@ -825,6 +843,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   onRefetch={onRefetch}
                   onEditLeadName={onEditLeadName}
                   compact={cardSize === 'compact'}
+                  pendingScheduleCountByLead={pendingScheduleCountByLead}
+                  onScheduleLead={openScheduleForLead}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
@@ -960,8 +980,23 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             open={!!selectedLead}
             onClose={() => setSelectedLead(null)}
             onUpdated={onRefetch}
+            onOpenScheduleModule={() => openScheduleForLead(selectedLead)}
           />
         )}
+
+        <LeadScheduleSheet
+          lead={
+            scheduleLead
+              ? {
+                  id: scheduleLead.id,
+                  name: scheduleLead.name,
+                  phone: scheduleLead.phone,
+                }
+              : null
+          }
+          open={!!scheduleLead}
+          onOpenChange={handleScheduleSheetOpenChange}
+        />
 
       {/* Dialog para adicionar à lista de disparo */}
       <Dialog open={addToListDialogOpen} onOpenChange={setAddToListDialogOpen}>

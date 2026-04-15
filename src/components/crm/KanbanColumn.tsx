@@ -28,9 +28,11 @@ interface KanbanColumnProps {
   onRefetch?: () => void;
   onEditLeadName?: (leadId: string, newName: string) => Promise<void>;
   compact?: boolean;
+  pendingScheduleCountByLead?: Record<string, number>;
+  onScheduleLead?: (lead: Lead) => void;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false, pendingScheduleCountByLead = {}, onScheduleLead }: KanbanColumnProps) {
   const [displayLimit, setDisplayLimit] = useState(LEADS_PER_PAGE);
   const [isExpanding, setIsExpanding] = useState(false);
 
@@ -136,6 +138,8 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                     onRefetch={onRefetch}
                     onEditName={onEditLeadName}
                     compact={compact}
+                    pendingScheduledCount={pendingScheduleCountByLead[lead.id] ?? 0}
+                    onScheduleLead={onScheduleLead}
                   />
                 </div>
               );

@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { Lead } from "@/types/lead";
-import { CallQueueItem } from "@/types/lead";
+import { Lead, CallQueueItem } from "@/types/lead";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { AlertCircle, MessageSquare, Clock, PhoneCall, Calendar, User, Building2
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LeadDetailModal } from "./LeadDetailModal";
+import { LeadScheduleSheet } from "./LeadScheduleSheet";
 import { formatBrazilianPhone } from "@/lib/phoneUtils";
 import {
   Dialog,
@@ -39,6 +39,7 @@ interface AttentionLead extends Lead {
 
 export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAttentionPanelProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [scheduleSheetLead, setScheduleSheetLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     setSelectedLead((prev) => {
@@ -522,13 +523,35 @@ export function LeadsAttentionPanel({ leads, callQueue, onLeadUpdated }: LeadsAt
         <LeadDetailModal
           lead={selectedLead}
           open={!!selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={() => {
+            setSelectedLead(null);
+            setScheduleSheetLead(null);
+          }}
           onUpdated={() => {
             setSelectedLead(null);
             onLeadUpdated?.();
           }}
+          onOpenScheduleModule={() => {
+            if (selectedLead) setScheduleSheetLead(selectedLead);
+          }}
         />
       )}
+
+      <LeadScheduleSheet
+        lead={
+          scheduleSheetLead
+            ? {
+                id: scheduleSheetLead.id,
+                name: scheduleSheetLead.name,
+                phone: scheduleSheetLead.phone,
+              }
+            : null
+        }
+        open={!!scheduleSheetLead}
+        onOpenChange={(o) => {
+          if (!o) setScheduleSheetLead(null);
+        }}
+      />
       
       {/* Dialog de envio rápido de mensagem WhatsApp */}
       <Dialog open={sendMessageDialogOpen} onOpenChange={setSendMessageDialogOpen}>

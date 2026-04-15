@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDetailModal } from "@/components/crm/LeadDetailModal";
+import { LeadScheduleSheet } from "@/components/crm/LeadScheduleSheet";
 import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
 import { LeadsAttentionPanel } from "@/components/crm/LeadsAttentionPanel";
@@ -57,7 +58,7 @@ export default function CRM() {
   }, [leads]);
 
   const [openModalWithMessage, setOpenModalWithMessage] = useState(false);
-  const [openModalWithSchedule, setOpenModalWithSchedule] = useState(false);
+  const [scheduleSheetLead, setScheduleSheetLead] = useState<Lead | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -544,16 +545,13 @@ export default function CRM() {
                                       <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={() => {
-                                          setSelectedLead(lead);
-                                          setOpenModalWithSchedule(true);
-                                        }}
+                                        onClick={() => setScheduleSheetLead(lead)}
                                       >
                                         <Calendar className="h-4 w-4" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      <p>Agendar Mensagem</p>
+                                      <p>Agendar mensagem WhatsApp</p>
                                     </TooltipContent>
                                   </Tooltip>
                                   <Tooltip>
@@ -701,13 +699,31 @@ export default function CRM() {
             onClose={() => {
               setSelectedLead(null);
               setOpenModalWithMessage(false);
-              setOpenModalWithSchedule(false);
+              setScheduleSheetLead(null);
             }}
             onUpdated={() => refetchLeads()}
             initialShowMessage={openModalWithMessage}
-            initialShowSchedule={openModalWithSchedule}
+            onOpenScheduleModule={() => {
+              if (selectedLead) setScheduleSheetLead(selectedLead);
+            }}
           />
         )}
+
+        <LeadScheduleSheet
+          lead={
+            scheduleSheetLead
+              ? {
+                  id: scheduleSheetLead.id,
+                  name: scheduleSheetLead.name,
+                  phone: scheduleSheetLead.phone,
+                }
+              : null
+          }
+          open={!!scheduleSheetLead}
+          onOpenChange={(o) => {
+            if (!o) setScheduleSheetLead(null);
+          }}
+        />
 
         <CreateLeadDialog
           open={createDialogOpen}

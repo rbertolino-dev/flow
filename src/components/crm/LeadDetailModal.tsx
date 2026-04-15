@@ -50,7 +50,6 @@ import {
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { ChatHistory } from "./ChatHistory";
-import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { LeadFollowUpPanel } from "./LeadFollowUpPanel";
 import { AddLeadToListDialog } from "./AddLeadToListDialog";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
@@ -66,7 +65,8 @@ interface LeadDetailModalProps {
   onClose: () => void;
   onUpdated?: () => void;
   initialShowMessage?: boolean;
-  initialShowSchedule?: boolean;
+  /** Abre o módulo de agendamento (Sheet) fora do modal; se ausente, o botão de agendar não é exibido. */
+  onOpenScheduleModule?: () => void;
 }
 
 const activityIcons = {
@@ -83,7 +83,7 @@ const activityColors = {
   status_change: "text-warning",
 };
 
-export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, initialShowSchedule = false }: LeadDetailModalProps) {
+export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, onOpenScheduleModule }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead, refetch: refetchTags } = useTags();
   const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
   const { deleteLead, updateLeadStatus } = useLeads();
@@ -101,7 +101,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
-  const [showSchedulePanel, setShowSchedulePanel] = useState(false);
   const [returnDate, setReturnDate] = useState<string>(
     lead.returnDate ? format(new Date(lead.returnDate), "yyyy-MM-dd") : ""
   );
@@ -220,26 +219,17 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
     };
   }, [open, lead.id]);
 
-  // Controlar visibilidade inicial da seção de mensagem e agendamento
+  // Scroll inicial para a seção de mensagem WhatsApp
   useEffect(() => {
-    if (open) {
-      if (initialShowSchedule) {
-        setShowSchedulePanel(true);
-      }
-      // Se initialShowMessage for true, fazer scroll para a seção de mensagem após um pequeno delay
-      if (initialShowMessage) {
-        setTimeout(() => {
-          const messageSection = document.getElementById('whatsapp-message-section');
-          if (messageSection) {
-            messageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }, 100);
-      }
-    } else {
-      // Resetar estados quando modal fechar
-      setShowSchedulePanel(false);
+    if (open && initialShowMessage) {
+      setTimeout(() => {
+        const messageSection = document.getElementById('whatsapp-message-section');
+        if (messageSection) {
+          messageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
     }
-  }, [open, initialShowMessage, initialShowSchedule]);
+  }, [open, initialShowMessage]);
 
   // Identificar listas que contêm este lead
   const leadLists = useMemo(() => {
@@ -2169,7 +2159,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                   />
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     onClick={handleSendWhatsApp}
                     disabled={!whatsappMessage.trim() || !selectedInstanceId || isSending}
@@ -2178,31 +2168,22 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                     <Send className="h-4 w-4 mr-2" />
                     {isSending ? 'Enviando...' : 'Enviar Agora'}
                   </Button>
-                  
-                  <Button
-                    onClick={() => setShowSchedulePanel(!showSchedulePanel)}
-                    variant={showSchedulePanel ? "default" : "outline"}
-                    disabled={!hasInstances}
-                    className={showSchedulePanel ? "flex-1" : ""}
-                  >
-                    <Clock className="h-4 w-4 mr-2" />
-                    {showSchedulePanel ? "Ocultar Agenda" : "Agendar"}
-                  </Button>
+
+                  {onOpenScheduleModule && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!hasInstances}
+                      className="flex-1"
+                      onClick={() => onOpenScheduleModule()}
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Agendar mensagens
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
-
-            {showSchedulePanel && (
-              <>
-                <Separator />
-                <ScheduleMessagePanel 
-                  leadId={lead.id}
-                  leadPhone={lead.phone}
-                  instances={connectedInstances}
-                  onClose={() => setShowSchedulePanel(false)}
-                />
-              </>
-            )}
 
             <Separator />
 

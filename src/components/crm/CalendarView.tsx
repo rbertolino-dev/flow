@@ -7,6 +7,7 @@ import { format, isSameDay, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Phone, Mail, Building2 } from "lucide-react";
 import { LeadDetailModal } from "./LeadDetailModal";
+import { LeadScheduleSheet } from "./LeadScheduleSheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { normalizePhone } from "@/lib/phoneUtils";
 
@@ -20,6 +21,7 @@ export const CalendarView = ({ leads, onLeadUpdate, searchQuery = "" }: Calendar
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [scheduleSheetLead, setScheduleSheetLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     setSelectedLead((prev) => {
@@ -318,9 +320,29 @@ export const CalendarView = ({ leads, onLeadUpdate, searchQuery = "" }: Calendar
           onClose={() => {
             setModalOpen(false);
             setSelectedLead(null);
+            setScheduleSheetLead(null);
+          }}
+          onOpenScheduleModule={() => {
+            if (selectedLead) setScheduleSheetLead(selectedLead);
           }}
         />
       )}
+
+      <LeadScheduleSheet
+        lead={
+          scheduleSheetLead
+            ? {
+                id: scheduleSheetLead.id,
+                name: scheduleSheetLead.name,
+                phone: scheduleSheetLead.phone,
+              }
+            : null
+        }
+        open={!!scheduleSheetLead}
+        onOpenChange={(o) => {
+          if (!o) setScheduleSheetLead(null);
+        }}
+      />
       </div>
     </ScrollArea>
   );
