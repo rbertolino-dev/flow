@@ -228,7 +228,7 @@ const Index = () => {
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="sm:inline">Importar</span>
                 </Button>
-                <Button onClick={() => setActiveView("messages-center" as CRMView)} size="sm" variant="outline" className="flex-1 sm:flex-none">
+                <Button onClick={() => navigate("/messages-center")} size="sm" variant="outline" className="flex-1 sm:flex-none">
                   <MessageSquare className="h-4 w-4 mr-2" />
                   <span className="sm:inline">Central de Mensagens</span>
                 </Button>

@@ -54,8 +54,7 @@ export function CRMNotifications({ leads, onViewLeads }: CRMNotificationsProps) 
     if (onViewLeads) {
       onViewLeads(leadIds);
     } else {
-      // Navegar para o Funil de Vendas na view Central de Mensagens
-      navigate("/", { state: { view: "messages-center" } });
+      navigate("/messages-center");
     }
   };
 
