@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight } from "lucide-react";
 
-const agilizeLogo = "https://ogeljmbhqxpfjbpnbwog.supabase.co/storage/v1/object/public/whatsapp-workflow-media/logos/agilizeflow-logo.png";
+import { AGILIZE_LOGO_URL } from "@/constants/branding";
 
 export default function Cadastro() {
   const [email, setEmail] = useState("");
@@ -200,7 +200,7 @@ export default function Cadastro() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
-            <img src={agilizeLogo} alt="CRM Agilize" className="h-16 w-auto" />
+            <img src={AGILIZE_LOGO_URL} alt="CRM Agilize" className="h-16 w-auto" />
           </div>
           <CardTitle className="text-2xl font-bold text-center">Criar Conta</CardTitle>
           <CardDescription className="text-center">

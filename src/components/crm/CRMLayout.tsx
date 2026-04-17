@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-const agilizeLogo = "https://ogeljmbhqxpfjbpnbwog.supabase.co/storage/v1/object/public/whatsapp-workflow-media/logos/agilizeflow-logo.png";
+import { AGILIZE_LOGO_URL } from "@/constants/branding";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
@@ -238,10 +238,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
             )}
           >
             {sidebarOpen ? (
-              <img src={agilizeLogo} alt="AgilizeFLOW" className="h-10 w-auto cursor-pointer max-w-full object-contain" />
+              <img src={AGILIZE_LOGO_URL} alt="AgilizeFLOW" className="h-10 w-auto cursor-pointer max-w-full object-contain" />
             ) : (
               <div className="w-8 h-8 flex items-center justify-center">
-                <img src={agilizeLogo} alt="AgilizeFLOW" className="h-8 w-8 object-contain cursor-pointer" />
+                <img src={AGILIZE_LOGO_URL} alt="AgilizeFLOW" className="h-8 w-8 object-contain cursor-pointer" />
               </div>
             )}
           </button>
@@ -386,7 +386,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
             onClick={() => navigate('/')}
             className="hover:opacity-80 transition-opacity"
           >
-            <img src={agilizeLogo} alt="CRM Agilize" className="h-8 w-auto cursor-pointer" />
+            <img src={AGILIZE_LOGO_URL} alt="CRM Agilize" className="h-8 w-auto cursor-pointer" />
           </button>
           
           <div className="flex items-center gap-2">
@@ -416,7 +416,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                       }}
                       className="hover:opacity-80 transition-opacity"
                     >
-                      <img src={agilizeLogo} alt="AgilizeFLOW" className="h-8 w-auto cursor-pointer max-w-full object-contain" />
+                      <img src={AGILIZE_LOGO_URL} alt="AgilizeFLOW" className="h-8 w-auto cursor-pointer max-w-full object-contain" />
                     </button>
                   </div>
                   

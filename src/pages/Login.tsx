@@ -7,8 +7,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { AGILIZE_LOGO_URL } from "@/constants/branding";
 
-const agilizeLogo = "https://ogeljmbhqxpfjbpnbwog.supabase.co/storage/v1/object/public/whatsapp-workflow-media/logos/agilizeflow-logo.png";
+function loginErrorDescription(error: unknown): string {
+  const msg =
+    error && typeof error === "object" && "message" in error && typeof (error as Error).message === "string"
+      ? (error as Error).message
+      : String(error);
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("load failed") ||
+    lower.includes("err_name_not_resolved") ||
+    lower.includes("err_internet_disconnected") ||
+    lower.includes("authretryablefetcherror")
+  ) {
+    return "O browser não conseguiu contactar o servidor (Supabase). Na prática é DNS ou rede bloqueada: experimente dados móveis, desative VPN/Pi-hole/adblock, ou use DNS 1.1.1.1 ou 8.8.8.8 no router ou no Windows.";
+  }
+  return msg || "Erro desconhecido ao fazer login";
+}
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -94,11 +112,11 @@ export default function Login() {
           throw new Error('Sessão não foi salva corretamente. Tente fazer login novamente.');
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
       toast({
         title: "Erro ao fazer login",
-        description: error.message || 'Erro desconhecido ao fazer login',
+        description: loginErrorDescription(error),
         variant: "destructive",
       });
       setLoading(false);
@@ -194,7 +212,7 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
-            <img src={agilizeLogo} alt="AgilizeFLOW" className="h-16 w-auto max-w-full object-contain" />
+            <img src={AGILIZE_LOGO_URL} alt="AgilizeFLOW" className="h-16 w-auto max-w-full object-contain" />
           </div>
           <CardTitle className="text-2xl font-bold text-center">AgilizeFLOW</CardTitle>
           <CardDescription className="text-center">

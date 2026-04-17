@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-const agilizeLogo = "https://ogeljmbhqxpfjbpnbwog.supabase.co/storage/v1/object/public/whatsapp-workflow-media/logos/agilizeflow-logo.png";
+import { AGILIZE_LOGO_URL } from "@/constants/branding";
 
 const STEPS: OnboardingStepType[] = ['organization', 'users', 'pipeline', 'products', 'evolution'];
 
@@ -153,7 +153,7 @@ export default function Onboarding() {
           {/* Header */}
           <div className="mb-8 text-center">
             <div className="flex justify-center mb-4">
-              <img src={agilizeLogo} alt="CRM Agilize" className="h-12 w-auto" />
+              <img src={AGILIZE_LOGO_URL} alt="CRM Agilize" className="h-12 w-auto" />
             </div>
             <h1 className="text-3xl font-bold mb-2">Bem-vindo ao CRM Agilize</h1>
             <p className="text-muted-foreground">
