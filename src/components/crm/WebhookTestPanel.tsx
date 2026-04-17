@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, TestTube2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getSupabasePublicBaseUrl } from "@/lib/supabasePublicUrl";
 
 interface DiagnosticStep {
   name: string;
@@ -126,9 +127,8 @@ export function WebhookTestPanel({ config }: { config: any }) {
         
         try {
           // Obter URL do Supabase
-          const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 
-                             (window as any).__SUPABASE_URL__ ||
-                             'https://ogeljmbhqxpfjbpnbwog.supabase.co';
+          const supabaseUrl =
+            (window as any).__SUPABASE_URL__ || getSupabasePublicBaseUrl();
           
           const webhookSecret = config.webhook_secret || config.api_key || '';
           

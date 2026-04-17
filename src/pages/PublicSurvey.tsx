@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { getSupabasePublicBaseUrl } from "@/lib/supabasePublicUrl";
 
 export default function PublicSurvey() {
   const { slug } = useParams<{ slug: string }>();
@@ -36,8 +37,8 @@ export default function PublicSurvey() {
     const loadSurvey = async () => {
       try {
         // Buscar pesquisa pelo slug usando edge function (pública)
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ogeljmbhqxpfjbpnbwog.supabase.co';
-        
+        const supabaseUrl = getSupabasePublicBaseUrl();
+
         // Fazer requisição com tratamento de erro
         const response = await fetch(`${supabaseUrl}/functions/v1/get-survey?survey_slug=${encodeURIComponent(slug || '')}`, {
           method: 'GET',
@@ -90,8 +91,8 @@ export default function PublicSurvey() {
     setError(null);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ogeljmbhqxpfjbpnbwog.supabase.co';
-      
+      const supabaseUrl = getSupabasePublicBaseUrl();
+
       const response = await fetch(`${supabaseUrl}/functions/v1/submit-survey`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

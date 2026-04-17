@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, AlertCircle, Calendar, Clock } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getSupabasePublicBaseUrl } from "@/lib/supabasePublicUrl";
 
 interface AvailableSlot {
   date: string;
@@ -53,8 +54,8 @@ export default function PublicBooking() {
       setLoading(true);
       setError(null);
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ogeljmbhqxpfjbpnbwog.supabase.co';
-      
+      const supabaseUrl = getSupabasePublicBaseUrl();
+
       const response = await fetch(
         `${supabaseUrl}/functions/v1/get-availability?organization_slug=${encodeURIComponent(organizationSlug || '')}&days_ahead=30`,
         {
@@ -111,8 +112,8 @@ export default function PublicBooking() {
     setError(null);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ogeljmbhqxpfjbpnbwog.supabase.co';
-      
+      const supabaseUrl = getSupabasePublicBaseUrl();
+
       // Encontrar o slot selecionado
       const selectedSlot = availableSlots.find(
         slot => slot.date === selectedDate && slot.time === selectedTime
