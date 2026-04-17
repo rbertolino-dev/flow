@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        # Produção: use https://agilizeflow.com.br + proxy em nginx.conf (evita DNS *.supabase.co no cliente)
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
     container_name: kanban-buzz-app-green
