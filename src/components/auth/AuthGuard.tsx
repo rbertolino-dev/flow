@@ -3,6 +3,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
+/** Evita spinner infinito se getSession() nunca resolver (rede bloqueada, tab suspensa, etc.) */
+const GET_SESSION_TIMEOUT_MS = 12_000;
+
+async function getSessionWithTimeout() {
+  return Promise.race([
+    supabase.auth.getSession(),
+    new Promise<{ data: { session: null }; error: { message: string } }>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            data: { session: null },
+            error: { message: "GETSESSION_TIMEOUT" },
+          }),
+        GET_SESSION_TIMEOUT_MS
+      )
+    ),
+  ]);
+}
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
@@ -17,12 +36,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       // Tentar obter a sessão múltiplas vezes para garantir
       let session = null;
       let attempts = 0;
-      const maxAttempts = 8; // Aumentar tentativas
+      const maxAttempts = 5;
 
       while (!session && attempts < maxAttempts) {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
+        const { data, error } = await getSessionWithTimeout();
+
+        if (error?.message === "GETSESSION_TIMEOUT") {
+          console.warn("⏱️ Timeout ao obter sessão (tentativa " + (attempts + 1) + ")");
+        } else if (error) {
           // ERR_NETWORK_IO_SUSPENDED é comportamento normal (aba em background) - pode ignorar
           // Mas outros erros de rede devem ser logados
           const isNetworkSuspended = error?.message?.includes('ERR_NETWORK_IO_SUSPENDED');
@@ -63,7 +84,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         setAuthenticated(false);
         // Só redirecionar se realmente não houver sessão após todas as tentativas
         setTimeout(() => {
-          supabase.auth.getSession().then(({ data: { session: finalSession } }) => {
+          void getSessionWithTimeout().then(({ data: { session: finalSession } }) => {
             if (!finalSession) {
               navigate('/login', { replace: true });
             }
