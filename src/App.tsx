@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { initializeRealtime } from "@/utils/realtimeInit";
+import { supabase } from "@/integrations/supabase/client";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -59,15 +60,45 @@ import LandingPagePublic from "./pages/LandingPagePublic";
 const queryClient = new QueryClient();
 
 const App = () => {
-  // Inicializar Realtime quando a aplicação carrega
+  // Realtime só após haver sessão — evita WebSocket/erros na landing e acelera primeiro ecrã
   useEffect(() => {
-    console.log("🚀 Aplicação carregada. Inicializando Realtime...");
-    // Aguardar um pouco para garantir que tudo está pronto
-    const timer = setTimeout(() => {
-      initializeRealtime();
-    }, 1000);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    return () => clearTimeout(timer);
+    const scheduleRealtime = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!cancelled) {
+          console.log("🚀 Aplicação carregada. Inicializando Realtime (utilizador autenticado)...");
+          initializeRealtime();
+        }
+      }, 600);
+    };
+
+    const tryInitFromSession = (session: unknown) => {
+      if (session) scheduleRealtime();
+    };
+
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      tryInitFromSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        session &&
+        (event === "SIGNED_IN" ||
+          event === "TOKEN_REFRESHED" ||
+          event === "INITIAL_SESSION")
+      ) {
+        tryInitFromSession(session);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (

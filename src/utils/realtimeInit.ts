@@ -13,7 +13,8 @@ const MAX_INIT_ATTEMPTS = 5;
 const MONITOR_INTERVAL = 30000; // Verificar conexão a cada 30 segundos
 
 /**
- * Inicializa o Realtime forçando uma conexão WebSocket
+ * Inicializa o Realtime forçando uma conexão WebSocket (apenas com sessão Supabase).
+ * Evita WebSocket/CHANNEL_ERROR na landing e login (client.ts importa este módulo cedo).
  */
 export function initializeRealtime(): void {
   if (realtimeInitialized) {
@@ -23,6 +24,19 @@ export function initializeRealtime(): void {
 
   if (typeof window === "undefined") {
     console.warn("⚠️ Realtime só pode ser inicializado no browser");
+    return;
+  }
+
+  void supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) {
+      return;
+    }
+    startRealtimeConnection();
+  });
+}
+
+function startRealtimeConnection(): void {
+  if (realtimeInitialized) {
     return;
   }
 
@@ -112,7 +126,11 @@ function handleReconnect(): void {
     setTimeout(() => {
       initAttempts = 0;
       console.log("🔄 Resetando contador de tentativas. Tentando reconectar...");
-      initializeRealtime();
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          initializeRealtime();
+        }
+      });
     }, 60000);
     return;
   }
@@ -125,7 +143,11 @@ function handleReconnect(): void {
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    initializeRealtime();
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        initializeRealtime();
+      }
+    });
   }, delay);
 }
 
@@ -213,16 +235,8 @@ export function forceReconnect(): void {
   initializeRealtime();
 }
 
-// Inicializar automaticamente quando o módulo é carregado
 if (typeof window !== "undefined") {
-  // Aguardar um pouco para garantir que o DOM está pronto
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      setTimeout(initializeRealtime, 500);
-    });
-  } else {
-    setTimeout(initializeRealtime, 500);
-  }
+  // Sem auto-init aqui: client.ts e App.tsx chamam initializeRealtime; exige sessão dentro da função.
 
   // Tentar reconectar quando a página volta a ficar visível
   document.addEventListener("visibilitychange", () => {

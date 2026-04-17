@@ -2,25 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-
-/** Evita spinner infinito se getSession() nunca resolver (rede bloqueada, tab suspensa, etc.) */
-const GET_SESSION_TIMEOUT_MS = 12_000;
-
-async function getSessionWithTimeout() {
-  return Promise.race([
-    supabase.auth.getSession(),
-    new Promise<{ data: { session: null }; error: { message: string } }>((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            data: { session: null },
-            error: { message: "GETSESSION_TIMEOUT" },
-          }),
-        GET_SESSION_TIMEOUT_MS
-      )
-    ),
-  ]);
-}
+import { getSessionWithTimeout } from "@/lib/getSessionWithTimeout";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -36,7 +18,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       // Tentar obter a sessão múltiplas vezes para garantir
       let session = null;
       let attempts = 0;
-      const maxAttempts = 5;
+      const maxAttempts = 3;
 
       while (!session && attempts < maxAttempts) {
         const { data, error } = await getSessionWithTimeout();

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSessionWithTimeout } from "@/lib/getSessionWithTimeout";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ export default function Login() {
   // Verificar se já está autenticado ao carregar a página
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSessionWithTimeout();
       if (session) {
         navigate('/', { replace: true });
       }
