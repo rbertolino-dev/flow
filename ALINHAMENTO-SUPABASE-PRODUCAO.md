@@ -37,6 +37,7 @@ Sem isto alinhado, **OAuth**, **magic links** e **recuperação de password** po
 
 - Se parte do tráfego for `https://www.agilizeflow.com.br` e o resto `https://agilizeflow.com.br`, cookies e redirects podem comportar-se de forma confusa.
 - **Recomendação estável:** escolher **um** canónico no Nginx (301 do outro) e manter **`VITE_SUPABASE_URL`** e a **Site URL** na Supabase **nesse mesmo host**.
+- No frontend, os listeners de `postMessage` dos fluxos OAuth (Gmail, Calendar, Drive, Facebook, etc.) usam `getOAuthMessageAllowedOrigins()` (`src/lib/oauthMessageOrigins.ts`), que inclui **ambas** as variantes www/apex para `agilizeflow.com.br`, reduzindo falhas se o utilizador e o `VITE_SUPABASE_URL` não coincidirem temporariamente.
 
 ---
 

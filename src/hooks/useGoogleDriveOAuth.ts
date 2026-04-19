@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getOAuthMessageAllowedOrigins } from '@/lib/oauthMessageOrigins';
 import { useToast } from './use-toast';
 
 interface UseGoogleDriveOAuthOptions {
@@ -65,14 +66,7 @@ export function useGoogleDriveOAuth({ leadId, organizationId, onSuccess }: UseGo
 
       // Escutar mensagem de sucesso do popup
       const messageListener = (event: MessageEvent) => {
-        const allowedOrigins = [window.location.origin];
-        try {
-          const supabaseOrigin = new URL(import.meta.env.VITE_SUPABASE_URL || "").origin;
-          allowedOrigins.push(supabaseOrigin);
-        } catch {
-          // ignore if env não configurado
-        }
-        
+        const allowedOrigins = getOAuthMessageAllowedOrigins();
         if (!allowedOrigins.includes(event.origin)) {
           return;
         }

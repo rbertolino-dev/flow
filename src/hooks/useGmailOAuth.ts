@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getOAuthMessageAllowedOrigins } from "@/lib/oauthMessageOrigins";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
@@ -54,14 +55,7 @@ export function useGmailOAuth() {
 
       // Escutar mensagem de sucesso do popup
       const messageListener = (event: MessageEvent) => {
-        const allowedOrigins = [window.location.origin];
-        try {
-          const supabaseOrigin = new URL(import.meta.env.VITE_SUPABASE_URL || "").origin;
-          allowedOrigins.push(supabaseOrigin);
-        } catch {
-          // ignore if env não configurado
-        }
-        
+        const allowedOrigins = getOAuthMessageAllowedOrigins();
         if (!allowedOrigins.includes(event.origin)) {
           return;
         }

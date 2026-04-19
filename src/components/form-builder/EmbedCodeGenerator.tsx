@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getSupabasePublicBaseUrl } from "@/lib/supabasePublicUrl";
 
 interface EmbedCodeGeneratorProps {
   form: FormBuilder;
@@ -16,7 +17,7 @@ export function EmbedCodeGenerator({ form, isSurvey = false }: EmbedCodeGenerato
   const [copied, setCopied] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://orcbxgajfhgmjobsjlix.supabase.co';
+  const supabaseUrl = getSupabasePublicBaseUrl();
   const formId = form.id;
   const endpoint = isSurvey ? 'submit-survey' : 'submit-form';
   const getEndpoint = isSurvey ? 'get-survey' : 'get-form';
