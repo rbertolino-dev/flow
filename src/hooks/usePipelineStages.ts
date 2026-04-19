@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { supabaseQueryWithRetry } from "@/lib/supabaseQueryRetry";
+import { toastSafeErrorDescription } from "@/lib/utils";
 
 export interface PipelineStage {
   id: string;
@@ -202,20 +204,22 @@ export function usePipelineStages() {
         return;
       }
 
-      const { data, error } = await (supabase as any)
-        .from('pipeline_stages')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('position', { ascending: true });
+      const { data, error } = await supabaseQueryWithRetry(() =>
+        (supabase as any)
+          .from('pipeline_stages')
+          .select('*')
+          .eq('organization_id', orgId)
+          .order('position', { ascending: true })
+      );
 
       if (error) throw error;
 
       setStages(data || []);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao carregar etapas",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
     } finally {
@@ -281,10 +285,10 @@ export function usePipelineStages() {
       // Não fazer fetchStages() aqui - o realtime cuidará da atualização
       // A atualização otimista já foi aplicada pelo realtime
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao criar etapa",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -351,11 +355,11 @@ export function usePipelineStages() {
       // Não fazer fetchStages() aqui - o realtime cuidará da atualização
       // A atualização otimista já foi aplicada, e o realtime confirmará quando receber o evento
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('💥 Erro completo ao atualizar etapa:', error);
       toast({
         title: "Erro ao atualizar etapa",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -442,11 +446,11 @@ export function usePipelineStages() {
       // Garantir atualização mesmo sem realtime
       await fetchStages();
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro completo ao deletar etapa:', error);
       toast({
         title: "Erro ao remover etapa",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -522,10 +526,10 @@ export function usePipelineStages() {
       });
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao limpar duplicatas",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -544,10 +548,10 @@ export function usePipelineStages() {
       await Promise.all(updates);
       await fetchStages();
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao reordenar etapas",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;

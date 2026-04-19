@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { supabaseQueryWithRetry } from "@/lib/supabaseQueryRetry";
+import { toastSafeErrorDescription } from "@/lib/utils";
 import { PostSaleStage } from "@/types/postSaleLead";
 
 export function usePostSaleStages() {
@@ -18,11 +20,13 @@ export function usePostSaleStages() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('post_sale_stages')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('position', { ascending: true });
+      const { data, error } = await supabaseQueryWithRetry(() =>
+        supabase
+          .from('post_sale_stages')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .order('position', { ascending: true })
+      );
 
       if (error) throw error;
 
@@ -49,11 +53,11 @@ export function usePostSaleStages() {
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar etapas de pós-venda:', error);
       toast({
         title: "Erro ao carregar etapas",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
     } finally {
@@ -179,10 +183,10 @@ export function usePostSaleStages() {
       }, 300);
       
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao criar etapa",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -219,10 +223,10 @@ export function usePostSaleStages() {
       });
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao atualizar etapa",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -278,10 +282,10 @@ export function usePostSaleStages() {
 
       await fetchStages();
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao excluir etapa",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -304,12 +308,12 @@ export function usePostSaleStages() {
       
       // A subscription realtime vai sincronizar automaticamente
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Reverter em caso de erro
       await fetchStages();
       toast({
         title: "Erro ao reordenar etapas",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
