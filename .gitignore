@@ -15,6 +15,9 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+
+# Pacote gerado da extensão Chrome (gerar com npm run package:extension)
+extensions/agilize-crm-sidekick/release/*.zip
 .idea
 .DS_Store
 *.suo

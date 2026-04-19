@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +61,8 @@ const BUCKET_ID = 'whatsapp-workflow-media';
 
 export default function Budgets() {
   const { activeOrgId } = useActiveOrganization();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [defaultLeadIdForBudget, setDefaultLeadIdForBudget] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState('budgets');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
@@ -71,7 +74,21 @@ export default function Budgets() {
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [newlyCreatedBudgetId, setNewlyCreatedBudgetId] = useState<string | null>(null);
-  
+
+  /** Deep link: /budgets?leadId=…&createBudget=1 (ex.: extensão Chrome Sidekick) */
+  useEffect(() => {
+    const leadId = searchParams.get('leadId');
+    const createBudget = searchParams.get('createBudget');
+    if (leadId && createBudget === '1') {
+      setDefaultLeadIdForBudget(leadId);
+      setShowCreateDialog(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('leadId');
+      next.delete('createBudget');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   // Filtros de orçamentos
   const [budgetClientFilter, setBudgetClientFilter] = useState<string>('all');
   const [budgetDateFrom, setBudgetDateFrom] = useState<string>('');
@@ -1191,13 +1208,18 @@ export default function Budgets() {
         {/* Dialogs */}
         <CreateBudgetDialog
           open={showCreateDialog}
-          onOpenChange={setShowCreateDialog}
+          onOpenChange={(open) => {
+            setShowCreateDialog(open);
+            if (!open) setDefaultLeadIdForBudget(undefined);
+          }}
+          defaultLeadId={defaultLeadIdForBudget}
           onSuccess={(budgetId) => {
             if (budgetId) {
               setNewlyCreatedBudgetId(budgetId);
             }
             refetch();
             setShowCreateDialog(false);
+            setDefaultLeadIdForBudget(undefined);
           }}
         />
         

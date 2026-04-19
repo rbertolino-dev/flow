@@ -6,6 +6,19 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+/** Evita query string gigante em `.in(...)` (502/400 no Nginx/PostgREST). Valor baixo = mais round-trips, menos risco. */
+const REST_IN_CHUNK = 12;
+
+/** Update/delete em massa: menor ainda que leituras; sequencial para não sobrecarregar API/proxy. */
+const BULK_MUTATION_CHUNK = 6;
+
+function chunkIds<T>(ids: T[], size: number): T[][] {
+  if (ids.length === 0) return [];
+  const out: T[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
 export function useCallQueue() {
   const [callQueue, setCallQueue] = useState<CallQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,10 +135,18 @@ export function useCallQueue() {
           const assignedUserIds = [...new Set(queueData.map((q: any) => q.assigned_to_user_id).filter(Boolean))];
           
           if (assignedUserIds.length > 0) {
-            const { data: profilesData } = await (supabase as any)
-              .from('profiles')
-              .select('id, email, full_name')
-              .in('id', assignedUserIds);
+            const profileChunks = chunkIds(assignedUserIds, REST_IN_CHUNK);
+            const profileRows = (
+              await Promise.all(
+                profileChunks.map((ids) =>
+                  (supabase as any)
+                    .from('profiles')
+                    .select('id, email, full_name')
+                    .in('id', ids)
+                )
+              )
+            ).flatMap((r) => r.data || []);
+            const profilesData = profileRows;
 
             // Criar mapa de usuários
             const usersMap = new Map();
@@ -149,25 +170,43 @@ export function useCallQueue() {
       const leadIds = [...new Set((queueData || []).map((q: any) => q.leads?.id).filter(Boolean))];
       const callQueueIds = [...new Set((queueData || []).map((q: any) => q.id).filter(Boolean))];
 
-      // Buscar TODAS as tags de uma vez (2 queries apenas, independente do número de itens)
-      const [leadTagsResult, callQueueTagsResult] = await Promise.all([
+      const leadTagRows =
         leadIds.length > 0
-          ? (supabase as any)
-              .from('lead_tags')
-              .select('lead_id, tag_id, tags(id, name, color)')
-              .in('lead_id', leadIds)
-          : Promise.resolve({ data: [], error: null }),
+          ? (
+              await Promise.all(
+                chunkIds(leadIds, REST_IN_CHUNK).map((chunk) =>
+                  (supabase as any)
+                    .from('lead_tags')
+                    .select('lead_id, tag_id, tags(id, name, color)')
+                    .in('lead_id', chunk)
+                )
+              )
+            ).flatMap((r) => {
+              if (r.error) console.warn('lead_tags (call queue):', r.error);
+              return r.data || [];
+            })
+          : [];
+
+      const callQueueTagRows =
         callQueueIds.length > 0
-          ? (supabase as any)
-              .from('call_queue_tags')
-              .select('call_queue_id, tag_id, tags(id, name, color)')
-              .in('call_queue_id', callQueueIds)
-          : Promise.resolve({ data: [], error: null })
-      ]);
+          ? (
+              await Promise.all(
+                chunkIds(callQueueIds, REST_IN_CHUNK).map((chunk) =>
+                  (supabase as any)
+                    .from('call_queue_tags')
+                    .select('call_queue_id, tag_id, tags(id, name, color)')
+                    .in('call_queue_id', chunk)
+                )
+              )
+            ).flatMap((r) => {
+              if (r.error) console.warn('call_queue_tags:', r.error);
+              return r.data || [];
+            })
+          : [];
 
       // Criar mapas para agrupamento rápido (O(1) lookup)
       const leadTagsMap = new Map<string, any[]>();
-      (leadTagsResult.data || []).forEach((lt: any) => {
+      leadTagRows.forEach((lt: any) => {
         if (!lt.lead_id || !lt.tags) return;
         if (!leadTagsMap.has(lt.lead_id)) {
           leadTagsMap.set(lt.lead_id, []);
@@ -176,7 +215,7 @@ export function useCallQueue() {
       });
 
       const callQueueTagsMap = new Map<string, any[]>();
-      (callQueueTagsResult.data || []).forEach((ct: any) => {
+      callQueueTagRows.forEach((ct: any) => {
         if (!ct.call_queue_id || !ct.tags) return;
         if (!callQueueTagsMap.has(ct.call_queue_id)) {
           callQueueTagsMap.set(ct.call_queue_id, []);
@@ -201,15 +240,24 @@ export function useCallQueue() {
       const callCountsByLead: Record<string, number> = {};
       
       if (leadIdsForHistory.length > 0) {
-        // Contar APENAS no histórico para evitar duplicação
-        const { data: completedInHistory } = await (supabase as any)
-          .from('call_queue_history')
-          .select('lead_id')
-          .eq('action', 'completed')
-          .in('lead_id', leadIdsForHistory);
+        const historyChunks = chunkIds(leadIdsForHistory, REST_IN_CHUNK);
+        const completedInHistory = (
+          await Promise.all(
+            historyChunks.map((chunk) =>
+              (supabase as any)
+                .from('call_queue_history')
+                .select('lead_id')
+                .eq('action', 'completed')
+                .in('lead_id', chunk)
+            )
+          )
+        ).flatMap((r) => {
+          if (r.error) console.warn('call_queue_history:', r.error);
+          return r.data || [];
+        });
 
         // Somar contagens por lead
-        (completedInHistory || []).forEach((row: any) => {
+        completedInHistory.forEach((row: any) => {
           callCountsByLead[row.lead_id] = (callCountsByLead[row.lead_id] || 0) + 1;
         });
       }
@@ -663,25 +711,42 @@ export function useCallQueue() {
   };
 
   const bulkUpdateStatus = async (callQueueIds: string[], newStatus: 'pending' | 'completed' | 'rescheduled') => {
-    try {
-      const { error } = await (supabase as any)
-        .from('call_queue')
-        .update({ status: newStatus })
-        .in('id', callQueueIds);
+    const uniqueIds = [...new Set(callQueueIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return true;
+    }
 
-      if (error) throw error;
+    try {
+      const chunks = chunkIds(uniqueIds, BULK_MUTATION_CHUNK);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const { error } = await (supabase as any)
+          .from('call_queue')
+          .update({ status: newStatus })
+          .in('id', chunk);
+
+        if (error) {
+          console.error('bulkUpdateStatus: falha no lote', { batch: i + 1, totalBatches: chunks.length, error });
+          throw error;
+        }
+      }
 
       toast({
         title: "Status atualizado",
-        description: `${callQueueIds.length} ligação(ões) atualizada(s) para ${newStatus === 'pending' ? 'Pendente' : newStatus === 'completed' ? 'Concluída' : 'Reagendada'}`,
+        description: `${uniqueIds.length} ligação(ões) atualizada(s) para ${newStatus === 'pending' ? 'Pendente' : newStatus === 'completed' ? 'Concluída' : 'Reagendada'}`,
       });
 
       await fetchCallQueue();
       return true;
     } catch (error: any) {
+      try {
+        await fetchCallQueue();
+      } catch {
+        /* ignore: refetch best-effort para refletir lotes já aplicados */
+      }
       toast({
         title: "Erro ao atualizar status",
-        description: error.message,
+        description: error?.message || 'Erro desconhecido',
         variant: "destructive",
       });
       return false;
@@ -689,25 +754,42 @@ export function useCallQueue() {
   };
 
   const bulkDeleteCalls = async (callQueueIds: string[]) => {
-    try {
-      const { error } = await (supabase as any)
-        .from('call_queue')
-        .delete()
-        .in('id', callQueueIds);
+    const uniqueIds = [...new Set(callQueueIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return true;
+    }
 
-      if (error) throw error;
+    try {
+      const chunks = chunkIds(uniqueIds, BULK_MUTATION_CHUNK);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const { error } = await (supabase as any)
+          .from('call_queue')
+          .delete()
+          .in('id', chunk);
+
+        if (error) {
+          console.error('bulkDeleteCalls: falha no lote', { batch: i + 1, totalBatches: chunks.length, error });
+          throw error;
+        }
+      }
 
       toast({
         title: "Ligações excluídas",
-        description: `${callQueueIds.length} ligação(ões) excluída(s) com sucesso`,
+        description: `${uniqueIds.length} ligação(ões) excluída(s) com sucesso`,
       });
 
       await fetchCallQueue();
       return true;
     } catch (error: any) {
+      try {
+        await fetchCallQueue();
+      } catch {
+        /* ignore: refetch best-effort para refletir lotes já aplicados */
+      }
       toast({
         title: "Erro ao excluir ligações",
-        description: error.message,
+        description: error?.message || 'Erro desconhecido',
         variant: "destructive",
       });
       return false;

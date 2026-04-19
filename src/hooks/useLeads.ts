@@ -112,9 +112,9 @@ export function useLeads() {
         return;
       }
       
-      // ✅ CORREÇÃO: Dividir lead IDs em lotes para evitar URL muito longa (erro 400)
-      // Limite seguro: ~100 lead IDs por lote (cada UUID tem 36 caracteres)
-      const BATCH_SIZE = 100;
+      // ✅ CORREÇÃO: Dividir lead IDs em lotes para evitar URL/cabeçalho muito longo (400/502 no proxy)
+      // Lote conservador: mais round-trips, menos risco de query string gigante em .in(...)
+      const BATCH_SIZE = 12;
       const leadIdBatches: string[][] = [];
       for (let i = 0; i < leadIds.length; i += BATCH_SIZE) {
         leadIdBatches.push(leadIds.slice(i, i + BATCH_SIZE));
@@ -276,7 +276,7 @@ export function useLeads() {
           string,
           { full_name?: string | null; email?: string | null }
         >();
-        const PROFILE_IN_CHUNK = 80;
+        const PROFILE_IN_CHUNK = 12;
         try {
           const profileChunks: string[][] = [];
           for (let i = 0; i < userIds.length; i += PROFILE_IN_CHUNK) {

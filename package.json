@@ -8,6 +8,8 @@
     "dev:5174": "vite --port 5174",
     "prebuild": "if [ -f scripts/generate-version-file.sh ]; then chmod +x scripts/generate-version-file.sh && ./scripts/generate-version-file.sh || echo '⚠️ Script de versão não encontrado, continuando...'; else echo '⚠️ Script de versão não encontrado, criando versão básica...' && mkdir -p public && echo '{\"version\":\"0.0.0\",\"timestamp\":\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'\",\"changes\":\"Versão automática\"}' > public/version.json; fi",
     "build": "vite build",
+    "build:extension": "npm install --no-audit --no-fund --prefix extensions/agilize-crm-sidekick && npm run build --prefix extensions/agilize-crm-sidekick",
+    "package:extension": "chmod +x scripts/package-chrome-extension.sh && ./scripts/package-chrome-extension.sh",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -4,6 +4,17 @@ import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { Tag } from "@/hooks/useTags";
 
+/** Evita URLs / cabeçalhos HTTP muito grandes com `.in(...)` (502 no proxy). */
+const REST_IN_CHUNK = 12;
+
+function chunkIds<T>(ids: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    out.push(ids.slice(i, i + size));
+  }
+  return out;
+}
+
 export interface Contact {
   id: string;
   name: string;
@@ -132,25 +143,46 @@ export function useContacts() {
       const leadIds = (leadsData || []).map((l: any) => l.id);
       const stageIds = [...new Set((leadsData || []).map((l: any) => l.stage_id).filter(Boolean))];
 
-      const [stagesResult, tagsResult] = await Promise.all([
+      const stagesPromise =
         stageIds.length > 0
-          ? (supabase as any)
-              .from('pipeline_stages')
-              .select('id, name, color')
-              .in('id', stageIds)
-          : Promise.resolve({ data: [], error: null }),
+          ? Promise.all(
+              chunkIds(stageIds, REST_IN_CHUNK).map((chunk) =>
+                (supabase as any)
+                  .from('pipeline_stages')
+                  .select('id, name, color')
+                  .in('id', chunk)
+              )
+            ).then((results) => {
+              for (const r of results) {
+                if (r.error) throw r.error;
+              }
+              return results.flatMap((r) => r.data || []);
+            })
+          : Promise.resolve([]);
+
+      const tagsPromise =
         leadIds.length > 0
-          ? (supabase as any)
-              .from('lead_tags')
-              .select('lead_id, tag_id, tags(id, name, color)')
-              .in('lead_id', leadIds)
-          : Promise.resolve({ data: [], error: null })
-      ]);
+          ? Promise.all(
+              chunkIds(leadIds, REST_IN_CHUNK).map((chunk) =>
+                (supabase as any)
+                  .from('lead_tags')
+                  .select('lead_id, tag_id, tags(id, name, color)')
+                  .in('lead_id', chunk)
+              )
+            ).then((results) => {
+              for (const r of results) {
+                if (r.error) throw r.error;
+              }
+              return results.flatMap((r) => r.data || []);
+            })
+          : Promise.resolve([]);
+
+      const [stagesData, tagsData] = await Promise.all([stagesPromise, tagsPromise]);
 
       // Criar mapas para lookup rápido
-      const stagesMap = new Map((stagesResult.data || []).map((s: any) => [s.id, { name: s.name, color: s.color }]));
+      const stagesMap = new Map((stagesData || []).map((s: any) => [s.id, { name: s.name, color: s.color }]));
       const tagsMap = new Map<string, any[]>();
-      (tagsResult.data || []).forEach((lt: any) => {
+      (tagsData || []).forEach((lt: any) => {
         if (!lt.lead_id || !lt.tags) return;
         if (!tagsMap.has(lt.lead_id)) {
           tagsMap.set(lt.lead_id, []);

@@ -6,7 +6,8 @@ import { getUserOrganizationId } from "@/lib/organizationUtils";
 /** Query key prefix — invalidar em mutações de `scheduled_messages` (ex.: useScheduledMessages). */
 export const PENDING_SCHEDULED_COUNTS_QUERY_KEY = "pending-scheduled-counts-by-lead" as const;
 
-const CHUNK_SIZE = 500;
+/** Alinhado a outros hooks: `.in(lead_id, ...)` grande → 502 no proxy. */
+const CHUNK_SIZE = 12;
 
 function aggregateCounts(rows: { lead_id: string }[]): Record<string, number> {
   const out: Record<string, number> = {};

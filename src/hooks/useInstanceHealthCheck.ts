@@ -69,10 +69,11 @@ export function useInstanceHealthCheck({
           }
         }
 
+        let baseUrl = '';
         try {
-          const base = evolutionApiUrlForFetch(instance.api_url);
+          baseUrl = evolutionApiUrlForFetch(instance.api_url);
           // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-          const url = `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
+          const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
           
           const response = await fetch(url, {
             headers: {
@@ -129,11 +130,14 @@ export function useInstanceHealthCheck({
             health.lastCheck = now;
           }
         } catch (error: any) {
+          const urlForLog = baseUrl
+            ? `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`
+            : instance.api_url;
           console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, {
             message: error?.message,
             name: error?.name,
             stack: error?.stack,
-            url: `${base}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`
+            url: urlForLog,
           });
           // Não marcar como desconectado em erro de rede/CORS/timeout (doc Evolution)
           health.consecutiveSuccesses = 0;

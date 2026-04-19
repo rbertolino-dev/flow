@@ -1,0 +1,92 @@
+# Build do ZIP da extensão + artefato GitHub; publicação na Chrome Web Store opcional (manual).
+name: Chrome extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_to_chrome_web_store:
+        description: "Após o build, publicar o ZIP na Chrome Web Store (requer secrets CHROME_WEBSTORE_*)"
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches: ["main"]
+    paths:
+      - "extensions/agilize-crm-sidekick/**"
+      - "scripts/package-chrome-extension.sh"
+      - "package.json"
+      - ".github/workflows/chrome-extension.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-extension-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build e empacotar extensão
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Criar .env para o build (secrets do repositório)
+        run: |
+          set -e
+          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}" ]; then
+            echo "::error::Defina os secrets VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY em Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          {
+            echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}"
+          } >> .env
+          if [ -n "${{ secrets.VITE_CRM_APP_URL }}" ]; then
+            echo "VITE_CRM_APP_URL=${{ secrets.VITE_CRM_APP_URL }}" >> .env
+          fi
+          if [ -n "${{ secrets.VITE_EXTENSION_CRM_MATCHES }}" ]; then
+            echo "VITE_EXTENSION_CRM_MATCHES=${{ secrets.VITE_EXTENSION_CRM_MATCHES }}" >> .env
+          fi
+
+      - name: Instalar dependências raiz
+        run: npm ci --no-audit --no-fund
+
+      - name: Gerar release ZIP
+        run: npm run package:extension
+
+      - name: Upload artefato (ZIP para download / loja)
+        uses: actions/upload-artifact@v4
+        with:
+          name: agilize-crm-sidekick-chrome-webstore
+          path: extensions/agilize-crm-sidekick/release/agilize-crm-sidekick-v*-chrome-webstore.zip
+          if-no-files-found: error
+
+      - name: Publicar na Chrome Web Store
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_chrome_web_store == true }}
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_WEBSTORE_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_WEBSTORE_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_WEBSTORE_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_WEBSTORE_REFRESH_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$EXTENSION_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
+            echo "::error::Defina os secrets: CHROME_WEBSTORE_EXTENSION_ID, CHROME_WEBSTORE_CLIENT_ID, CHROME_WEBSTORE_CLIENT_SECRET, CHROME_WEBSTORE_REFRESH_TOKEN (OAuth da Google Cloud / Chrome Web Store API)."
+            exit 1
+          fi
+          ZIP="$(ls extensions/agilize-crm-sidekick/release/agilize-crm-sidekick-v*-chrome-webstore.zip | head -1)"
+          echo "Publicando: $ZIP"
+          npx --yes chrome-webstore-upload-cli@3 upload \
+            --source="$ZIP" \
+            --extension-id="$EXTENSION_ID" \
+            --client-id="$CLIENT_ID" \
+            --client-secret="$CLIENT_SECRET" \
+            --refresh-token="$REFRESH_TOKEN"
