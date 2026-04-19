@@ -116,6 +116,7 @@ docker compose -f docker-compose.blue.yml up -d
 - [ ] Vou usar o script zero-downtime: `./scripts/deploy-zero-downtime.sh`
 - [ ] NÃO vou usar `docker compose down` diretamente
 - [ ] Sistema está funcionando antes de começar
+- [ ] Se alteraste domínio público ou URLs de auth: rever [ALINHAMENTO-SUPABASE-PRODUCAO.md](./ALINHAMENTO-SUPABASE-PRODUCAO.md) (checklist Supabase Dashboard + `VITE_SUPABASE_URL`)
 
 ---
 
@@ -161,7 +162,10 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 
 **Simples assim!** 🚀
 
+---
 
+## Ver também
 
+- [ALINHAMENTO-SUPABASE-PRODUCAO.md](./ALINHAMENTO-SUPABASE-PRODUCAO.md) — contexto incidente/rede Supabase, alinhamento **Site URL** / redirects **sem** mudar código à toa.
 
 
