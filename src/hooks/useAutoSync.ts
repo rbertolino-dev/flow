@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getUserOrganizationId } from '@/lib/organizationUtils';
+import { evolutionApiUrlForFetch } from '@/lib/evolutionStatus';
 
 interface AutoSyncOptions {
   intervalMinutes?: number;
@@ -58,19 +59,8 @@ export function useAutoSync({ intervalMinutes = 5, enabled = true }: AutoSyncOpt
         return;
       }
 
-      // Buscar mensagens não lidas da Evolution API
-      const normalizeUrl = (url: string) => {
-        try {
-          const u = new URL(url);
-          let base = u.origin + u.pathname.replace(/\/$/, '');
-          base = base.replace(/\/(manager|dashboard|app)$/, '');
-          return base;
-        } catch {
-          return url.replace(/\/$/, '').replace(/\/(manager|dashboard|app)$/, '');
-        }
-      };
-
-      const apiUrl = `${normalizeUrl(config.api_url)}/chat/findMessages/${config.instance_name}`;
+      // Evolution: mesma regra que o resto do app — em HTTPS promove http→https para evitar Mixed Content
+      const apiUrl = `${evolutionApiUrlForFetch(config.api_url)}/chat/findMessages/${encodeURIComponent(config.instance_name)}`;
       
       const response = await fetch(apiUrl, {
         method: 'POST',
