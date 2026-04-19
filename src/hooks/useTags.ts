@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { toastSafeErrorDescription } from "@/lib/utils";
 import { isAuthStorageLockError, sleep } from "@/lib/supabaseAuthLock";
 
 export interface Tag {
@@ -161,7 +162,7 @@ export function useTags() {
         }
         toast({
           title: "Erro ao carregar etiquetas",
-          description: err?.message ?? "Tente novamente.",
+          description: toastSafeErrorDescription(error, "Tente novamente."),
           variant: "destructive",
         });
         setLoading(false);
@@ -224,7 +225,7 @@ export function useTags() {
     } catch (error: any) {
       toast({
         title: "Erro ao criar etiqueta",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -252,7 +253,7 @@ export function useTags() {
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar etiqueta",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -295,7 +296,7 @@ export function useTags() {
     } catch (error: any) {
       toast({
         title: "Erro ao remover etiqueta",
-        description: error.message,
+        description: toastSafeErrorDescription(error),
         variant: "destructive",
       });
       return false;
@@ -414,7 +415,10 @@ export function useTags() {
         // Mostrar erro detalhado
         toast({
           title: "Erro ao adicionar etiqueta",
-          description: error.message || `Código: ${error.code}`,
+          description: toastSafeErrorDescription(
+            error?.message || (error?.code ? `Código: ${error.code}` : ""),
+            "Erro desconhecido."
+          ),
           variant: "destructive",
         });
         throw error;
@@ -430,7 +434,10 @@ export function useTags() {
       console.error('❌ Erro capturado ao adicionar etiqueta:', error);
       toast({
         title: "Erro ao adicionar etiqueta",
-        description: error.message || 'Erro desconhecido ao adicionar etiqueta',
+        description: toastSafeErrorDescription(
+          error,
+          "Erro desconhecido ao adicionar etiqueta"
+        ),
         variant: "destructive",
       });
       return { success: false };
@@ -487,7 +494,10 @@ export function useTags() {
       console.error('❌ Erro capturado ao remover etiqueta:', error);
       toast({
         title: "Erro ao remover etiqueta",
-        description: error.message || 'Erro desconhecido ao remover etiqueta',
+        description: toastSafeErrorDescription(
+          error,
+          "Erro desconhecido ao remover etiqueta"
+        ),
         variant: "destructive",
       });
       return false;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { sleep } from '@/lib/supabaseAuthLock';
 
 interface Organization {
   id: string;
@@ -28,9 +29,24 @@ export function useActiveOrganization() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('organization_members')
-        .select(`
+      // Várias tentativas: 502/rede costumam ser transitórios; sem lista o menu
+      // de troca de org some (hasMultipleOrgs depende de organizations.length).
+      const maxAttempts = 4;
+      let data: Awaited<
+        ReturnType<
+          ReturnType<typeof supabase.from>['select']
+        >
+      >['data'] = null;
+      let error: Awaited<
+        ReturnType<
+          ReturnType<typeof supabase.from>['select']
+        >
+      >['error'] = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const res = await supabase
+          .from('organization_members')
+          .select(`
           organization_id,
           role,
           organizations (
@@ -38,7 +54,15 @@ export function useActiveOrganization() {
             name
           )
         `)
-        .eq('user_id', user.id);
+          .eq('user_id', user.id);
+
+        data = res.data;
+        error = res.error;
+        if (!error) break;
+        if (attempt < maxAttempts - 1) {
+          await sleep(120 * (attempt + 1));
+        }
+      }
 
       if (error) {
         console.error('Erro ao buscar organizações:', error);
