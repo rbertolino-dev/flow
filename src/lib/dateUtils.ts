@@ -1,6 +1,6 @@
-import { format, parse } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { toZonedTime, toDate, formatInTimeZone } from "date-fns-tz";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -13,13 +13,12 @@ export function toSaoPauloTime(date: Date | string): Date {
 }
 
 /**
- * Cria uma data/hora no timezone de São Paulo
+ * Combina o dia civil em São Paulo correspondente a `date` com hora HH:mm em São Paulo.
+ * (Não usa o fuso do navegador para montar o instante — evita agendamentos no horário errado.)
  */
 export function fromSaoPauloTime(date: Date, time: string): Date {
-  const [hours, minutes] = time.split(":").map(Number);
-  const dateInSaoPaulo = new Date(date);
-  dateInSaoPaulo.setHours(hours, minutes, 0, 0);
-  return fromZonedTime(dateInSaoPaulo, TIMEZONE);
+  const dateStr = formatInTimeZone(date, TIMEZONE, "yyyy-MM-dd");
+  return parseSaoPauloDateTime(dateStr, time);
 }
 
 /**
@@ -46,11 +45,19 @@ export function formatSaoPauloDate(date: Date | string): string {
 }
 
 /**
- * Parse de data/hora considerando timezone de São Paulo
+ * Interpreta `dateStr` (yyyy-MM-dd) + `timeStr` (HH:mm ou H:mm) como horário de parede em São Paulo
+ * e devolve o instante UTC correto (o que deve ir em `scheduled_for` / Postgres timestamptz).
  */
 export function parseSaoPauloDateTime(dateStr: string, timeStr: string): Date {
-  const date = parse(dateStr, "yyyy-MM-dd", new Date());
-  return fromSaoPauloTime(date, timeStr);
+  const ds = dateStr.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) {
+    return new Date(NaN);
+  }
+  const parts = timeStr.trim().split(":");
+  const h = Math.min(23, Math.max(0, parseInt(parts[0] ?? "0", 10) || 0));
+  const min = Math.min(59, Math.max(0, parseInt(parts[1] ?? "0", 10) || 0));
+  const isoLocal = `${ds}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00`;
+  return toDate(isoLocal, { timeZone: TIMEZONE });
 }
 
 
