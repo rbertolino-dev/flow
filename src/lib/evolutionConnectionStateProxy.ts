@@ -1,5 +1,41 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** Extrai `ref` do JWT anon/publishable (Supabase) para montar a origem *.supabase.co sem env extra. */
+function getProjectRefFromAnonJwt(anon: string | undefined): string | null {
+  if (!anon?.includes(".")) return null;
+  try {
+    const payloadB64 = anon.split(".")[1];
+    if (!payloadB64) return null;
+    const json = atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json) as { ref?: string };
+    return typeof payload.ref === "string" && payload.ref.length > 0 ? payload.ref : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * URL base para Edge Functions. Com domínio customizado (proxy), chamar diretamente o host do projeto
+ * evita 401 no gateway (JWT/Authorization atrás do proxy) e mantém o mesmo token de sessão.
+ */
+function resolveFunctionsBaseUrl(): string {
+  const configured = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+  if (!configured) return "";
+
+  try {
+    const host = new URL(configured).hostname;
+    if (host.endsWith(".supabase.co")) return configured;
+  } catch {
+    return configured;
+  }
+
+  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const ref = getProjectRefFromAnonJwt(anon);
+  if (ref) return `https://${ref}.supabase.co`;
+
+  return configured;
+}
+
 export type EvolutionConnectionStateResult = {
   evolutionOk: boolean;
   evolutionHttpStatus: number | null;
@@ -25,7 +61,7 @@ async function postConnectionStateOnce(
   configId: string,
   accessToken: string,
 ): Promise<{ ok: boolean; status: number; payload: unknown }> {
-  const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+  const baseUrl = resolveFunctionsBaseUrl();
   const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
   if (!baseUrl || !anon) {
     return { ok: false, status: 0, payload: { error: "VITE_SUPABASE_URL ou VITE_SUPABASE_PUBLISHABLE_KEY ausente" } };
