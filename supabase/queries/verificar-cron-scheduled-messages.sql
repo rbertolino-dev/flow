@@ -26,3 +26,19 @@ WHERE status = 'pending'
   AND scheduled_for <= NOW()
 ORDER BY scheduled_for ASC
 LIMIT 50;
+
+-- 5) INVOCAR AGORA (uma vez) — precisa extensão pg_net + service_role no passo 3
+-- Se o passo 3 devolver length NULL ou 0, defina a chave primeiro:
+--   ALTER DATABASE postgres SET app.settings.service_role_key = 'JWT_service_role_do_dashboard';
+-- Depois desligue e volte a ligar ligações à BD ou aguarde; em seguida execute:
+/*
+SELECT net.http_post(
+  url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-scheduled-messages',
+  headers := jsonb_build_object(
+    'Content-Type', 'application/json',
+    'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+    'apikey', current_setting('app.settings.service_role_key', true)
+  ),
+  body := '{}'::jsonb
+);
+*/

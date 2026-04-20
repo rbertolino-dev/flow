@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { getTestModeConfig, applyTestMode, shouldSendMessage } from "../_shared/test-mode.ts";
 
 const corsHeaders = {
@@ -176,6 +176,18 @@ serve(async (req) => {
         console.log(`ℹ️ [process-scheduled-messages] Total de mensagens na tabela: ${allMessages.length}`);
         console.log('ℹ️ [process-scheduled-messages] Exemplos:', allMessages);
       }
+
+      const nowIso = new Date().toISOString();
+      const { count: dueCount, error: dueErr } = await supabase
+        .from('scheduled_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .lte('scheduled_for', nowIso);
+      console.log('🔍 [process-scheduled-messages] Contagem pending com scheduled_for <= now:', {
+        count: dueCount ?? null,
+        error: dueErr?.message ?? null,
+        nowIso,
+      });
     }
 
     if (!messages || messages.length === 0) {
