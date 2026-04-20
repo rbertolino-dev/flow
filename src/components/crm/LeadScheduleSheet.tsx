@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -24,6 +24,10 @@ type LeadScheduleSheetProps = {
 
 export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleSheetProps) {
   const { configs, refetch, refreshStatuses } = useEvolutionConfigs();
+  const refetchRef = useRef(refetch);
+  const refreshStatusesRef = useRef(refreshStatuses);
+  refetchRef.current = refetch;
+  refreshStatusesRef.current = refreshStatuses;
 
   /** null no BD = estado desconhecido — não tratar como desconectado (Boolean(null) era o bug). */
   const instancesForPanel = useMemo(() => {
@@ -35,13 +39,14 @@ export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleShee
     }));
   }, [configs]);
 
+  /** Só `open`: evita reexecutar quando configs mudam após refresh (refs = última versão das funções). */
   useEffect(() => {
     if (!open) return;
     void (async () => {
-      await refetch();
-      await refreshStatuses();
+      await refetchRef.current();
+      await refreshStatusesRef.current();
     })();
-  }, [open, refetch, refreshStatuses]);
+  }, [open]);
 
   const allExplicitlyDisconnected = useMemo(
     () =>

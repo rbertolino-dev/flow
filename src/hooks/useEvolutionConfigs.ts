@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
@@ -32,41 +32,7 @@ export function useEvolutionConfigs() {
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
 
-  useEffect(() => {
-    if (activeOrgId) {
-      fetchConfigs();
-    } else {
-      setConfigs([]);
-      setLoading(false);
-    }
-
-    if (!activeOrgId) return;
-
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel(`evolution-configs-channel-${activeOrgId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'evolution_config',
-          filter: `organization_id=eq.${activeOrgId}`
-        },
-        () => {
-          fetchConfigs();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [activeOrgId]);
-
-  const normalizeApiUrl = (url: string) => normalizeApiUrlLib(url);
-
-  const fetchConfigs = async () => {
+  const fetchConfigs = useCallback(async () => {
     try {
       if (!activeOrgId) {
         setConfigs([]);
@@ -94,7 +60,41 @@ export function useEvolutionConfigs() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeOrgId, toast]);
+
+  useEffect(() => {
+    if (activeOrgId) {
+      void fetchConfigs();
+    } else {
+      setConfigs([]);
+      setLoading(false);
+    }
+
+    if (!activeOrgId) return;
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel(`evolution-configs-channel-${activeOrgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'evolution_config',
+          filter: `organization_id=eq.${activeOrgId}`
+        },
+        () => {
+          void fetchConfigs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeOrgId, fetchConfigs]);
+
+  const normalizeApiUrl = (url: string) => normalizeApiUrlLib(url);
 
   const createConfig = async (configData: {
     api_url: string;
@@ -548,7 +548,7 @@ export function useEvolutionConfigs() {
     }
   };
 
-  const refreshStatuses = async () => {
+  const refreshStatuses = useCallback(async () => {
     const results = await Promise.allSettled(
       configs.map(async (cfg) => {
         try {
@@ -578,7 +578,7 @@ export function useEvolutionConfigs() {
     const connected = results.filter((r: any) => r.status === 'fulfilled' && r.value.ok).length;
     const total = results.length;
     return { connected, total };
-  };
+  }, [configs, fetchConfigs]);
 
   return {
     configs,

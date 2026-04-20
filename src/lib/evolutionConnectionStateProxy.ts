@@ -27,8 +27,13 @@ export async function fetchEvolutionConnectionStateByConfigId(
     };
   }
 
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
   const { data, error } = await supabase.functions.invoke("evolution-connection-state", {
     body: { configId },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      ...(publishableKey ? { apikey: publishableKey } : {}),
+    },
   });
 
   if (error) {
