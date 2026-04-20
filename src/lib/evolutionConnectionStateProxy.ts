@@ -1,17 +1,29 @@
 import { supabase } from "@/integrations/supabase/client";
 
-/** Extrai `ref` do JWT anon/publishable (Supabase) para montar a origem *.supabase.co sem env extra. */
-function getProjectRefFromAnonJwt(anon: string | undefined): string | null {
-  if (!anon?.includes(".")) return null;
+function base64UrlToUtf8(segment: string): string {
+  let b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4;
+  if (pad) b64 += "=".repeat(4 - pad);
+  return atob(b64);
+}
+
+/** Chave anon clássica (JWT) inclui `ref`. Chaves `sb_publishable_*` não são JWT — usar VITE_SUPABASE_PROJECT_REF. */
+function decodeProjectRefFromJwtStyleKey(anon: string | undefined): string | null {
+  const parts = anon?.split(".") ?? [];
+  if (parts.length < 2) return null;
   try {
-    const payloadB64 = anon.split(".")[1];
-    if (!payloadB64) return null;
-    const json = atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"));
+    const json = base64UrlToUtf8(parts[1]);
     const payload = JSON.parse(json) as { ref?: string };
     return typeof payload.ref === "string" && payload.ref.length > 0 ? payload.ref : null;
   } catch {
     return null;
   }
+}
+
+function getSupabaseProjectRef(): string | null {
+  const fromEnv = (import.meta.env.VITE_SUPABASE_PROJECT_REF as string | undefined)?.trim();
+  if (fromEnv) return fromEnv;
+  return decodeProjectRefFromJwtStyleKey(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined);
 }
 
 /**
@@ -29,8 +41,7 @@ function resolveFunctionsBaseUrl(): string {
     return configured;
   }
 
-  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
-  const ref = getProjectRefFromAnonJwt(anon);
+  const ref = getSupabaseProjectRef();
   if (ref) return `https://${ref}.supabase.co`;
 
   return configured;

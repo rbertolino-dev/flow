@@ -7,6 +7,8 @@ services:
         # Produção: use https://agilizeflow.com.br + proxy em nginx.conf (evita DNS *.supabase.co no cliente)
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        # Obrigatório com chave sb_publishable_* (não-JWT): edge functions devem usar *.supabase.co
+        VITE_SUPABASE_PROJECT_REF: ${VITE_SUPABASE_PROJECT_REF:-ogeljmbhqxpfjbpnbwog}
     container_name: kanban-buzz-app-blue
     restart: always
     ports:
