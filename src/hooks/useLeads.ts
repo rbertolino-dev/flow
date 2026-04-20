@@ -16,6 +16,30 @@ import {
   type BudgetRowForLeadCard,
 } from "@/lib/leadBudgetSummary";
 
+/**
+ * Executa uma query por lote de lead_ids com no máximo `parallel` pedidos HTTP em voo.
+ * Evita Promise.all em todos os lotes (Chrome: net::ERR_INSUFFICIENT_RESOURCES).
+ */
+async function mapBatchesWithConcurrency<T>(
+  batches: string[][],
+  parallel: number,
+  fn: (batch: string[]) => Promise<T>,
+): Promise<T[]> {
+  if (batches.length === 0) return [];
+  const results: T[] = new Array(batches.length);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= batches.length) break;
+      results[i] = await fn(batches[i]);
+    }
+  };
+  const workers = Math.max(1, Math.min(Math.max(1, parallel), batches.length));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
+}
+
 /** Erros de rede/gateway: não devem derrubar o carregamento do funil inteiro. */
 function isTransientSupabaseError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
@@ -113,8 +137,9 @@ export function useLeads() {
       }
       
       // ✅ CORREÇÃO: Dividir lead IDs em lotes para evitar URL/cabeçalho muito longo (400/502 no proxy)
-      // Lote conservador: mais round-trips, menos risco de query string gigante em .in(...)
-      const BATCH_SIZE = 12;
+      // Lotes moderados + poucos pedidos em paralelo (evita ERR_INSUFFICIENT_RESOURCES no browser)
+      const BATCH_SIZE = 24;
+      const BATCH_PARALLEL = 3;
       const leadIdBatches: string[][] = [];
       for (let i = 0; i < leadIds.length; i += BATCH_SIZE) {
         leadIdBatches.push(leadIds.slice(i, i + BATCH_SIZE));
@@ -126,14 +151,12 @@ export function useLeads() {
       
       const loadBudgetRowsForLeads = async (): Promise<any[]> => {
         const fetchBudgetSummaryBatches = (select: string) =>
-          Promise.all(
-            leadIdBatches.map((batch) =>
-              (supabase as any)
-                .from("budgets")
-                .select(select)
-                .eq("organization_id", activeOrgId)
-                .in("lead_id", batch)
-            )
+          mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
+            (supabase as any)
+              .from("budgets")
+              .select(select)
+              .eq("organization_id", activeOrgId)
+              .in("lead_id", batch),
           );
 
         let batches = await fetchBudgetSummaryBatches(
@@ -165,14 +188,15 @@ export function useLeads() {
       };
 
       const loadAttachmentCountsByLead = async (): Promise<Record<string, number>> => {
-        const batches = await Promise.all(
-          leadIdBatches.map((batch) =>
+        const batches = await mapBatchesWithConcurrency(
+          leadIdBatches,
+          BATCH_PARALLEL,
+          (batch) =>
             (supabase as any)
               .from("lead_attachments")
               .select("lead_id")
               .eq("organization_id", activeOrgId)
-              .in("lead_id", batch)
-          )
+              .in("lead_id", batch),
         );
         const attachErr = batches.find((r) => r.error)?.error;
         if (attachErr) {
@@ -204,39 +228,39 @@ export function useLeads() {
         return counts;
       };
 
-      // Buscar activities, tags, responsáveis, orçamentos e contagens de anexos em lotes
-      const [activitiesResults, tagsResults, assigneesResults, allBudgetRows, attachmentCountByLead] =
-        await Promise.all([
-        Promise.all(
-          leadIdBatches.map(batch =>
-            (supabase as any)
-              .from('activities')
-              .select('*')
-              .in('lead_id', batch)
-              .order('created_at', { ascending: false })
-              .limit(Math.min(batch.length * 5, 200)) // Limite por lote
-          )
-        ),
-        Promise.all(
-          leadIdBatches.map(batch =>
-            (supabase as any)
-              .from('lead_tags')
-              .select('lead_id, tag_id, tags(id, name, color)')
-              .in('lead_id', batch)
-              .limit(500) // Limite por lote
-          )
-        ),
-        Promise.all(
-          leadIdBatches.map((batch) =>
-            supabase
-              .from("lead_assignees")
-              .select("lead_id, user_id, created_at")
-              .in("lead_id", batch)
-          )
-        ),
-        loadBudgetRowsForLeads(),
-        loadAttachmentCountsByLead(),
-      ]);
+      // Buscar em sequência por tipo (cada tipo já limita paralelismo interno) — evita dezenas de pedidos HTTP ao mesmo tempo
+      const activitiesResults = await mapBatchesWithConcurrency(
+        leadIdBatches,
+        BATCH_PARALLEL,
+        (batch) =>
+          (supabase as any)
+            .from("activities")
+            .select("*")
+            .in("lead_id", batch)
+            .order("created_at", { ascending: false })
+            .limit(Math.min(batch.length * 5, 200)),
+      );
+      const tagsResults = await mapBatchesWithConcurrency(
+        leadIdBatches,
+        BATCH_PARALLEL,
+        (batch) =>
+          (supabase as any)
+            .from("lead_tags")
+            .select("lead_id, tag_id, tags(id, name, color)")
+            .in("lead_id", batch)
+            .limit(500),
+      );
+      const assigneesResults = await mapBatchesWithConcurrency(
+        leadIdBatches,
+        BATCH_PARALLEL,
+        (batch) =>
+          supabase
+            .from("lead_assignees")
+            .select("lead_id, user_id, created_at")
+            .in("lead_id", batch),
+      );
+      const allBudgetRows = await loadBudgetRowsForLeads();
+      const attachmentCountByLead = await loadAttachmentCountsByLead();
 
       // Combinar resultados de todos os lotes
       const allActivities = activitiesResults.flatMap(r => r.data || []).slice(0, maxActivitiesLimit);
@@ -282,10 +306,10 @@ export function useLeads() {
           for (let i = 0; i < userIds.length; i += PROFILE_IN_CHUNK) {
             profileChunks.push(userIds.slice(i, i + PROFILE_IN_CHUNK));
           }
-          const profileRes = await Promise.all(
-            profileChunks.map((ids) =>
-              supabase.from("profiles").select("id, full_name, email").in("id", ids)
-            )
+          const profileRes = await mapBatchesWithConcurrency(
+            profileChunks,
+            BATCH_PARALLEL,
+            (ids) => supabase.from("profiles").select("id, full_name, email").in("id", ids),
           );
           const profErr = profileRes.find((r) => r.error)?.error;
           if (profErr) {
