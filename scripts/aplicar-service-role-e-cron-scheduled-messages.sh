@@ -36,6 +36,17 @@ load_service_role_from_env() {
 
 load_service_role_from_env
 
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "[service-role-cron] DRY_RUN=1 — validação apenas."
+  [[ -f "$ROOT/supabase/.temp/project-ref" ]] && echo "[service-role-cron] project-ref: OK" || echo "[service-role-cron] project-ref: falta supabase link"
+  if [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
+    echo "[service-role-cron] SUPABASE_SERVICE_ROLE_KEY: definido (${#SUPABASE_SERVICE_ROLE_KEY} chars)"
+  else
+    echo "[service-role-cron] SUPABASE_SERVICE_ROLE_KEY: ausente (obrigatório para execução real)"
+  fi
+  exit 0
+fi
+
 if [[ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
   echo "[service-role-cron] ERRO: defina SUPABASE_SERVICE_ROLE_KEY no .env (JWT service_role do Supabase Dashboard → Settings → API)." >&2
   exit 1
@@ -59,11 +70,6 @@ ALTER DATABASE postgres SET app.settings.service_role_key = '$ESC_KEY';
 EOSQL
 
 echo "[service-role-cron] 1/3 — ALTER DATABASE app.settings.service_role_key (comprimento JWT: ${#SUPABASE_SERVICE_ROLE_KEY})"
-
-if [[ "$DRY_RUN" == "1" ]]; then
-  echo "[service-role-cron] DRY_RUN=1 — não executa API nem cron."
-  exit 0
-fi
 
 "$ROOT/scripts/supabase-exec-sql-management-api.sh" "$TMP"
 echo ""
