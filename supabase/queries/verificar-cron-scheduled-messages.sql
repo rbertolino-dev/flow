@@ -1,5 +1,9 @@
 -- Verificação: cron process-scheduled-messages + pending atrasadas
 -- Supabase → SQL Editor
+--
+-- Automatizar correção (service_role no Postgres + cron + 1× invoke):
+--   ./scripts/aplicar-service-role-e-cron-scheduled-messages.sh
+-- Requer: supabase login, supabase link, .env com SUPABASE_SERVICE_ROLE_KEY
 
 -- 1) Job existe?
 SELECT jobid, jobname, schedule, command
