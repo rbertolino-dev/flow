@@ -36,7 +36,8 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
     requeueFailedScheduledMessage,
     isRequeuingFailed,
   } = useScheduledMessages(leadId);
-  const { hasFeature } = useOrganizationFeatures();
+  const { hasFeature, loading: featuresLoading } = useOrganizationFeatures();
+  const canSchedule = hasFeature("scheduled_messages");
   const { toast } = useToast();
   
   const [instanceId, setInstanceId] = useState<string>("");
@@ -222,6 +223,19 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
             </Button>
           )}
         </div>
+
+        {!featuresLoading && !canSchedule && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Agendamento não liberado no plano</AlertTitle>
+            <AlertDescription>
+              A organização ativa não inclui a funcionalidade <strong>Mensagens agendadas</strong>{" "}
+              (<code className="text-xs">scheduled_messages</code>). Um administrador precisa habilitar nos
+              limites da organização (Super Admin) ou ajustar o plano. Enquanto isso, o envio agendado não
+              será salvo.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Mensagens que podem ser enviadas agora */}
         {messagesToSendNow.length > 0 && (
@@ -440,7 +454,15 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
 
           <Button
             onClick={handleSchedule}
-            disabled={!instanceId || !message.trim() || !scheduledDate || !scheduledTime || isScheduling}
+            disabled={
+              !canSchedule ||
+              featuresLoading ||
+              !instanceId ||
+              !message.trim() ||
+              !scheduledDate ||
+              !scheduledTime ||
+              isScheduling
+            }
             className="w-full"
             size="lg"
           >

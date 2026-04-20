@@ -7,6 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
+import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { ScheduleMessagePanel } from "./ScheduleMessagePanel";
 import { formatBrazilianPhone } from "@/lib/phoneUtils";
 
@@ -23,6 +24,8 @@ type LeadScheduleSheetProps = {
 };
 
 export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleSheetProps) {
+  const { hasFeature } = useOrganizationFeatures();
+  const canScheduleMessages = hasFeature("scheduled_messages");
   const { configs, refetch, refreshStatuses } = useEvolutionConfigs();
   const refetchRef = useRef(refetch);
   const refreshStatusesRef = useRef(refreshStatuses);
@@ -39,14 +42,18 @@ export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleShee
     }));
   }, [configs]);
 
-  /** Só `open`: evita reexecutar quando configs mudam após refresh (refs = última versão das funções). */
+  /**
+   * Só `open` + mudança de permissão: lista instâncias sempre; refresh Evolution (edge) só se a org pode agendar.
+   * Sem isso, org sem `scheduled_messages` gerava rajadas de 401 no console ao abrir o painel.
+   */
   useEffect(() => {
     if (!open) return;
     void (async () => {
       await refetchRef.current();
+      if (!canScheduleMessages) return;
       await refreshStatusesRef.current();
     })();
-  }, [open]);
+  }, [open, canScheduleMessages]);
 
   const allExplicitlyDisconnected = useMemo(
     () =>
