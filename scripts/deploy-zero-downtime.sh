@@ -220,14 +220,14 @@ DEPLOY_LOCK_FD=""
 
 # Função para liberar lock ao sair (melhorada e mais robusta)
 release_lock() {
-    # Sempre tentar liberar, mesmo se variável não estiver definida
+    # Libertar advisory lock no FD (bash costuma usar 200 — NUNCA excluir este FD do unlock)
+    if [ -n "$DEPLOY_LOCK_FD" ] && [ "$DEPLOY_LOCK_FD" != "" ]; then
+        flock -u "$DEPLOY_LOCK_FD" 2>/dev/null || true
+        exec {DEPLOY_LOCK_FD}>&- 2>/dev/null || true
+        DEPLOY_LOCK_FD=""
+    fi
+
     if [ -f "$DEPLOY_LOCK_FILE" ]; then
-        # Tentar liberar usando FD se disponível
-        if [ -n "$DEPLOY_LOCK_FD" ] && [ "$DEPLOY_LOCK_FD" != "" ] && [ "$DEPLOY_LOCK_FD" != "200" ]; then
-            flock -u "$DEPLOY_LOCK_FD" 2>/dev/null || true
-            exec {DEPLOY_LOCK_FD}>&- 2>/dev/null || true
-        fi
-        
         # Verificar se ainda há processo usando (com timeout para evitar travamento)
         LOCK_USERS=$(timeout 2 lsof "$DEPLOY_LOCK_FILE" 2>/dev/null | awk 'NR>1 {print $2}' | sort -u || echo "")
         
@@ -1097,6 +1097,16 @@ docker compose -f docker-compose.${CURRENT_VERSION}.yml down || {
 }
 
 log_success "Versão antiga parada"
+
+# O proteger-containers também faz flock neste ficheiro. Se o deploy ainda segura o lock,
+# o proteger espera 30s e imprime "Timeout aguardando deploy" (falso alarme). Libertar já aqui.
+log "Libertando lock de deploy antes da verificação de proteção (evita timeout de 30s)..."
+if [ -n "$DEPLOY_LOCK_FD" ] && [ "$DEPLOY_LOCK_FD" != "" ]; then
+    flock -u "$DEPLOY_LOCK_FD" 2>/dev/null || true
+    exec {DEPLOY_LOCK_FD}>&- 2>/dev/null || true
+    DEPLOY_LOCK_FD=""
+fi
+rm -f "$DEPLOY_LOCK_FILE" 2>/dev/null || true
 
 # Executar script de proteção após parar versão antiga
 PROTECTION_SCRIPT="$SCRIPT_DIR/proteger-containers-blue-green.sh"
