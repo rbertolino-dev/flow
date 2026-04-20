@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { EvolutionConfig } from './useEvolutionConfigs';
-import { extractConnectionState } from '@/lib/evolutionStatus';
-import { fetchEvolutionConnectionStateByConfigId } from '@/lib/evolutionConnectionStateProxy';
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { EvolutionConfig } from "./useEvolutionConfigs";
+import { extractConnectionState } from "@/lib/evolutionStatus";
+import { fetchEvolutionConnectionStateByConfigId } from "@/lib/evolutionConnectionStateProxy";
 
 interface UseInstanceHealthCheckOptions {
   instances: EvolutionConfig[];
   enabled?: boolean;
   intervalMs?: number;
-  stableIntervalMs?: number; // Intervalo quando instância está estável
-  checksUntilStable?: number; // Quantas checagens positivas até considerar estável
+  stableIntervalMs?: number;
+  checksUntilStable?: number;
 }
 
 interface InstanceHealth {
@@ -21,16 +21,24 @@ interface InstanceHealth {
 export function useInstanceHealthCheck({
   instances,
   enabled = true,
-  intervalMs = 30000, // 30 segundos por padrão
-  stableIntervalMs = 120000, // 2 minutos quando estável
-  checksUntilStable = 5, // 5 checagens positivas = estável
+  intervalMs = 30000,
+  stableIntervalMs = 120000,
+  checksUntilStable = 5,
 }: UseInstanceHealthCheckOptions) {
   const intervalRef = useRef<NodeJS.Timeout>();
   const [healthMap, setHealthMap] = useState<Record<string, InstanceHealth>>({});
-  const isCheckingRef = useRef(false); // Prevenir execuções paralelas
+  const isCheckingRef = useRef(false);
+  /** Lista atual (evita re-disparar efeito só porque veio novo array de configs com os mesmos ids). */
+  const instancesRef = useRef(instances);
+  instancesRef.current = instances;
+  /** Espelho do último mapa para o loop async não depender de closure stale de healthMap. */
+  const healthMapRef = useRef<Record<string, InstanceHealth>>({});
+  healthMapRef.current = healthMap;
+
+  const instanceIdsKey = instances.map((i) => i.id).sort().join(",");
 
   useEffect(() => {
-    if (!enabled || instances.length === 0) {
+    if (!enabled || instanceIdsKey.length === 0) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -39,33 +47,34 @@ export function useInstanceHealthCheck({
     }
 
     const checkInstanceHealth = async () => {
-      // Prevenir execuções paralelas
       if (isCheckingRef.current) {
-        console.log('⏸️ Checagem já em andamento, pulando...');
+        console.log("⏸️ Checagem já em andamento, pulando...");
         return;
       }
 
       isCheckingRef.current = true;
       const now = Date.now();
-      const updatedHealthMap = { ...healthMap };
+      const list = instancesRef.current;
+      const updatedHealthMap = { ...healthMapRef.current };
 
-      console.log('🔍 Verificando saúde das instâncias...', {
-        count: instances.length,
-        timestamp: new Date().toISOString()
+      console.log("🔍 Verificando saúde das instâncias...", {
+        count: list.length,
+        timestamp: new Date().toISOString(),
       });
 
-      for (const instance of instances) {
+      for (const instance of list) {
         const health = updatedHealthMap[instance.id] || {
           consecutiveSuccesses: 0,
           isStable: false,
           lastCheck: 0,
         };
 
-        // Se está estável, verificar se já passou tempo suficiente
         if (health.isStable) {
           const timeSinceLastCheck = now - health.lastCheck;
           if (timeSinceLastCheck < stableIntervalMs) {
-            console.log(`⏭️ Instância ${instance.instance_name} estável, pulando checagem (próxima em ${Math.round((stableIntervalMs - timeSinceLastCheck) / 1000)}s)`);
+            console.log(
+              `⏭️ Instância ${instance.instance_name} estável, pulando checagem (próxima em ${Math.round((stableIntervalMs - timeSinceLastCheck) / 1000)}s)`,
+            );
             continue;
           }
         }
@@ -95,10 +104,14 @@ export function useInstanceHealthCheck({
 
               if (health.consecutiveSuccesses >= checksUntilStable && !health.isStable) {
                 health.isStable = true;
-                console.log(`✨ Instância ${instance.instance_name} agora é ESTÁVEL (${health.consecutiveSuccesses} checagens positivas). Intervalo aumentado para ${stableIntervalMs / 1000}s`);
+                console.log(
+                  `✨ Instância ${instance.instance_name} agora é ESTÁVEL (${health.consecutiveSuccesses} checagens positivas). Intervalo aumentado para ${stableIntervalMs / 1000}s`,
+                );
               }
 
-              console.log(`✅ Instância ${instance.instance_name}: conectada (${health.consecutiveSuccesses}/${checksUntilStable} sucessos${health.isStable ? ', ESTÁVEL' : ''})`);
+              console.log(
+                `✅ Instância ${instance.instance_name}: conectada (${health.consecutiveSuccesses}/${checksUntilStable} sucessos${health.isStable ? ", ESTÁVEL" : ""})`,
+              );
             } else {
               health.consecutiveSuccesses = 0;
               health.isStable = false;
@@ -111,12 +124,12 @@ export function useInstanceHealthCheck({
               console.log(`🔄 Atualizando status de ${instance.instance_name}: ${instance.is_connected} → ${isConnected}`);
 
               const { error } = await supabase
-                .from('evolution_config')
+                .from("evolution_config")
                 .update({
                   is_connected: isConnected,
                   updated_at: new Date().toISOString(),
                 })
-                .eq('id', instance.id);
+                .eq("id", instance.id);
 
               if (error) {
                 console.error(`❌ Erro ao atualizar status de ${instance.instance_name}:`, error);
@@ -130,10 +143,11 @@ export function useInstanceHealthCheck({
             health.isStable = false;
             health.lastCheck = now;
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const err = error as { message?: string; name?: string };
           console.warn(`⚠️ Erro inesperado ao verificar instância ${instance.instance_name}:`, {
-            message: error?.message,
-            name: error?.name,
+            message: err?.message,
+            name: err?.name,
           });
           health.consecutiveSuccesses = 0;
           health.isStable = false;
@@ -143,15 +157,13 @@ export function useInstanceHealthCheck({
         updatedHealthMap[instance.id] = health;
       }
 
+      healthMapRef.current = updatedHealthMap;
       setHealthMap(updatedHealthMap);
       isCheckingRef.current = false;
     };
 
-    // Executar verificação imediata
-    checkInstanceHealth();
-
-    // Configurar verificação periódica (sempre no intervalo curto, mas pula instâncias estáveis)
-    intervalRef.current = setInterval(checkInstanceHealth, intervalMs);
+    void checkInstanceHealth();
+    intervalRef.current = setInterval(() => void checkInstanceHealth(), intervalMs);
 
     return () => {
       if (intervalRef.current) {
@@ -159,7 +171,7 @@ export function useInstanceHealthCheck({
       }
       isCheckingRef.current = false;
     };
-  }, [instances, enabled, intervalMs, stableIntervalMs, checksUntilStable]);
+  }, [instanceIdsKey, enabled, intervalMs, stableIntervalMs, checksUntilStable]);
 
   return null;
 }

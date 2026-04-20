@@ -15,6 +15,18 @@ export type EvolutionConnectionStateResult = {
 export async function fetchEvolutionConnectionStateByConfigId(
   configId: string,
 ): Promise<EvolutionConnectionStateResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
+    return {
+      evolutionOk: false,
+      evolutionHttpStatus: null,
+      body: null,
+      edgeError: "Sessão expirada ou ausente. Faça login novamente.",
+    };
+  }
+
   const { data, error } = await supabase.functions.invoke("evolution-connection-state", {
     body: { configId },
   });
