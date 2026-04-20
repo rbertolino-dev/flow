@@ -80,7 +80,8 @@ function startRealtimeConnection(): void {
           realtimeInitialized = false;
           handleReconnect();
         } else if (status === "CHANNEL_ERROR") {
-          console.error("❌ Erro ao conectar Realtime");
+          // Comum em redes instáveis ou limite de canais; reconexão já é agendada
+          console.warn("⚠️ Realtime: erro de canal (CHANNEL_ERROR). Reconectando...");
           realtimeInitialized = false;
           handleReconnect();
         } else if (status === "CLOSED") {

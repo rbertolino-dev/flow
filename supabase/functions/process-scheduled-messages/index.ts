@@ -9,16 +9,100 @@ const corsHeaders = {
 
 const EVOLUTION_MEDIA_TYPES = new Set(['image', 'document', 'video', 'audio']);
 
-/** URL trimada + tipo só se for enum válido da Evolution; senão type null. */
+/** Sinônimos legados / UI antiga → enum Evolution. */
+const MEDIA_TYPE_ALIASES: Record<string, string> = {
+  photo: 'image',
+  picture: 'image',
+  pic: 'image',
+  sticker: 'image',
+  img: 'image',
+  video: 'video',
+  vid: 'video',
+  movie: 'video',
+  mp4: 'video',
+  audio: 'audio',
+  sound: 'audio',
+  voice: 'audio',
+  pdf: 'document',
+  file: 'document',
+  doc: 'document',
+  attachment: 'document',
+};
+
+/** Inferir mediatype a partir da extensão da URL (registros antigos sem media_type). */
+function inferEvolutionMediaTypeFromUrl(url: string): string | null {
+  const path = url.split('?')[0].split('#')[0].toLowerCase();
+  const dot = path.lastIndexOf('.');
+  const ext = dot >= 0 ? path.slice(dot) : '';
+  if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].includes(ext)) return 'image';
+  if (['.mp4', '.webm', '.mov', '.mkv', '.3gp', '.avi'].includes(ext)) return 'video';
+  if (['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.opus', '.flac'].includes(ext)) return 'audio';
+  if (['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.zip', '.rar', '.7z', '.odt'].includes(ext)) {
+    return 'document';
+  }
+  return null;
+}
+
+/**
+ * URL + tipo válidos para sendMedia; sem URL = só texto.
+ * Registros legados (URL com tipo inválido/ausente): tenta alias → inferência → senão envia só texto (não falha o job).
+ */
 function normalizeScheduledRowMedia(
   media_url: string | null | undefined,
-  media_type: string | null | undefined
+  media_type: string | null | undefined,
+  messageId?: string
 ): { url: string | null; type: string | null } {
   const url = typeof media_url === 'string' && media_url.trim() ? media_url.trim() : null;
-  const raw = typeof media_type === 'string' ? media_type.toLowerCase().trim() : '';
-  const type = raw && EVOLUTION_MEDIA_TYPES.has(raw) ? raw : null;
   if (!url) return { url: null, type: null };
+
+  let raw = typeof media_type === 'string' ? media_type.toLowerCase().trim() : '';
+  if (raw === 'text' || raw === 'plain' || raw === 'link') {
+    raw = '';
+  }
+  if (raw && MEDIA_TYPE_ALIASES[raw]) {
+    raw = MEDIA_TYPE_ALIASES[raw];
+  }
+  let type = raw && EVOLUTION_MEDIA_TYPES.has(raw) ? raw : null;
+  if (!type) {
+    type = inferEvolutionMediaTypeFromUrl(url);
+  }
+  if (!type) {
+    console.warn(
+      `[process-scheduled-messages] Mídia ignorada (tipo inválido/ausente); enviando só texto. id=${messageId ?? 'n/a'} url=${url.slice(0, 80)}…`
+    );
+    return { url: null, type: null };
+  }
   return { url, type };
+}
+
+/** Lote por execução. Env `SCHEDULED_MESSAGES_BATCH_LIMIT` ou query `?limit=` (máx. 120). */
+function resolveBatchLimit(req: Request): number {
+  const cap = 120;
+  const defaultLimit = 72;
+  let n = defaultLimit;
+  const envRaw = Deno.env.get('SCHEDULED_MESSAGES_BATCH_LIMIT');
+  if (envRaw !== undefined && envRaw !== '') {
+    const p = parseInt(envRaw, 10);
+    if (!Number.isNaN(p)) n = p;
+  }
+  try {
+    const q = new URL(req.url).searchParams.get('limit');
+    if (q !== null && q !== '') {
+      const p = parseInt(q, 10);
+      if (!Number.isNaN(p)) n = p;
+    }
+  } catch {
+    // URL inválida — ignorar
+  }
+  return Math.min(cap, Math.max(1, n));
+}
+
+/** Delay enviado à Evolution (ms). Env `SCHEDULED_MESSAGES_EVOLUTION_DELAY_MS` (0–5000). */
+function getEvolutionSendDelayMs(): number {
+  const raw = Deno.env.get('SCHEDULED_MESSAGES_EVOLUTION_DELAY_MS');
+  if (!raw) return 650;
+  const p = parseInt(raw, 10);
+  return Number.isNaN(p) ? 650 : Math.min(5000, Math.max(0, p));
 }
 
 serve(async (req) => {
@@ -33,12 +117,16 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    const batchLimit = resolveBatchLimit(req);
+    const evolutionSendDelayMs = getEvolutionSendDelayMs();
+
     // ✅ DEBUG: Log detalhado antes de buscar
     console.log('🔍 [process-scheduled-messages] Buscando mensagens agendadas...');
     console.log('🔍 [process-scheduled-messages] Filtros:', {
       status: 'pending',
       scheduled_for: `<= ${new Date().toISOString()}`,
-      limit: 50
+      limit: batchLimit,
+      evolutionDelayMs: evolutionSendDelayMs,
     });
 
     // Buscar mensagens pendentes que já passaram do horário agendado
@@ -48,7 +136,7 @@ serve(async (req) => {
       .eq('status', 'pending')
       .lte('scheduled_for', new Date().toISOString())
       .order('scheduled_for', { ascending: true })
-      .limit(50); // Processar no máximo 50 mensagens por vez
+      .limit(batchLimit);
 
     if (fetchError) {
       console.error('❌ [process-scheduled-messages] Erro ao buscar mensagens:', {
@@ -95,7 +183,9 @@ serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           message: 'Nenhuma mensagem para processar',
-          processed: 0 
+          processed: 0,
+          batchLimit,
+          evolutionDelayMs: evolutionSendDelayMs,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -328,20 +418,7 @@ serve(async (req) => {
         let evolutionUrl: string;
         let payload: any;
 
-        const mediaNorm = normalizeScheduledRowMedia(message.media_url, message.media_type);
-        if (mediaNorm.url && !mediaNorm.type) {
-          console.error(`❌ [process-scheduled-messages] Mídia com tipo inválido (id=${message.id})`);
-          await supabase
-            .from('scheduled_messages')
-            .update({
-              status: 'failed',
-              error_message:
-                'Tipo de mídia inválido para anexo. A API aceita apenas: image, document, video ou audio. Corrija o agendamento ou reagende sem URL de mídia para enviar só texto.',
-            })
-            .eq('id', message.id);
-          failureCount++;
-          continue;
-        }
+        const mediaNorm = normalizeScheduledRowMedia(message.media_url, message.media_type, message.id);
 
         const mediaUrl = mediaNorm.url;
         const mediaType = mediaNorm.type || 'image';
@@ -356,7 +433,7 @@ serve(async (req) => {
             mediatype: mediaType,
             media: mediaUrl,
             caption: message.message || '',
-            delay: 1200, // ✅ NOVO: Adicionar delay para evitar rate limiting (igual ao broadcast)
+            delay: evolutionSendDelayMs,
           };
           console.log('🖼️ [process-scheduled-messages] Enviando mensagem com mídia:', {
             to: remoteJid,
@@ -371,7 +448,7 @@ serve(async (req) => {
           payload = {
             number: remoteJid,
             text: message.message,
-            delay: 1200, // ✅ NOVO: Adicionar delay para evitar rate limiting (igual ao broadcast)
+            delay: evolutionSendDelayMs,
           };
           console.log('📝 [process-scheduled-messages] Enviando mensagem de texto:', {
             to: remoteJid,
@@ -490,12 +567,12 @@ serve(async (req) => {
                     mediatype: mediaType,
                     media: mediaUrl,
                     caption: message.message || '',
-                    delay: 1200,
+                    delay: evolutionSendDelayMs,
                   }
                 : {
                     number: remoteJid,
                     text: message.message,
-                    delay: 1200,
+                    delay: evolutionSendDelayMs,
                   };
               
               const fallbackResponse = await fetch(fallbackUrl, {
@@ -733,6 +810,8 @@ serve(async (req) => {
         processed: messages.length,
         sent: successCount,
         failed: failureCount,
+        batchLimit,
+        evolutionDelayMs: evolutionSendDelayMs,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

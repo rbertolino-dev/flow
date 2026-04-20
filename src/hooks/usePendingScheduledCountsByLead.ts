@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 
 /** Query key prefix — invalidar em mutações de `scheduled_messages` (ex.: useScheduledMessages). */
 export const PENDING_SCHEDULED_COUNTS_QUERY_KEY = "pending-scheduled-counts-by-lead" as const;
@@ -19,8 +20,11 @@ function aggregateCounts(rows: { lead_id: string }[]): Record<string, number> {
   return out;
 }
 
-async function fetchPendingCounts(leadIds: string[]): Promise<Record<string, number>> {
-  const organizationId = await getUserOrganizationId();
+async function fetchPendingCounts(
+  leadIds: string[],
+  activeOrgId: string | null
+): Promise<Record<string, number>> {
+  const organizationId = activeOrgId ?? (await getUserOrganizationId());
   if (!organizationId || leadIds.length === 0) return {};
 
   const unique = [...new Set(leadIds.filter(Boolean))];
@@ -46,18 +50,19 @@ async function fetchPendingCounts(leadIds: string[]): Promise<Record<string, num
  * Uma query em lote: contagens de mensagens pendentes por lead_id (para badges no funil).
  */
 export function usePendingScheduledCountsByLead(leadIds: string[]) {
+  const { activeOrgId } = useActiveOrganization();
   const sortedKey = useMemo(() => {
     const u = [...new Set(leadIds.filter(Boolean))].sort();
     return u.join(",");
   }, [leadIds]);
 
   return useQuery({
-    queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY, sortedKey],
+    queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY, sortedKey, activeOrgId],
     queryFn: () => {
       const ids = sortedKey.split(",").filter(Boolean);
-      return fetchPendingCounts(ids);
+      return fetchPendingCounts(ids, activeOrgId);
     },
-    enabled: sortedKey.length > 0,
+    enabled: sortedKey.length > 0 && !!activeOrgId,
     staleTime: 45_000,
   });
 }

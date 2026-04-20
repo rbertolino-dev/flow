@@ -8,7 +8,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolutionStatus";
+import { extractConnectionState } from "@/lib/evolutionStatus";
+import { fetchEvolutionConnectionStateByConfigId } from "@/lib/evolutionConnectionStateProxy";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
@@ -197,29 +198,30 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     // a instância foi criada nesse servidor Evolution; o provider (se existir) não
     // é usado aqui para evitar checar no servidor errado e mostrar "desconectado".
     // evolutionApiUrlForFetch evita Mixed Content (HTTPS página → HTTP API bloqueado).
-    const apiKey = instance.api_key || '';
-    const baseUrl = evolutionApiUrlForFetch(instance.api_url);
-    // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais (espaços, parênteses, etc.)
-    const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
-
     try {
-      const response = await fetch(url, {
-        headers: {
-          'apikey': apiKey,
-        },
-        signal: AbortSignal.timeout(8000),
-      });
+      const result = await fetchEvolutionConnectionStateByConfigId(instance.id);
 
-      if (!response.ok) {
-        // Tratar erro 404 (instância não encontrada) de forma específica
-        if (response.status === 404) {
-          throw new Error(`Instância "${instance.instance_name}" não encontrada na Evolution API. A instância pode ter sido removida ou o nome está incorreto.`);
-        }
-        throw new Error(`HTTP ${response.status}`);
+      if (result.edgeError) {
+        throw new Error(result.edgeError);
+      }
+      if (result.proxyError) {
+        throw new Error(
+          result.proxyError === "timeout"
+            ? "Tempo esgotado ao consultar a Evolution API."
+            : `Não foi possível consultar a Evolution API (${result.proxyError}).`,
+        );
       }
 
-      const data = await response.json();
-      const isConnected = extractConnectionState(data) === true;
+      if (!result.evolutionOk) {
+        if (result.evolutionHttpStatus === 404) {
+          throw new Error(
+            `Instância "${instance.instance_name}" não encontrada na Evolution API. A instância pode ter sido removida ou o nome está incorreto.`,
+          );
+        }
+        throw new Error(`HTTP ${result.evolutionHttpStatus ?? "?"}`);
+      }
+
+      const isConnected = extractConnectionState(result.body) === true;
 
       setStatusMap(prev => ({
         ...prev,
@@ -265,12 +267,9 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         });
       }
       
-      // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
-      console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, {
+      console.warn(`⚠️ Erro ao verificar instância ${instance.instance_name}:`, {
         message: error?.message,
         name: error?.name,
-        stack: error?.stack,
-        url: url
       });
     } finally {
       checkingRef.current.delete(instance.id);

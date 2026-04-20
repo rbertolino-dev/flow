@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { extractConnectionState, evolutionApiUrlForFetch, normalizeApiUrl as normalizeApiUrlLib } from "@/lib/evolutionStatus";
+import { fetchEvolutionConnectionStateByConfigId } from "@/lib/evolutionConnectionStateProxy";
 
 export interface EvolutionConfig {
   id: string;
@@ -174,14 +175,9 @@ export function useEvolutionConfigs() {
       // Checagem imediata de status para atualizar is_connected (evita mostrar "desconectado" se já estiver conectada na Evolution)
       if (newConfig?.id) {
         try {
-          const url = `${evolutionApiUrlForFetch(normalizedUrl)}/instance/connectionState/${encodeURIComponent(cleanedInstanceName)}`;
-          const res = await fetch(url, {
-            headers: { apikey: cleanedApiKey },
-            signal: AbortSignal.timeout(8000),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const isConnected = extractConnectionState(data) === true;
+          const r = await fetchEvolutionConnectionStateByConfigId(newConfig.id);
+          if (r.evolutionOk && r.body) {
+            const isConnected = extractConnectionState(r.body) === true;
             if (isConnected) {
               await (supabase as any)
                 .from('evolution_config')
@@ -328,19 +324,16 @@ export function useEvolutionConfigs() {
       // Verificar se a instância está conectada antes de configurar webhook
       // Usar extractConnectionState para normalizar diferentes formatos de resposta
       try {
-        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-        const connectionUrl = `${evolutionApiUrlForFetch(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
-        const connectionResponse = await fetch(connectionUrl, {
-          headers: { 'apikey': config.api_key },
-        });
-        
-        if (connectionResponse.ok) {
-          const connectionData = await connectionResponse.json();
-          const isConnected = extractConnectionState(connectionData) === true;
-          
+        const r = await fetchEvolutionConnectionStateByConfigId(config.id);
+        if (r.edgeError || r.proxyError) {
+          if (config.is_connected) {
+            console.warn('⚠️ Não foi possível verificar status via servidor. Continuando com webhook...', r.edgeError || r.proxyError);
+          } else {
+            throw new Error('Não foi possível verificar status da conexão. Verifique se a instância está conectada.');
+          }
+        } else if (r.evolutionOk && r.body) {
+          const isConnected = extractConnectionState(r.body) === true;
           if (!isConnected) {
-            // Se config.is_connected está true mas a API diz que não está, pode ser cache
-            // Mas ainda assim, tentar configurar o webhook pode funcionar
             if (config.is_connected) {
               console.warn('⚠️ Status local indica conectado, mas API retornou desconectado. Tentando configurar webhook mesmo assim...');
             } else {
@@ -348,7 +341,6 @@ export function useEvolutionConfigs() {
             }
           }
         } else {
-          // Se não conseguir verificar, mas config.is_connected está true, tentar mesmo assim
           if (config.is_connected) {
             console.warn('⚠️ Não foi possível verificar status da conexão, mas status local indica conectado. Continuando...');
           } else {
@@ -487,19 +479,22 @@ export function useEvolutionConfigs() {
 
   const testConnection = async (config: EvolutionConfig) => {
     try {
-      // ✅ CORREÇÃO: Codificar nome da instância + URL segura para HTTPS (evita Mixed Content)
-      const url = `${evolutionApiUrlForFetch(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
-      const response = await fetch(url, {
-        headers: {
-          'apikey': config.api_key || '',
-        },
-        signal: AbortSignal.timeout(8000),
-      });
+      const result = await fetchEvolutionConnectionStateByConfigId(config.id);
 
-      const status = response.status;
+      if (result.edgeError || result.proxyError) {
+        const reason = result.proxyError === 'timeout' ? 'Tempo esgotado' : (result.edgeError || result.proxyError || 'Erro de rede');
+        toast({
+          title: '❌ Falha ao conectar',
+          description: reason,
+          variant: 'destructive',
+        });
+        return { success: false, httpStatus: null, details: reason, isConnected: false };
+      }
 
-      if (!response.ok) {
-        const text = await response.text();
+      const status = result.evolutionHttpStatus ?? 0;
+
+      if (!result.evolutionOk) {
+        const text = typeof result.body === 'string' ? result.body : JSON.stringify(result.body ?? '');
         const reason = status === 401
           ? 'API Key inválida'
           : status === 404
@@ -508,17 +503,15 @@ export function useEvolutionConfigs() {
 
         toast({
           title: '❌ Falha ao conectar',
-          description: `${reason}. ${text.slice(0, 100)}`,
+          description: `${reason}. ${String(text).slice(0, 100)}`,
           variant: 'destructive',
         });
 
-        // Persistir como desconectado
         await supabase.from('evolution_config').update({ is_connected: false, updated_at: new Date().toISOString() }).eq('id', config.id);
         return { success: false, httpStatus: status, details: text };
       }
 
-      const data = await response.json();
-      const normalized = extractConnectionState(data);
+      const normalized = extractConnectionState(result.body);
       const isConnected = normalized === true;
       
       // Persistir estado detectado
@@ -539,16 +532,11 @@ export function useEvolutionConfigs() {
       });
 
       await fetchConfigs();
-      return { success: true, httpStatus: status, details: data, isConnected };
+      return { success: true, httpStatus: status, details: result.body, isConnected };
     } catch (error: any) {
-      // Logar erro para diagnóstico - ERRO REAL, NÃO SILENCIAR
-      console.error('❌ Erro ao testar conexão Evolution API:', {
+      console.warn('⚠️ Erro ao testar conexão (via servidor):', {
         message: error?.message,
-        name: error?.name,
-        stack: error?.stack,
         instance: config.instance_name,
-        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-        url: `${evolutionApiUrlForFetch(config.api_url)}/instance/connectionState/${encodeURIComponent(config.instance_name)}`
       });
       
       toast({
@@ -563,14 +551,15 @@ export function useEvolutionConfigs() {
   const refreshStatuses = async () => {
     const results = await Promise.allSettled(
       configs.map(async (cfg) => {
-        const base = evolutionApiUrlForFetch(cfg.api_url);
-        // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-        const url = `${base}/instance/connectionState/${encodeURIComponent(cfg.instance_name)}`;
         try {
-          const res = await fetch(url, { headers: { apikey: cfg.api_key || '' }, signal: AbortSignal.timeout(8000) });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          const normalized = extractConnectionState(data);
+          const r = await fetchEvolutionConnectionStateByConfigId(cfg.id);
+          if (r.edgeError || r.proxyError) {
+            return { id: cfg.id, ok: false, error: r.edgeError || r.proxyError };
+          }
+          if (!r.evolutionOk) {
+            return { id: cfg.id, ok: false, error: `HTTP ${r.evolutionHttpStatus}` };
+          }
+          const normalized = extractConnectionState(r.body);
           const isConnected = normalized === true;
           if (cfg.is_connected !== isConnected) {
             await supabase
@@ -580,7 +569,6 @@ export function useEvolutionConfigs() {
           }
           return { id: cfg.id, ok: isConnected };
         } catch (e: any) {
-          // Não marcar como desconectado em erro de rede/CORS/timeout: não sabemos o estado real (doc Evolution)
           return { id: cfg.id, ok: false, error: e?.message || 'Erro' };
         }
       })

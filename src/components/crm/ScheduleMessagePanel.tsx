@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar, Clock, X, Trash2, Image as ImageIcon, Repeat, Link2, Send, Loader2, CalendarClock, AlertCircle } from "lucide-react";
-import { useScheduledMessages } from "@/hooks/useScheduledMessages";
+import { useScheduledMessages, type ScheduledMessage } from "@/hooks/useScheduledMessages";
 import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -18,8 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { parseSaoPauloDateTime } from "@/lib/dateUtils";
 import { formatScheduledMessageError } from "@/lib/scheduledMessageErrors";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { ScheduledMessage } from "@/hooks/useScheduledMessages";
-
 interface ScheduleMessagePanelProps {
   leadId: string;
   leadPhone: string;
@@ -83,6 +81,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       await requeueFailedScheduledMessage({
         messageId: rescheduleTarget.id,
         scheduledFor,
+        fromStatus: rescheduleTarget.status === 'pending' ? 'pending' : 'failed',
       });
       setRescheduleOpen(false);
       setRescheduleTarget(null);
@@ -204,12 +203,11 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const pendingMessages = scheduledMessages.filter(m => m.status === 'pending');
   const historyMessages = scheduledMessages.filter(m => m.status !== 'pending');
 
-  // Mensagens que podem ser enviadas agora (agendadas para hoje ou passado)
   const now = new Date();
-  const messagesToSendNow = pendingMessages.filter(msg => {
-    const scheduledDate = new Date(msg.scheduled_for);
-    return scheduledDate <= now;
-  });
+  const isPendingOverdue = (msg: ScheduledMessage) =>
+    msg.status === 'pending' && new Date(msg.scheduled_for) <= now;
+
+  const messagesToSendNow = pendingMessages.filter(isPendingOverdue);
 
   return (
     <Card className="p-6">
@@ -227,18 +225,21 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
 
         {/* Mensagens que podem ser enviadas agora */}
         {messagesToSendNow.length > 0 && (
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <h4 className="font-medium text-sm mb-2 text-blue-900 dark:text-blue-100">
-              Mensagens Prontas para Enviar ({messagesToSendNow.length})
+          <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <h4 className="font-medium text-sm mb-1 text-amber-900 dark:text-amber-100">
+              Horário já passou ({messagesToSendNow.length})
             </h4>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
+            <p className="text-xs text-amber-800/90 dark:text-amber-200/90 mb-3">
+              O envio automático pode não ter ocorrido. Você pode enviar agora ou reprogramar outra data.
+            </p>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
               {messagesToSendNow.map((msg) => (
-                <div key={msg.id} className="p-2 bg-white dark:bg-gray-800 rounded border border-blue-200 dark:border-blue-700">
-                  <div className="flex items-start justify-between gap-2">
+                <div key={msg.id} className="p-2 bg-white dark:bg-gray-800 rounded border border-amber-200 dark:border-amber-700">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
                       <span className="text-xs text-muted-foreground">
-                        Agendada para: {formatInTimeZone(
+                        Programada para: {formatInTimeZone(
                           new Date(msg.scheduled_for),
                           "America/Sao_Paulo",
                           "dd/MM/yyyy 'às' HH:mm",
@@ -246,14 +247,40 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                         )}
                       </span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleCancelClick(msg.id)}
-                      className="h-6 w-6"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={isRetryingFailed || isRequeuingFailed}
+                        onClick={() => void retryFailedScheduledMessage(msg)}
+                      >
+                        {isRetryingFailed ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Send className="h-4 w-4 mr-2" />
+                        )}
+                        Enviar agora
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isRetryingFailed || isRequeuingFailed}
+                        onClick={() => openRescheduleDialog(msg)}
+                      >
+                        <CalendarClock className="h-4 w-4 mr-2" />
+                        Reprogramar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleCancelClick(msg.id)}
+                        className="h-8 w-8"
+                        title="Cancelar agendamento"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -433,7 +460,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge variant="outline" className={`${getStatusColor(msg.status)} text-white`}>
-                        {getStatusLabel(msg.status)}
+                        {isPendingOverdue(msg) ? 'Pendente (atrasada)' : getStatusLabel(msg.status)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatInTimeZone(
@@ -478,6 +505,44 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                     {msg.cancel_reason && (
                       <div className="mt-2 text-xs text-red-600">
                         <strong>Motivo do cancelamento:</strong> {msg.cancel_reason}
+                      </div>
+                    )}
+                    {isPendingOverdue(msg) && (
+                      <div className="mt-3 space-y-2">
+                        <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                          <AlertCircle className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                          <AlertTitle className="text-amber-900 dark:text-amber-100">
+                            Horário já passou
+                          </AlertTitle>
+                          <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
+                            Se a mensagem não foi enviada, use enviar agora ou reprograme para outro horário.
+                          </AlertDescription>
+                        </Alert>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isRetryingFailed || isRequeuingFailed}
+                            onClick={() => void retryFailedScheduledMessage(msg)}
+                          >
+                            {isRetryingFailed ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Send className="h-4 w-4 mr-2" />
+                            )}
+                            Enviar agora
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isRetryingFailed || isRequeuingFailed}
+                            onClick={() => openRescheduleDialog(msg)}
+                          >
+                            <CalendarClock className="h-4 w-4 mr-2" />
+                            Reprogramar
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -680,9 +745,13 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
       >
         <DialogContent aria-describedby="reschedule-dialog-description">
           <DialogHeader>
-            <DialogTitle>Reagendar envio</DialogTitle>
+            <DialogTitle>
+              {rescheduleTarget?.status === 'pending' ? 'Reprogramar envio' : 'Reagendar envio'}
+            </DialogTitle>
             <DialogDescription id="reschedule-dialog-description">
-              Escolha nova data e hora no fuso de São Paulo. O processador tentará o envio automático nesse horário.
+              {rescheduleTarget?.status === 'pending'
+                ? 'Escolha nova data e hora (fuso de São Paulo). A mensagem continuará pendente até esse horário.'
+                : 'Escolha nova data e hora no fuso de São Paulo. O processador tentará o envio automático nesse horário.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">

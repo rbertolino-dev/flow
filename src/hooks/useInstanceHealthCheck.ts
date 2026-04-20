@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { EvolutionConfig } from './useEvolutionConfigs';
-import { extractConnectionState, evolutionApiUrlForFetch } from '@/lib/evolutionStatus';
+import { extractConnectionState } from '@/lib/evolutionStatus';
+import { fetchEvolutionConnectionStateByConfigId } from '@/lib/evolutionConnectionStateProxy';
 
 interface UseInstanceHealthCheckOptions {
   instances: EvolutionConfig[];
@@ -69,52 +70,51 @@ export function useInstanceHealthCheck({
           }
         }
 
-        let baseUrl = '';
         try {
-          baseUrl = evolutionApiUrlForFetch(instance.api_url);
-          // ✅ CORREÇÃO: Codificar nome da instância para suportar caracteres especiais
-          const url = `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`;
-          
-          const response = await fetch(url, {
-            headers: {
-              'apikey': instance.api_key || '',
-            },
-            signal: AbortSignal.timeout(8000), // 8s timeout
-          });
+          const result = await fetchEvolutionConnectionStateByConfigId(instance.id);
 
-          if (response.ok) {
-            const data = await response.json();
-            const isConnected = extractConnectionState(data);
-            
+          if (result.edgeError) {
+            console.warn(`⚠️ Verificação via servidor (${instance.instance_name}):`, result.edgeError);
+            health.consecutiveSuccesses = 0;
+            health.isStable = false;
+            health.lastCheck = now;
+          } else if (result.proxyError) {
+            console.warn(
+              `⚠️ Evolution não respondeu (${instance.instance_name}):`,
+              result.proxyError,
+              result.proxyMessage || "",
+            );
+            health.consecutiveSuccesses = 0;
+            health.isStable = false;
+            health.lastCheck = now;
+          } else if (result.evolutionOk) {
+            const isConnected = extractConnectionState(result.body);
+
             if (isConnected) {
-              // Incrementar sucessos consecutivos
               health.consecutiveSuccesses++;
-              
-              // Marcar como estável se atingiu o limite
+
               if (health.consecutiveSuccesses >= checksUntilStable && !health.isStable) {
                 health.isStable = true;
                 console.log(`✨ Instância ${instance.instance_name} agora é ESTÁVEL (${health.consecutiveSuccesses} checagens positivas). Intervalo aumentado para ${stableIntervalMs / 1000}s`);
               }
-              
+
               console.log(`✅ Instância ${instance.instance_name}: conectada (${health.consecutiveSuccesses}/${checksUntilStable} sucessos${health.isStable ? ', ESTÁVEL' : ''})`);
             } else {
-              // Resetar contador se desconectou
               health.consecutiveSuccesses = 0;
               health.isStable = false;
               console.log(`❌ Instância ${instance.instance_name}: desconectada. Resetando contador.`);
             }
-            
+
             health.lastCheck = now;
 
-            // Atualizar no banco se o status mudou
             if (isConnected !== null && isConnected !== instance.is_connected) {
               console.log(`🔄 Atualizando status de ${instance.instance_name}: ${instance.is_connected} → ${isConnected}`);
-              
+
               const { error } = await supabase
                 .from('evolution_config')
-                .update({ 
+                .update({
                   is_connected: isConnected,
-                  updated_at: new Date().toISOString()
+                  updated_at: new Date().toISOString(),
                 })
                 .eq('id', instance.id);
 
@@ -123,23 +123,18 @@ export function useInstanceHealthCheck({
               }
             }
           } else {
-            console.warn(`⚠️ Falha ao verificar ${instance.instance_name}: HTTP ${response.status}`);
-            // Não marcar como desconectado: pode ser 404/502/CORS - não sabemos o estado real (doc Evolution)
+            console.warn(
+              `⚠️ Falha ao verificar ${instance.instance_name}: HTTP ${result.evolutionHttpStatus ?? "?"}`,
+            );
             health.consecutiveSuccesses = 0;
             health.isStable = false;
             health.lastCheck = now;
           }
         } catch (error: any) {
-          const urlForLog = baseUrl
-            ? `${baseUrl}/instance/connectionState/${encodeURIComponent(instance.instance_name)}`
-            : instance.api_url;
-          console.error(`❌ Erro ao verificar instância ${instance.instance_name}:`, {
+          console.warn(`⚠️ Erro inesperado ao verificar instância ${instance.instance_name}:`, {
             message: error?.message,
             name: error?.name,
-            stack: error?.stack,
-            url: urlForLog,
           });
-          // Não marcar como desconectado em erro de rede/CORS/timeout (doc Evolution)
           health.consecutiveSuccesses = 0;
           health.isStable = false;
           health.lastCheck = now;

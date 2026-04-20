@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -23,18 +23,30 @@ type LeadScheduleSheetProps = {
 };
 
 export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleSheetProps) {
-  const { configs } = useEvolutionConfigs();
+  const { configs, refetch, refreshStatuses } = useEvolutionConfigs();
 
+  /** null no BD = estado desconhecido — não tratar como desconectado (Boolean(null) era o bug). */
   const instancesForPanel = useMemo(() => {
     return (configs || []).map((c) => ({
       id: c.id,
       instance_name: c.instance_name,
-      is_connected: Boolean(c.is_connected),
+      is_connected: c.is_connected === true,
+      explicitlyDisconnected: c.is_connected === false,
     }));
   }, [configs]);
 
-  const connectedInstances = useMemo(
-    () => instancesForPanel.filter((i) => i.is_connected),
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      await refetch();
+      await refreshStatuses();
+    })();
+  }, [open, refetch, refreshStatuses]);
+
+  const allExplicitlyDisconnected = useMemo(
+    () =>
+      instancesForPanel.length > 0 &&
+      instancesForPanel.every((i) => i.explicitlyDisconnected),
     [instancesForPanel]
   );
 
@@ -80,9 +92,10 @@ export function LeadScheduleSheet({ lead, open, onOpenChange }: LeadScheduleShee
                   Configure uma instância em Configurações → WhatsApp.
                 </p>
               )}
-              {instancesForPanel.length > 0 && connectedInstances.length === 0 && (
+              {allExplicitlyDisconnected && (
                 <p className="text-sm text-amber-600 mt-2">
-                  Nenhuma instância conectada. Verifique a conexão em Configurações.
+                  Nenhuma instância conectada nesta organização. Verifique em Configurações → WhatsApp ou use
+                  &quot;Testar conexão&quot; para atualizar o status.
                 </p>
               )}
             </div>

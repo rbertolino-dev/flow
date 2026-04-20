@@ -15,6 +15,8 @@
 --   Grava o SQL com LF só (Unix) ou normaliza antes de colar no SQL Editor.
 -- - CRON-JOBS-FINAL com "sb_publishable_...": chave errada para Bearer em
 --   funções que esperam JWT (anon/service_role). Usar sempre service_role.
+-- - Sem header `apikey`: o gateway Supabase exige `apikey` (mesmo valor JWT
+--   service_role) junto com `Authorization: Bearer ...` nas chamadas net.http.
 -- - "[SERVICE_ROLE_KEY]" literal: esqueceram de substituir o placeholder.
 --
 -- Este ficheiro NÃO coloca segredos em texto: usa só current_setting acima.
@@ -65,7 +67,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/sync-daily-metrics',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -81,7 +84,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-whatsapp-workflows',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -97,7 +101,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-broadcast-queue',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -113,7 +118,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-scheduled-messages',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -129,7 +135,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-status-schedule',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -145,7 +152,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/sync-google-calendar-events',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -161,7 +169,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-google-business-posts',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -177,7 +186,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-scheduled-campaigns',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );
@@ -193,7 +203,8 @@ SELECT cron.schedule(
     url := 'https://ogeljmbhqxpfjbpnbwog.supabase.co/functions/v1/process-broadcast-queue-2',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'apikey', current_setting('app.settings.service_role_key', true)
     ),
     body := '{}'::jsonb
   );

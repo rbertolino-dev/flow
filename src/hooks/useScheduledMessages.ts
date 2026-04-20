@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { PENDING_SCHEDULED_COUNTS_QUERY_KEY } from "@/hooks/usePendingScheduledCountsByLead";
 import { normalizeScheduledMessageMediaFields } from "@/lib/scheduledMessageMediaValidation";
 
@@ -39,12 +40,13 @@ export interface ScheduledMessage {
 export function useScheduledMessages(leadId?: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { activeOrgId } = useActiveOrganization();
 
   const { data: scheduledMessages = [], isLoading } = useQuery({
-    queryKey: ['scheduled-messages', leadId],
+    queryKey: ['scheduled-messages', leadId, activeOrgId],
     queryFn: async () => {
-      // Filtrar pela organização ativa
-      const organizationId = await getUserOrganizationId();
+      // Mesma organização que o funil / evolution_config (evita drift com localStorage)
+      const organizationId = activeOrgId ?? (await getUserOrganizationId());
       if (!organizationId) return [];
 
       let query = supabase
@@ -62,7 +64,7 @@ export function useScheduledMessages(leadId?: string) {
       if (error) throw error;
       return data as ScheduledMessage[];
     },
-    enabled: !!leadId,
+    enabled: !!leadId && !!activeOrgId,
   });
 
   const scheduleMessage = useMutation({
@@ -88,9 +90,24 @@ export function useScheduledMessages(leadId?: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      // Obter organization_id
-      const organizationId = await getUserOrganizationId();
+      const organizationId = activeOrgId ?? (await getUserOrganizationId());
       if (!organizationId) throw new Error('Organização não encontrada');
+
+      const { data: instanceRow, error: instanceLookupError } = await supabase
+        .from('evolution_config')
+        .select('id, organization_id')
+        .eq('id', params.instanceId)
+        .maybeSingle();
+
+      if (instanceLookupError) throw instanceLookupError;
+      if (!instanceRow) {
+        throw new Error('Instância não encontrada. Atualize a página e selecione uma instância listada em Configurações → WhatsApp.');
+      }
+      if (instanceRow.organization_id && instanceRow.organization_id !== organizationId) {
+        throw new Error(
+          'A instância selecionada não pertence à organização ativa. Troque a organização no menu superior ou escolha outra instância.'
+        );
+      }
 
       const originalDate = params.scheduledFor;
       const originalDateOnly = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
@@ -445,11 +462,11 @@ export function useScheduledMessages(leadId?: string) {
     },
   });
 
-  /** Envia de imediato a mesma mensagem da linha falha e marca como enviada. */
+  /** Envia de imediato (mensagem pendente atrasada ou linha com falha) e marca como enviada. */
   const retryFailedScheduledMessage = useMutation({
     mutationFn: async (msg: ScheduledMessage) => {
-      if (msg.status !== 'failed') {
-        throw new Error('Só é possível reenviar mensagens com status falhou.');
+      if (msg.status !== 'failed' && msg.status !== 'pending') {
+        throw new Error('Só é possível enviar agora mensagens pendentes ou com falha no envio.');
       }
 
       const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
@@ -479,7 +496,7 @@ export function useScheduledMessages(leadId?: string) {
           error_message: null,
         })
         .eq('id', msg.id)
-        .eq('status', 'failed');
+        .in('status', ['failed', 'pending']);
 
       if (upErr) throw upErr;
     },
@@ -500,13 +517,35 @@ export function useScheduledMessages(leadId?: string) {
     },
   });
 
-  /** Volta a mensagem falha para pendente com nova data (processador enviará de novo). */
+  /** Nova data: para `failed` volta a pendente; para `pending` só atualiza o horário. */
   const requeueFailedScheduledMessage = useMutation({
-    mutationFn: async ({ messageId, scheduledFor }: { messageId: string; scheduledFor: Date }) => {
+    mutationFn: async ({
+      messageId,
+      scheduledFor,
+      fromStatus = 'failed',
+    }: {
+      messageId: string;
+      scheduledFor: Date;
+      fromStatus?: 'failed' | 'pending';
+    }) => {
       const now = new Date();
       const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
       if (scheduledFor < fiveMinutesAgo) {
         throw new Error('A nova data não pode ser mais de 5 minutos no passado.');
+      }
+
+      if (fromStatus === 'pending') {
+        const { error } = await supabase
+          .from('scheduled_messages')
+          .update({
+            scheduled_for: scheduledFor.toISOString(),
+            error_message: null,
+          })
+          .eq('id', messageId)
+          .eq('status', 'pending');
+
+        if (error) throw error;
+        return;
       }
 
       const { error } = await supabase
@@ -522,12 +561,15 @@ export function useScheduledMessages(leadId?: string) {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
       queryClient.invalidateQueries({ queryKey: [PENDING_SCHEDULED_COUNTS_QUERY_KEY] });
+      const isPendingOnly = variables.fromStatus === 'pending';
       toast({
-        title: "Reagendada",
-        description: "A mensagem voltou para a fila pendente com a nova data.",
+        title: isPendingOnly ? 'Reprogramada' : 'Reagendada',
+        description: isPendingOnly
+          ? 'A nova data foi salva. O envio automático ocorrerá nesse horário.'
+          : 'A mensagem voltou para a fila pendente com a nova data.',
       });
     },
     onError: (error: Error) => {
