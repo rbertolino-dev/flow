@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,8 +58,16 @@ serve(async (req) => {
     });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
+  if (!authHeader?.toLowerCase().startsWith("bearer ")) {
+    return new Response(JSON.stringify({ error: "Não autenticado" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const accessToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!accessToken) {
     return new Response(JSON.stringify({ error: "Não autenticado" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -71,19 +79,31 @@ serve(async (req) => {
   const supabaseService = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   const userClient = createClient(supabaseUrl, supabaseAnon, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
     global: { headers: { Authorization: authHeader } },
   });
 
   const {
     data: { user },
     error: userErr,
-  } = await userClient.auth.getUser();
+  } = await userClient.auth.getUser(accessToken);
 
   if (userErr || !user) {
-    return new Response(JSON.stringify({ error: "Sessão inválida" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.warn("[evolution-connection-state] getUser falhou:", userErr?.message ?? userErr);
+    return new Response(
+      JSON.stringify({
+        error: "Sessão inválida",
+        authCode: userErr?.code ?? null,
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   let body: { configId?: string };
