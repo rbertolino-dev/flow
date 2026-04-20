@@ -259,9 +259,10 @@ serve(async (req) => {
           config = originalConfig;
         }
 
-        // ✅ NOVO: Se instância não está conectada, tentar buscar outra instância da mesma organização
-        if (config && !config.is_connected && message.organization_id) {
-          console.warn(`⚠️ [process-scheduled-messages] Instância ${config.instance_name} não está conectada, tentando fallback...`);
+        // Só tratar como "desligada" quando is_connected === false (null = desconhecido → tentar enviar)
+        // BUG antigo: !config.is_connected era true para null e bloqueava/enviava para fallback errado.
+        if (config && config.is_connected === false && message.organization_id) {
+          console.warn(`⚠️ [process-scheduled-messages] Instância ${config.instance_name} marcada desconectada, tentando fallback...`);
           
           const { data: fallbackConfig } = await supabase
             .from('evolution_config')
@@ -298,7 +299,7 @@ serve(async (req) => {
           console.warn(`⚠️ [process-scheduled-messages] ATENÇÃO: Mensagem da org ${message.organization_id} está usando instância da org ${config.organization_id}`);
         }
 
-        if (!config.is_connected) {
+        if (config.is_connected === false) {
           throw new Error('Instância não está conectada');
         }
 
