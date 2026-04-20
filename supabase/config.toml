@@ -19,8 +19,10 @@ verify_jwt = true
 [functions.validate-whatsapp-number]
 verify_jwt = true
 
+# Gateway não valida JWT aqui: o proxy/domínio customizado pode falhar na verificação do gateway
+# mesmo com Bearer válido. A função valida Authorization + getUser() internamente.
 [functions.evolution-connection-state]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-evolution-instance]
 verify_jwt = true

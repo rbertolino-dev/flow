@@ -130,13 +130,17 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
     return statusMap;
   };
 
-  // Atualização imediata ao abrir
+  const refreshStatusesRef = useRef(refreshStatuses);
+  const computeLiveRef = useRef(computeLiveStatuses);
+  refreshStatusesRef.current = refreshStatuses;
+  computeLiveRef.current = computeLiveStatuses;
+
+  /** Só ao abrir: [open, configs] disparava refreshStatuses a cada mudança de configs (rajadas + 401). */
   useEffect(() => {
-    if (open) {
-      computeLiveStatuses();
-      refreshStatuses();
-    }
-  }, [open, configs]);
+    if (!open) return;
+    void computeLiveRef.current();
+    void refreshStatusesRef.current();
+  }, [open]);
 
   useEffect(() => {
     if (open && initialShowMessage && messageSectionRef.current) {

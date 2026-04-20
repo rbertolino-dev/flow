@@ -4,6 +4,16 @@ import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { PostSaleLead, PostSaleActivity } from "@/types/postSaleLead";
 
+/** Evita URL/query gigante com .in() (502 no proxy / limites PostgREST). */
+const POST_SALE_IN_CHUNK = 35;
+
+function chunkIds<T>(ids: T[], size: number): T[][] {
+  if (ids.length === 0) return [];
+  const out: T[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
 export function usePostSaleLeads() {
   const [leads, setLeads] = useState<PostSaleLead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,19 +38,38 @@ export function usePostSaleLeads() {
 
       if (leadsError) throw leadsError;
 
-      // Buscar atividades
       const leadIds = (leadsData || []).map(l => l.id);
-      const { data: activitiesData } = await supabase
-        .from('post_sale_activities')
-        .select('*')
-        .in('post_sale_lead_id', leadIds)
-        .order('created_at', { ascending: false });
+      let activitiesData: NonNullable<
+        Awaited<ReturnType<ReturnType<typeof supabase.from>["select"]>>["data"]
+      > = [];
+      let leadTagsData: NonNullable<
+        Awaited<ReturnType<ReturnType<typeof supabase.from>["select"]>>["data"]
+      > = [];
 
-      // Buscar tags
-      const { data: leadTagsData } = await supabase
-        .from('post_sale_lead_tags')
-        .select('post_sale_lead_id, tag_id, tags(id, name, color)')
-        .in('post_sale_lead_id', leadIds);
+      if (leadIds.length > 0) {
+        for (const idChunk of chunkIds(leadIds, POST_SALE_IN_CHUNK)) {
+          const { data: actChunk, error: actErr } = await supabase
+            .from('post_sale_activities')
+            .select('*')
+            .in('post_sale_lead_id', idChunk)
+            .order('created_at', { ascending: false });
+          if (actErr) throw actErr;
+          activitiesData = activitiesData.concat(actChunk || []);
+
+          const { data: tagChunk, error: tagErr } = await supabase
+            .from('post_sale_lead_tags')
+            .select('post_sale_lead_id, tag_id, tags(id, name, color)')
+            .in('post_sale_lead_id', idChunk);
+          if (tagErr) throw tagErr;
+          leadTagsData = leadTagsData.concat(tagChunk || []);
+        }
+
+        activitiesData.sort(
+          (a, b) =>
+            new Date(String((b as { created_at?: string }).created_at || 0)).getTime() -
+            new Date(String((a as { created_at?: string }).created_at || 0)).getTime(),
+        );
+      }
 
       // Agrupar atividades por lead
       const activitiesByLead = (activitiesData || []).reduce((acc, act) => {
