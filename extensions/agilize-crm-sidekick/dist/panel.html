@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agilize CRM Sidekick</title>
+    <script type="module" crossorigin src="./panel.js"></script>
+    <link rel="modulepreload" crossorigin href="./chunks/phone-B6B_IdEy.js">
+    <link rel="stylesheet" crossorigin href="./panel.css">
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hdr">
+        <h1>Lead rápido</h1>
+        <p class="sub">Extensão do CRM · ao lado do WhatsApp Web</p>
+      </header>
+
+      <section id="block-disconnected" class="card hidden">
+        <p class="warn">
+          Conecte-se ao CRM neste navegador: abra o app, faça login e mantenha uma aba aberta. Depois toque em
+          <strong>Atualizar</strong>.
+        </p>
+        <button type="button" class="btn primary" id="btn-open-crm">Abrir CRM</button>
+        <button type="button" class="btn" id="btn-retry">Atualizar</button>
+      </section>
+
+      <section id="block-form" class="card hidden">
+        <label class="lbl">Nome *</label>
+        <input type="text" id="field-name" class="inp" autocomplete="name" />
+
+        <label class="lbl">Telefone *</label>
+        <input type="tel" id="field-phone" class="inp" autocomplete="tel" placeholder="(11) 98765-4321" />
+
+        <div class="row">
+          <button type="button" class="btn small" id="btn-paste">Colar do clipboard</button>
+        </div>
+
+        <label class="lbl">Etapa do funil</label>
+        <select id="field-stage" class="inp">
+          <option value="">— Selecionar —</option>
+        </select>
+
+        <label class="lbl">Observações</label>
+        <textarea id="field-notes" class="inp ta" rows="2"></textarea>
+
+        <button type="button" class="btn primary full" id="btn-save">Salvar lead</button>
+        <p id="msg" class="msg" role="status"></p>
+
+        <div id="post-actions" class="post hidden">
+          <button type="button" class="btn full" id="btn-budget">Abrir orçamento para este lead</button>
+          <button type="button" class="btn full" id="btn-crm">Abrir CRM</button>
+        </div>
+      </section>
+
+      <footer class="ft">
+        <span id="conn-pill" class="pill">…</span>
+      </footer>
+    </div>
+  </body>
+</html>

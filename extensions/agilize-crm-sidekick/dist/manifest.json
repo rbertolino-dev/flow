@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Agilize CRM Sidekick",
+  "version": "0.1.0",
+  "description": "Painel rápido do CRM ao lado do WhatsApp Web. É necessário estar logado no app CRM no mesmo navegador.",
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "contextMenus",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "https://agilizeflow.com.br/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "action": {
+    "default_title": "Agilize CRM Sidekick"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:8080/*",
+        "http://127.0.0.1:8080/*",
+        "https://agilizeflow.com.br/*"
+      ],
+      "js": [
+        "contentCrm.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

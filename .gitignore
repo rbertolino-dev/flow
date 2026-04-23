@@ -8,8 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# Build da app Vite na raiz (a pasta dist da extensão é versionada em extensions/agilize-crm-sidekick/dist)
+/dist
+/dist-ssr
 *.local
 
 # Editor directories and files
@@ -48,5 +49,6 @@ scripts/ver-logs-*.sh
 
 # Arquivos de diagnóstico temporários
 *.md
+!extensions/agilize-crm-sidekick/README.md
 *.txt
 scripts/diagnosticar-*.sql

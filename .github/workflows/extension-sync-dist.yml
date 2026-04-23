@@ -1,0 +1,67 @@
+# Regenera extensions/agilize-crm-sidekick/dist e faz commit — quem clona o repo já tem manifest.json sem npm local.
+# Não inclui paths só em dist/ para evitar loop quando o bot faz push.
+name: Extension — sincronizar dist
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "extensions/agilize-crm-sidekick/src/**"
+      - "extensions/agilize-crm-sidekick/vite.config.ts"
+      - "extensions/agilize-crm-sidekick/panel.html"
+      - "extensions/agilize-crm-sidekick/package.json"
+      - "package.json"
+      - ".github/workflows/extension-sync-dist.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: .env para build da extensão
+        run: |
+          set -e
+          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}" ]; then
+            echo "::error::Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nos secrets do repositório."
+            exit 1
+          fi
+          {
+            echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}"
+          } >> .env
+          if [ -n "${{ secrets.VITE_CRM_APP_URL }}" ]; then
+            echo "VITE_CRM_APP_URL=${{ secrets.VITE_CRM_APP_URL }}" >> .env
+          fi
+          if [ -n "${{ secrets.VITE_EXTENSION_CRM_MATCHES }}" ]; then
+            echo "VITE_EXTENSION_CRM_MATCHES=${{ secrets.VITE_EXTENSION_CRM_MATCHES }}" >> .env
+          fi
+
+      - name: Build da extensão (gera dist + manifest.json)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:extension
+
+      - name: Commit e push do dist
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add extensions/agilize-crm-sidekick/dist
+          if git diff --staged --quiet; then
+            echo "Nada a alterar em dist."
+            exit 0
+          fi
+          git commit -m "chore(extension): sincronizar dist"
+          git push
