@@ -181,7 +181,9 @@ const Index = () => {
     });
   };
 
-  if (leadsLoading || queueLoading) {
+  // ✅ OTIMIZAÇÃO: Só bloqueamos a UI pelos leads. A fila de chamadas (`callQueue`) carrega
+  // em background — só é usada em filtros opcionais; não deve atrasar a renderização do funil.
+  if (leadsLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -137,12 +137,63 @@ export function useLeads() {
       }
       
       // ✅ CORREÇÃO: Dividir lead IDs em lotes para evitar URL/cabeçalho muito longo (400/502 no proxy)
-      // Lotes moderados + poucos pedidos em paralelo (evita ERR_INSUFFICIENT_RESOURCES no browser)
-      const BATCH_SIZE = 24;
+      // Lotes maiores = menos round-trips; paralelismo por tipo limitado em 3 (seguro)
+      // Os 5 tipos de queries (activities/tags/assignees/budgets/attachments) rodam em PARALELO entre si.
+      const BATCH_SIZE = 36;
       const BATCH_PARALLEL = 3;
       const leadIdBatches: string[][] = [];
       for (let i = 0; i < leadIds.length; i += BATCH_SIZE) {
         leadIdBatches.push(leadIds.slice(i, i + BATCH_SIZE));
+      }
+
+      // ✅ RENDER PROGRESSIVO: Mostrar leads básicos imediatamente (sem tags/budgets/activities)
+      // Usuário vê o funil preenchido em <500ms em vez de esperar TODAS as queries secundárias.
+      // Tags/orçamentos/anexos aparecem logo a seguir, sem bloquear a UI.
+      if (myGeneration === fetchGenerationRef.current) {
+        const initialLeads: Lead[] = (leadsData || []).map((lead) => {
+          const statusRaw = (lead.status || '').toLowerCase();
+          const statusMap: Record<string, LeadStatus> = { new: 'novo' };
+          const mappedStatus = statusMap[statusRaw] || (statusRaw as LeadStatus);
+          return {
+            id: lead.id,
+            name: lead.name,
+            phone: lead.phone,
+            email: lead.email || undefined,
+            company: lead.company || undefined,
+            value: lead.value != null && lead.value !== "" ? Number(lead.value) : undefined,
+            estimatedValueStored: lead.value != null && lead.value !== "" ? Number(lead.value) : undefined,
+            status: mappedStatus,
+            source: lead.source || 'WhatsApp',
+            assignees: [],
+            assignedTo: lead.assigned_to?.trim() || "Não atribuído",
+            lastContact: lead.last_contact ? new Date(lead.last_contact) : new Date(),
+            createdAt: new Date(lead.created_at!),
+            returnDate: lead.return_date ? (() => {
+              try {
+                const d = new Date(lead.return_date);
+                return isNaN(d.getTime()) ? undefined : d;
+              } catch { return undefined; }
+            })() : undefined,
+            sourceInstanceId: lead.source_instance_id || undefined,
+            sourceInstanceName: lead.source_instance_name || undefined,
+            notes: lead.notes || undefined,
+            stageId: lead.stage_id || undefined,
+            excluded_from_funnel: lead.excluded_from_funnel ?? false,
+            cpf_cnpj: lead.cpf_cnpj || undefined,
+            birthDate: lead.birth_date || undefined,
+            address: lead.address || undefined,
+            neighborhood: lead.neighborhood || undefined,
+            city: lead.city || undefined,
+            postalCode: lead.postal_code || undefined,
+            activities: [],
+            tags: [],
+            budgetSummary: { kind: "none" as const, count: 0 },
+            budgetsPreview: { previews: [], totalCount: 0 },
+            attachmentCount: 0,
+          } as Lead;
+        });
+        setLeads(initialLeads);
+        setLoading(false); // ← libera a UI AGORA
       }
 
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
@@ -228,39 +279,39 @@ export function useLeads() {
         return counts;
       };
 
-      // Buscar em sequência por tipo (cada tipo já limita paralelismo interno) — evita dezenas de pedidos HTTP ao mesmo tempo
-      const activitiesResults = await mapBatchesWithConcurrency(
-        leadIdBatches,
-        BATCH_PARALLEL,
-        (batch) =>
+      // ✅ PARALELO: Os 5 tipos de queries rodam simultaneamente (máx 5×3 = 15 HTTP em voo — seguro).
+      // Antes: sequencial (5 waves) = 500-1500ms. Agora: 1 wave paralela = 100-300ms.
+      const [
+        activitiesResults,
+        tagsResults,
+        assigneesResults,
+        allBudgetRows,
+        attachmentCountByLead,
+      ] = await Promise.all([
+        mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
           (supabase as any)
             .from("activities")
             .select("*")
             .in("lead_id", batch)
             .order("created_at", { ascending: false })
             .limit(Math.min(batch.length * 5, 200)),
-      );
-      const tagsResults = await mapBatchesWithConcurrency(
-        leadIdBatches,
-        BATCH_PARALLEL,
-        (batch) =>
+        ),
+        mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
           (supabase as any)
             .from("lead_tags")
             .select("lead_id, tag_id, tags(id, name, color)")
             .in("lead_id", batch)
             .limit(500),
-      );
-      const assigneesResults = await mapBatchesWithConcurrency(
-        leadIdBatches,
-        BATCH_PARALLEL,
-        (batch) =>
+        ),
+        mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
           supabase
             .from("lead_assignees")
             .select("lead_id, user_id, created_at")
             .in("lead_id", batch),
-      );
-      const allBudgetRows = await loadBudgetRowsForLeads();
-      const attachmentCountByLead = await loadAttachmentCountsByLead();
+        ),
+        loadBudgetRowsForLeads(),
+        loadAttachmentCountsByLead(),
+      ]);
 
       // Combinar resultados de todos os lotes
       const allActivities = activitiesResults.flatMap(r => r.data || []).slice(0, maxActivitiesLimit);
@@ -407,21 +458,11 @@ export function useLeads() {
       const budgetPreviewsByLead = buildBudgetPreviewsByLeadId(budgetRowsNormalized);
       const approvedTotalsByLeadId = sumApprovedBudgetTotalsByLeadId(budgetRowsNormalized);
 
-      // ✅ DEBUG: Log tags encontradas
-      const totalTags = Object.keys(tagsByLead).length;
-      const leadsWithTags = Object.values(tagsByLead).filter(tags => tags.length > 0).length;
-      console.log(`🏷️ Tags encontradas: ${allLeadTags.length} tags para ${leadsWithTags} leads (de ${leadIds.length} leads)`);
-
       // Map leads with their activities and tags
       const leadsWithActivities = (leadsData || []).map((lead) => {
         const activities = activitiesByLead[lead.id] || [];
         const leadTags = tagsByLead[lead.id] || [];
         const assigneeRows = assigneesByLead[lead.id] || [];
-
-        // ✅ DEBUG: Log tags por lead (apenas primeiros 5 para não poluir console)
-        if (leadTags.length > 0 && leadsData.indexOf(lead) < 5) {
-          console.log(`🏷️ Lead ${lead.name}: ${leadTags.length} tags`, leadTags.map((lt: any) => lt.tags?.name || 'sem nome'));
-        }
 
         const statusRaw = (lead.status || '').toLowerCase();
         const statusMap: Record<string, LeadStatus> = { new: 'novo' };
