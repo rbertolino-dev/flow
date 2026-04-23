@@ -8,6 +8,7 @@ import {
   MAX_LEAD_ATTACHMENT_BYTES,
   uploadLeadAttachmentFile,
   removeLeadAttachmentFromStorage,
+  formatLeadAttachmentUploadError,
 } from "@/lib/leadAttachments";
 import { broadcastRefreshEvent } from "@/utils/forceRefreshAfterMutation";
 import { format } from "date-fns";
@@ -49,7 +50,10 @@ export function LeadAttachmentsSection({ leadId, onChanged }: LeadAttachmentsSec
       return;
     }
     setLoading(true);
-    const { data, error } = await (supabase as any)
+    // lead_attachments ainda não está em types.ts gerado (Supabase)
+    const { data, error } = await (
+      supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+    )
       .from("lead_attachments")
       .select("id, file_name, file_url, storage_path, file_size, created_at")
       .eq("lead_id", leadId)
@@ -93,37 +97,63 @@ export function LeadAttachmentsSection({ leadId, onChanged }: LeadAttachmentsSec
   }, [leadId, onChanged]);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeOrgId) return;
-    if (file.size > MAX_LEAD_ATTACHMENT_BYTES) {
-      toast({
-        title: "Arquivo grande demais",
-        description: `Máximo ${MAX_LEAD_ATTACHMENT_BYTES / 1024 / 1024} MB por arquivo.`,
-        variant: "destructive",
-      });
-      e.target.value = "";
-      return;
-    }
+    const files = Array.from(e.target.files || []);
+    if (!files.length || !activeOrgId) return;
 
     setUploading(true);
+    let successCount = 0;
+    const failures: string[] = [];
+
     try {
-      const { storagePath, publicUrl } = await uploadLeadAttachmentFile(activeOrgId, leadId, file);
-      const { error: insErr } = await (supabase as any).from("lead_attachments").insert({
-        organization_id: activeOrgId,
-        lead_id: leadId,
-        storage_path: storagePath,
-        file_url: publicUrl,
-        file_name: file.name,
-        file_type: file.type || null,
-        file_size: file.size,
-      });
-      if (insErr) throw insErr;
-      toast({ title: "Anexo adicionado", description: file.name });
-      await load();
-      notifyGlobal();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Falha no envio";
-      toast({ title: "Erro ao anexar", description: message, variant: "destructive" });
+      for (const file of files) {
+        if (file.size > MAX_LEAD_ATTACHMENT_BYTES) {
+          failures.push(
+            `${file.name}: excede ${MAX_LEAD_ATTACHMENT_BYTES / 1024 / 1024} MB por arquivo.`
+          );
+          continue;
+        }
+
+        try {
+          const { storagePath, publicUrl } = await uploadLeadAttachmentFile(activeOrgId, leadId, file);
+          const { error: insErr } = await (
+            supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+          )
+            .from("lead_attachments")
+            .insert({
+            organization_id: activeOrgId,
+            lead_id: leadId,
+            storage_path: storagePath,
+            file_url: publicUrl,
+            file_name: file.name,
+            file_type: file.type || null,
+            file_size: file.size,
+            });
+          if (insErr) throw insErr;
+          successCount += 1;
+        } catch (fileErr: unknown) {
+          failures.push(`${file.name}: ${formatLeadAttachmentUploadError(fileErr)}`);
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: successCount === 1 ? "Anexo adicionado" : "Anexos adicionados",
+          description:
+            successCount === 1
+              ? `${successCount} arquivo enviado com sucesso.`
+              : `${successCount} arquivos enviados com sucesso.`,
+        });
+        await load();
+        notifyGlobal();
+      }
+
+      if (failures.length > 0) {
+        toast({
+          title: "Falha ao anexar alguns arquivos",
+          description: failures.slice(0, 2).join(" | "),
+          variant: "destructive",
+        });
+      }
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -133,7 +163,12 @@ export function LeadAttachmentsSection({ leadId, onChanged }: LeadAttachmentsSec
   const handleDelete = async (row: LeadAttachmentRow) => {
     setDeletingId(row.id);
     try {
-      const { error: delErr } = await (supabase as any).from("lead_attachments").delete().eq("id", row.id);
+      const { error: delErr } = await (
+        supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> }
+      )
+        .from("lead_attachments")
+        .delete()
+        .eq("id", row.id);
       if (delErr) throw delErr;
       await removeLeadAttachmentFromStorage(row.storage_path);
       toast({ title: "Anexo removido", description: row.file_name });
@@ -162,6 +197,7 @@ export function LeadAttachmentsSection({ leadId, onChanged }: LeadAttachmentsSec
             type="file"
             className="hidden"
             accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.doc,.docx,.xls,.xlsx,.csv,application/pdf,image/*"
+            multiple
             onChange={handleFile}
             disabled={uploading}
           />

@@ -8,6 +8,70 @@ export const MAX_LEAD_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 const SAFE_NAME = /[^a-zA-Z0-9._-]/g;
 
+/** Quando `File.type` vem vazio (comum em alguns mobile / exportações), inferir pelo nome. */
+export function guessMimeTypeFromFilename(filename: string): string | null {
+  const base = (filename.split(/[/\\]/).pop() || "").toLowerCase();
+  const dot = base.lastIndexOf(".");
+  const ext = dot >= 0 ? base.slice(dot + 1) : "";
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "pdf":
+      return "application/pdf";
+    case "txt":
+      return "text/plain";
+    case "csv":
+      return "text/csv";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return null;
+  }
+}
+
+export function resolveLeadAttachmentContentType(file: File): string {
+  const fromFile = (file.type || "").trim();
+  if (fromFile) return fromFile;
+  return guessMimeTypeFromFilename(file.name) || "application/octet-stream";
+}
+
+export function formatLeadAttachmentUploadError(err: unknown): string {
+  const raw =
+    err && typeof err === "object" && "message" in err
+      ? String((err as { message?: string }).message || "")
+      : err instanceof Error
+        ? err.message
+        : "Falha no envio";
+
+  const m = raw.toLowerCase();
+  if (m.includes("413") || m.includes("too large") || m.includes("maximum allowed size")) {
+    return "Arquivo grande demais para o armazenamento. Reduza o tamanho ou comprima a imagem.";
+  }
+  if (m.includes("403") || m.includes("row-level security") || m.includes("policy")) {
+    return "Sem permissão para enviar nesta organização. Recarregue a página ou fale com o administrador.";
+  }
+  if (m.includes("404") || m.includes("not found")) {
+    return "Storage indisponível ou bucket não configurado (404). Aguarde atualização do sistema ou contate o suporte.";
+  }
+  if (m.includes("mime") || m.includes("invalid")) {
+    return "Tipo de arquivo não aceito pelo servidor. Tente outro formato ou renomeie o arquivo.";
+  }
+  return raw || "Falha no envio";
+}
+
 export function sanitizeAttachmentFilename(name: string): string {
   const base = name.split(/[/\\]/).pop() || "arquivo";
   return base.replace(SAFE_NAME, "_").slice(0, 180) || "arquivo";
@@ -36,7 +100,7 @@ export async function uploadLeadAttachmentFile(
     .upload(storagePath, file, {
       upsert: false,
       cacheControl: "3600",
-      contentType: file.type || "application/octet-stream",
+      contentType: resolveLeadAttachmentContentType(file),
     });
   if (upErr) throw upErr;
 
