@@ -247,6 +247,10 @@ serve(async (req) => {
 
     // Processar cada mensagem
     for (const message of messages) {
+      // Declarar fora do try: o catch precisa de `config` para métricas (escopo do try não inclui catch)
+      let config: any = null;
+      let instanceError: any = null;
+
       try {
         console.log(`📤 Processando mensagem ${message.id} para ${message.phone}`);
         
@@ -255,8 +259,6 @@ serve(async (req) => {
         console.log(`🔗 [process-scheduled-messages] Instance ID: ${message.instance_id}`);
 
         // ✅ MELHORADO: Buscar configuração da instância com fallback (igual ao broadcast)
-        let config: any = null;
-        let instanceError: any = null;
         
         // Tentar buscar instância original
         const { data: originalConfig, error: originalError } = await supabase
