@@ -22,6 +22,10 @@ Depois de fazeres **clone** ou **Download ZIP** do repositório (com o `dist` j�
 
 Aí está o **`manifest.json`** e os ficheiros compilados. O workflow [extension-sync-dist.yml](../../.github/workflows/extension-sync-dist.yml) volta a gerar e fazer commit desta pasta quando o código da extensão muda no `main` (precisa dos secrets `VITE_*` no GitHub).
 
+### Windows: atalho com ficheiro batch
+
+Na pasta da extensão, executa (duplo clique) **[`instalar-no-chrome.bat`](instalar-no-chrome.bat)**. Ele procura o Chrome e abre-o com `--load-extension=…\dist` (carrega a extensão nessa sessão). Para **fixar** no perfil, usa depois **chrome://extensions** → Modo do programador → **Carregar sem compactação** → mesma pasta `dist`.
+
 ---
 
 O CI **também cria a Release sozinho** (tag `extension-v…` + ZIP anexado). Não é preciso usar o botão “Draft a new release” no GitHub.
