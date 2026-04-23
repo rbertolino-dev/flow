@@ -11,14 +11,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const checkAuth = useCallback(async () => {
     try {
-      // Aguardar mais tempo para garantir que a sessão está disponível após login
-      // Especialmente importante após window.location.replace
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Tentar obter a sessão múltiplas vezes para garantir
+      // Só aguardar se não há sessão em cache no localStorage (ex: logo após login com redirect).
+      // Evita 500ms de espera desnecessária em carregamentos normais já autenticados.
+      const supabaseProjectRef = "ogeljmbhqxpfjbpnbwog";
+      const hasLocalSession = !!localStorage.getItem(`sb-${supabaseProjectRef}-auth-token`);
+      if (!hasLocalSession) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Tentar obter a sessão. Para sessões em cache, uma tentativa é suficiente.
       let session = null;
       let attempts = 0;
-      const maxAttempts = 3;
+      const maxAttempts = hasLocalSession ? 1 : 3;
 
       while (!session && attempts < maxAttempts) {
         const { data, error } = await getSessionWithTimeout();
@@ -51,7 +55,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         session = data.session;
         
         if (!session && attempts < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
         attempts++;
       }

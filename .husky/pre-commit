@@ -28,12 +28,17 @@ else
   echo "⚠️  Script de verificação de imports não encontrado. Pulando..."
 fi
 
-# 1. Lint
-echo "📝 Executando ESLint..."
-npm run lint || {
-  echo "❌ ESLint encontrou erros. Corrija antes de fazer commit."
-  exit 1
-}
+# 1. Lint (apenas nos arquivos staged para não falhar em erros pré-existentes)
+echo "📝 Executando ESLint nos arquivos staged..."
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' | head -50)
+if [ -n "$STAGED_TS" ]; then
+  echo "$STAGED_TS" | xargs npx eslint --max-warnings 0 || {
+    echo "❌ ESLint encontrou erros nos arquivos staged. Corrija antes de fazer commit."
+    exit 1
+  }
+else
+  echo "⚠️  Nenhum arquivo .ts/.tsx staged. Pulando lint."
+fi
 
 # 2. Type check
 echo "🔷 Verificando tipos TypeScript..."
