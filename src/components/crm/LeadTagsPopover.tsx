@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect, memo } from "react";
 import type { Tag } from "@/types/lead";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -12,37 +12,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tag as TagIcon, X, Plus } from "lucide-react";
-import { useTags } from "@/hooks/useTags";
 import { useToast } from "@/hooks/use-toast";
 import { CreateTagDialog } from "@/components/shared/CreateTagDialog";
+import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 
 interface LeadTagsPopoverProps {
   leadId: string;
   leadTags: Tag[];
   onRefetch?: () => void;
   compact?: boolean;
+  /** Dados do `useTags()` no KanbanBoard — evita N subscrições realtime por card. */
+  orgTagsApi: LeadOrgTagsPickerApi;
 }
 
-export function LeadTagsPopover({
+export const LeadTagsPopover = memo(function LeadTagsPopover({
   leadId,
   leadTags,
   onRefetch,
   compact = false,
+  orgTagsApi,
 }: LeadTagsPopoverProps) {
-  const { tags, loading, addTagToLead, removeTagFromLead, refetch: refetchTagList } = useTags();
+  const { orgTags, orgTagsLoading, addTagToLead, removeTagFromLead, refetchOrgTags } = orgTagsApi;
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [addTagId, setAddTagId] = useState<string>("");
   const [createTagOpen, setCreateTagOpen] = useState(false);
 
-  const assignedIds = new Set(leadTags.map((t) => t.id));
-  const available = tags.filter((t) => !assignedIds.has(t.id));
+  const assignedIds = useMemo(() => new Set(leadTags.map((t) => t.id)), [leadTags]);
+  const available = useMemo(
+    () => orgTags.filter((t) => !assignedIds.has(t.id)),
+    [orgTags, assignedIds]
+  );
 
   const tooltipText =
     leadTags.length === 0
       ? "Nenhuma etiqueta\nClique para adicionar"
       : leadTags.map((t) => t.name).join("\n");
+
+  useEffect(() => {
+    if (!open) {
+      setAddTagId("");
+    }
+  }, [open]);
 
   const handleAdd = async () => {
     if (!addTagId) return;
@@ -133,6 +145,7 @@ export function LeadTagsPopover({
           className="w-80"
           align="start"
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="space-y-3">
             <div className="font-medium text-sm">Etiquetas</div>
@@ -174,11 +187,11 @@ export function LeadTagsPopover({
             </div>
             <div className="space-y-2">
               <span className="text-xs text-muted-foreground">Adicionar etiqueta</span>
-              {loading ? (
+              {orgTagsLoading ? (
                 <span className="text-xs text-muted-foreground">Carregando…</span>
               ) : available.length === 0 ? (
                 <span className="text-xs text-muted-foreground">
-                  {tags.length === 0
+                  {orgTags.length === 0
                     ? "Não há etiquetas na organização. Crie uma nova."
                     : "Todas as etiquetas já estão neste lead."}
                 </span>
@@ -232,13 +245,24 @@ export function LeadTagsPopover({
         </PopoverContent>
       </Popover>
 
-      <CreateTagDialog
-        open={createTagOpen}
-        onOpenChange={setCreateTagOpen}
-        onTagCreated={() => {
-          void refetchTagList();
-        }}
-      />
+      {createTagOpen ? (
+        <CreateTagDialog
+          open={createTagOpen}
+          onOpenChange={setCreateTagOpen}
+          onTagCreated={() => {
+            void refetchOrgTags();
+          }}
+        />
+      ) : null}
     </>
   );
-}
+}, (prev, next) => {
+  return (
+    prev.leadId === next.leadId &&
+    prev.compact === next.compact &&
+    prev.orgTagsApi.orgTags === next.orgTagsApi.orgTags &&
+    prev.orgTagsApi.orgTagsLoading === next.orgTagsApi.orgTagsLoading &&
+    JSON.stringify(prev.leadTags) === JSON.stringify(next.leadTags) &&
+    prev.onRefetch === next.onRefetch
+  );
+});

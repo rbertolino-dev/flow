@@ -9,6 +9,7 @@ import { PipelineStage } from "@/hooks/usePipelineStages";
 import { ColumnWidth, getColumnWidthClass } from "@/hooks/useKanbanSettings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, Loader2 } from "lucide-react";
+import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 
 const LEADS_PER_PAGE = 100;
 
@@ -30,9 +31,10 @@ interface KanbanColumnProps {
   compact?: boolean;
   pendingScheduleCountByLead?: Record<string, number>;
   onScheduleLead?: (lead: Lead) => void;
+  orgTagsApi: LeadOrgTagsPickerApi;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false, pendingScheduleCountByLead = {}, onScheduleLead }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false, pendingScheduleCountByLead = {}, onScheduleLead, orgTagsApi }: KanbanColumnProps) {
   const [displayLimit, setDisplayLimit] = useState(LEADS_PER_PAGE);
   const [isExpanding, setIsExpanding] = useState(false);
 
@@ -140,6 +142,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                     compact={compact}
                     pendingScheduledCount={pendingScheduleCountByLead[lead.id] ?? 0}
                     onScheduleLead={onScheduleLead}
+                    orgTagsApi={orgTagsApi}
                   />
                 </div>
               );

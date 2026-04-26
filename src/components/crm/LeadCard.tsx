@@ -15,6 +15,7 @@ import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
 import { LeadTagsPopover } from "./LeadTagsPopover";
 import { LeadBudgetBadge } from "./LeadBudgetBadge";
+import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 
 function leadCardLocationLine(lead: Lead): string | null {
   const parts: string[] = [];
@@ -44,6 +45,8 @@ interface LeadCardProps {
   compact?: boolean;
   pendingScheduledCount?: number;
   onScheduleLead?: (lead: Lead) => void;
+  /** API única do `useTags()` no funil — obrigatória para o botão de etiquetas. */
+  orgTagsApi: LeadOrgTagsPickerApi;
 }
 
 // ✅ OTIMIZAÇÃO: Memoizar componente para evitar re-renders desnecessários
@@ -62,6 +65,7 @@ export const LeadCard = memo(function LeadCard({
   compact = false,
   pendingScheduledCount = 0,
   onScheduleLead,
+  orgTagsApi,
 }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -397,6 +401,7 @@ export const LeadCard = memo(function LeadCard({
               leadTags={lead.tags ?? []}
               onRefetch={onRefetch}
               compact
+              orgTagsApi={orgTagsApi}
             />
             
             {onDelete && (
@@ -670,6 +675,7 @@ export const LeadCard = memo(function LeadCard({
             leadId={lead.id}
             leadTags={lead.tags ?? []}
             onRefetch={onRefetch}
+            orgTagsApi={orgTagsApi}
           />
           
           {onDelete && (
@@ -722,6 +728,8 @@ export const LeadCard = memo(function LeadCard({
     prevProps.lead.address === nextProps.lead.address &&
     prevProps.lead.birthDate === nextProps.lead.birthDate &&
     prevProps.pendingScheduledCount === nextProps.pendingScheduledCount &&
-    prevProps.onScheduleLead === nextProps.onScheduleLead
+    prevProps.onScheduleLead === nextProps.onScheduleLead &&
+    prevProps.orgTagsApi.orgTags === nextProps.orgTagsApi.orgTags &&
+    prevProps.orgTagsApi.orgTagsLoading === nextProps.orgTagsApi.orgTagsLoading
   );
 });

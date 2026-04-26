@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 import { Lead, LeadStatus, CallQueueItem } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
 import { LeadDetailModal } from "./LeadDetailModal";
@@ -71,7 +72,24 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState("");
   const [isAddingToList, setIsAddingToList] = useState(false);
-  const { tags, addTagToLead } = useTags();
+  const tagApi = useTags();
+  const { tags, addTagToLead } = tagApi;
+  const orgTagsApi = useMemo<LeadOrgTagsPickerApi>(
+    () => ({
+      orgTags: tagApi.tags,
+      orgTagsLoading: tagApi.loading,
+      addTagToLead: tagApi.addTagToLead,
+      removeTagFromLead: tagApi.removeTagFromLead,
+      refetchOrgTags: tagApi.refetch,
+    }),
+    [
+      tagApi.tags,
+      tagApi.loading,
+      tagApi.addTagToLead,
+      tagApi.removeTagFromLead,
+      tagApi.refetch,
+    ]
+  );
   const [addTagDialogOpen, setAddTagDialogOpen] = useState(false);
   const [selectedTagId, setSelectedTagId] = useState("");
   const [isAddingTag, setIsAddingTag] = useState(false);
@@ -845,6 +863,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   compact={cardSize === 'compact'}
                   pendingScheduleCountByLead={pendingScheduleCountByLead}
                   onScheduleLead={openScheduleForLead}
+                  orgTagsApi={orgTagsApi}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
@@ -896,6 +915,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
               onStageChange={() => {}}
               isSelected={false}
               onToggleSelection={() => {}}
+              orgTagsApi={orgTagsApi}
             />
           ) : null}
         </DragOverlay>
