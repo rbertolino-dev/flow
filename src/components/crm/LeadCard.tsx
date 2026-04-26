@@ -160,6 +160,7 @@ export const LeadCard = memo(function LeadCard({
     return (
       <Card
         ref={setNodeRef}
+        data-kanban-sortable-item=""
         style={style}
         {...attributes}
         {...listeners}
@@ -437,6 +438,7 @@ export const LeadCard = memo(function LeadCard({
   return (
     <Card
       ref={setNodeRef}
+      data-kanban-sortable-item=""
       style={style}
       {...attributes}
       {...listeners}

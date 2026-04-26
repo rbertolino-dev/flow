@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useTags } from "@/hooks/useTags";
+import { useKanbanHorizontalPan } from "@/hooks/useKanbanHorizontalPan";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -67,6 +68,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
   const { cardSize, toggleCardSize } = useViewPreference();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useKanbanHorizontalPan(scrollContainerRef);
   const { toast } = useToast();
   const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
@@ -835,7 +837,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
             <ChevronRight className="h-5 w-5" />
           </Button>
 
-          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-16 sm:pb-20 kanban-scroll pl-6 pr-6">
+          <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-16 sm:pb-20 kanban-scroll pl-6 pr-6 cursor-grab">
             {stages.map((stage) => {
               const columnLeads = normalizedLeads
                 .filter((lead) => lead.stageId === stage.id)
@@ -902,6 +904,9 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
           .kanban-scroll {
             scrollbar-width: auto;
             scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted));
+          }
+          .kanban-pan-grabbing {
+            cursor: grabbing !important;
           }
         `}</style>
 

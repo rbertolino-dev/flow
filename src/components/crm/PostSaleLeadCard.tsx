@@ -81,6 +81,7 @@ export function PostSaleLeadCard({
     return (
       <Card
         ref={setNodeRef}
+        data-kanban-sortable-item=""
         style={style}
         className={`cursor-pointer hover:shadow-md transition-shadow p-2 ${
           isSelected ? 'ring-2 ring-primary' : ''
@@ -112,6 +113,7 @@ export function PostSaleLeadCard({
   return (
     <Card
       ref={setNodeRef}
+      data-kanban-sortable-item=""
       style={style}
       {...attributes}
       {...listeners}

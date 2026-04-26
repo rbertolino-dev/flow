@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { CreatePostSaleLeadDialog } from "./CreatePostSaleLeadDialog";
 import { PostSaleStageManager } from "./PostSaleStageManager";
+import { useKanbanHorizontalPan } from "@/hooks/useKanbanHorizontalPan";
 
 interface PostSaleKanbanBoardProps {
   leads: PostSaleLead[];
@@ -30,6 +31,7 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const { stages, loading: stagesLoading } = usePostSaleStages();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useKanbanHorizontalPan(scrollContainerRef);
   const { toast } = useToast();
 
   const sensors = useSensors(
@@ -166,7 +168,10 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="h-full overflow-x-auto overflow-y-hidden" ref={scrollContainerRef}>
+          <div
+            className="h-full overflow-x-auto overflow-y-hidden cursor-grab kanban-scroll-postsale"
+            ref={scrollContainerRef}
+          >
             <div className="flex gap-4 p-4 h-full min-w-max">
               {sortedStages.map((stage) => (
                 <PostSaleKanbanColumn
@@ -204,6 +209,12 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
             ) : null}
           </DragOverlay>
         </DndContext>
+
+        <style>{`
+          .kanban-scroll-postsale.kanban-pan-grabbing {
+            cursor: grabbing !important;
+          }
+        `}</style>
 
         {/* Scroll Buttons */}
         <Button
@@ -259,7 +270,6 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
           onClose={() => {
             setSelectedLead(null);
             setOpenModalWithMessage(false);
-            setScheduleLead(null);
           }}
           onUpdated={() => {
             // Real-time atualiza automaticamente
