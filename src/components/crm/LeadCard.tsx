@@ -13,6 +13,7 @@ import { PipelineStage } from "@/hooks/usePipelineStages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TransferLeadToStageDialog } from "./TransferLeadToStageDialog";
 import { LeadAssigneesPopover } from "./LeadAssigneesPopover";
+import { LeadTagsPopover } from "./LeadTagsPopover";
 import { LeadBudgetBadge } from "./LeadBudgetBadge";
 
 function leadCardLocationLine(lead: Lead): string | null {
@@ -390,6 +391,13 @@ export const LeadCard = memo(function LeadCard({
               compact
               tooltipFallbackDisplay={lead.assignedTo}
             />
+
+            <LeadTagsPopover
+              leadId={lead.id}
+              leadTags={lead.tags ?? []}
+              onRefetch={onRefetch}
+              compact
+            />
             
             {onDelete && (
               <Button
@@ -656,6 +664,12 @@ export const LeadCard = memo(function LeadCard({
             assignees={lead.assignees ?? []}
             onRefetch={onRefetch}
             tooltipFallbackDisplay={lead.assignedTo}
+          />
+
+          <LeadTagsPopover
+            leadId={lead.id}
+            leadTags={lead.tags ?? []}
+            onRefetch={onRefetch}
           />
           
           {onDelete && (
