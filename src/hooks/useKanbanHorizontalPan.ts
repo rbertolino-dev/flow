@@ -1,4 +1,4 @@
-import { type RefObject, useEffect } from "react";
+import { type RefObject, useLayoutEffect } from "react";
 
 const SCROLL_AREA_VIEWPORT = "[data-radix-scroll-area-viewport]";
 const INTERACTIVE_SELECTOR =
@@ -29,7 +29,7 @@ export function useKanbanHorizontalPan(
   const enabled = options.enabled !== false;
   const shiftWheel = options.shiftWheel !== false;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !enabled) return;
 
@@ -54,9 +54,9 @@ export function useKanbanHorizontalPan(
       isPanning = false;
       el.classList.remove("kanban-pan-grabbing");
       document.body.style.userSelect = "";
-      window.removeEventListener("pointermove", onWindowPointerMove);
-      window.removeEventListener("pointerup", onWindowPointerUp);
-      window.removeEventListener("pointercancel", onWindowPointerUp);
+      window.removeEventListener("pointermove", onWindowPointerMove, true);
+      window.removeEventListener("pointerup", onWindowPointerUp, true);
+      window.removeEventListener("pointercancel", onWindowPointerUp, true);
     };
 
     const onWindowPointerMove = (e: PointerEvent) => {
@@ -89,6 +89,7 @@ export function useKanbanHorizontalPan(
 
       if (isPanning) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         el.scrollLeft = startScrollLeft - dx;
       }
     };
@@ -111,9 +112,9 @@ export function useKanbanHorizontalPan(
       downInsideRadixViewport =
         t instanceof Element && !!t.closest(SCROLL_AREA_VIEWPORT);
 
-      window.addEventListener("pointermove", onWindowPointerMove);
-      window.addEventListener("pointerup", onWindowPointerUp);
-      window.addEventListener("pointercancel", onWindowPointerUp);
+      window.addEventListener("pointermove", onWindowPointerMove, true);
+      window.addEventListener("pointerup", onWindowPointerUp, true);
+      window.addEventListener("pointercancel", onWindowPointerUp, true);
     };
 
     const onWheel = (e: WheelEvent) => {

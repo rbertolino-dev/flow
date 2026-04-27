@@ -68,7 +68,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const { columnWidth, updateColumnWidth } = useKanbanSettings();
   const { cardSize, toggleCardSize } = useViewPreference();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  useKanbanHorizontalPan(scrollContainerRef);
+  useKanbanHorizontalPan(scrollContainerRef, { enabled: !stagesLoading });
   const { toast } = useToast();
   const { lists, saveList, refetch: refetchLists } = useWorkflowLists();
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
@@ -110,7 +110,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 14,
       },
     })
   );

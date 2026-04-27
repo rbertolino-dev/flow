@@ -31,13 +31,13 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const { stages, loading: stagesLoading } = usePostSaleStages();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  useKanbanHorizontalPan(scrollContainerRef);
+  useKanbanHorizontalPan(scrollContainerRef, { enabled: !stagesLoading });
   const { toast } = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 14,
       },
     })
   );
