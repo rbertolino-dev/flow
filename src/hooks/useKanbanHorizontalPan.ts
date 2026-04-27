@@ -1,7 +1,6 @@
 import { type RefObject, useEffect } from "react";
 
 const SCROLL_AREA_VIEWPORT = "[data-radix-scroll-area-viewport]";
-const SORTABLE_ITEM = "[data-kanban-sortable-item]";
 const INTERACTIVE_SELECTOR =
   'button, a, input, textarea, select, [role="checkbox"], [role="switch"], [contenteditable="true"]';
 
@@ -9,7 +8,6 @@ const AXIS_THRESHOLD_PX = 10;
 
 function shouldIgnorePanStart(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return true;
-  if (target.closest(SORTABLE_ITEM)) return true;
   if (target.closest(INTERACTIVE_SELECTOR)) return true;
   return false;
 }
