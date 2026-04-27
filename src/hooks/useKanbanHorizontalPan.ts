@@ -1,6 +1,7 @@
 import { type RefObject, useLayoutEffect } from "react";
 
 const SCROLL_AREA_VIEWPORT = "[data-radix-scroll-area-viewport]";
+const SORTABLE_ITEM = "[data-kanban-sortable-item]";
 const INTERACTIVE_SELECTOR =
   'button, a, input, textarea, select, [role="checkbox"], [role="switch"], [contenteditable="true"]';
 
@@ -8,6 +9,7 @@ const AXIS_THRESHOLD_PX = 10;
 
 function shouldIgnorePanStart(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return true;
+  if (target.closest(SORTABLE_ITEM)) return true;
   if (target.closest(INTERACTIVE_SELECTOR)) return true;
   return false;
 }
@@ -19,8 +21,9 @@ export type UseKanbanHorizontalPanOptions = {
 };
 
 /**
- * Pan horizontal por arrastar no container com overflow-x (funil kanban),
- * sem interferir com @dnd-kit sortable nem com scroll vertical nas colunas Radix.
+ * Pan horizontal por arrastar no container com overflow-x (funil kanban).
+ * O gesto NÃO inicia em `[data-kanban-sortable-item]` (card) para não competir com o DnD.
+ * Use cabeçalho da coluna, espaço vazio na lista ou Shift+roda.
  */
 export function useKanbanHorizontalPan(
   ref: RefObject<HTMLElement | null>,
@@ -54,9 +57,9 @@ export function useKanbanHorizontalPan(
       isPanning = false;
       el.classList.remove("kanban-pan-grabbing");
       document.body.style.userSelect = "";
-      window.removeEventListener("pointermove", onWindowPointerMove, true);
-      window.removeEventListener("pointerup", onWindowPointerUp, true);
-      window.removeEventListener("pointercancel", onWindowPointerUp, true);
+      window.removeEventListener("pointermove", onWindowPointerMove);
+      window.removeEventListener("pointerup", onWindowPointerUp);
+      window.removeEventListener("pointercancel", onWindowPointerUp);
     };
 
     const onWindowPointerMove = (e: PointerEvent) => {
@@ -89,7 +92,6 @@ export function useKanbanHorizontalPan(
 
       if (isPanning) {
         e.preventDefault();
-        e.stopImmediatePropagation();
         el.scrollLeft = startScrollLeft - dx;
       }
     };
@@ -112,9 +114,9 @@ export function useKanbanHorizontalPan(
       downInsideRadixViewport =
         t instanceof Element && !!t.closest(SCROLL_AREA_VIEWPORT);
 
-      window.addEventListener("pointermove", onWindowPointerMove, true);
-      window.addEventListener("pointerup", onWindowPointerUp, true);
-      window.addEventListener("pointercancel", onWindowPointerUp, true);
+      window.addEventListener("pointermove", onWindowPointerMove);
+      window.addEventListener("pointerup", onWindowPointerUp);
+      window.addEventListener("pointercancel", onWindowPointerUp);
     };
 
     const onWheel = (e: WheelEvent) => {

@@ -37,7 +37,7 @@ export function PostSaleKanbanBoard({ leads, onLeadUpdate, searchQuery = "", onR
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 14,
+        distance: 8,
       },
     })
   );
