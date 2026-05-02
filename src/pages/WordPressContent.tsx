@@ -3,7 +3,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useNavigate } from "react-router-dom";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
-import { useWordPressConfig } from "@/hooks/useWordPressConfig";
+import { useWordPressConfig, type WordPressAuthMethod } from "@/hooks/useWordPressConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 /** JWT explícito evita falhas intermitentes do invoke atrás de proxy / sem sessão em cache. */
 async function getCrmAccessTokenForFunctions(): Promise<string> {
@@ -52,6 +53,7 @@ function buildFunctionsInvokeHeaders(accessToken: string): Record<string, string
 type WpVerifyResult =
   | {
       ok: true;
+      wp_auth_method: WordPressAuthMethod;
       wp_user_slug: string;
       wp_roles: string[];
       can_create_posts: boolean;
@@ -72,15 +74,19 @@ async function fetchWordPressVerify(organizationId: string): Promise<WpVerifyRes
   const d = data as {
     ok?: boolean;
     error?: string;
+    wp_auth_method?: string;
     wp_user_slug?: string;
     wp_roles?: string[];
     can_create_posts?: boolean;
     can_publish_posts?: boolean;
     hint?: string;
   };
+  const methodFromApi: WordPressAuthMethod =
+    d?.wp_auth_method === "account_password" ? "account_password" : "application_password";
   if (d?.ok === true && typeof d.wp_user_slug === "string" && Array.isArray(d.wp_roles)) {
     return {
       ok: true,
+      wp_auth_method: methodFromApi,
       wp_user_slug: d.wp_user_slug,
       wp_roles: d.wp_roles,
       can_create_posts: !!d.can_create_posts,
@@ -108,6 +114,7 @@ export default function WordPressContent() {
   const [siteUrl, setSiteUrl] = useState("");
   const [wpUser, setWpUser] = useState("");
   const [wpPass, setWpPass] = useState("");
+  const [authMethod, setAuthMethod] = useState<WordPressAuthMethod>("application_password");
   const [showPass, setShowPass] = useState(false);
 
   const [prompt, setPrompt] = useState("");
@@ -122,6 +129,9 @@ export default function WordPressContent() {
   /** Evita mostrar dados da org anterior ao mudar de organização */
   const lastOrgForResetRef = useRef<string | null>(null);
 
+  const storedAuthMethod: WordPressAuthMethod =
+    config?.auth_method === "account_password" ? "account_password" : "application_password";
+
   const canRunWpVerify =
     !!activeOrgId &&
     !!config?.site_url?.trim() &&
@@ -133,7 +143,7 @@ export default function WordPressContent() {
     isFetching: verifyingWp,
     refetch: refetchWpVerify,
   } = useQuery({
-    queryKey: ["wordpress-verify", activeOrgId],
+    queryKey: ["wordpress-verify", activeOrgId, storedAuthMethod],
     queryFn: () => fetchWordPressVerify(activeOrgId!),
     enabled: canRunWpVerify,
     staleTime: 3 * 60 * 1000,
@@ -190,6 +200,7 @@ export default function WordPressContent() {
       setSiteUrl("");
       setWpUser("");
       setWpPass("");
+      setAuthMethod("application_password");
     }
   }, [activeOrgId]);
 
@@ -199,10 +210,14 @@ export default function WordPressContent() {
       setSiteUrl(config.site_url ?? "");
       setWpUser(config.wp_username ?? "");
       setWpPass("");
+      setAuthMethod(
+        config.auth_method === "account_password" ? "account_password" : "application_password",
+      );
     } else if (!config) {
       setSiteUrl("");
       setWpUser("");
       setWpPass("");
+      setAuthMethod("application_password");
     }
   }, [activeOrgId, config, loadingWp]);
 
@@ -227,7 +242,10 @@ export default function WordPressContent() {
     if (!siteUrl.trim() || !wpUser.trim() || !pass) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha URL do site, utilizador e senha de aplicação.",
+        description:
+          authMethod === "account_password"
+            ? "Preencha URL do site, utilizador e palavra-passe da conta."
+            : "Preencha URL do site, utilizador e senha de aplicação.",
         variant: "destructive",
       });
       return;
@@ -237,23 +255,35 @@ export default function WordPressContent() {
         site_url: siteUrl.trim(),
         wp_username: wpUser.trim(),
         application_password: pass,
+        auth_method: authMethod,
       });
       if (saved) {
         setSiteUrl(saved.site_url ?? "");
         setWpUser(saved.wp_username ?? "");
         setWpPass("");
+        setAuthMethod(
+          saved.auth_method === "account_password" ? "account_password" : "application_password",
+        );
       }
       if (activeOrgId) {
-        await queryClient.invalidateQueries({ queryKey: ["wordpress-verify", activeOrgId] });
+        const methodAfterSave: WordPressAuthMethod =
+          saved?.auth_method === "account_password" ? "account_password" : "application_password";
+        await queryClient.invalidateQueries({
+          queryKey: ["wordpress-verify", activeOrgId, methodAfterSave],
+        });
         try {
           const v = await queryClient.fetchQuery({
-            queryKey: ["wordpress-verify", activeOrgId],
+            queryKey: ["wordpress-verify", activeOrgId, methodAfterSave],
             queryFn: () => fetchWordPressVerify(activeOrgId),
           });
           if (v.ok) {
+            const modo =
+              v.wp_auth_method === "account_password"
+                ? "Palavra-passe da conta"
+                : "Senha de aplicação";
             toast({
               title: "WordPress ligado",
-              description: `REST API aceitou o utilizador «${v.wp_user_slug}» (${v.wp_roles.join(", ") || "sem papéis listados"}).`,
+              description: `Modo: ${modo}. REST API aceitou «${v.wp_user_slug}» (${v.wp_roles.join(", ") || "sem papéis listados"}).`,
             });
           } else {
             toast({
@@ -378,32 +408,45 @@ export default function WordPressContent() {
 
           <Alert>
             <AlertDescription className="space-y-2">
-              <p className="font-medium">
-                O CRM <strong>não gera</strong> a senha no WordPress: tem de a criar no perfil do
-                utilizador no wp-admin e depois colar aqui.
-              </p>
-              <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>
-                  No WordPress: <strong>Utilizadores</strong> → <strong>Perfil</strong> (ou editar o seu
-                  utilizador) → secção <strong>Senhas de aplicação</strong>.
-                </li>
-                <li>
-                  Em <strong>Nome da nova senha de aplicação</strong> escreva só um rótulo para si
-                  (ex.: <em>CRM</em> ou <em>Agilize</em>) — <strong>não</strong> é a palavra-passe;
-                  serve para identificar a linha na tabela.
-                </li>
-                <li>
-                  Clique em <strong>Adicionar senha de aplicação</strong>. O WordPress mostra{" "}
-                  <strong>uma vez</strong> a senha gerada (vários caracteres). Copie{" "}
-                  <strong>tudo</strong> e cole no campo <strong>Senha de aplicação</strong> abaixo,
-                  sem espaços no início/fim.
-                </li>
-                <li>
-                  Se fechou essa janela e já não tem a senha: em <strong>Revogar</strong> apague essa
-                  linha e crie outra; a tabela só mostra o <em>nome</em> que deu, não volta a mostrar a
-                  senha.
-                </li>
-              </ol>
+              {authMethod === "application_password" ? (
+                <>
+                  <p className="font-medium">
+                    Modo <strong>senha de aplicação</strong> (recomendado): o CRM{" "}
+                    <strong>não gera</strong> a senha — crie-a no perfil do utilizador no wp-admin.
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 text-sm">
+                    <li>
+                      No WordPress: <strong>Utilizadores</strong> → <strong>Perfil</strong> (ou editar
+                      o seu utilizador) → secção <strong>Senhas de aplicação</strong>.
+                    </li>
+                    <li>
+                      Em <strong>Nome da nova senha de aplicação</strong> escreva só um rótulo (ex.:{" "}
+                      <em>CRM</em>) — <strong>não</strong> é a palavra-passe.
+                    </li>
+                    <li>
+                      Clique em <strong>Adicionar senha de aplicação</strong>. Copie a senha mostrada{" "}
+                      <strong>uma vez</strong> e cole abaixo, sem espaços.
+                    </li>
+                    <li>
+                      Perdeu a senha? <strong>Revogue</strong> essa linha e crie outra.
+                    </li>
+                  </ol>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">
+                    Modo <strong>palavra-passe da conta</strong>: usa a mesma palavra-passe com que
+                    entra no wp-admin. Útil se o alojamento não permitir senhas de aplicação;{" "}
+                    <strong>menos seguro</strong> (revogar a integração implica alterar a palavra-passe
+                    da conta ou desativar o utilizador).
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    O WordPress recomenda senhas de aplicação para integrações. Só use este modo se
+                    souber o risco e se a REST API aceitar Basic Auth com a palavra-passe principal
+                    (nem todos os sites/plugins permitem).
+                  </p>
+                </>
+              )}
               <p>
                 Para <strong>publicar já</strong>, a conta tem de ser pelo menos{" "}
                 <strong>Editor</strong>, <strong>Administrador</strong> ou <strong>Autor</strong>.{" "}
@@ -412,19 +455,17 @@ export default function WordPressContent() {
                 <code className="text-xs">/wp-json/</code>.
               </p>
               <p className="text-xs text-muted-foreground">
-                Integração oficial: Application Passwords + REST API (recomendado pelo WordPress).{" "}
-                Alternativas como JWT exigem instalar e configurar plugins no site.
+                Ambos os modos usam REST API + Basic Auth (oficial para senhas de aplicação). JWT ou
+                OAuth exigem plugins extra no site.
               </p>
               <p className="text-xs text-muted-foreground">
                 Se o erro mencionar «sessão iniciada», em quase todos os casos é o{" "}
-                <strong>WordPress</strong> a recusar a senha de aplicação, não o login do CRM.
+                <strong>WordPress</strong> a recusar as credenciais REST, não o login do CRM.
               </p>
               <p>
                 Em <strong>Utilizador WordPress</strong> use o <strong>nome de utilizador</strong>{" "}
-                (campo &quot;Nome de utilizador&quot; em Utilizadores → editar) — a mesma coisa com
-                que costuma entrar no <em>wp-admin</em>. <strong>Não use o e-mail</strong> nem o
-                &quot;Nome público&quot;, salvo se o teu WordPress estiver configurado para login
-                por e-mail (raro).
+                (Utilizadores → editar). <strong>Não use o e-mail</strong> nem o &quot;Nome
+                público&quot;, salvo login por e-mail configurado.
               </p>
               <p>
                 Ative a REST API e evite plugins que bloqueiem{" "}
@@ -449,8 +490,9 @@ export default function WordPressContent() {
             <CardHeader>
               <CardTitle>WordPress</CardTitle>
               <CardDescription>
-                URL do site (sem /wp-json), login do WordPress e senha de aplicação desse mesmo
-                utilizador.
+                URL do site (sem /wp-json), utilizador e palavra-passe conforme o modo de integração
+                abaixo. Depois de guardar, o estado <strong>Conectado</strong> confirma que a REST API
+                respondeu com sucesso.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -458,6 +500,41 @@ export default function WordPressContent() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : (
                 <>
+                  <div className="space-y-3">
+                    <Label className="text-base">Forma de integração</Label>
+                    <RadioGroup
+                      value={authMethod}
+                      onValueChange={(v) => setAuthMethod(v as WordPressAuthMethod)}
+                      className="grid gap-3 sm:grid-cols-1"
+                    >
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <RadioGroupItem
+                          value="application_password"
+                          id="wp-auth-app"
+                          className="mt-1"
+                        />
+                        <div>
+                          <Label htmlFor="wp-auth-app" className="font-medium cursor-pointer">
+                            Senha de aplicação
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Recomendado — gere no perfil WordPress e cole aqui.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <RadioGroupItem value="account_password" id="wp-auth-account" className="mt-1" />
+                        <div>
+                          <Label htmlFor="wp-auth-account" className="font-medium cursor-pointer">
+                            Palavra-passe da conta (login wp-admin)
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Avançado — a mesma palavra-passe do utilizador no painel.
+                          </p>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="wp-site">URL do site</Label>
                     <Input
@@ -485,7 +562,11 @@ export default function WordPressContent() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="wp-pass">Senha de aplicação</Label>
+                    <Label htmlFor="wp-pass">
+                      {authMethod === "account_password"
+                        ? "Palavra-passe da conta"
+                        : "Senha de aplicação"}
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         id="wp-pass"
@@ -509,8 +590,14 @@ export default function WordPressContent() {
                   {config && (
                     <p className="text-sm text-muted-foreground">
                       Dados guardados para esta organização. URL e utilizador voltam a aparecer ao
-                      reabrir a página; a senha de aplicação fica oculta (use &quot;deixe vazio para
-                      manter&quot; ou introduza de novo para alterar).
+                      reabrir a página; a palavra-passe fica oculta (deixe vazio para manter ou
+                      introduza de novo para alterar). O modo de integração guardado:{" "}
+                      <strong>
+                        {storedAuthMethod === "account_password"
+                          ? "palavra-passe da conta"
+                          : "senha de aplicação"}
+                      </strong>
+                      .
                     </p>
                   )}
 
@@ -550,6 +637,14 @@ export default function WordPressContent() {
                       </div>
                       {wpVerify?.ok ? (
                         <p className="text-sm text-muted-foreground">
+                          <span className="block text-foreground/90 mb-1">
+                            Teste positivo · Modo:{" "}
+                            <strong>
+                              {wpVerify.wp_auth_method === "account_password"
+                                ? "palavra-passe da conta"
+                                : "senha de aplicação"}
+                            </strong>
+                          </span>
                           Utilizador na API: <strong>{wpVerify.wp_user_slug}</strong>
                           {wpVerify.wp_roles.length > 0
                             ? ` · Papéis: ${wpVerify.wp_roles.join(", ")}`

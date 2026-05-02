@@ -67,8 +67,8 @@ function explainWpRestNotLoggedIn(code: string | undefined, rawMessage: string):
   ) {
     return (
       "O WordPress respondeu como se ninguém estivesse autenticado (mensagem tipo «sem sessão» no site). " +
-      "Isto não é a sessão do CRM: é a senha de aplicação ou o pedido à REST API. " +
-      "Verifique: (1) nome de utilizador = login exato do wp-admin; (2) senha de aplicação correta, sem espaços; " +
+      "Isto não é a sessão do CRM: são as credenciais REST (Basic Auth) ou o pedido à API. " +
+      "Verifique: (1) nome de utilizador = login exato do wp-admin; (2) senha de aplicação ou palavra-passe da conta correta, sem espaços; " +
       "(3) no alojamento WordPress, o servidor/proxy não pode remover o cabeçalho Authorization; " +
       "(4) plugins de segurança não bloqueiam /wp-json/ para utilizadores autenticados."
     );
@@ -89,7 +89,7 @@ async function wpFetchCurrentUser(
     let msg = "Não foi possível validar o utilizador WordPress (REST API).";
     if (res.status === 401) {
       msg =
-        "WordPress recusou o login. Confirme o nome de utilizador (não o e-mail nem o nome público) e a senha de aplicação.";
+        "WordPress recusou o login. Confirme o nome de utilizador (não o e-mail nem o nome público) e a palavra-passe (senha de aplicação ou da conta, conforme escolheu).";
     } else if (res.status === 403) {
       msg =
         "REST API bloqueada ou sem acesso a /users/me. Desative bloqueios em plugins de segurança ou allowlist da REST API.";
@@ -349,13 +349,13 @@ serve(async (req) => {
 
       const { data: wpConfig, error: wpErr } = await supabase
         .from("wordpress_configs")
-        .select("site_url, wp_username, application_password")
+        .select("site_url, wp_username, application_password, auth_method")
         .eq("organization_id", organization_id)
         .maybeSingle();
 
       if (wpErr || !wpConfig?.site_url || !wpConfig?.wp_username || !wpConfig?.application_password) {
         return json(
-          { error: "Configure o WordPress (URL, utilizador e senha de aplicação)." },
+          { error: "Configure o WordPress (URL, utilizador e palavra-passe / senha de aplicação)." },
           400,
         );
       }
@@ -378,7 +378,7 @@ serve(async (req) => {
           {
             error:
               "Esta conta WordPress não tem permissão para criar artigos (papel «Subscritor» ou sem capacidade de edição). " +
-              "Crie a senha de aplicação num utilizador com papel Editor ou Administrador.",
+              "Use um utilizador com papel Editor ou Administrador nas credenciais guardadas.",
           },
           200,
         );
@@ -484,31 +484,41 @@ serve(async (req) => {
       const userOverride = typeof body.wp_username === "string" ? body.wp_username.trim() : "";
       const passOverride =
         typeof body.application_password === "string" ? body.application_password : "";
+      const authMethodRaw = typeof body.auth_method === "string" ? body.auth_method.trim() : "";
+      const authMethodOverride =
+        authMethodRaw === "account_password" || authMethodRaw === "application_password"
+          ? authMethodRaw
+          : undefined;
 
       let siteUrl: string;
       let wpUser: string;
       let appPass: string;
+      let wpAuthMethod: "application_password" | "account_password" = "application_password";
 
       if (siteOverride && userOverride && passOverride.replace(/\s+/g, "").length > 0) {
         siteUrl = siteOverride;
         wpUser = userOverride;
         appPass = passOverride.replace(/\s+/g, "");
+        wpAuthMethod = authMethodOverride ?? "application_password";
       } else {
         const { data: wpConfig, error: wpErr } = await supabase
           .from("wordpress_configs")
-          .select("site_url, wp_username, application_password")
+          .select("site_url, wp_username, application_password, auth_method")
           .eq("organization_id", organization_id)
           .maybeSingle();
 
         if (wpErr || !wpConfig?.site_url || !wpConfig?.wp_username || !wpConfig?.application_password) {
           return json(
-            { ok: false, error: "Guarde primeiro a URL, utilizador e senha de aplicação." },
+            { ok: false, error: "Guarde primeiro a URL, utilizador e palavra-passe (modo escolhido)." },
             200,
           );
         }
         siteUrl = String(wpConfig.site_url).trim();
         wpUser = String(wpConfig.wp_username).trim();
         appPass = String(wpConfig.application_password).replace(/\s+/g, "");
+        const am = String(wpConfig.auth_method || "application_password");
+        wpAuthMethod =
+          am === "account_password" ? "account_password" : "application_password";
       }
 
       const auth = basicAuthHeader(wpUser, appPass);
@@ -523,6 +533,7 @@ serve(async (req) => {
       return json(
         {
           ok: true,
+          wp_auth_method: wpAuthMethod,
           wp_user_slug: me.slug,
           wp_roles: me.roles,
           can_create_posts: canCreate,

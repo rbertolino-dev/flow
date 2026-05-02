@@ -4486,6 +4486,7 @@ export type Database = {
       wordpress_configs: {
         Row: {
           application_password: string
+          auth_method: string
           created_at: string
           id: string
           organization_id: string
@@ -4495,6 +4496,7 @@ export type Database = {
         }
         Insert: {
           application_password: string
+          auth_method?: string
           created_at?: string
           id?: string
           organization_id: string
@@ -4504,6 +4506,7 @@ export type Database = {
         }
         Update: {
           application_password?: string
+          auth_method?: string
           created_at?: string
           id?: string
           organization_id?: string

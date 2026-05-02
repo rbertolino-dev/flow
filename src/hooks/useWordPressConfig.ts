@@ -3,12 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+/** application_password = senha gerada no perfil WP; account_password = palavra-passe de login (avançado). */
+export type WordPressAuthMethod = "application_password" | "account_password";
+
 export type WordPressConfigRow = {
   id: string;
   organization_id: string;
   site_url: string;
   wp_username: string;
   application_password: string;
+  /** Presente após migration `wordpress_auth_method`; ausente = tratar como application_password. */
+  auth_method?: WordPressAuthMethod;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +45,7 @@ export function useWordPressConfig() {
       site_url: string;
       wp_username: string;
       application_password: string;
+      auth_method: WordPressAuthMethod;
     }) => {
       if (!activeOrgId) throw new Error("Nenhuma organização selecionada");
 
@@ -51,6 +57,7 @@ export function useWordPressConfig() {
             site_url: input.site_url.trim(),
             wp_username: input.wp_username.trim(),
             application_password: input.application_password.replace(/\s+/g, ""),
+            auth_method: input.auth_method,
           },
           { onConflict: "organization_id" },
         )
