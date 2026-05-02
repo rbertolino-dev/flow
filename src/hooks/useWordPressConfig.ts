@@ -22,6 +22,8 @@ export type WordPressConfigRow = {
   application_password: string;
   /** Presente após migration `wordpress_auth_method`; ausente = tratar como application_password. */
   auth_method?: WordPressAuthMethod;
+  /** Cabeçalho Bearer alternativo (miniOrange); opcional. */
+  jwt_header_name?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -54,8 +56,14 @@ export function useWordPressConfig() {
       wp_username: string;
       application_password: string;
       auth_method: WordPressAuthMethod;
+      jwt_header_name?: string | null;
     }) => {
       if (!activeOrgId) throw new Error("Nenhuma organização selecionada");
+
+      const jwtHeader =
+        input.auth_method === "jwt" || input.auth_method === "jwt_miniorange"
+          ? (input.jwt_header_name?.trim() || null)
+          : null;
 
       const { data, error } = await supabase
         .from("wordpress_configs")
@@ -66,6 +74,7 @@ export function useWordPressConfig() {
             wp_username: input.wp_username.trim(),
             application_password: input.application_password.replace(/\s+/g, ""),
             auth_method: input.auth_method,
+            jwt_header_name: jwtHeader,
           },
           { onConflict: "organization_id" },
         )

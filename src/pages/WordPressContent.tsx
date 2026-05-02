@@ -41,6 +41,13 @@ function authMethodLabel(m: WordPressAuthMethod): string {
   return "senha de aplicação";
 }
 
+/** Alinhado à edge: letra inicial + alfanumérico, _ e - */
+function isValidOptionalJwtHeaderName(s: string): boolean {
+  const t = s.trim();
+  if (!t) return true;
+  return t.length <= 128 && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(t);
+}
+
 /** JWT explícito evita falhas intermitentes do invoke atrás de proxy / sem sessão em cache. */
 async function getCrmAccessTokenForFunctions(): Promise<string> {
   const {
@@ -128,6 +135,7 @@ export default function WordPressContent() {
   const [wpUser, setWpUser] = useState("");
   const [wpPass, setWpPass] = useState("");
   const [authMethod, setAuthMethod] = useState<WordPressAuthMethod>("application_password");
+  const [jwtHeaderName, setJwtHeaderName] = useState("");
   const [showPass, setShowPass] = useState(false);
 
   const [prompt, setPrompt] = useState("");
@@ -143,6 +151,7 @@ export default function WordPressContent() {
   const lastOrgForResetRef = useRef<string | null>(null);
 
   const storedAuthMethod: WordPressAuthMethod = parseWpAuthMethodFromApi(config?.auth_method);
+  const storedJwtHeader = (config?.jwt_header_name ?? "").trim();
 
   const canRunWpVerify =
     !!activeOrgId &&
@@ -155,7 +164,7 @@ export default function WordPressContent() {
     isFetching: verifyingWp,
     refetch: refetchWpVerify,
   } = useQuery({
-    queryKey: ["wordpress-verify", activeOrgId, storedAuthMethod],
+    queryKey: ["wordpress-verify", activeOrgId, storedAuthMethod, storedJwtHeader],
     queryFn: () => fetchWordPressVerify(activeOrgId!),
     enabled: canRunWpVerify,
     staleTime: 3 * 60 * 1000,
@@ -206,6 +215,7 @@ export default function WordPressContent() {
       setWpUser("");
       setWpPass("");
       setAuthMethod("application_password");
+      setJwtHeaderName("");
       return;
     }
     if (lastOrgForResetRef.current !== activeOrgId) {
@@ -214,6 +224,7 @@ export default function WordPressContent() {
       setWpUser("");
       setWpPass("");
       setAuthMethod("application_password");
+      setJwtHeaderName("");
     }
   }, [activeOrgId]);
 
@@ -224,11 +235,13 @@ export default function WordPressContent() {
       setWpUser(config.wp_username ?? "");
       setWpPass("");
       setAuthMethod(parseWpAuthMethodFromApi(config.auth_method));
+      setJwtHeaderName(config.jwt_header_name?.trim() ?? "");
     } else if (!config) {
       setSiteUrl("");
       setWpUser("");
       setWpPass("");
       setAuthMethod("application_password");
+      setJwtHeaderName("");
     }
   }, [activeOrgId, config, loadingWp]);
 
@@ -249,6 +262,19 @@ export default function WordPressContent() {
   };
 
   const saveWordPress = async () => {
+    if (
+      (authMethod === "jwt" || authMethod === "jwt_miniorange") &&
+      jwtHeaderName.trim() &&
+      !isValidOptionalJwtHeaderName(jwtHeaderName)
+    ) {
+      toast({
+        title: "Cabeçalho JWT inválido",
+        description:
+          "Use só letras, números, _ e - (ex.: X-JWT-Token). Comece com uma letra. Deixe vazio para o cabeçalho Authorization.",
+        variant: "destructive",
+      });
+      return;
+    }
     const pass = wpPass.trim() || config?.application_password || "";
     if (!siteUrl.trim() || !wpUser.trim() || !pass) {
       toast({
@@ -269,12 +295,17 @@ export default function WordPressContent() {
         wp_username: wpUser.trim(),
         application_password: pass,
         auth_method: authMethod,
+        jwt_header_name:
+          authMethod === "jwt" || authMethod === "jwt_miniorange"
+            ? jwtHeaderName.trim() || null
+            : null,
       });
       if (saved) {
         setSiteUrl(saved.site_url ?? "");
         setWpUser(saved.wp_username ?? "");
         setWpPass("");
         setAuthMethod(parseWpAuthMethodFromApi(saved.auth_method));
+        setJwtHeaderName(saved.jwt_header_name?.trim() ?? "");
       }
       if (activeOrgId) {
         const methodAfterSave: WordPressAuthMethod = parseWpAuthMethodFromApi(saved?.auth_method);
@@ -559,9 +590,11 @@ export default function WordPressContent() {
             <CardHeader>
               <CardTitle>WordPress</CardTitle>
               <CardDescription>
-                URL do site (sem /wp-json), utilizador e palavra-passe conforme o modo de integração
-                abaixo. Depois de guardar, o estado <strong>Conectado</strong> confirma que a REST API
-                respondeu com sucesso.
+                URL do site (sem <code className="text-xs">/wp-json</code>), utilizador e palavra-passe
+                conforme o modo abaixo. Prefira a <strong>URL canónica</strong> (a que fica na barra do
+                navegador após redirecionamentos, por exemplo <code className="text-xs">https</code> e{" "}
+                <code className="text-xs">www</code>) — evita falhas de autenticação por redirect.
+                Depois de guardar, <strong>Conectado</strong> confirma que a REST API respondeu.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -695,6 +728,29 @@ export default function WordPressContent() {
                       </Button>
                     </div>
                   </div>
+                  {(authMethod === "jwt" || authMethod === "jwt_miniorange") && (
+                    <div className="space-y-2">
+                      <Label htmlFor="wp-jwt-header">Cabeçalho JWT personalizado (opcional)</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Só se configurou um <strong>cabeçalho personalizado</strong> no miniOrange
+                        (Separador Advanced). Valor típico:{" "}
+                        <code className="text-xs">X-JWT-Token</code>. Deixe vazio para usar{" "}
+                        <code className="text-xs">Authorization</code>.
+                      </p>
+                      <Input
+                        id="wp-jwt-header"
+                        placeholder="ex.: X-JWT-Token"
+                        autoComplete="off"
+                        value={jwtHeaderName}
+                        onChange={(e) => setJwtHeaderName(e.target.value)}
+                      />
+                      {jwtHeaderName.trim() && !isValidOptionalJwtHeaderName(jwtHeaderName) && (
+                        <p className="text-sm text-destructive">
+                          Formato inválido: comece com uma letra; só letras, números, _ e -.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {config && (
                     <p className="text-sm text-muted-foreground">
                       Dados guardados para esta organização. URL e utilizador voltam a aparecer ao

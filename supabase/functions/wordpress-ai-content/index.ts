@@ -25,6 +25,61 @@ function normalizeSiteUrl(raw: string): string {
   return u;
 }
 
+/**
+ * Segue redirects (http→https, www) sem enviar credenciais, e devolve a base correta para /wp-json.
+ * Sem isto, o fetch pode trocar de origem no redirect e o cliente deixa de reenviar Authorization/Bearer.
+ */
+async function resolveWpSiteBase(raw: string): Promise<string> {
+  const normalized = normalizeSiteUrl(raw);
+  let initial: URL;
+  try {
+    initial = new URL(normalized);
+  } catch {
+    return normalized.replace(/\/+$/, "");
+  }
+  const pathPrefix = (initial.pathname || "").replace(/\/+$/, "");
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch(normalized, {
+      method: "GET",
+      redirect: "follow",
+      signal: ctrl.signal,
+      headers: { Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8" },
+    });
+    clearTimeout(tid);
+    const final = new URL(res.url);
+    const origin = `${final.protocol}//${final.host}`;
+    const base = pathPrefix ? `${origin}${pathPrefix}` : origin;
+    return base.replace(/\/+$/, "");
+  } catch {
+    const originFallback = `${initial.protocol}//${initial.host}`;
+    const base = pathPrefix ? `${originFallback}${pathPrefix}` : originFallback;
+    return base.replace(/\/+$/, "");
+  }
+}
+
+/** Nome de cabeçalho HTTP seguro (miniOrange Advanced > Custom Header). */
+function normalizeJwtHeaderName(raw: string | null | undefined): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s || s.length > 128) return null;
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(s)) return null;
+  return s;
+}
+
+/** Cabeçalhos de autenticação na REST API WP (miniOrange pode exigir cabeçalho personalizado). */
+function wpRestAuthHeaders(
+  authorizationValue: string,
+  opts: { jwtModes: boolean; jwtHeaderName?: string | null },
+): Record<string, string> {
+  const custom = opts.jwtModes ? normalizeJwtHeaderName(opts.jwtHeaderName ?? null) : null;
+  if (custom) {
+    return { [custom]: authorizationValue };
+  }
+  return { Authorization: authorizationValue };
+}
+
 function postsEndpoint(siteUrl: string): string {
   const base = normalizeSiteUrl(siteUrl);
   return `${base}/wp-json/wp/v2/posts`;
@@ -201,6 +256,8 @@ function explainWpRestNotLoggedIn(code: string | undefined, rawMessage: string):
   if (
     c === "rest_not_logged_in" ||
     c === "rest_login_required" ||
+    c === "missing_authorization_header" ||
+    /missing_authorization|authorization header not received|authorization header not sent/i.test(rawMessage) ||
     /sess(ão|ao) iniciada|sem sessão|não tem sessão|not currently logged|you are not currently logged|não está atualmente ligad/i.test(
       rawMessage,
     ) ||
@@ -210,8 +267,10 @@ function explainWpRestNotLoggedIn(code: string | undefined, rawMessage: string):
       "O WordPress respondeu como se ninguém estivesse autenticado (mensagem tipo «sem sessão» no site). " +
       "Isto não é a sessão do CRM: são as credenciais REST (Basic Auth) ou o pedido à API. " +
       "Verifique: (1) nome de utilizador = login exato do wp-admin; (2) senha de aplicação ou palavra-passe da conta correta, sem espaços; " +
-      "(3) no alojamento WordPress, o servidor/proxy não pode remover o cabeçalho Authorization; " +
-      "(4) plugins de segurança não bloqueiam /wp-json/ para utilizadores autenticados."
+      "(3) use a URL canónica do site (mesmo domínio final após redirecionamentos, ex. https com www); " +
+      "(4) no alojamento, o servidor não pode remover o cabeçalho Authorization — em Apache acrescente a regra HTTP_AUTHORIZATION no .htaccess; em Nginx, repasse o cabeçalho ao PHP; " +
+      "(5) com JWT miniOrange, nas definições avançadas do plugin pode definir um cabeçalho personalizado — preencha o mesmo nome no CRM; " +
+      "(6) plugins de segurança não devem bloquear /wp-json/ para pedidos autenticados."
     );
   }
   return rawMessage;
@@ -220,10 +279,16 @@ function explainWpRestNotLoggedIn(code: string | undefined, rawMessage: string):
 async function wpFetchCurrentUser(
   siteUrl: string,
   authHeader: string,
+  authMethod: WpAuthMethod,
+  jwtHeaderName?: string | null,
 ): Promise<{ ok: true; me: WpMe } | { ok: false; status: number; message: string }> {
   const url = usersMeEndpoint(siteUrl);
+  const jwtModes = authMethod === "jwt" || authMethod === "jwt_miniorange";
   const res = await fetch(url, {
-    headers: { Authorization: authHeader, Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...wpRestAuthHeaders(authHeader, { jwtModes, jwtHeaderName }),
+    },
   });
   const text = await res.text();
   if (!res.ok) {
@@ -298,7 +363,11 @@ function mapWpPublishError(code: string | undefined, message: string): string {
 
 function basicAuthHeader(username: string, appPassword: string): string {
   const pass = appPassword.replace(/\s+/g, "");
-  const token = btoa(`${username}:${pass}`);
+  const pair = `${username}:${pass}`;
+  const bytes = new TextEncoder().encode(pair);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
+  const token = btoa(bin);
   return `Basic ${token}`;
 }
 
@@ -490,7 +559,7 @@ serve(async (req) => {
 
       const { data: wpConfig, error: wpErr } = await supabase
         .from("wordpress_configs")
-        .select("site_url, wp_username, application_password, auth_method")
+        .select("site_url, wp_username, application_password, auth_method, jwt_header_name")
         .eq("organization_id", organization_id)
         .maybeSingle();
 
@@ -501,10 +570,13 @@ serve(async (req) => {
         );
       }
 
-      const url = postsEndpoint(wpConfig.site_url as string);
+      const jwtHeaderName = normalizeJwtHeaderName(wpConfig.jwt_header_name as string | null);
+      const baseUrl = await resolveWpSiteBase(wpConfig.site_url as string);
+      const url = postsEndpoint(baseUrl);
       const authMethod = parseAuthMethod(String(wpConfig.auth_method ?? "application_password"));
+      const jwtModes = authMethod === "jwt" || authMethod === "jwt_miniorange";
       const authRes = await buildWpAuthorizationHeader(
-        wpConfig.site_url as string,
+        baseUrl,
         wpConfig.wp_username as string,
         wpConfig.application_password as string,
         authMethod,
@@ -514,7 +586,7 @@ serve(async (req) => {
       }
       const auth = authRes.authorization;
 
-      const meResult = await wpFetchCurrentUser(wpConfig.site_url as string, auth);
+      const meResult = await wpFetchCurrentUser(baseUrl, auth, authMethod, jwtHeaderName);
       if (!meResult.ok) {
         console.error("[wordpress-ai-content] users/me:", meResult.status, meResult.message);
         return json({ error: meResult.message }, 200);
@@ -546,9 +618,9 @@ serve(async (req) => {
         wpRes = await fetch(url, {
           method: "POST",
           headers: {
-            Authorization: auth,
             "Content-Type": "application/json",
             Accept: "application/json",
+            ...wpRestAuthHeaders(auth, { jwtModes, jwtHeaderName }),
           },
           body: JSON.stringify({
             title,
@@ -638,21 +710,26 @@ serve(async (req) => {
           authMethodRaw === "jwt" || authMethodRaw === "jwt_miniorange"
           ? authMethodRaw
           : undefined;
+      const jwtHeaderOverride = normalizeJwtHeaderName(
+        typeof body.jwt_header_name === "string" ? body.jwt_header_name : null,
+      );
 
       let siteUrl: string;
       let wpUser: string;
       let appPass: string;
       let wpAuthMethod: WpAuthMethod = "application_password";
+      let jwtHeaderName: string | null = null;
 
       if (siteOverride && userOverride && passOverride.replace(/\s+/g, "").length > 0) {
         siteUrl = siteOverride;
         wpUser = userOverride;
         appPass = passOverride.replace(/\s+/g, "");
         wpAuthMethod = authMethodOverride ?? "application_password";
+        jwtHeaderName = jwtHeaderOverride;
       } else {
         const { data: wpConfig, error: wpErr } = await supabase
           .from("wordpress_configs")
-          .select("site_url, wp_username, application_password, auth_method")
+          .select("site_url, wp_username, application_password, auth_method, jwt_header_name")
           .eq("organization_id", organization_id)
           .maybeSingle();
 
@@ -666,14 +743,16 @@ serve(async (req) => {
         wpUser = String(wpConfig.wp_username).trim();
         appPass = String(wpConfig.application_password).replace(/\s+/g, "");
         wpAuthMethod = parseAuthMethod(String(wpConfig.auth_method || "application_password"));
+        jwtHeaderName = normalizeJwtHeaderName(wpConfig.jwt_header_name as string | null);
       }
 
-      const authBuild = await buildWpAuthorizationHeader(siteUrl, wpUser, appPass, wpAuthMethod);
+      const baseUrl = await resolveWpSiteBase(siteUrl);
+      const authBuild = await buildWpAuthorizationHeader(baseUrl, wpUser, appPass, wpAuthMethod);
       if (!authBuild.ok) {
         return json({ ok: false, error: authBuild.message }, 200);
       }
       const auth = authBuild.authorization;
-      const meResult = await wpFetchCurrentUser(siteUrl, auth);
+      const meResult = await wpFetchCurrentUser(baseUrl, auth, wpAuthMethod, jwtHeaderName);
       if (!meResult.ok) {
         return json({ ok: false, error: meResult.message }, 200);
       }
