@@ -219,9 +219,21 @@ export default function WordPressContent() {
           </div>
 
           <Alert>
-            <AlertDescription>
-              No WordPress: Utilizadores → perfil → <strong>Senhas de aplicação</strong>. Ative a
-              REST API e evite plugins que bloqueiem <code className="text-xs">/wp-json/</code>.
+            <AlertDescription className="space-y-2">
+              <p>
+                No WordPress: Utilizadores → o seu utilizador → <strong>Senhas de aplicação</strong>{" "}
+                (crie uma só para este CRM). A conta tem de ser pelo menos <strong>Editor</strong> ou{" "}
+                <strong>Administrador</strong> para criar artigos.
+              </p>
+              <p>
+                Em <strong>Utilizador WordPress</strong> use o <strong>nome de login</strong> (o que
+                aparece na lista de utilizadores, sem espaços na maioria dos casos) —{" "}
+                <em>não</em> use o &quot;Nome público&quot; do perfil.
+              </p>
+              <p>
+                Ative a REST API e evite plugins que bloqueiem{" "}
+                <code className="text-xs">/wp-json/</code>.
+              </p>
             </AlertDescription>
           </Alert>
 
@@ -240,7 +252,10 @@ export default function WordPressContent() {
           <Card>
             <CardHeader>
               <CardTitle>WordPress</CardTitle>
-              <CardDescription>URL do site (sem /wp-json) e credenciais por senha de aplicação.</CardDescription>
+              <CardDescription>
+                URL do site (sem /wp-json), login do WordPress e senha de aplicação desse mesmo
+                utilizador.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {loadingWp ? (
@@ -257,13 +272,21 @@ export default function WordPressContent() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="wp-user">Utilizador WordPress</Label>
+                    <Label htmlFor="wp-user">Utilizador WordPress (login)</Label>
                     <Input
                       id="wp-user"
                       autoComplete="username"
+                      placeholder="ex.: rubensbertolino (não o nome público)"
                       value={wpUser}
                       onChange={(e) => setWpUser(e.target.value)}
                     />
+                    {/\s/.test(wpUser) && (
+                      <p className="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+                        O login do WordPress costuma <strong>não ter espaços</strong>. Se estiver a
+                        usar o nome que aparece no site, vá a Utilizadores → editar o seu utilizador
+                        e copie o campo <strong>Nome de utilizador</strong> (username).
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="wp-pass">Senha de aplicação</Label>
