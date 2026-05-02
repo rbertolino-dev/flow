@@ -128,9 +128,11 @@ serve(async (req) => {
       const p = typeof prompt === "string" ? prompt.trim() : "";
       const d = typeof description === "string" ? description.trim() : "";
       const k = typeof keywords === "string" ? keywords.trim() : "";
-      if (!p && !d) {
+      if (!p && !d && !k) {
         return new Response(
-          JSON.stringify({ error: "Informe pelo menos o prompt ou a descrição" }),
+          JSON.stringify({
+            error: "Informe pelo menos o prompt, a descrição ou as palavras-chave",
+          }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
