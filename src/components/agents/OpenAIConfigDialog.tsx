@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,25 +21,29 @@ export function OpenAIConfigDialog({ open, onOpenChange }: OpenAIConfigDialogPro
   const [saving, setSaving] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
 
-  useEffect(() => {
-    if (open && activeOrgId) {
-      fetchConfig();
-    }
-  }, [open, activeOrgId]);
-
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     if (!activeOrgId) return;
-    
+
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('openai_configs')
         .select('api_key')
         .eq('organization_id', activeOrgId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Erro ao buscar config:', error);
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          toast({
+            title: 'Tabela OpenAI em falta',
+            description:
+              'Aplique a migration openai_configs no Supabase (SQL Editor ou supabase db push) e tente de novo.',
+            variant: 'destructive',
+          });
+        }
       }
 
       if (data?.api_key) {
@@ -55,7 +59,13 @@ export function OpenAIConfigDialog({ open, onOpenChange }: OpenAIConfigDialogPro
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeOrgId, toast]);
+
+  useEffect(() => {
+    if (open && activeOrgId) {
+      void fetchConfig();
+    }
+  }, [open, activeOrgId, fetchConfig]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,11 +78,12 @@ export function OpenAIConfigDialog({ open, onOpenChange }: OpenAIConfigDialogPro
       return;
     }
 
-    // Validar formato básico da API key
-    if (!apiKey.startsWith('sk-')) {
+    const trimmed = apiKey.trim();
+    // OpenAI: sk-..., sk-proj-..., etc.
+    if (!trimmed.startsWith('sk-')) {
       toast({
         title: 'Erro',
-        description: 'A API key deve começar com "sk-"',
+        description: 'A API key deve começar com "sk-" (formato OpenAI).',
         variant: 'destructive',
       });
       return;
@@ -80,16 +91,34 @@ export function OpenAIConfigDialog({ open, onOpenChange }: OpenAIConfigDialogPro
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { data: existingRows, error: fetchErr } = await supabase
         .from('openai_configs')
-        .upsert({
-          organization_id: activeOrgId,
-          api_key: apiKey.trim(),
-        }, {
-          onConflict: 'organization_id',
-        });
+        .select('id')
+        .eq('organization_id', activeOrgId)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (fetchErr) throw fetchErr;
+
+      const existingId = existingRows?.[0]?.id;
+      const { error } = existingId
+        ? await supabase.from('openai_configs').update({ api_key: trimmed }).eq('id', existingId)
+        : await supabase
+            .from('openai_configs')
+            .insert({ organization_id: activeOrgId, api_key: trimmed });
 
       if (error) {
+        const msg = (error as { message?: string }).message || '';
+        if (msg.includes('unique') || msg.includes('duplicate') || msg.includes('on conflict')) {
+          throw new Error(
+            'Conflito ao guardar: há várias linhas para esta organização. Peça ao admin para aplicar a migration openai_configs (dedupe + UNIQUE).',
+          );
+        }
+        if (msg.includes('does not exist') || (error as { code?: string }).code === '42P01') {
+          throw new Error(
+            'Tabela openai_configs não existe na base. Aplique as migrations do projeto no Supabase.',
+          );
+        }
         throw error;
       }
 
@@ -102,11 +131,12 @@ export function OpenAIConfigDialog({ open, onOpenChange }: OpenAIConfigDialogPro
       // Limpar o campo após salvar por segurança
       setApiKey('');
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao salvar config:', error);
+      const message = error instanceof Error ? error.message : 'Falha ao salvar a configuração.';
       toast({
         title: 'Erro',
-        description: error.message || 'Falha ao salvar a configuração.',
+        description: message,
         variant: 'destructive',
       });
     } finally {

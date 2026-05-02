@@ -304,13 +304,16 @@ serve(async (req) => {
         });
       }
 
-      await supabase.from("wordpress_publish_logs").insert({
+      const { error: logErr } = await supabase.from("wordpress_publish_logs").insert({
         organization_id,
         user_id: user.id,
         wp_post_id: postId,
         wp_link: link,
         title,
       });
+      if (logErr) {
+        console.error("[wordpress-ai-content] Falha ao registar publicação:", logErr.message);
+      }
 
       return new Response(JSON.stringify({ post_id: postId, link }), {
         status: 200,

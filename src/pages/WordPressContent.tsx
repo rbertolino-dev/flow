@@ -12,11 +12,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, PenLine, Sparkles, Send, Eye, EyeOff } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { ExternalLink, Loader2, PenLine, Sparkles, Send, Eye, EyeOff } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function WordPressContent() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const { config, isLoading: loadingWp, saveConfig, isSaving, deleteConfig, isDeleting } =
@@ -40,12 +51,36 @@ export default function WordPressContent() {
     queryKey: ["openai-config-check", activeOrgId],
     queryFn: async () => {
       if (!activeOrgId) return false;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("openai_configs")
         .select("id")
         .eq("organization_id", activeOrgId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
+      if (error && error.code !== "PGRST116") {
+        console.warn("[WordPressContent] openai_configs:", error.message);
+      }
       return !!data;
+    },
+    enabled: !!activeOrgId,
+  });
+
+  const { data: publishLogs = [], isLoading: loadingLogs } = useQuery({
+    queryKey: ["wordpress-publish-logs", activeOrgId],
+    queryFn: async () => {
+      if (!activeOrgId) return [];
+      const { data, error } = await supabase
+        .from("wordpress_publish_logs")
+        .select("id, created_at, title, wp_link, wp_post_id")
+        .eq("organization_id", activeOrgId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) {
+        console.warn("[WordPressContent] wordpress_publish_logs:", error.message);
+        return [];
+      }
+      return data ?? [];
     },
     enabled: !!activeOrgId,
   });
@@ -154,6 +189,7 @@ export default function WordPressContent() {
         title: "Publicado",
         description: data.link ? "Post criado no WordPress." : `Post ID: ${data.post_id}`,
       });
+      await queryClient.invalidateQueries({ queryKey: ["wordpress-publish-logs", activeOrgId] });
       if (data.link) {
         window.open(data.link as string, "_blank", "noopener,noreferrer");
       }
@@ -264,6 +300,61 @@ export default function WordPressContent() {
                     )}
                   </div>
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Últimas publicações</CardTitle>
+              <CardDescription>
+                Posts criados a partir desta página (registo na base após publicação bem-sucedida).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingLogs ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : publishLogs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Ainda não há publicações registadas.</p>
+              ) : (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Título</TableHead>
+                        <TableHead className="w-24 text-right">Post</TableHead>
+                        <TableHead className="w-10" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {publishLogs.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
+                            {format(new Date(row.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="max-w-[220px] truncate font-medium">{row.title}</TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            #{row.wp_post_id}
+                          </TableCell>
+                          <TableCell className="p-2">
+                            {row.wp_link ? (
+                              <a
+                                href={row.wp_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex text-primary hover:underline"
+                                aria-label="Abrir post no WordPress"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
