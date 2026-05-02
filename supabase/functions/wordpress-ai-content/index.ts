@@ -30,6 +30,103 @@ function postsEndpoint(siteUrl: string): string {
   return `${base}/wp-json/wp/v2/posts`;
 }
 
+function usersMeEndpoint(siteUrl: string): string {
+  const base = normalizeSiteUrl(siteUrl);
+  return `${base}/wp-json/wp/v2/users/me?context=edit`;
+}
+
+type WpMe = {
+  id: number;
+  slug: string;
+  roles: string[];
+};
+
+/** Papéis que no WordPress core costumam poder criar posts */
+function wpRolesCanCreatePosts(roles: string[]): boolean {
+  const can = new Set(["administrator", "editor", "author", "contributor"]);
+  return roles.some((r) => can.has(String(r).toLowerCase()));
+}
+
+/** Papéis que costumam poder publicar diretamente (sem ficar pendente/rascunho) */
+function wpRolesCanPublishPosts(roles: string[]): boolean {
+  const can = new Set(["administrator", "editor", "author"]);
+  return roles.some((r) => can.has(String(r).toLowerCase()));
+}
+
+async function wpFetchCurrentUser(
+  siteUrl: string,
+  authHeader: string,
+): Promise<{ ok: true; me: WpMe } | { ok: false; status: number; message: string }> {
+  const url = usersMeEndpoint(siteUrl);
+  const res = await fetch(url, {
+    headers: { Authorization: authHeader, Accept: "application/json" },
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = "Não foi possível validar o utilizador WordPress (REST API).";
+    if (res.status === 401) {
+      msg =
+        "WordPress recusou o login. Confirme o nome de utilizador (não o e-mail nem o nome público) e a senha de aplicação.";
+    } else if (res.status === 403) {
+      msg =
+        "REST API bloqueada ou sem acesso a /users/me. Desative bloqueios em plugins de segurança ou allowlist da REST API.";
+    }
+    try {
+      const j = JSON.parse(text) as { message?: string };
+      if (j?.message) msg = String(j.message);
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, status: res.status, message: msg };
+  }
+  try {
+    const j = JSON.parse(text) as { id?: number; slug?: string; roles?: string[] };
+    const id = typeof j.id === "number" ? j.id : Number(j.id);
+    if (!id || Number.isNaN(id)) {
+      return {
+        ok: false,
+        status: 502,
+        message: "Resposta inválida do WordPress (users/me sem id).",
+      };
+    }
+    const slug = typeof j.slug === "string" ? j.slug : "";
+    const roles = Array.isArray(j.roles) ? j.roles.map((r) => String(r).toLowerCase()) : [];
+    return { ok: true, me: { id, slug, roles } };
+  } catch {
+    return { ok: false, status: 502, message: "Resposta inválida do WordPress (JSON)." };
+  }
+}
+
+type WpErrorBody = { message?: string; code?: string };
+
+function parseWpError(text: string): WpErrorBody {
+  try {
+    return JSON.parse(text) as WpErrorBody;
+  } catch {
+    return {};
+  }
+}
+
+function mapWpPublishError(code: string | undefined, message: string): string {
+  const c = code || "";
+  if (
+    c === "rest_author_cannot_create_posts" ||
+    /não tem permiss(ão|oes) para criar artigos deste utilizador/i.test(message) ||
+    /not allowed to create posts as this user/i.test(message)
+  ) {
+    return (
+      "A conta WordPress usada na senha de aplicação não pode criar artigos (papel demasiado restrito). " +
+      "Use uma conta com papel Editor ou Administrador, e o nome de utilizador exato de essa conta."
+    );
+  }
+  if (c === "rest_cannot_publish" || /cannot publish|não tem permiss(ão|oes) para publicar/i.test(message)) {
+    return (
+      "A conta não pode publicar diretamente. O sistema tentará gravar como rascunho; confirme no WordPress ou use papel Editor/Administrador."
+    );
+  }
+  return message;
+}
+
 function basicAuthHeader(username: string, appPassword: string): string {
   const pass = appPassword.replace(/\s+/g, "");
   const token = btoa(`${username}:${pass}`);
@@ -241,35 +338,87 @@ serve(async (req) => {
         wpConfig.application_password as string,
       );
 
-      const wpRes = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: auth,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title,
-          content,
-          status: "publish",
-        }),
-      });
+      const meResult = await wpFetchCurrentUser(wpConfig.site_url as string, auth);
+      if (!meResult.ok) {
+        console.error("[wordpress-ai-content] users/me:", meResult.status, meResult.message);
+        return json({ error: meResult.message }, 200);
+      }
+      const { me } = meResult;
 
-      const wpText = await wpRes.text();
-      if (!wpRes.ok) {
-        console.error("[wordpress-ai-content] WordPress error:", wpRes.status, wpText.slice(0, 500));
-        let msg = "Falha ao publicar no WordPress";
-        try {
-          const errJson = JSON.parse(wpText);
-          if (errJson?.message) msg = String(errJson.message);
-        } catch {
-          if (wpRes.status === 401 || wpRes.status === 403) {
-            msg = "Credenciais WordPress inválidas ou REST API bloqueada";
-          }
+      if (me.roles.length > 0 && !wpRolesCanCreatePosts(me.roles)) {
+        return json(
+          {
+            error:
+              "Esta conta WordPress não tem permissão para criar artigos (papel «Subscritor» ou sem capacidade de edição). " +
+              "Crie a senha de aplicação num utilizador com papel Editor ou Administrador.",
+          },
+          200,
+        );
+      }
+
+      const preferPublish =
+        me.roles.length === 0 || wpRolesCanPublishPosts(me.roles);
+      const tryStatuses: ("publish" | "draft")[] = preferPublish
+        ? ["publish", "draft"]
+        : ["draft", "publish"];
+
+      let wpRes: Response | null = null;
+      let wpText = "";
+      let lastErr: WpErrorBody = {};
+
+      for (const status of tryStatuses) {
+        wpRes = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: auth,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            status,
+            author: me.id,
+          }),
+        });
+        wpText = await wpRes.text();
+        if (wpRes.ok) break;
+        lastErr = parseWpError(wpText);
+        const code = lastErr.code;
+        const msgLower = String(lastErr.message || "").toLowerCase();
+        const skipRetry =
+          code === "rest_author_cannot_create_posts" ||
+          /não tem permiss(ão|oes) para criar artigos deste utilizador/i.test(
+            String(lastErr.message || ""),
+          ) ||
+          /not allowed to create posts as this user/i.test(msgLower);
+        if (skipRetry) break;
+        const nextIx = tryStatuses.indexOf(status) + 1;
+        const hasDraftFallback =
+          status === "publish" && nextIx < tryStatuses.length &&
+          tryStatuses[nextIx] === "draft";
+        if (
+          hasDraftFallback &&
+          (code === "rest_cannot_publish" || wpRes.status === 403)
+        ) {
+          continue;
+        }
+        break;
+      }
+
+      if (!wpRes!.ok) {
+        console.error("[wordpress-ai-content] WordPress error:", wpRes!.status, wpText.slice(0, 500));
+        let msg = lastErr.message || "Falha ao publicar no WordPress";
+        msg = mapWpPublishError(lastErr.code, msg);
+        if (wpRes!.status === 401 || wpRes!.status === 403) {
+          msg =
+            msg ||
+            "Credenciais WordPress inválidas, REST API bloqueada ou falta de permissões no utilizador.";
         }
         return json({ error: msg }, 200);
       }
 
-      let wpJson: { id?: number; link?: string };
+      let wpJson: { id?: number; link?: string; status?: string };
       try {
         wpJson = JSON.parse(wpText);
       } catch {
@@ -278,6 +427,7 @@ serve(async (req) => {
 
       const postId = wpJson.id;
       const link = typeof wpJson.link === "string" ? wpJson.link : null;
+      const savedStatus = typeof wpJson.status === "string" ? wpJson.status : "";
       if (typeof postId !== "number") {
         return json({ error: "WordPress não devolveu o ID do post" }, 200);
       }
@@ -293,7 +443,12 @@ serve(async (req) => {
         console.error("[wordpress-ai-content] Falha ao registar publicação:", logErr.message);
       }
 
-      return json({ post_id: postId, link }, 200);
+      return json({
+        post_id: postId,
+        link,
+        wp_status: savedStatus || undefined,
+        saved_as_draft: savedStatus === "draft",
+      }, 200);
     }
 
     return json({ error: 'action inválida; use "generate" ou "publish"' }, 400);

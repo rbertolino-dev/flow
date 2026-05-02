@@ -218,9 +218,14 @@ export default function WordPressContent() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      const asDraft = Boolean(data?.saved_as_draft);
       toast({
-        title: "Publicado",
-        description: data.link ? "Post criado no WordPress." : `Post ID: ${data.post_id}`,
+        title: asDraft ? "Rascunho guardado no WordPress" : "Publicado",
+        description: asDraft
+          ? "A sua conta só pode criar rascunhos ou a publicação direta foi recusada. Abra o WordPress para rever e publicar."
+          : data.link
+            ? "Post criado no WordPress."
+            : `Post ID: ${data.post_id}`,
       });
       await queryClient.invalidateQueries({ queryKey: ["wordpress-publish-logs", activeOrgId] });
       if (data.link) {
@@ -255,8 +260,15 @@ export default function WordPressContent() {
             <AlertDescription className="space-y-2">
               <p>
                 No WordPress: Utilizadores → o seu utilizador → <strong>Senhas de aplicação</strong>{" "}
-                (crie uma só para este CRM). A conta tem de ser pelo menos <strong>Editor</strong> ou{" "}
-                <strong>Administrador</strong> para criar artigos.
+                (crie uma só para este CRM). Para <strong>publicar já</strong>, use conta{" "}
+                <strong>Editor</strong>, <strong>Administrador</strong> ou <strong>Autor</strong>.{" "}
+                <strong>Colaborador</strong> gera rascunho (publicação no wp-admin depois).{" "}
+                <strong>Subscritor</strong> não cria artigos. Plugins de segurança por vezes bloqueiam{" "}
+                <code className="text-xs">/wp-json/</code> — allowlist a REST API se falhar.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Integração oficial: Application Passwords + REST API (recomendado pelo WordPress).{" "}
+                Alternativas como JWT exigem instalar e configurar plugins no site.
               </p>
               <p>
                 Em <strong>Utilizador WordPress</strong> use o <strong>nome de utilizador</strong>{" "}
