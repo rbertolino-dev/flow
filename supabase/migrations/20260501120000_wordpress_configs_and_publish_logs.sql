@@ -16,6 +16,11 @@ CREATE INDEX IF NOT EXISTS idx_wordpress_configs_organization_id
 
 ALTER TABLE public.wordpress_configs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view wordpress config for their organization" ON public.wordpress_configs;
+DROP POLICY IF EXISTS "Users can insert wordpress config for their organization" ON public.wordpress_configs;
+DROP POLICY IF EXISTS "Users can update wordpress config for their organization" ON public.wordpress_configs;
+DROP POLICY IF EXISTS "Users can delete wordpress config for their organization" ON public.wordpress_configs;
+
 CREATE POLICY "Users can view wordpress config for their organization"
   ON public.wordpress_configs FOR SELECT
   USING (
@@ -75,6 +80,8 @@ CREATE INDEX IF NOT EXISTS idx_wordpress_publish_logs_org_created
   ON public.wordpress_publish_logs (organization_id, created_at DESC);
 
 ALTER TABLE public.wordpress_publish_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view wordpress publish logs for their organization" ON public.wordpress_publish_logs;
 
 CREATE POLICY "Users can view wordpress publish logs for their organization"
   ON public.wordpress_publish_logs FOR SELECT
