@@ -59,6 +59,7 @@ const DigitalContractView = lazy(() => import("./pages/DigitalContractView"));
 const DigitalContractSign = lazy(() => import("./pages/DigitalContractSign"));
 const LandingPageAdmin = lazy(() => import("./pages/LandingPageAdmin"));
 const LandingPagePublic = lazy(() => import("./pages/LandingPagePublic"));
+const WordPressContent = lazy(() => import("./pages/WordPressContent"));
 
 // QueryClient com cache apropriado — EVITA refetch a cada navegação entre páginas.
 // Antes: staleTime=0 → TODA troca de rota refazia todas as queries do zero (~200-500ms por tela).
@@ -186,6 +187,7 @@ const App = () => {
                 <Route path="/survey/:slug" element={<PublicSurvey />} />
                 <Route path="/book/:organizationSlug" element={<PublicBooking />} />
                 <Route path="/admin/landing-page" element={<LandingPageAdmin />} />
+                <Route path="/wordpress-conteudo" element={<WordPressContent />} />
                 <Route path="/p/:slug" element={<LandingPagePublic />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

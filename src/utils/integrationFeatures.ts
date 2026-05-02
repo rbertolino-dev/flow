@@ -16,6 +16,7 @@ export const INTEGRATION_FEATURES = {
   'facebook': 'facebook_integration',
   'chatwoot': 'chatwoot_integration',
   'evolution': 'evolution_instances',
+  'wordpress': 'wordpress_content',
 } as const;
 
 export type IntegrationId = keyof typeof INTEGRATION_FEATURES;

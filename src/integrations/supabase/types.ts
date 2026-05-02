@@ -4483,6 +4483,82 @@ export type Database = {
           },
         ]
       }
+      wordpress_configs: {
+        Row: {
+          application_password: string
+          created_at: string
+          id: string
+          organization_id: string
+          site_url: string
+          updated_at: string
+          wp_username: string
+        }
+        Insert: {
+          application_password: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          site_url: string
+          updated_at?: string
+          wp_username: string
+        }
+        Update: {
+          application_password?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          site_url?: string
+          updated_at?: string
+          wp_username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_publish_logs: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          title: string
+          user_id: string | null
+          wp_link: string | null
+          wp_post_id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          title: string
+          user_id?: string | null
+          wp_link?: string | null
+          wp_post_id: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          title?: string
+          user_id?: string | null
+          wp_link?: string | null
+          wp_post_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_publish_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -6,6 +6,7 @@ import { useGmailConfigs } from "@/hooks/useGmailConfigs";
 import { useMercadoPago } from "@/hooks/useMercadoPago";
 import { useAsaasConfig } from "@/hooks/useAsaasConfig";
 import { useBubbleConfig } from "@/hooks/useBubbleConfig";
+import { useWordPressConfig } from "@/hooks/useWordPressConfig";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 // DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
 // import { useChatwootConfig } from "@/hooks/useChatwootConfig";
@@ -18,6 +19,8 @@ export interface IntegrationStatus {
   isConfigured: boolean;
   isActive: boolean;
   tabValue?: string;
+  /** Se definido, o onboarding navega para esta rota em vez de mudar aba em Configurações */
+  navigateTo?: string;
 }
 
 export function useIntegrationStatus() {
@@ -27,6 +30,7 @@ export function useIntegrationStatus() {
   const { config: mercadoPagoConfig } = useMercadoPago();
   const { config: asaasConfig } = useAsaasConfig();
   const { config: bubbleConfig } = useBubbleConfig();
+  const { config: wordpressConfig } = useWordPressConfig();
   const { configs: evolutionConfigs } = useEvolutionConfigs();
   // DESATIVADO: Funcionalidade não disponibilizada para clientes ainda
   // const { config: chatwootConfig } = useChatwootConfig(activeOrgId);
@@ -120,6 +124,15 @@ export function useIntegrationStatus() {
       isConfigured: !!hubspotConfig,
       isActive: !!hubspotConfig?.is_active,
       tabValue: "integrations",
+    },
+    {
+      id: "wordpress",
+      name: "WordPress",
+      description: "Publique posts gerados por IA no seu site",
+      isConfigured: !!wordpressConfig,
+      isActive: !!wordpressConfig,
+      tabValue: "integrations",
+      navigateTo: "/wordpress-conteudo",
     },
   ];
 

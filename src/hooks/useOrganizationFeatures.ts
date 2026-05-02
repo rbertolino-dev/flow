@@ -28,6 +28,7 @@ export const AVAILABLE_FEATURES = [
   { value: 'budgets', label: 'Orçamentos', description: 'Criação e gestão de orçamentos' },
   { value: 'employees', label: 'Colaboradores', description: 'Gerenciamento de colaboradores' },
   { value: 'landing_page', label: 'Landing Page', description: 'Página pública de vendas com produtos e WhatsApp' },
+  { value: 'wordpress_content', label: 'Conteúdo WordPress', description: 'Gerar posts com IA e publicar via REST API' },
 ] as const;
 
 export type FeatureKey = typeof AVAILABLE_FEATURES[number]['value'];

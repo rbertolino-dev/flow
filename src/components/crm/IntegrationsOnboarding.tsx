@@ -15,7 +15,8 @@ import {
   Phone,
   MessageCircle,
   Facebook,
-  Zap
+  Zap,
+  PenLine,
 } from "lucide-react";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +36,7 @@ const integrationIcons: Record<string, React.ComponentType<{ className?: string 
   "evolution-api": Phone,
   "chatwoot": MessageCircle,
   "facebook": Facebook,
+  "wordpress": PenLine,
 };
 
 // Cores específicas para cada integração
@@ -78,6 +80,11 @@ const integrationColors: Record<string, { bg: string; border: string; icon: stri
     bg: "bg-blue-50 dark:bg-blue-950/20",
     border: "border-blue-200 dark:border-blue-800",
     icon: "text-blue-600 dark:text-blue-400",
+  },
+  "wordpress": {
+    bg: "bg-sky-50 dark:bg-sky-950/20",
+    border: "border-sky-200 dark:border-sky-800",
+    icon: "text-sky-600 dark:text-sky-400",
   },
 };
 
@@ -253,7 +260,13 @@ export function IntegrationsOnboarding({ onTabChange }: IntegrationsOnboardingPr
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => handleConfigure(integration.tabValue)}
+                        onClick={() => {
+                          if (integration.navigateTo) {
+                            navigate(integration.navigateTo);
+                            return;
+                          }
+                          handleConfigure(integration.tabValue);
+                        }}
                         className="w-full sm:w-auto"
                       >
                         Configurar Agora

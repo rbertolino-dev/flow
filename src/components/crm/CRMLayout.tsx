@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,7 +39,8 @@ export type CRMView =
   | "employees"
   | "messages-center"
   | "landing-page"
-  | "broadcast-2";
+  | "broadcast-2"
+  | "wordpress-content";
 
 interface CRMLayoutProps {
   children: React.ReactNode;
@@ -103,6 +104,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'budgets': 'budgets', // controlado por feature
     'employees': 'employees', // controlado por feature
     'landing-page': 'landing_page', // controlado por feature
+    'wordpress-content': 'wordpress_content',
     'settings': null, // sempre visível
     'superadmin': null, // controlado por role
     'users': null, // sempre visível para admins
@@ -127,6 +129,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "budgets" as const, label: "Orçamentos", icon: Receipt },
     { id: "employees" as const, label: "Colaboradores", icon: Users },
     { id: "landing-page" as const, label: "Landing Page", icon: Globe },
+    { id: "wordpress-content" as const, label: "Conteúdo WordPress", icon: PenLine },
     { id: "settings" as const, label: "Configurações", icon: Settings },
   ];
 
@@ -292,6 +295,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                 navigate('/employees');
               } else if (item.id === 'landing-page') {
                 navigate('/admin/landing-page');
+              } else if (item.id === 'wordpress-content') {
+                navigate('/wordpress-conteudo');
               } else if (item.id === 'kanban' || item.id === 'calls') {
                 // Navega para a página inicial passando a view como state
                 navigate('/', { state: { view: item.id } });
@@ -451,6 +456,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                           navigate('/budgets');
                         } else if (item.id === 'employees') {
                           navigate('/employees');
+                        } else if (item.id === 'landing-page') {
+                          navigate('/admin/landing-page');
+                        } else if (item.id === 'wordpress-content') {
+                          navigate('/wordpress-conteudo');
                         } else if (item.id === 'kanban' || item.id === 'calls') {
                           // Navega para a página inicial passando a view como state
                           navigate('/', { state: { view: item.id } });

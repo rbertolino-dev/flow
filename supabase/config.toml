@@ -225,6 +225,9 @@ verify_jwt = true
 [functions.openai-list-models]
 verify_jwt = true
 
+[functions.wordpress-ai-content]
+verify_jwt = true
+
 # ========== Assistente IA DeepSeek ==========
 [functions.deepseek-assistant]
 verify_jwt = true
