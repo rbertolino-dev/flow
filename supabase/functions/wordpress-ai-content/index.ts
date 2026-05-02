@@ -35,6 +35,72 @@ function usersMeEndpoint(siteUrl: string): string {
   return `${base}/wp-json/wp/v2/users/me?context=edit`;
 }
 
+function jwtTokenEndpoint(siteUrl: string): string {
+  const base = normalizeSiteUrl(siteUrl);
+  return `${base}/wp-json/jwt-auth/v1/token`;
+}
+
+type WpAuthMethod = "application_password" | "account_password" | "jwt";
+
+function parseAuthMethod(raw: string): WpAuthMethod {
+  if (raw === "account_password") return "account_password";
+  if (raw === "jwt") return "jwt";
+  return "application_password";
+}
+
+/** Obtém JWT via plugin «JWT Authentication for WP REST API». */
+async function fetchWpJwtToken(
+  siteUrl: string,
+  username: string,
+  password: string,
+): Promise<{ ok: true; token: string } | { ok: false; message: string }> {
+  const url = jwtTokenEndpoint(siteUrl);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      username: username.trim(),
+      password: password.replace(/\s+/g, ""),
+    }),
+  });
+  const text = await res.text();
+  try {
+    const j = JSON.parse(text) as { token?: string; message?: string; code?: string };
+    if (res.ok && typeof j.token === "string" && j.token.length > 0) {
+      return { ok: true, token: j.token };
+    }
+    let msg = typeof j.message === "string" ? j.message : "Resposta inválida ao pedir JWT.";
+    if (res.status === 404) {
+      msg =
+        "Endpoint JWT não encontrado. Instale e ative o plugin «JWT Authentication for WP REST API» no WordPress.";
+    } else if (!res.ok) {
+      msg =
+        `${msg} (HTTP ${res.status}). Confirme utilizador e palavra-passe, e que JWT_AUTH_SECRET_KEY está em wp-config.php.`;
+    }
+    return { ok: false, message: msg };
+  } catch {
+    return {
+      ok: false,
+      message:
+        `Falha ao ler resposta do WordPress (HTTP ${res.status}). Verifique a URL e o plugin JWT.`,
+    };
+  }
+}
+
+async function buildWpAuthorizationHeader(
+  siteUrl: string,
+  username: string,
+  password: string,
+  authMethod: WpAuthMethod,
+): Promise<{ ok: true; authorization: string } | { ok: false; message: string }> {
+  if (authMethod === "jwt") {
+    const jwt = await fetchWpJwtToken(siteUrl, username, password);
+    if (!jwt.ok) return jwt;
+    return { ok: true, authorization: `Bearer ${jwt.token}` };
+  }
+  return { ok: true, authorization: basicAuthHeader(username, password) };
+}
+
 type WpMe = {
   id: number;
   slug: string;
@@ -361,10 +427,17 @@ serve(async (req) => {
       }
 
       const url = postsEndpoint(wpConfig.site_url as string);
-      const auth = basicAuthHeader(
+      const authMethod = parseAuthMethod(String(wpConfig.auth_method ?? "application_password"));
+      const authRes = await buildWpAuthorizationHeader(
+        wpConfig.site_url as string,
         wpConfig.wp_username as string,
         wpConfig.application_password as string,
+        authMethod,
       );
+      if (!authRes.ok) {
+        return json({ error: authRes.message }, 200);
+      }
+      const auth = authRes.authorization;
 
       const meResult = await wpFetchCurrentUser(wpConfig.site_url as string, auth);
       if (!meResult.ok) {
@@ -485,15 +558,16 @@ serve(async (req) => {
       const passOverride =
         typeof body.application_password === "string" ? body.application_password : "";
       const authMethodRaw = typeof body.auth_method === "string" ? body.auth_method.trim() : "";
-      const authMethodOverride =
-        authMethodRaw === "account_password" || authMethodRaw === "application_password"
+      const authMethodOverride: WpAuthMethod | undefined =
+        authMethodRaw === "account_password" || authMethodRaw === "application_password" ||
+          authMethodRaw === "jwt"
           ? authMethodRaw
           : undefined;
 
       let siteUrl: string;
       let wpUser: string;
       let appPass: string;
-      let wpAuthMethod: "application_password" | "account_password" = "application_password";
+      let wpAuthMethod: WpAuthMethod = "application_password";
 
       if (siteOverride && userOverride && passOverride.replace(/\s+/g, "").length > 0) {
         siteUrl = siteOverride;
@@ -516,12 +590,14 @@ serve(async (req) => {
         siteUrl = String(wpConfig.site_url).trim();
         wpUser = String(wpConfig.wp_username).trim();
         appPass = String(wpConfig.application_password).replace(/\s+/g, "");
-        const am = String(wpConfig.auth_method || "application_password");
-        wpAuthMethod =
-          am === "account_password" ? "account_password" : "application_password";
+        wpAuthMethod = parseAuthMethod(String(wpConfig.auth_method || "application_password"));
       }
 
-      const auth = basicAuthHeader(wpUser, appPass);
+      const authBuild = await buildWpAuthorizationHeader(siteUrl, wpUser, appPass, wpAuthMethod);
+      if (!authBuild.ok) {
+        return json({ ok: false, error: authBuild.message }, 200);
+      }
+      const auth = authBuild.authorization;
       const meResult = await wpFetchCurrentUser(siteUrl, auth);
       if (!meResult.ok) {
         return json({ ok: false, error: meResult.message }, 200);

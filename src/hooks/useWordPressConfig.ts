@@ -3,8 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-/** application_password = senha gerada no perfil WP; account_password = palavra-passe de login (avançado). */
-export type WordPressAuthMethod = "application_password" | "account_password";
+/**
+ * application_password = Basic Auth com senha de app;
+ * account_password = Basic Auth com palavra-passe da conta;
+ * jwt = Bearer token (plugin JWT Authentication for WP REST API).
+ */
+export type WordPressAuthMethod = "application_password" | "account_password" | "jwt";
 
 export type WordPressConfigRow = {
   id: string;

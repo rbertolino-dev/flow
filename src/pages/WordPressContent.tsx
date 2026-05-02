@@ -27,6 +27,18 @@ import {
 } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
+function parseWpAuthMethodFromApi(s?: string): WordPressAuthMethod {
+  if (s === "account_password") return "account_password";
+  if (s === "jwt") return "jwt";
+  return "application_password";
+}
+
+function authMethodLabel(m: WordPressAuthMethod): string {
+  if (m === "account_password") return "palavra-passe da conta";
+  if (m === "jwt") return "JWT (plugin)";
+  return "senha de aplicação";
+}
+
 /** JWT explícito evita falhas intermitentes do invoke atrás de proxy / sem sessão em cache. */
 async function getCrmAccessTokenForFunctions(): Promise<string> {
   const {
@@ -81,8 +93,7 @@ async function fetchWordPressVerify(organizationId: string): Promise<WpVerifyRes
     can_publish_posts?: boolean;
     hint?: string;
   };
-  const methodFromApi: WordPressAuthMethod =
-    d?.wp_auth_method === "account_password" ? "account_password" : "application_password";
+  const methodFromApi = parseWpAuthMethodFromApi(d?.wp_auth_method);
   if (d?.ok === true && typeof d.wp_user_slug === "string" && Array.isArray(d.wp_roles)) {
     return {
       ok: true,
@@ -129,8 +140,7 @@ export default function WordPressContent() {
   /** Evita mostrar dados da org anterior ao mudar de organização */
   const lastOrgForResetRef = useRef<string | null>(null);
 
-  const storedAuthMethod: WordPressAuthMethod =
-    config?.auth_method === "account_password" ? "account_password" : "application_password";
+  const storedAuthMethod: WordPressAuthMethod = parseWpAuthMethodFromApi(config?.auth_method);
 
   const canRunWpVerify =
     !!activeOrgId &&
@@ -193,6 +203,7 @@ export default function WordPressContent() {
       setSiteUrl("");
       setWpUser("");
       setWpPass("");
+      setAuthMethod("application_password");
       return;
     }
     if (lastOrgForResetRef.current !== activeOrgId) {
@@ -210,9 +221,7 @@ export default function WordPressContent() {
       setSiteUrl(config.site_url ?? "");
       setWpUser(config.wp_username ?? "");
       setWpPass("");
-      setAuthMethod(
-        config.auth_method === "account_password" ? "account_password" : "application_password",
-      );
+      setAuthMethod(parseWpAuthMethodFromApi(config.auth_method));
     } else if (!config) {
       setSiteUrl("");
       setWpUser("");
@@ -245,7 +254,9 @@ export default function WordPressContent() {
         description:
           authMethod === "account_password"
             ? "Preencha URL do site, utilizador e palavra-passe da conta."
-            : "Preencha URL do site, utilizador e senha de aplicação.",
+            : authMethod === "jwt"
+              ? "Preencha URL do site, utilizador e palavra-passe usada no pedido JWT (recomendamos senha de aplicação)."
+              : "Preencha URL do site, utilizador e senha de aplicação.",
         variant: "destructive",
       });
       return;
@@ -261,13 +272,10 @@ export default function WordPressContent() {
         setSiteUrl(saved.site_url ?? "");
         setWpUser(saved.wp_username ?? "");
         setWpPass("");
-        setAuthMethod(
-          saved.auth_method === "account_password" ? "account_password" : "application_password",
-        );
+        setAuthMethod(parseWpAuthMethodFromApi(saved.auth_method));
       }
       if (activeOrgId) {
-        const methodAfterSave: WordPressAuthMethod =
-          saved?.auth_method === "account_password" ? "account_password" : "application_password";
+        const methodAfterSave: WordPressAuthMethod = parseWpAuthMethodFromApi(saved?.auth_method);
         await queryClient.invalidateQueries({
           queryKey: ["wordpress-verify", activeOrgId, methodAfterSave],
         });
@@ -277,13 +285,9 @@ export default function WordPressContent() {
             queryFn: () => fetchWordPressVerify(activeOrgId),
           });
           if (v.ok) {
-            const modo =
-              v.wp_auth_method === "account_password"
-                ? "Palavra-passe da conta"
-                : "Senha de aplicação";
             toast({
               title: "WordPress ligado",
-              description: `Modo: ${modo}. REST API aceitou «${v.wp_user_slug}» (${v.wp_roles.join(", ") || "sem papéis listados"}).`,
+              description: `Modo: ${authMethodLabel(v.wp_auth_method)}. REST API aceitou «${v.wp_user_slug}» (${v.wp_roles.join(", ") || "sem papéis listados"}).`,
             });
           } else {
             toast({
@@ -432,6 +436,36 @@ export default function WordPressContent() {
                     </li>
                   </ol>
                 </>
+              ) : authMethod === "jwt" ? (
+                <>
+                  <p className="font-medium">
+                    Modo <strong>JWT</strong> — plugin{" "}
+                    <strong>JWT Authentication for WP REST API</strong> no WordPress.
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>
+                      Em <code className="text-xs">wp-config.php</code> defina{" "}
+                      <code className="text-xs">JWT_AUTH_SECRET_KEY</code> (uma chave longa e
+                      aleatória). <strong>Não</strong> cole essa chave no CRM — só no servidor
+                      WordPress.
+                    </li>
+                    <li>
+                      O CRM pede o token em{" "}
+                      <code className="text-xs">/wp-json/jwt-auth/v1/token</code> com utilizador +
+                      palavra-passe, e usa <code className="text-xs">Authorization: Bearer …</code>{" "}
+                      nos pedidos à REST API (útil quando o alojamento bloqueia Basic Auth).
+                    </li>
+                    <li>
+                      Recomendamos <strong>senha de aplicação</strong> no campo da palavra-passe
+                      (não a chave JWT).
+                    </li>
+                    <li>
+                      Se ainda falhar com 401, siga o README do plugin (por vezes é preciso regra no{" "}
+                      <code className="text-xs">.htaccess</code> para repassar o cabeçalho{" "}
+                      <code className="text-xs">Authorization</code>).
+                    </li>
+                  </ul>
+                </>
               ) : (
                 <>
                   <p className="font-medium">
@@ -455,8 +489,8 @@ export default function WordPressContent() {
                 <code className="text-xs">/wp-json/</code>.
               </p>
               <p className="text-xs text-muted-foreground">
-                Ambos os modos usam REST API + Basic Auth (oficial para senhas de aplicação). JWT ou
-                OAuth exigem plugins extra no site.
+                Senha de aplicação e palavra-passe da conta usam Basic Auth. O modo JWT usa o plugin
+                indicado acima e Bearer token.
               </p>
               <p className="text-xs text-muted-foreground">
                 Se o erro mencionar «sessão iniciada», em quase todos os casos é o{" "}
@@ -533,6 +567,18 @@ export default function WordPressContent() {
                           </p>
                         </div>
                       </div>
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <RadioGroupItem value="jwt" id="wp-auth-jwt" className="mt-1" />
+                        <div>
+                          <Label htmlFor="wp-auth-jwt" className="font-medium cursor-pointer">
+                            JWT (plugin no WordPress)
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Quando Basic Auth falha no alojamento — Bearer +{" "}
+                            <code className="text-xs">jwt-auth/v1/token</code>.
+                          </p>
+                        </div>
+                      </div>
                     </RadioGroup>
                   </div>
                   <div className="space-y-2">
@@ -565,8 +611,17 @@ export default function WordPressContent() {
                     <Label htmlFor="wp-pass">
                       {authMethod === "account_password"
                         ? "Palavra-passe da conta"
-                        : "Senha de aplicação"}
+                        : authMethod === "jwt"
+                          ? "Palavra-passe para obter o JWT"
+                          : "Senha de aplicação"}
                     </Label>
+                    {authMethod === "jwt" && (
+                      <p className="text-xs text-muted-foreground">
+                        Use <strong>senha de aplicação</strong> do mesmo utilizador quando possível. A
+                        chave <code className="text-xs">JWT_AUTH_SECRET_KEY</code> fica só no{" "}
+                        <code className="text-xs">wp-config.php</code>, não aqui.
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <Input
                         id="wp-pass"
@@ -592,11 +647,7 @@ export default function WordPressContent() {
                       Dados guardados para esta organização. URL e utilizador voltam a aparecer ao
                       reabrir a página; a palavra-passe fica oculta (deixe vazio para manter ou
                       introduza de novo para alterar). O modo de integração guardado:{" "}
-                      <strong>
-                        {storedAuthMethod === "account_password"
-                          ? "palavra-passe da conta"
-                          : "senha de aplicação"}
-                      </strong>
+                      <strong>{authMethodLabel(storedAuthMethod)}</strong>
                       .
                     </p>
                   )}
@@ -639,11 +690,7 @@ export default function WordPressContent() {
                         <p className="text-sm text-muted-foreground">
                           <span className="block text-foreground/90 mb-1">
                             Teste positivo · Modo:{" "}
-                            <strong>
-                              {wpVerify.wp_auth_method === "account_password"
-                                ? "palavra-passe da conta"
-                                : "senha de aplicação"}
-                            </strong>
+                            <strong>{authMethodLabel(wpVerify.wp_auth_method)}</strong>
                           </span>
                           Utilizador na API: <strong>{wpVerify.wp_user_slug}</strong>
                           {wpVerify.wp_roles.length > 0
