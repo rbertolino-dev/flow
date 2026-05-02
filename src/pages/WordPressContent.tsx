@@ -378,13 +378,38 @@ export default function WordPressContent() {
 
           <Alert>
             <AlertDescription className="space-y-2">
+              <p className="font-medium">
+                O CRM <strong>não gera</strong> a senha no WordPress: tem de a criar no perfil do
+                utilizador no wp-admin e depois colar aqui.
+              </p>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                <li>
+                  No WordPress: <strong>Utilizadores</strong> → <strong>Perfil</strong> (ou editar o seu
+                  utilizador) → secção <strong>Senhas de aplicação</strong>.
+                </li>
+                <li>
+                  Em <strong>Nome da nova senha de aplicação</strong> escreva só um rótulo para si
+                  (ex.: <em>CRM</em> ou <em>Agilize</em>) — <strong>não</strong> é a palavra-passe;
+                  serve para identificar a linha na tabela.
+                </li>
+                <li>
+                  Clique em <strong>Adicionar senha de aplicação</strong>. O WordPress mostra{" "}
+                  <strong>uma vez</strong> a senha gerada (vários caracteres). Copie{" "}
+                  <strong>tudo</strong> e cole no campo <strong>Senha de aplicação</strong> abaixo,
+                  sem espaços no início/fim.
+                </li>
+                <li>
+                  Se fechou essa janela e já não tem a senha: em <strong>Revogar</strong> apague essa
+                  linha e crie outra; a tabela só mostra o <em>nome</em> que deu, não volta a mostrar a
+                  senha.
+                </li>
+              </ol>
               <p>
-                No WordPress: Utilizadores → o seu utilizador → <strong>Senhas de aplicação</strong>{" "}
-                (crie uma só para este CRM). Para <strong>publicar já</strong>, use conta{" "}
+                Para <strong>publicar já</strong>, a conta tem de ser pelo menos{" "}
                 <strong>Editor</strong>, <strong>Administrador</strong> ou <strong>Autor</strong>.{" "}
-                <strong>Colaborador</strong> gera rascunho (publicação no wp-admin depois).{" "}
-                <strong>Subscritor</strong> não cria artigos. Plugins de segurança por vezes bloqueiam{" "}
-                <code className="text-xs">/wp-json/</code> — allowlist a REST API se falhar.
+                <strong>Colaborador</strong> gera rascunho. <strong>Subscritor</strong> não cria
+                artigos. Plugins de segurança por vezes bloqueiam{" "}
+                <code className="text-xs">/wp-json/</code>.
               </p>
               <p className="text-xs text-muted-foreground">
                 Integração oficial: Application Passwords + REST API (recomendado pelo WordPress).{" "}
