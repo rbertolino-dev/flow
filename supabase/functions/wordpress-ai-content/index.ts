@@ -479,7 +479,65 @@ serve(async (req) => {
       }, 200);
     }
 
-    return json({ error: 'action inválida; use "generate" ou "publish"' }, 400);
+    if (action === "verify") {
+      const siteOverride = typeof body.site_url === "string" ? body.site_url.trim() : "";
+      const userOverride = typeof body.wp_username === "string" ? body.wp_username.trim() : "";
+      const passOverride =
+        typeof body.application_password === "string" ? body.application_password : "";
+
+      let siteUrl: string;
+      let wpUser: string;
+      let appPass: string;
+
+      if (siteOverride && userOverride && passOverride.replace(/\s+/g, "").length > 0) {
+        siteUrl = siteOverride;
+        wpUser = userOverride;
+        appPass = passOverride.replace(/\s+/g, "");
+      } else {
+        const { data: wpConfig, error: wpErr } = await supabase
+          .from("wordpress_configs")
+          .select("site_url, wp_username, application_password")
+          .eq("organization_id", organization_id)
+          .maybeSingle();
+
+        if (wpErr || !wpConfig?.site_url || !wpConfig?.wp_username || !wpConfig?.application_password) {
+          return json(
+            { ok: false, error: "Guarde primeiro a URL, utilizador e senha de aplicação." },
+            200,
+          );
+        }
+        siteUrl = String(wpConfig.site_url).trim();
+        wpUser = String(wpConfig.wp_username).trim();
+        appPass = String(wpConfig.application_password).replace(/\s+/g, "");
+      }
+
+      const auth = basicAuthHeader(wpUser, appPass);
+      const meResult = await wpFetchCurrentUser(siteUrl, auth);
+      if (!meResult.ok) {
+        return json({ ok: false, error: meResult.message }, 200);
+      }
+      const { me } = meResult;
+      const canCreate = me.roles.length === 0 || wpRolesCanCreatePosts(me.roles);
+      const canPublish = me.roles.length === 0 || wpRolesCanPublishPosts(me.roles);
+
+      return json(
+        {
+          ok: true,
+          wp_user_slug: me.slug,
+          wp_roles: me.roles,
+          can_create_posts: canCreate,
+          can_publish_posts: canPublish,
+          hint: !canCreate
+            ? "Esta conta não pode criar artigos (papel muito restrito). Use Editor ou Administrador."
+            : !canPublish
+            ? "A conta pode criar rascunhos; publicação direta pode exigir Editor/Administrador."
+            : undefined,
+        },
+        200,
+      );
+    }
+
+    return json({ error: 'action inválida; use "generate", "publish" ou "verify"' }, 400);
   } catch (e) {
     console.error("[wordpress-ai-content]", e);
     const message = e instanceof Error ? e.message : "Erro interno";

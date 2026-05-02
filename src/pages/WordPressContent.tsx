@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ExternalLink, Loader2, PenLine, Sparkles, Send, Eye, EyeOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, ExternalLink, Loader2, PenLine, RefreshCw, Sparkles, Send, Eye, EyeOff } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -48,6 +49,54 @@ function buildFunctionsInvokeHeaders(accessToken: string): Record<string, string
   return headers;
 }
 
+type WpVerifyResult =
+  | {
+      ok: true;
+      wp_user_slug: string;
+      wp_roles: string[];
+      can_create_posts: boolean;
+      can_publish_posts: boolean;
+      hint?: string;
+    }
+  | { ok: false; error: string };
+
+async function fetchWordPressVerify(organizationId: string): Promise<WpVerifyResult> {
+  const accessToken = await getCrmAccessTokenForFunctions();
+  const { data, error } = await supabase.functions.invoke("wordpress-ai-content", {
+    headers: buildFunctionsInvokeHeaders(accessToken),
+    body: { action: "verify", organization_id: organizationId },
+  });
+  if (error) {
+    return { ok: false, error: error.message || "Falha ao chamar o servidor" };
+  }
+  const d = data as {
+    ok?: boolean;
+    error?: string;
+    wp_user_slug?: string;
+    wp_roles?: string[];
+    can_create_posts?: boolean;
+    can_publish_posts?: boolean;
+    hint?: string;
+  };
+  if (d?.ok === true && typeof d.wp_user_slug === "string" && Array.isArray(d.wp_roles)) {
+    return {
+      ok: true,
+      wp_user_slug: d.wp_user_slug,
+      wp_roles: d.wp_roles,
+      can_create_posts: !!d.can_create_posts,
+      can_publish_posts: !!d.can_publish_posts,
+      hint: typeof d.hint === "string" ? d.hint : undefined,
+    };
+  }
+  if (d?.ok === false && typeof d.error === "string") {
+    return { ok: false, error: d.error };
+  }
+  if (typeof d?.error === "string") {
+    return { ok: false, error: d.error };
+  }
+  return { ok: false, error: "Resposta inválida da verificação" };
+}
+
 export default function WordPressContent() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -72,6 +121,23 @@ export default function WordPressContent() {
 
   /** Evita mostrar dados da org anterior ao mudar de organização */
   const lastOrgForResetRef = useRef<string | null>(null);
+
+  const canRunWpVerify =
+    !!activeOrgId &&
+    !!config?.site_url?.trim() &&
+    !!config?.wp_username?.trim() &&
+    !!config?.application_password;
+
+  const {
+    data: wpVerify,
+    isFetching: verifyingWp,
+    refetch: refetchWpVerify,
+  } = useQuery({
+    queryKey: ["wordpress-verify", activeOrgId],
+    queryFn: () => fetchWordPressVerify(activeOrgId!),
+    enabled: canRunWpVerify,
+    staleTime: 3 * 60 * 1000,
+  });
 
   const { data: hasOpenAI } = useQuery({
     queryKey: ["openai-config-check", activeOrgId],
@@ -176,6 +242,33 @@ export default function WordPressContent() {
         setSiteUrl(saved.site_url ?? "");
         setWpUser(saved.wp_username ?? "");
         setWpPass("");
+      }
+      if (activeOrgId) {
+        await queryClient.invalidateQueries({ queryKey: ["wordpress-verify", activeOrgId] });
+        try {
+          const v = await queryClient.fetchQuery({
+            queryKey: ["wordpress-verify", activeOrgId],
+            queryFn: () => fetchWordPressVerify(activeOrgId),
+          });
+          if (v.ok) {
+            toast({
+              title: "WordPress ligado",
+              description: `REST API aceitou o utilizador «${v.wp_user_slug}» (${v.wp_roles.join(", ") || "sem papéis listados"}).`,
+            });
+          } else {
+            toast({
+              title: "Configuração guardada, mas o WordPress não ligou",
+              description: v.error,
+              variant: "destructive",
+            });
+          }
+        } catch (e) {
+          toast({
+            title: "Não foi possível testar a ligação",
+            description: e instanceof Error ? e.message : "Erro desconhecido",
+            variant: "destructive",
+          });
+        }
       }
     } catch {
       /* toast já vem do hook useWordPressConfig */
@@ -395,13 +488,82 @@ export default function WordPressContent() {
                       manter&quot; ou introduza de novo para alterar).
                     </p>
                   )}
+
+                  {canRunWpVerify && (
+                    <div
+                      className="rounded-lg border p-3 space-y-2"
+                      role="status"
+                      aria-live="polite"
+                      aria-busy={verifyingWp}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">Estado da ligação</span>
+                        {verifyingWp ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            A testar…
+                          </Badge>
+                        ) : wpVerify?.ok ? (
+                          <Badge className="gap-1 bg-green-600 hover:bg-green-600">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Conectado
+                          </Badge>
+                        ) : wpVerify && !wpVerify.ok ? (
+                          <Badge variant="destructive">Não conectado</Badge>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2"
+                          disabled={!canRunWpVerify || verifyingWp}
+                          onClick={() => void refetchWpVerify()}
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${verifyingWp ? "animate-spin" : ""}`} />
+                          Testar de novo
+                        </Button>
+                      </div>
+                      {wpVerify?.ok ? (
+                        <p className="text-sm text-muted-foreground">
+                          Utilizador na API: <strong>{wpVerify.wp_user_slug}</strong>
+                          {wpVerify.wp_roles.length > 0
+                            ? ` · Papéis: ${wpVerify.wp_roles.join(", ")}`
+                            : ""}
+                          {!wpVerify.can_create_posts
+                            ? " · Esta conta não pode criar artigos."
+                            : !wpVerify.can_publish_posts
+                              ? " · Pode criar rascunhos; publicação direta pode estar limitada."
+                              : " · Pode criar e publicar posts."}
+                          {wpVerify.hint ? ` ${wpVerify.hint}` : ""}
+                        </p>
+                      ) : null}
+                      {wpVerify && !wpVerify.ok ? (
+                        <p className="text-sm text-destructive">{wpVerify.error}</p>
+                      ) : null}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" onClick={() => void saveWordPress()} disabled={isSaving}>
                       {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Guardar WordPress
+                      Guardar e testar ligação
                     </Button>
                     {config && (
-                      <Button variant="outline" onClick={() => deleteConfig.mutate()} disabled={isDeleting}>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          deleteConfig.mutate(undefined, {
+                            onSuccess: () => {
+                              if (activeOrgId) {
+                                queryClient.removeQueries({
+                                  queryKey: ["wordpress-verify", activeOrgId],
+                                });
+                              }
+                            },
+                          })
+                        }
+                        disabled={isDeleting}
+                      >
                         {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Remover configuração
                       </Button>
