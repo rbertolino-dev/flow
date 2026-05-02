@@ -40,10 +40,21 @@ function jwtTokenEndpoint(siteUrl: string): string {
   return `${base}/wp-json/jwt-auth/v1/token`;
 }
 
-type WpAuthMethod = "application_password" | "account_password" | "jwt";
+/** miniOrange REST API Authentication — ver documentação do plugin. */
+function miniOrangeJwtTokenEndpoint(siteUrl: string): string {
+  const base = normalizeSiteUrl(siteUrl);
+  return `${base}/wp-json/api/v1/token`;
+}
+
+type WpAuthMethod =
+  | "application_password"
+  | "account_password"
+  | "jwt"
+  | "jwt_miniorange";
 
 function parseAuthMethod(raw: string): WpAuthMethod {
   if (raw === "account_password") return "account_password";
+  if (raw === "jwt_miniorange") return "jwt_miniorange";
   if (raw === "jwt") return "jwt";
   return "application_password";
 }
@@ -87,6 +98,65 @@ async function fetchWpJwtToken(
   }
 }
 
+/** JWT via miniOrange — POST form username/password, resposta com jwt_token. */
+async function fetchWpJwtTokenMiniOrange(
+  siteUrl: string,
+  username: string,
+  password: string,
+): Promise<{ ok: true; token: string } | { ok: false; message: string }> {
+  const url = miniOrangeJwtTokenEndpoint(siteUrl);
+  const body = new URLSearchParams({
+    username: username.trim(),
+    password: password.replace(/\s+/g, ""),
+  });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: body.toString(),
+  });
+  const text = await res.text();
+  try {
+    const j = JSON.parse(text) as {
+      jwt_token?: string;
+      token?: string;
+      message?: string;
+      error_description?: string;
+      error?: string;
+    };
+    const tok =
+      typeof j.jwt_token === "string" && j.jwt_token.length > 0
+        ? j.jwt_token
+        : typeof j.token === "string" && j.token.length > 0
+          ? j.token
+          : "";
+    if (res.ok && tok) {
+      return { ok: true, token: tok };
+    }
+    const msg =
+      (typeof j.error_description === "string" && j.error_description) ||
+      (typeof j.error === "string" && j.error) ||
+      (typeof j.message === "string" && j.message) ||
+      "Resposta inválida ao pedir JWT (miniOrange).";
+    let out = msg;
+    if (res.status === 404) {
+      out =
+        "Endpoint /wp-json/api/v1/token não encontrado. Ative o plugin miniOrange «REST API Authentication» e confirme a documentação.";
+    } else if (!res.ok) {
+      out = `${msg} (HTTP ${res.status}). Verifique utilizador, palavra-passe e configuração JWT no WordPress.`;
+    }
+    return { ok: false, message: out };
+  } catch {
+    return {
+      ok: false,
+      message:
+        `Falha ao ler resposta (HTTP ${res.status}). Verifique URL, plugin miniOrange e se o servidor não remove o cabeçalho Authorization.`,
+    };
+  }
+}
+
 async function buildWpAuthorizationHeader(
   siteUrl: string,
   username: string,
@@ -95,6 +165,11 @@ async function buildWpAuthorizationHeader(
 ): Promise<{ ok: true; authorization: string } | { ok: false; message: string }> {
   if (authMethod === "jwt") {
     const jwt = await fetchWpJwtToken(siteUrl, username, password);
+    if (!jwt.ok) return jwt;
+    return { ok: true, authorization: `Bearer ${jwt.token}` };
+  }
+  if (authMethod === "jwt_miniorange") {
+    const jwt = await fetchWpJwtTokenMiniOrange(siteUrl, username, password);
     if (!jwt.ok) return jwt;
     return { ok: true, authorization: `Bearer ${jwt.token}` };
   }
@@ -560,7 +635,7 @@ serve(async (req) => {
       const authMethodRaw = typeof body.auth_method === "string" ? body.auth_method.trim() : "";
       const authMethodOverride: WpAuthMethod | undefined =
         authMethodRaw === "account_password" || authMethodRaw === "application_password" ||
-          authMethodRaw === "jwt"
+          authMethodRaw === "jwt" || authMethodRaw === "jwt_miniorange"
           ? authMethodRaw
           : undefined;
 

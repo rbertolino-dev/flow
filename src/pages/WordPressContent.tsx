@@ -29,13 +29,15 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 function parseWpAuthMethodFromApi(s?: string): WordPressAuthMethod {
   if (s === "account_password") return "account_password";
+  if (s === "jwt_miniorange") return "jwt_miniorange";
   if (s === "jwt") return "jwt";
   return "application_password";
 }
 
 function authMethodLabel(m: WordPressAuthMethod): string {
   if (m === "account_password") return "palavra-passe da conta";
-  if (m === "jwt") return "JWT (plugin)";
+  if (m === "jwt_miniorange") return "JWT miniOrange";
+  if (m === "jwt") return "JWT (jwt-auth)";
   return "senha de aplicação";
 }
 
@@ -254,7 +256,7 @@ export default function WordPressContent() {
         description:
           authMethod === "account_password"
             ? "Preencha URL do site, utilizador e palavra-passe da conta."
-            : authMethod === "jwt"
+            : authMethod === "jwt" || authMethod === "jwt_miniorange"
               ? "Preencha URL do site, utilizador e palavra-passe usada no pedido JWT (recomendamos senha de aplicação)."
               : "Preencha URL do site, utilizador e senha de aplicação.",
         variant: "destructive",
@@ -439,30 +441,63 @@ export default function WordPressContent() {
               ) : authMethod === "jwt" ? (
                 <>
                   <p className="font-medium">
-                    Modo <strong>JWT</strong> — plugin{" "}
-                    <strong>JWT Authentication for WP REST API</strong> no WordPress.
+                    Modo <strong>JWT (jwt-auth)</strong> — plugin{" "}
+                    <strong>JWT Authentication for WP REST API</strong>.
                   </p>
                   <ul className="list-disc list-inside space-y-1 text-sm">
                     <li>
                       Em <code className="text-xs">wp-config.php</code> defina{" "}
-                      <code className="text-xs">JWT_AUTH_SECRET_KEY</code> (uma chave longa e
-                      aleatória). <strong>Não</strong> cole essa chave no CRM — só no servidor
-                      WordPress.
+                      <code className="text-xs">JWT_AUTH_SECRET_KEY</code>.{" "}
+                      <strong>Não</strong> cole essa chave no CRM.
                     </li>
                     <li>
-                      O CRM pede o token em{" "}
-                      <code className="text-xs">/wp-json/jwt-auth/v1/token</code> com utilizador +
-                      palavra-passe, e usa <code className="text-xs">Authorization: Bearer …</code>{" "}
-                      nos pedidos à REST API (útil quando o alojamento bloqueia Basic Auth).
+                      Token:{" "}
+                      <code className="text-xs">POST /wp-json/jwt-auth/v1/token</code> (JSON) →{" "}
+                      <code className="text-xs">Bearer</code> nas chamadas <code className="text-xs">/wp/v2/*</code>.
                     </li>
                     <li>
-                      Recomendamos <strong>senha de aplicação</strong> no campo da palavra-passe
-                      (não a chave JWT).
+                      Recomendamos <strong>senha de aplicação</strong> no campo da palavra-passe.
                     </li>
                     <li>
-                      Se ainda falhar com 401, siga o README do plugin (por vezes é preciso regra no{" "}
-                      <code className="text-xs">.htaccess</code> para repassar o cabeçalho{" "}
-                      <code className="text-xs">Authorization</code>).
+                      Erro «Authorization header not received»? Regra no{" "}
+                      <code className="text-xs">.htaccess</code> / Nginx conforme o README do plugin.
+                    </li>
+                  </ul>
+                </>
+              ) : authMethod === "jwt_miniorange" ? (
+                <>
+                  <p className="font-medium">
+                    Modo <strong>JWT miniOrange</strong> — plugin{" "}
+                    <strong>REST API Authentication</strong> (miniOrange).
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>
+                      Documentação:{" "}
+                      <a
+                        href="https://developers.miniorange.com/docs/rest-api-authentication/wordpress/jwt-authentication"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
+                        JWT Authentication (miniOrange)
+                      </a>
+                      . Token:{" "}
+                      <code className="text-xs">POST /wp-json/api/v1/token</code> com{" "}
+                      <code className="text-xs">username</code> e{" "}
+                      <code className="text-xs">password</code> (form); resposta com{" "}
+                      <code className="text-xs">jwt_token</code>.
+                    </li>
+                    <li>
+                      O CRM usa exatamente esse fluxo e depois{" "}
+                      <code className="text-xs">Authorization: Bearer &lt;jwt_token&gt;</code> na REST API.
+                    </li>
+                    <li>
+                      Use o <strong>nome de utilizador</strong> WordPress e palavra-passe válida (senha
+                      de aplicação ou da conta, conforme o plugin permitir).
+                    </li>
+                    <li>
+                      Se aparecer erro de cabeçalho Authorization removido, siga a nota miniOrange
+                      para <code className="text-xs">.htaccess</code> (Apache) ou Nginx.
                     </li>
                   </ul>
                 </>
@@ -489,8 +524,8 @@ export default function WordPressContent() {
                 <code className="text-xs">/wp-json/</code>.
               </p>
               <p className="text-xs text-muted-foreground">
-                Senha de aplicação e palavra-passe da conta usam Basic Auth. O modo JWT usa o plugin
-                indicado acima e Bearer token.
+                Basic Auth nos dois primeiros modos. JWT jwt-auth e JWT miniOrange pedem token em
+                endpoints diferentes e usam Bearer na REST API.
               </p>
               <p className="text-xs text-muted-foreground">
                 Se o erro mencionar «sessão iniciada», em quase todos os casos é o{" "}
@@ -571,11 +606,23 @@ export default function WordPressContent() {
                         <RadioGroupItem value="jwt" id="wp-auth-jwt" className="mt-1" />
                         <div>
                           <Label htmlFor="wp-auth-jwt" className="font-medium cursor-pointer">
-                            JWT (plugin no WordPress)
+                            JWT — JWT Authentication for WP REST API
                           </Label>
                           <p className="text-sm text-muted-foreground">
-                            Quando Basic Auth falha no alojamento — Bearer +{" "}
-                            <code className="text-xs">jwt-auth/v1/token</code>.
+                            Endpoint <code className="text-xs">/wp-json/jwt-auth/v1/token</code>.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <RadioGroupItem value="jwt_miniorange" id="wp-auth-mo" className="mt-1" />
+                        <div>
+                          <Label htmlFor="wp-auth-mo" className="font-medium cursor-pointer">
+                            JWT — miniOrange REST API Authentication
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Endpoint{" "}
+                            <code className="text-xs">/wp-json/api/v1/token</code> (form +{" "}
+                            <code className="text-xs">jwt_token</code>).
                           </p>
                         </div>
                       </div>
@@ -611,15 +658,21 @@ export default function WordPressContent() {
                     <Label htmlFor="wp-pass">
                       {authMethod === "account_password"
                         ? "Palavra-passe da conta"
-                        : authMethod === "jwt"
+                        : authMethod === "jwt" || authMethod === "jwt_miniorange"
                           ? "Palavra-passe para obter o JWT"
                           : "Senha de aplicação"}
                     </Label>
                     {authMethod === "jwt" && (
                       <p className="text-xs text-muted-foreground">
-                        Use <strong>senha de aplicação</strong> do mesmo utilizador quando possível. A
-                        chave <code className="text-xs">JWT_AUTH_SECRET_KEY</code> fica só no{" "}
-                        <code className="text-xs">wp-config.php</code>, não aqui.
+                        Use <strong>senha de aplicação</strong> quando possível.{" "}
+                        <code className="text-xs">JWT_AUTH_SECRET_KEY</code> só no{" "}
+                        <code className="text-xs">wp-config.php</code>.
+                      </p>
+                    )}
+                    {authMethod === "jwt_miniorange" && (
+                      <p className="text-xs text-muted-foreground">
+                        Mesmo utilizador e palavra-passe do pedido ao miniOrange (recomendada{" "}
+                        <strong>senha de aplicação</strong>).
                       </p>
                     )}
                     <div className="flex gap-2">

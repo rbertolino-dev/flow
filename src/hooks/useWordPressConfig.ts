@@ -8,7 +8,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
  * account_password = Basic Auth com palavra-passe da conta;
  * jwt = Bearer token (plugin JWT Authentication for WP REST API).
  */
-export type WordPressAuthMethod = "application_password" | "account_password" | "jwt";
+export type WordPressAuthMethod =
+  | "application_password"
+  | "account_password"
+  | "jwt"
+  | "jwt_miniorange";
 
 export type WordPressConfigRow = {
   id: string;
