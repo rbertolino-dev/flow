@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useNavigate } from "react-router-dom";
@@ -47,6 +47,9 @@ export default function WordPressContent() {
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
+  /** Evita mostrar dados da org anterior ao mudar de organização */
+  const lastOrgForResetRef = useRef<string | null>(null);
+
   const { data: hasOpenAI } = useQuery({
     queryKey: ["openai-config-check", activeOrgId],
     queryFn: async () => {
@@ -86,12 +89,33 @@ export default function WordPressContent() {
   });
 
   useEffect(() => {
-    if (config) {
-      setSiteUrl(config.site_url || "");
-      setWpUser(config.wp_username || "");
+    if (!activeOrgId) {
+      lastOrgForResetRef.current = null;
+      setSiteUrl("");
+      setWpUser("");
+      setWpPass("");
+      return;
+    }
+    if (lastOrgForResetRef.current !== activeOrgId) {
+      lastOrgForResetRef.current = activeOrgId;
+      setSiteUrl("");
+      setWpUser("");
       setWpPass("");
     }
-  }, [config]);
+  }, [activeOrgId]);
+
+  useEffect(() => {
+    if (!activeOrgId || loadingWp) return;
+    if (config && config.organization_id === activeOrgId) {
+      setSiteUrl(config.site_url ?? "");
+      setWpUser(config.wp_username ?? "");
+      setWpPass("");
+    } else if (!config) {
+      setSiteUrl("");
+      setWpUser("");
+      setWpPass("");
+    }
+  }, [activeOrgId, config, loadingWp]);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "settings") navigate("/settings");
@@ -109,7 +133,7 @@ export default function WordPressContent() {
     else navigate("/", { state: { view } });
   };
 
-  const saveWordPress = () => {
+  const saveWordPress = async () => {
     const pass = wpPass.trim() || config?.application_password || "";
     if (!siteUrl.trim() || !wpUser.trim() || !pass) {
       toast({
@@ -119,11 +143,20 @@ export default function WordPressContent() {
       });
       return;
     }
-    saveConfig.mutate({
-      site_url: siteUrl.trim(),
-      wp_username: wpUser.trim(),
-      application_password: pass,
-    });
+    try {
+      const saved = await saveConfig.mutateAsync({
+        site_url: siteUrl.trim(),
+        wp_username: wpUser.trim(),
+        application_password: pass,
+      });
+      if (saved) {
+        setSiteUrl(saved.site_url ?? "");
+        setWpUser(saved.wp_username ?? "");
+        setWpPass("");
+      }
+    } catch {
+      /* toast já vem do hook useWordPressConfig */
+    }
   };
 
   const generate = async () => {
@@ -226,9 +259,11 @@ export default function WordPressContent() {
                 <strong>Administrador</strong> para criar artigos.
               </p>
               <p>
-                Em <strong>Utilizador WordPress</strong> use o <strong>nome de login</strong> (o que
-                aparece na lista de utilizadores, sem espaços na maioria dos casos) —{" "}
-                <em>não</em> use o &quot;Nome público&quot; do perfil.
+                Em <strong>Utilizador WordPress</strong> use o <strong>nome de utilizador</strong>{" "}
+                (campo &quot;Nome de utilizador&quot; em Utilizadores → editar) — a mesma coisa com
+                que costuma entrar no <em>wp-admin</em>. <strong>Não use o e-mail</strong> nem o
+                &quot;Nome público&quot;, salvo se o teu WordPress estiver configurado para login
+                por e-mail (raro).
               </p>
               <p>
                 Ative a REST API e evite plugins que bloqueiem{" "}
@@ -310,8 +345,15 @@ export default function WordPressContent() {
                       </Button>
                     </div>
                   </div>
+                  {config && (
+                    <p className="text-sm text-muted-foreground">
+                      Dados guardados para esta organização. URL e utilizador voltam a aparecer ao
+                      reabrir a página; a senha de aplicação fica oculta (use &quot;deixe vazio para
+                      manter&quot; ou introduza de novo para alterar).
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={saveWordPress} disabled={isSaving}>
+                    <Button type="button" onClick={() => void saveWordPress()} disabled={isSaving}>
                       {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Guardar WordPress
                     </Button>
