@@ -297,7 +297,11 @@ export function IntegrationsOnboarding({ onTabChange }: IntegrationsOnboardingPr
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => handleConfigure(pendingIntegrations[0].tabValue)}
+                onClick={() => {
+                  const first = pendingIntegrations[0];
+                  if (first.navigateTo) navigate(first.navigateTo);
+                  else handleConfigure(first.tabValue);
+                }}
                 className="font-semibold"
               >
                 Configurar Próxima
