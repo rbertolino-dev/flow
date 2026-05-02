@@ -60,8 +60,18 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("[openai-list-models] SUPABASE_URL ou SERVICE_ROLE_KEY em falta");
+      return jsonResponse({
+        success: false,
+        error: "Configuração do servidor incompleta.",
+        models: FALLBACK_MODELS,
+        total: FALLBACK_MODELS.length,
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { data: openaiConfig, error: configError } = await supabase

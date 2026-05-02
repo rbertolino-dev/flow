@@ -8,6 +8,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function json(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 function normalizeSiteUrl(raw: string): string {
@@ -69,36 +76,37 @@ serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Method not allowed" }, 405);
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autenticado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("[wordpress-ai-content] SUPABASE_URL ou SERVICE_ROLE_KEY em falta");
+      return json({ error: "Configuração do servidor incompleta (Supabase)." }, 500);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return json({ error: "Não autenticado" }, 401);
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Token inválido" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Token inválido" }, 401);
     }
 
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: "Corpo da requisição JSON inválido" }, 400);
+    }
     const {
       action,
       organization_id,
@@ -110,18 +118,12 @@ serve(async (req) => {
     } = body as Record<string, unknown>;
 
     if (!organization_id || typeof organization_id !== "string") {
-      return new Response(JSON.stringify({ error: "organization_id é obrigatório" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "organization_id é obrigatório" }, 400);
     }
 
     const access = await assertOrgAccess(supabase, user.id, organization_id);
     if (!access.ok) {
-      return new Response(JSON.stringify({ error: access.message }), {
-        status: access.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: access.message }, access.status);
     }
 
     if (action === "generate") {
@@ -129,28 +131,24 @@ serve(async (req) => {
       const d = typeof description === "string" ? description.trim() : "";
       const k = typeof keywords === "string" ? keywords.trim() : "";
       if (!p && !d && !k) {
-        return new Response(
-          JSON.stringify({
-            error: "Informe pelo menos o prompt, a descrição ou as palavras-chave",
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        return json({
+          error: "Informe pelo menos o prompt, a descrição ou as palavras-chave",
+        }, 400);
       }
 
       const { data: openaiConfig, error: openaiErr } = await supabase
         .from("openai_configs")
         .select("api_key")
         .eq("organization_id", organization_id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (openaiErr || !openaiConfig?.api_key) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Configure a API OpenAI da organização (menu Agentes / Configurar OpenAI).",
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        return json({
+          error:
+            "Configure a API OpenAI da organização (menu Agentes / Configurar OpenAI).",
+        }, 400);
       }
 
       const systemPrompt =
@@ -184,55 +182,44 @@ serve(async (req) => {
 
       if (!oaiRes.ok) {
         const t = await oaiRes.text();
-        console.error("[wordpress-ai-content] OpenAI error:", t);
-        return new Response(JSON.stringify({ error: "Falha ao gerar conteúdo com a IA" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("[wordpress-ai-content] OpenAI error:", oaiRes.status, t.slice(0, 800));
+        let detail = "Falha ao gerar conteúdo com a IA.";
+        try {
+          const j = JSON.parse(t);
+          if (j?.error?.message) detail = String(j.error.message);
+        } catch {
+          if (oaiRes.status === 401) detail = "API OpenAI recusada (chave inválida ou revogada).";
+        }
+        return json({ error: detail }, 200);
       }
 
       const oaiData = await oaiRes.json();
       const raw = oaiData.choices?.[0]?.message?.content;
       if (!raw || typeof raw !== "string") {
-        return new Response(JSON.stringify({ error: "Resposta vazia da IA" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Resposta vazia da IA" }, 200);
       }
 
       let parsed: { title?: string; content?: string };
       try {
         parsed = JSON.parse(raw);
       } catch {
-        return new Response(JSON.stringify({ error: "Resposta da IA não é JSON válido" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Resposta da IA não é JSON válido" }, 200);
       }
 
       const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
       const content = typeof parsed.content === "string" ? parsed.content.trim() : "";
       if (!title || !content) {
-        return new Response(JSON.stringify({ error: "IA não retornou título ou conteúdo" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "IA não retornou título ou conteúdo" }, 200);
       }
 
-      return new Response(JSON.stringify({ title, content }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ title, content }, 200);
     }
 
     if (action === "publish") {
       const title = typeof publishTitle === "string" ? publishTitle.trim() : "";
       const content = typeof publishContent === "string" ? publishContent.trim() : "";
       if (!title || !content) {
-        return new Response(JSON.stringify({ error: "Título e conteúdo são obrigatórios" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Título e conteúdo são obrigatórios" }, 400);
       }
 
       const { data: wpConfig, error: wpErr } = await supabase
@@ -242,9 +229,9 @@ serve(async (req) => {
         .maybeSingle();
 
       if (wpErr || !wpConfig?.site_url || !wpConfig?.wp_username || !wpConfig?.application_password) {
-        return new Response(
-          JSON.stringify({ error: "Configure o WordPress (URL, utilizador e senha de aplicação)." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        return json(
+          { error: "Configure o WordPress (URL, utilizador e senha de aplicação)." },
+          400,
         );
       }
 
@@ -279,29 +266,20 @@ serve(async (req) => {
             msg = "Credenciais WordPress inválidas ou REST API bloqueada";
           }
         }
-        return new Response(JSON.stringify({ error: msg }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: msg }, 200);
       }
 
       let wpJson: { id?: number; link?: string };
       try {
         wpJson = JSON.parse(wpText);
       } catch {
-        return new Response(JSON.stringify({ error: "Resposta inválida do WordPress" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Resposta inválida do WordPress" }, 200);
       }
 
       const postId = wpJson.id;
       const link = typeof wpJson.link === "string" ? wpJson.link : null;
       if (typeof postId !== "number") {
-        return new Response(JSON.stringify({ error: "WordPress não devolveu o ID do post" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "WordPress não devolveu o ID do post" }, 200);
       }
 
       const { error: logErr } = await supabase.from("wordpress_publish_logs").insert({
@@ -315,22 +293,13 @@ serve(async (req) => {
         console.error("[wordpress-ai-content] Falha ao registar publicação:", logErr.message);
       }
 
-      return new Response(JSON.stringify({ post_id: postId, link }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ post_id: postId, link }, 200);
     }
 
-    return new Response(JSON.stringify({ error: 'action inválida; use "generate" ou "publish"' }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: 'action inválida; use "generate" ou "publish"' }, 400);
   } catch (e) {
     console.error("[wordpress-ai-content]", e);
     const message = e instanceof Error ? e.message : "Erro interno";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: message }, 200);
   }
 });
