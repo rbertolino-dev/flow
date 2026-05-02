@@ -53,6 +53,29 @@ function wpRolesCanPublishPosts(roles: string[]): boolean {
   return roles.some((r) => can.has(String(r).toLowerCase()));
 }
 
+/** Mensagem WP tipo «sem sessão» = Basic Auth / Application Password não aplicada no WordPress (não é o login do CRM). */
+function explainWpRestNotLoggedIn(code: string | undefined, rawMessage: string): string {
+  const c = code || "";
+  const m = rawMessage.toLowerCase();
+  if (
+    c === "rest_not_logged_in" ||
+    c === "rest_login_required" ||
+    /sess(ão|ao) iniciada|sem sessão|não tem sessão|not currently logged|you are not currently logged|não está atualmente ligad/i.test(
+      rawMessage,
+    ) ||
+    /não tem sessão iniciada/i.test(m)
+  ) {
+    return (
+      "O WordPress respondeu como se ninguém estivesse autenticado (mensagem tipo «sem sessão» no site). " +
+      "Isto não é a sessão do CRM: é a senha de aplicação ou o pedido à REST API. " +
+      "Verifique: (1) nome de utilizador = login exato do wp-admin; (2) senha de aplicação correta, sem espaços; " +
+      "(3) no alojamento WordPress, o servidor/proxy não pode remover o cabeçalho Authorization; " +
+      "(4) plugins de segurança não bloqueiam /wp-json/ para utilizadores autenticados."
+    );
+  }
+  return rawMessage;
+}
+
 async function wpFetchCurrentUser(
   siteUrl: string,
   authHeader: string,
@@ -71,12 +94,15 @@ async function wpFetchCurrentUser(
       msg =
         "REST API bloqueada ou sem acesso a /users/me. Desative bloqueios em plugins de segurança ou allowlist da REST API.";
     }
+    let errCode: string | undefined;
     try {
-      const j = JSON.parse(text) as { message?: string };
+      const j = JSON.parse(text) as { message?: string; code?: string };
+      errCode = typeof j?.code === "string" ? j.code : undefined;
       if (j?.message) msg = String(j.message);
     } catch {
       /* ignore */
     }
+    msg = explainWpRestNotLoggedIn(errCode, msg);
     return { ok: false, status: res.status, message: msg };
   }
   try {
@@ -109,6 +135,8 @@ function parseWpError(text: string): WpErrorBody {
 
 function mapWpPublishError(code: string | undefined, message: string): string {
   const c = code || "";
+  const notLogged = explainWpRestNotLoggedIn(c, message);
+  if (notLogged !== message) return notLogged;
   if (
     c === "rest_author_cannot_create_posts" ||
     /não tem permiss(ão|oes) para criar artigos deste utilizador/i.test(message) ||

@@ -25,6 +25,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+/** JWT explícito evita falhas intermitentes do invoke atrás de proxy / sem sessão em cache. */
+async function getCrmAccessTokenForFunctions(): Promise<string> {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+  if (!error && session?.access_token) return session.access_token;
+  const { data: refreshed, error: refErr } = await supabase.auth.refreshSession();
+  if (!refErr && refreshed.session?.access_token) return refreshed.session.access_token;
+  throw new Error(
+    "Sessão do CRM expirada ou indisponível. Recarregue a página e entre outra vez.",
+  );
+}
+
+function buildFunctionsInvokeHeaders(accessToken: string): Record<string, string> {
+  const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+  };
+  if (key) headers.apikey = key;
+  return headers;
+}
+
 export default function WordPressContent() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -171,7 +194,9 @@ export default function WordPressContent() {
     }
     setGenerating(true);
     try {
+      const accessToken = await getCrmAccessTokenForFunctions();
       const { data, error } = await supabase.functions.invoke("wordpress-ai-content", {
+        headers: buildFunctionsInvokeHeaders(accessToken),
         body: {
           action: "generate",
           organization_id: activeOrgId,
@@ -208,7 +233,9 @@ export default function WordPressContent() {
     }
     setPublishing(true);
     try {
+      const accessToken = await getCrmAccessTokenForFunctions();
       const { data, error } = await supabase.functions.invoke("wordpress-ai-content", {
+        headers: buildFunctionsInvokeHeaders(accessToken),
         body: {
           action: "publish",
           organization_id: activeOrgId,
@@ -269,6 +296,10 @@ export default function WordPressContent() {
               <p className="text-xs text-muted-foreground">
                 Integração oficial: Application Passwords + REST API (recomendado pelo WordPress).{" "}
                 Alternativas como JWT exigem instalar e configurar plugins no site.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Se o erro mencionar «sessão iniciada», em quase todos os casos é o{" "}
+                <strong>WordPress</strong> a recusar a senha de aplicação, não o login do CRM.
               </p>
               <p>
                 Em <strong>Utilizador WordPress</strong> use o <strong>nome de utilizador</strong>{" "}
