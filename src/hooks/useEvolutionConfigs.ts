@@ -512,17 +512,26 @@ export function useEvolutionConfigs() {
       }
 
       const normalized = extractConnectionState(result.body);
+      if (normalized === null) {
+        toast({
+          title: 'Estado momentâneo ou formato não reconhecido',
+          description: `Não foi possível confirmar conectado/desconectado para "${config.instance_name}". Tente de novo em instantes.`,
+          variant: 'default',
+        });
+        await fetchConfigs();
+        return { success: true, httpStatus: status, details: result.body, isConnected: config.is_connected };
+      }
+
       const isConnected = normalized === true;
-      
-      // Persistir estado detectado
+
       await supabase
         .from('evolution_config')
-        .update({ 
+        .update({
           is_connected: isConnected,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', config.id);
-      
+
       toast({
         title: isConnected ? '✅ Conectado' : '⚠️ Desconectado',
         description: isConnected
@@ -560,6 +569,9 @@ export function useEvolutionConfigs() {
             return { id: cfg.id, ok: false, error: `HTTP ${r.evolutionHttpStatus}` };
           }
           const normalized = extractConnectionState(r.body);
+          if (normalized === null) {
+            return { id: cfg.id, ok: cfg.is_connected === true };
+          }
           const isConnected = normalized === true;
           if (cfg.is_connected !== isConnected) {
             await supabase

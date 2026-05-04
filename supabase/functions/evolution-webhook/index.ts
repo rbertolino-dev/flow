@@ -918,8 +918,10 @@ serve(async (req) => {
         if (!state || typeof state !== 'string') return null;
         const v = state.trim().toLowerCase();
         const connectedSet = new Set(['open', 'connected', 'online', 'up', 'ready', 'authenticated', 'logged', 'active']);
-        const disconnectedSet = new Set(['close', 'closed', 'disconnected', 'offline', 'down', 'pairing', 'connecting', 'qr', 'waiting', 'timeout']);
+        const transientSet = new Set(['pairing', 'connecting', 'qr', 'waiting', 'timeout', 'syncing', 'loading']);
+        const disconnectedSet = new Set(['close', 'closed', 'disconnected', 'offline', 'down']);
         if (connectedSet.has(v)) return true;
+        if (transientSet.has(v)) return null;
         if (disconnectedSet.has(v)) return false;
         return null;
       };

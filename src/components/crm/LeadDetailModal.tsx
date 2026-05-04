@@ -40,6 +40,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { buildCopyNumber, formatBrazilianPhone, normalizePhone, isValidBrazilianPhone, normalizeCep, formatBrazilianCep } from "@/lib/phoneUtils";
+import { preventDialogCloseOnSelectPortal } from "@/lib/preventDialogCloseOnSelectPortal";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useProducts } from "@/hooks/useProducts";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
@@ -199,6 +200,26 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
     }
   }, [lead.sourceInstanceId, configs]);
 
+  /** Pré-seleciona instância para envio (origem do lead → primeira conectada → primeira lista). */
+  useEffect(() => {
+    if (!open) return;
+    const list = configs || [];
+    if (lead.sourceInstanceId && list.some((c) => c.id === lead.sourceInstanceId)) {
+      setSelectedInstanceId(lead.sourceInstanceId);
+      return;
+    }
+    const connected = list.find((c) => c.is_connected === true)?.id;
+    if (connected) {
+      setSelectedInstanceId(connected);
+      return;
+    }
+    if (list[0]?.id) {
+      setSelectedInstanceId(list[0].id);
+      return;
+    }
+    setSelectedInstanceId("");
+  }, [open, lead.id, lead.sourceInstanceId, configs]);
+
   useEffect(() => {
     if (!open || !lead.id) return;
     let cancelled = false;
@@ -294,6 +315,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
     instances: configs || [],
     enabled: open, // Só verifica quando modal está aberto
     intervalMs: 30000,
+    onAfterStatusPersist: refetchConfigs,
   });
 
   // Atualização imediata ao abrir
@@ -1254,10 +1276,12 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   ), [tags, currentLead.tags]);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         className="max-w-2xl max-h-[90vh] sm:max-h-[85vh] p-0 w-[95vw] sm:w-full flex flex-col"
         aria-describedby={undefined}
+        onPointerDownOutside={preventDialogCloseOnSelectPortal}
+        onInteractOutside={preventDialogCloseOnSelectPortal}
       >
         <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
@@ -2175,7 +2199,10 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
                       variant="outline"
                       disabled={!hasInstances}
                       className="flex-1"
-                      onClick={() => onOpenScheduleModule()}
+                      onClick={() => {
+                        onOpenScheduleModule();
+                        onClose();
+                      }}
                     >
                       <Clock className="h-4 w-4 mr-2" />
                       Agendar mensagens

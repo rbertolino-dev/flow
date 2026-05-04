@@ -71,7 +71,7 @@ const Index = () => {
   const { stages } = usePipelineStages();
   const { tags } = useTags();
   const { viewMode, toggleView } = useViewPreference();
-  const { configs } = useEvolutionConfigs();
+  const { configs, refetch: refetchEvolutionConfigs } = useEvolutionConfigs();
   const { toast } = useToast();
   
   // Health check periódico das instâncias (verifica a cada 30s)
@@ -79,6 +79,7 @@ const Index = () => {
     instances: configs || [],
     enabled: true,
     intervalMs: 30000,
+    onAfterStatusPersist: refetchEvolutionConfigs,
   });
   
   // Sincronização automática a cada 5 minutos

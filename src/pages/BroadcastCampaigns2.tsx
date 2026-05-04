@@ -1006,6 +1006,7 @@ export default function BroadcastCampaigns2() {
     enabled: !!activeOrgId && instances.length > 0,
     intervalMs: 45000,
     stableIntervalMs: 120000,
+    onAfterStatusPersist: fetchInstances,
   });
 
   const parseCSV = (text: string): Array<{ phone: string; name?: string }> => {

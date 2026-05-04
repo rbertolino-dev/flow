@@ -10,10 +10,14 @@ interface UseInstanceHealthCheckOptions {
   intervalMs?: number;
   stableIntervalMs?: number;
   checksUntilStable?: number;
+  checksUntilDisconnected?: number;
+  /** Chamado após persistir `is_connected` no Supabase (ex.: refetch para alinhar UI com o banco). */
+  onAfterStatusPersist?: () => void;
 }
 
 interface InstanceHealth {
   consecutiveSuccesses: number;
+  consecutiveFailures: number;
   isStable: boolean;
   lastCheck: number;
 }
@@ -24,10 +28,14 @@ export function useInstanceHealthCheck({
   intervalMs = 30000,
   stableIntervalMs = 120000,
   checksUntilStable = 5,
+  checksUntilDisconnected = 3,
+  onAfterStatusPersist,
 }: UseInstanceHealthCheckOptions) {
   const intervalRef = useRef<NodeJS.Timeout>();
   const [healthMap, setHealthMap] = useState<Record<string, InstanceHealth>>({});
   const isCheckingRef = useRef(false);
+  const onAfterStatusPersistRef = useRef(onAfterStatusPersist);
+  onAfterStatusPersistRef.current = onAfterStatusPersist;
   /** Lista atual (evita re-disparar efeito só porque veio novo array de configs com os mesmos ids). */
   const instancesRef = useRef(instances);
   instancesRef.current = instances;
@@ -65,6 +73,7 @@ export function useInstanceHealthCheck({
       for (const instance of list) {
         const health = updatedHealthMap[instance.id] || {
           consecutiveSuccesses: 0,
+          consecutiveFailures: 0,
           isStable: false,
           lastCheck: 0,
         };
@@ -99,8 +108,16 @@ export function useInstanceHealthCheck({
           } else if (result.evolutionOk) {
             const isConnected = extractConnectionState(result.body);
 
+            // null = formato desconhecido ou estado transitório — não contar como falha nem sobrescrever DB
+            if (isConnected === null) {
+              health.lastCheck = now;
+              updatedHealthMap[instance.id] = health;
+              continue;
+            }
+
             if (isConnected) {
               health.consecutiveSuccesses++;
+              health.consecutiveFailures = 0;
 
               if (health.consecutiveSuccesses >= checksUntilStable && !health.isStable) {
                 health.isStable = true;
@@ -113,14 +130,32 @@ export function useInstanceHealthCheck({
                 `✅ Instância ${instance.instance_name}: conectada (${health.consecutiveSuccesses}/${checksUntilStable} sucessos${health.isStable ? ", ESTÁVEL" : ""})`,
               );
             } else {
+              health.consecutiveFailures++;
               health.consecutiveSuccesses = 0;
-              health.isStable = false;
-              console.log(`❌ Instância ${instance.instance_name}: desconectada. Resetando contador.`);
+
+              if (health.consecutiveFailures >= checksUntilDisconnected) {
+                health.isStable = false;
+                console.log(
+                  `❌ Instância ${instance.instance_name}: desconectada confirmada (${health.consecutiveFailures}/${checksUntilDisconnected})`,
+                );
+              } else {
+                console.log(
+                  `⚠️ Instância ${instance.instance_name}: possível desconexão (${health.consecutiveFailures}/${checksUntilDisconnected}) - aguardando confirmação`,
+                );
+              }
             }
 
             health.lastCheck = now;
 
-            if (isConnected !== null && isConnected !== instance.is_connected) {
+            const canPersistDisconnection =
+              isConnected === false && health.consecutiveFailures >= checksUntilDisconnected;
+            const canPersistConnection = isConnected === true;
+            const shouldPersist =
+              isConnected !== null &&
+              isConnected !== instance.is_connected &&
+              (canPersistConnection || canPersistDisconnection);
+
+            if (shouldPersist) {
               console.log(`🔄 Atualizando status de ${instance.instance_name}: ${instance.is_connected} → ${isConnected}`);
 
               const { error } = await supabase
@@ -133,6 +168,8 @@ export function useInstanceHealthCheck({
 
               if (error) {
                 console.error(`❌ Erro ao atualizar status de ${instance.instance_name}:`, error);
+              } else {
+                onAfterStatusPersistRef.current?.();
               }
             }
           } else {
@@ -171,7 +208,7 @@ export function useInstanceHealthCheck({
       }
       isCheckingRef.current = false;
     };
-  }, [instanceIdsKey, enabled, intervalMs, stableIntervalMs, checksUntilStable]);
+  }, [instanceIdsKey, enabled, intervalMs, stableIntervalMs, checksUntilStable, checksUntilDisconnected]);
 
   return null;
 }

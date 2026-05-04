@@ -30,6 +30,7 @@ import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import { extractConnectionState } from "@/lib/evolutionStatus";
+import { preventDialogCloseOnSelectPortal } from "@/lib/preventDialogCloseOnSelectPortal";
 
 interface PostSaleLeadDetailModalProps {
   lead: PostSaleLead;
@@ -98,6 +99,7 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
     instances: configs || [],
     enabled: open, // Só verifica quando modal está aberto
     intervalMs: 30000,
+    onAfterStatusPersist: refetchConfigs,
   });
 
   // Helpers para status ao vivo
@@ -149,6 +151,21 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
       }, 100);
     }
   }, [open, initialShowMessage]);
+
+  useEffect(() => {
+    if (!open) return;
+    const list = configs || [];
+    const connected = list.find((c) => c.is_connected === true)?.id;
+    if (connected) {
+      setSelectedInstanceId(connected);
+      return;
+    }
+    if (list[0]?.id) {
+      setSelectedInstanceId(list[0].id);
+      return;
+    }
+    setSelectedInstanceId("");
+  }, [open, lead.id, configs]);
 
   const handleRefreshStatus = async () => {
     setIsRefreshingStatus(true);
@@ -428,8 +445,12 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
   }, [open, lead.id]);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col">
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] p-0 flex flex-col"
+        onPointerDownOutside={preventDialogCloseOnSelectPortal}
+        onInteractOutside={preventDialogCloseOnSelectPortal}
+      >
         <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b">
           <DialogTitle className="text-xl sm:text-2xl truncate">{currentLead.name}</DialogTitle>
         </DialogHeader>
@@ -714,7 +735,10 @@ export function PostSaleLeadDetailModal({ lead, open, onClose, onUpdated, initia
                       variant="outline"
                       disabled={!hasInstances}
                       className="flex-1"
-                      onClick={() => onOpenScheduleModule()}
+                      onClick={() => {
+                        onOpenScheduleModule();
+                        onClose();
+                      }}
                     >
                       <Clock className="h-4 w-4 mr-2" />
                       Agendar mensagens

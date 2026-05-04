@@ -72,11 +72,16 @@ function normalizeState(value: unknown): boolean | null {
     const connectedSet = new Set([
       'open', 'connected', 'online', 'up', 'ready', 'authenticated', 'logged', 'active'
     ]);
+    /** Estados transitórios: não marcar como desconectado (evita falso alarme no Disparador / DB). */
+    const transientSet = new Set([
+      'pairing', 'connecting', 'qr', 'waiting', 'timeout', 'syncing', 'loading'
+    ]);
     const disconnectedSet = new Set([
-      'close', 'closed', 'disconnected', 'offline', 'down', 'pairing', 'connecting', 'qr', 'waiting', 'timeout'
+      'close', 'closed', 'disconnected', 'offline', 'down'
     ]);
 
     if (connectedSet.has(v)) return true;
+    if (transientSet.has(v)) return null;
     if (disconnectedSet.has(v)) return false;
 
     // handle enums like DELIVERY_ACK etc. -> not connection states
