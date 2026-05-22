@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import {
+  connectionStateToPersistBoolean,
+  extractStateFromConnectionWebhookPayload,
+} from "../_shared/evolution-connection-parse.ts";
 
 // Service role client para operações que não dependem de auth.uid()
 const supabaseServiceRole = createClient(
@@ -913,21 +917,43 @@ serve(async (req) => {
         configs = byApiKey ?? null;
       }
 
-      // Normalizar estado: Evolution pode enviar "open", "connected", "close", "closed", etc.
-      const connectionStateToBoolean = (state: string | undefined): boolean | null => {
-        if (!state || typeof state !== 'string') return null;
-        const v = state.trim().toLowerCase();
-        const connectedSet = new Set(['open', 'connected', 'online', 'up', 'ready', 'authenticated', 'logged', 'active']);
-        const transientSet = new Set(['pairing', 'connecting', 'qr', 'waiting', 'timeout', 'syncing', 'loading']);
-        const disconnectedSet = new Set(['close', 'closed', 'disconnected', 'offline', 'down']);
-        if (connectedSet.has(v)) return true;
-        if (transientSet.has(v)) return null;
-        if (disconnectedSet.has(v)) return false;
-        return null;
-      };
+      const stateRaw = extractStateFromConnectionWebhookPayload(payload, data);
+      console.log(
+        `[connection.update] instance=${instance} state=${stateRaw ?? "(missing)"}`,
+      );
 
-      const isNowConnectedRaw = connectionStateToBoolean(payload.state);
-      if (configs && isNowConnectedRaw !== null) {
+      if (!stateRaw) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Invalid connection payload",
+            instance,
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const isNowConnectedRaw = connectionStateToPersistBoolean(stateRaw);
+
+      if (!configs) {
+        console.warn(
+          `[connection.update] instância não encontrada no CRM (secret+name): ${instance}`,
+        );
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Instance not registered in CRM",
+            instance,
+            state: stateRaw,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      if (isNowConnectedRaw !== null) {
         const wasConnected = configs.is_connected;
         const isNowConnected = isNowConnectedRaw === true;
 
@@ -939,8 +965,10 @@ serve(async (req) => {
           })
           .eq('id', configs.id);
         
-        console.log(`✅ Status atualizado: ${isNowConnected ? 'conectado' : 'desconectado'}`);
-        
+        console.log(
+          `[connection.update] is_connected=${isNowConnected} (state=${stateRaw}) id=${configs.id}`,
+        );
+
         // Se desconectou (estava conectado e agora não está), criar notificação
         if (wasConnected && !isNowConnected && configs.organization_id) {
           console.log(`🔔 Detectada desconexão via webhook para instância ${instance}`);
@@ -1004,7 +1032,21 @@ serve(async (req) => {
             .eq('instance_id', configs.id)
             .is('resolved_at', null);
         }
+      } else {
+        console.warn(
+          `[connection.update] estado não mapeado para persistência: ${stateRaw}`,
+        );
       }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          instance,
+          state: stateRaw,
+          is_connected: isNowConnectedRaw === true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Processar QR Code

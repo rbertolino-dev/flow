@@ -49,6 +49,13 @@ export function classifyBroadcastError(
   }
 
   if (
+    lower.includes("connection closed") ||
+    lower.includes("precondition required")
+  ) {
+    return { code: "INSTANCE_UNAVAILABLE", detail: msg.slice(0, 300) };
+  }
+
+  if (
     lower.includes("instance") &&
     (lower.includes("not found") || lower.includes("disconnect") || lower.includes("closed"))
   ) {

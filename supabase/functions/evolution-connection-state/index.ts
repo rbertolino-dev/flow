@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import {
+  buildFetchInstancesStatusMap,
+  resolveInstanceLiveStatus,
+} from "../_shared/evolution-fetch-instances.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -160,31 +164,54 @@ serve(async (req) => {
     );
   }
 
-  const baseUrl = normalizeApiUrl(config.api_url);
-  const evoUrl =
-    `${baseUrl}/instance/connectionState/${encodeURIComponent(config.instance_name)}`;
-
-  try {
-    const evoRes = await fetch(evoUrl, {
-      headers: { apikey: apiKey },
-      signal: AbortSignal.timeout(12000),
-    });
-
-    const text = await evoRes.text();
-    let parsed: unknown = null;
-    if (text) {
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = { _raw: text.slice(0, 500) };
-      }
-    }
-
+  const instanceName = String(config.instance_name ?? "").trim();
+  if (!instanceName) {
     return new Response(
       JSON.stringify({
-        evolutionOk: evoRes.ok,
-        evolutionHttpStatus: evoRes.status,
-        body: parsed,
+        evolutionOk: false,
+        evolutionHttpStatus: null,
+        body: null,
+        proxyError: "missing_instance_name",
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  try {
+    const fetchMap = await buildFetchInstancesStatusMap(config.api_url, apiKey);
+    const resolved = await resolveInstanceLiveStatus(
+      config.api_url,
+      apiKey,
+      instanceName,
+      fetchMap,
+    );
+
+    if (resolved.live === null) {
+      return new Response(
+        JSON.stringify({
+          evolutionOk: false,
+          evolutionHttpStatus: resolved.httpStatus ?? null,
+          body: null,
+          proxyError: resolved.error ?? "unknown_state",
+          source: resolved.source,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const state = resolved.live ? "open" : "close";
+    return new Response(
+      JSON.stringify({
+        evolutionOk: true,
+        evolutionHttpStatus: 200,
+        body: {
+          instance: {
+            instanceName,
+            state,
+            status: state,
+          },
+        },
+        source: resolved.source,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

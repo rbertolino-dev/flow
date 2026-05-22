@@ -1,6 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { classifyBroadcastError } from "../_shared/broadcast-error-classify.ts";
+import { isInstanceReadyToSend } from "../_shared/evolution-fetch-instances.ts";
+
+const MAX_SEND_ATTEMPTS = 4;
+const FAILOVER_DELAY_MS = 45_000;
+
+function isConnectionClosedMessage(text: string): boolean {
+  const lower = text.toLowerCase();
+  return lower.includes("connection closed") || lower.includes("precondition required");
+}
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,16 +87,21 @@ serve(async (req) => {
           id,
           status,
           custom_message,
+          sending_method,
+          instance_id,
+          instance_ids,
           message_template:message_templates(content)
         ),
-        instance:evolution_config!instance_id(api_url, api_key, instance_name)
+        instance:evolution_config!instance_id(id, api_url, api_key, instance_name, is_connected),
+        send_attempts,
+        attempted_instance_id
       `)
       .eq("status", "scheduled")
       .lte("scheduled_for", now)
       .order("scheduled_for", { ascending: true })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
-      .limit(10); // Processar 10 por vez
+      .limit(20); // Processar 20 por vez (grupos grandes ~35 chips)
 
     if (fetchError) throw fetchError;
 
@@ -156,7 +171,90 @@ serve(async (req) => {
     }
     
     const metricsMap = new Map<string, InstanceMetrics>();
-    
+    const markInstanceDisconnected = async (instanceId: string) => {
+      await supabase
+        .from("evolution_config")
+        .update({ is_connected: false, updated_at: new Date().toISOString() })
+        .eq("id", instanceId);
+    };
+
+    const resolveFailoverInstance = async (
+      item: {
+        instance_id: string;
+        organization_id: string;
+        send_attempts?: number | null;
+      },
+      campaign: {
+        sending_method?: string | null;
+        instance_id?: string | null;
+        instance_ids?: string[] | null;
+      },
+      currentInstanceId: string,
+    ): Promise<{
+      id: string;
+      instance_name: string;
+      api_url: string;
+      api_key: string;
+    } | null> => {
+      if (campaign.sending_method === "separate") return null;
+      const attempts = item.send_attempts ?? 0;
+      if (attempts >= MAX_SEND_ATTEMPTS) return null;
+
+      const poolIds = (
+        (campaign.instance_ids?.length ? campaign.instance_ids : null) ??
+        (campaign.instance_id ? [campaign.instance_id] : [])
+      ).filter((id) => id && id !== currentInstanceId);
+
+      if (poolIds.length === 0) return null;
+
+      const { data: pool } = await supabase
+        .from("evolution_config")
+        .select("id, instance_name, api_url, api_key")
+        .eq("organization_id", item.organization_id)
+        .in("id", poolIds);
+
+      for (const cfg of pool ?? []) {
+        const ready = await isInstanceReadyToSend(
+          String(cfg.api_url),
+          String(cfg.api_key),
+          String(cfg.instance_name),
+        );
+        if (ready.ready) {
+          return cfg as {
+            id: string;
+            instance_name: string;
+            api_url: string;
+            api_key: string;
+          };
+        }
+      }
+      return null;
+    };
+
+    const rescheduleWithFailover = async (
+      itemId: string,
+      fromInstance: { id: string; instance_name: string },
+      toInstance: { id: string; instance_name: string },
+      attempts: number,
+      reason: string,
+    ): Promise<boolean> => {
+      const { data: updated } = await supabase
+        .from("broadcast_queue_2")
+        .update({
+          instance_id: toInstance.id,
+          attempted_instance_id: fromInstance.id,
+          send_attempts: attempts + 1,
+          last_attempt_at: new Date().toISOString(),
+          scheduled_for: new Date(Date.now() + FAILOVER_DELAY_MS).toISOString(),
+          error_message: `${reason} → reagendado via ${toInstance.instance_name}`,
+        })
+        .eq("id", itemId)
+        .eq("status", "scheduled")
+        .select("id");
+
+      return (updated?.length ?? 0) > 0;
+    };
+
     // Função auxiliar para obter ou criar métricas de uma instância
     const getOrCreateMetrics = (instanceId: string): InstanceMetrics => {
       if (!metricsMap.has(instanceId)) {
@@ -278,9 +376,55 @@ serve(async (req) => {
         const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
         console.log(`📤 Enviando para ${whatsappNumber} via ${instance.instance_name} (${evolutionUrl})`);
 
+        const readyCheck = await isInstanceReadyToSend(
+          instance.api_url,
+          instance.api_key,
+          instance.instance_name,
+        );
+
+        if (!readyCheck.ready) {
+          console.warn(
+            `⚠️ ${instance.instance_name} não pronta para envio (${readyCheck.source}: ${readyCheck.detail ?? "offline"})`,
+          );
+          await markInstanceDisconnected(instance.id);
+          const failoverCfg = await resolveFailoverInstance(
+            item,
+            campaign,
+            instance.id,
+          );
+          if (failoverCfg) {
+            const ok = await rescheduleWithFailover(
+              item.id,
+              instance,
+              failoverCfg,
+              item.send_attempts ?? 0,
+              `Chip ${instance.instance_name} offline no painel Evolution`,
+            );
+            if (ok) {
+              console.log(
+                `🔁 Item ${item.id} reagendado para ${failoverCfg.instance_name}`,
+              );
+              continue;
+            }
+          }
+          throw new Error(
+            `Instância "${instance.instance_name}" desconectada na Evolution (connectionState direto). Conecte o chip em api.ordemservico.com antes do disparo.`,
+          );
+        }
+
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
         const startTime = Date.now();
+
+        await supabase
+          .from("broadcast_queue_2")
+          .update({
+            send_attempts: (item.send_attempts ?? 0) + 1,
+            last_attempt_at: new Date().toISOString(),
+            sending_started_at: new Date().toISOString(),
+          })
+          .eq("id", item.id)
+          .eq("status", "scheduled");
 
         // Enviar mensagem via Evolution API usando credenciais da instância específica
         const evolutionResponse = await fetch(evolutionUrl, {
@@ -310,6 +454,31 @@ serve(async (req) => {
           const errorText = await evolutionResponse.text();
           metrics.lastError = errorText.slice(0, 200); // Limitar tamanho
           metrics.lastErrorCode = `HTTP_${httpStatus}`;
+
+          if (isConnectionClosedMessage(errorText)) {
+            await markInstanceDisconnected(instance.id);
+            const failoverCfg = await resolveFailoverInstance(
+              item,
+              campaign,
+              instance.id,
+            );
+            if (failoverCfg) {
+              const ok = await rescheduleWithFailover(
+                item.id,
+                instance,
+                failoverCfg,
+                item.send_attempts ?? 0,
+                `Connection Closed em ${instance.instance_name}`,
+              );
+              if (ok) {
+                console.log(
+                  `🔁 Connection Closed: item ${item.id} → ${failoverCfg.instance_name}`,
+                );
+                continue;
+              }
+            }
+          }
+
           throw new Error(`Evolution API error: ${errorText}`);
         }
 
@@ -354,7 +523,12 @@ serve(async (req) => {
         processed++;
         console.log(`✅ Mensagem enviada para ${item.phone}`);
       } catch (error: any) {
-        console.error(`❌ Erro ao processar ${item.phone}:`, error.message);
+        const errMsg = error?.message ?? String(error);
+        console.error(`❌ Erro ao processar ${item.phone}:`, errMsg);
+
+        if (item.instance && isConnectionClosedMessage(errMsg)) {
+          await markInstanceDisconnected(item.instance.id);
+        }
         
         // Registrar falha nas métricas
         if (item.instance) {
@@ -383,7 +557,7 @@ serve(async (req) => {
           }
         }
 
-        const classified = classifyBroadcastError(error?.message);
+        const classified = classifyBroadcastError(errMsg);
 
         // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
         const { count: updateCount } = await supabase

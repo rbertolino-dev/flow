@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-const, @typescript-eslint/no-unused-expressions, react-hooks/exhaustive-deps */
 /**
  * Disparo em massa 2 (Disparador Inteligente) — baseline Git: disparador-2-baseline-2026-03-21
  * Rollback: rollback/disparador-2/README.disparador2 e restaurar-modulo-desde-git-tag.sh
@@ -39,7 +40,13 @@ import { InstanceGroupManager } from "@/components/crm/InstanceGroupManager";
 import { WorkflowListManager } from "@/components/whatsapp/workflows/WorkflowListManager";
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
-import { validateContactsComplete, ParsedContact } from "@/lib/contactValidator";
+import { ParsedContact } from "@/lib/contactValidator";
+import { resolveDisconnectedWithLiveCheck } from "@/lib/verifyInstanceConnectionLive";
+import { syncEvolutionConnectionBatch } from "@/lib/syncEvolutionConnectionBatch";
+import {
+  ensureSyncedAndGetDisconnected,
+  validateContactsForSelectedInstances,
+} from "@/lib/broadcastInstanceConnection";
 import { parseCSVFile, ParsedCSVContact } from "@/lib/csvParser";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { StatusMediaUpload } from "@/components/whatsapp/StatusMediaUpload";
@@ -120,6 +127,7 @@ type EvoRowForDisconnect = {
   is_connected?: boolean | null;
 };
 
+// Bloqueio só para is_connected === false; revalidação ao vivo em verifyInstanceConnectionLive.ts
 function getDisconnectedForInstanceIds(
   ids: string[],
   instancesList: EvoRowForDisconnect[],
@@ -138,7 +146,7 @@ function getDisconnectedForInstanceIds(
       });
       continue;
     }
-    if (inst.is_connected !== true) {
+    if (inst.is_connected === false) {
       out.push({
         id: String(inst.id),
         name: String(inst.instance_name ?? "Instância"),
@@ -556,6 +564,7 @@ export default function BroadcastCampaigns2() {
     cancelled_count: number;
   } | null>(null);
   const [instances, setInstances] = useState<any[]>([]);
+  const [syncingEvolutionStatus, setSyncingEvolutionStatus] = useState(false);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
   const [reconnectingInstance, setReconnectingInstance] = useState<any | null>(null);
   const [campaignTemplates, setCampaignTemplates] = useState<any[]>([]);
@@ -940,16 +949,61 @@ export default function BroadcastCampaigns2() {
     }
   }, [activeOrgId, toast]);
 
-  const fetchInstances = useCallback(async () => {
+  const fetchInstances = useCallback(async (): Promise<any[]> => {
     if (!activeOrgId) {
       setInstances([]);
-      return;
+      return [];
     }
     const { data } = await supabase.from("evolution_config").select("*").eq("organization_id", activeOrgId);
     const instancesData = data || [];
     setInstances(instancesData);
     dataCacheRef.current.instances = instancesData;
+    return instancesData;
   }, [activeOrgId]);
+
+  const syncEvolutionStatusForOrg = useCallback(async (showToast = true, syncAll = true) => {
+    if (!activeOrgId || syncingEvolutionStatus) return;
+
+    setSyncingEvolutionStatus(true);
+    try {
+      const result = await syncEvolutionConnectionBatch(activeOrgId, {
+        onlyMarkedDisconnected: syncAll ? false : true,
+      });
+      if (!result.ok) {
+        if (showToast) {
+          toast({
+            title: "Não foi possível sincronizar status",
+            description: result.error ?? "Tente novamente em instantes.",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+      await fetchInstances();
+      if (showToast) {
+        const connected = result.setConnected ?? 0;
+        const disconnected = result.setDisconnected ?? 0;
+        if (connected > 0 || disconnected > 0) {
+          toast({
+            title: "Status sincronizado com a Evolution",
+            description: `${connected} conectada(s), ${disconnected} desconectada(s) atualizada(s).`,
+          });
+        } else if ((result.checked ?? 0) > 0) {
+          toast({
+            title: "Status já está alinhado",
+            description: `${result.checked} instância(s) conferida(s) na Evolution.`,
+          });
+        }
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      if (showToast) {
+        toast({ title: "Erro ao sincronizar", description: msg, variant: "destructive" });
+      }
+    } finally {
+      setSyncingEvolutionStatus(false);
+    }
+  }, [activeOrgId, instances, syncingEvolutionStatus, fetchInstances, toast]);
 
   const fetchMessageTemplates = useCallback(async () => {
     if (!activeOrgId) {
@@ -1000,10 +1054,25 @@ export default function BroadcastCampaigns2() {
     }
   }, [activeOrgId, fetchCampaigns, fetchInstances, fetchMessageTemplates, fetchCampaignTemplates, fetchActiveTimeWindow, fetchInstanceGroups]);
 
+  const evolutionSyncAttemptedOrgRef = useRef<string | null>(null);
+  useEffect(() => {
+    evolutionSyncAttemptedOrgRef.current = null;
+  }, [activeOrgId]);
+
+  // Sincroniza TODAS as instâncias com Evolution ao abrir o Disparador 2 (1x por org)
+  // Necessário para corrigir status fantasma (fetchInstances open + connectionState connecting)
+  useEffect(() => {
+    if (!activeOrgId || instances.length === 0) return;
+    if (evolutionSyncAttemptedOrgRef.current === activeOrgId) return;
+    evolutionSyncAttemptedOrgRef.current = activeOrgId;
+    void syncEvolutionStatusForOrg(false, true);
+  }, [activeOrgId, instances.length, syncEvolutionStatusForOrg]);
+
   // Atualiza is_connected no banco periodicamente (somente evolution_config; zero impacto em fila/campanhas)
+  // Com muitos chips, health check via connectionState gera falso "desconectado" — usar só sync em lote (fetchInstances)
   useInstanceHealthCheck({
     instances: instances as EvolutionConfig[],
-    enabled: !!activeOrgId && instances.length > 0,
+    enabled: !!activeOrgId && instances.length > 0 && instances.length <= 15,
     intervalMs: 45000,
     stableIntervalMs: 120000,
     onAfterStatusPersist: fetchInstances,
@@ -1191,27 +1260,44 @@ export default function BroadcastCampaigns2() {
         return;
       }
 
-      // Buscar configuração da instância Evolution (usar primeira instância para validação)
-      const instanceIdForValidation = newCampaign.sendingMethod === "single" 
-        ? newCampaign.instanceId 
-        : newCampaign.instanceIds[0];
-      
-      const instance = instances.find(i => i.id === instanceIdForValidation);
-      if (!instance) {
-        throw new Error("Instância não encontrada");
+      const instanceIdsForValidation = normalizeInstanceIdList(
+        newCampaign.sendingMethod === "single"
+          ? newCampaign.instanceId
+            ? [newCampaign.instanceId]
+            : []
+          : newCampaign.instanceIds,
+      );
+
+      if (!activeOrgId) {
+        throw new Error("Organização não selecionada");
       }
 
-      // Validar contatos com normalização e verificação WhatsApp (para CSV e paste)
       toast({
         title: "Validando contatos...",
-        description: "Normalizando números e verificando WhatsApp via Evolution API",
+        description: "Sincronizando status das instâncias e verificando WhatsApp na Evolution",
       });
 
-      const validation = await validateContactsComplete(text, instanceIdForValidation, {
-        api_url: instance.api_url,
-        api_key: instance.api_key,
-        instance_name: instance.instance_name
-      }, newCampaign.useLatamValidator);
+      const { freshInstances, disconnected: discBeforeValidate } =
+        await ensureSyncedAndGetDisconnected(activeOrgId, instanceIdsForValidation, fetchInstances);
+      setInstances(freshInstances);
+
+      if (discBeforeValidate.length > 0) {
+        setDisconnectedInstanceDialog({
+          mode: "groupPreview",
+          disconnected: discBeforeValidate,
+        });
+        throw new Error(
+          `${discBeforeValidate.length} instância(s) selecionada(s) não estão conectadas. Sincronize com Evolution ou remova da seleção.`,
+        );
+      }
+
+      const validation = await validateContactsForSelectedInstances(
+        text,
+        activeOrgId,
+        instanceIdsForValidation,
+        freshInstances,
+        newCampaign.useLatamValidator,
+      );
 
       // Mostrar resultado da validação
       const totalParsed = validation.validContacts.length + validation.invalidContacts.length;
@@ -1219,6 +1305,14 @@ export default function BroadcastCampaigns2() {
       const invalidFormatted = validation.invalidContacts.length;
       const whatsappValid = validation.whatsappValidated.length;
       const whatsappInvalid = validation.whatsappRejected.length;
+
+      if (validation.warning) {
+        toast({
+          title: "Validação com aviso",
+          description: validation.warning,
+          variant: "default",
+        });
+      }
 
       setValidationResult({
         total: totalParsed,
@@ -1425,7 +1519,28 @@ export default function BroadcastCampaigns2() {
   }, [newCampaign.sendingMethod, newCampaign.instanceId, newCampaign.instanceIds, instances]);
 
   const tryCreateCampaign = async (contacts: CreateCampaignContact[]) => {
-    const disc = getDisconnectedSelectedInstances();
+    if (!activeOrgId) {
+      throw new Error("Organização não selecionada");
+    }
+    const rawIds =
+      newCampaign.sendingMethod === "single"
+        ? newCampaign.instanceId
+          ? [newCampaign.instanceId]
+          : []
+        : newCampaign.instanceIds;
+    const ids = normalizeInstanceIdList(rawIds);
+
+    const { disconnected: disc, freshInstances, syncResult } =
+      await ensureSyncedAndGetDisconnected(activeOrgId, ids, fetchInstances);
+    setInstances(freshInstances);
+
+    if ((syncResult.setConnected ?? 0) > 0) {
+      toast({
+        title: "Status atualizado",
+        description: `${syncResult.setConnected} instância(s) alinhada(s) com a Evolution.`,
+      });
+    }
+
     if (disc.length > 0) {
       setDisconnectedInstanceDialog({
         mode: "create",
@@ -1636,21 +1751,44 @@ export default function BroadcastCampaigns2() {
 
       // Se ainda não temos contatos (não é lista do funil), validar via API
       if (contacts.length === 0) {
-        // Buscar configuração da instância Evolution (usar primeira para validação)
-        const instanceIdForValidation = newCampaign.sendingMethod === "single" 
-          ? newCampaign.instanceId 
-          : newCampaign.instanceIds[0];
-        
-        const instance = instances.find(i => i.id === instanceIdForValidation);
-        if (!instance) {
-          throw new Error("Instância não encontrada");
+        if (!activeOrgId) {
+          throw new Error("Organização não selecionada");
         }
 
-        const validation = await validateContactsComplete(text, instanceIdForValidation, {
-          api_url: instance.api_url,
-          api_key: instance.api_key,
-          instance_name: instance.instance_name
-        }, newCampaign.useLatamValidator);
+        const instanceIdsForValidation = normalizeInstanceIdList(
+          newCampaign.sendingMethod === "single"
+            ? newCampaign.instanceId
+              ? [newCampaign.instanceId]
+              : []
+            : newCampaign.instanceIds,
+        );
+
+        const { freshInstances, disconnected: discCreate } =
+          await ensureSyncedAndGetDisconnected(
+            activeOrgId,
+            instanceIdsForValidation,
+            fetchInstances,
+          );
+        setInstances(freshInstances);
+
+        if (discCreate.length > 0) {
+          setDisconnectedInstanceDialog({
+            mode: "create",
+            disconnected: discCreate,
+            contacts: [],
+          });
+          throw new Error(
+            `${discCreate.length} instância(s) não conectada(s). Remova da seleção ou sincronize com Evolution.`,
+          );
+        }
+
+        const validation = await validateContactsForSelectedInstances(
+          text,
+          activeOrgId,
+          instanceIdsForValidation,
+          freshInstances,
+          newCampaign.useLatamValidator,
+        );
 
         // Se temos CSV parseado, combinar com validação WhatsApp
         if (csvContacts.length > 0) {
@@ -1785,7 +1923,17 @@ export default function BroadcastCampaigns2() {
           });
         }
         const idList = normalizeInstanceIdList(Array.from(idSet));
-        const disconnected = getDisconnectedForInstanceIds(idList, instances);
+        const { disconnected, reconciledConnected } = await resolveDisconnectedWithLiveCheck(
+          idList,
+          instances,
+        );
+        if (reconciledConnected > 0) {
+          await fetchInstances();
+          toast({
+            title: "Status atualizado",
+            description: `${reconciledConnected} instância(s) confirmada(s) conectadas na Evolution.`,
+          });
+        }
         if (disconnected.length > 0) {
           setDisconnectedInstanceDialog({
             mode: "start",
@@ -2537,7 +2685,21 @@ export default function BroadcastCampaigns2() {
             enabled={!!activeOrgId}
             onReconnected={fetchInstances}
           />
-          <div className="flex justify-end mb-2">
+          <div className="flex justify-end gap-2 mb-2 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={syncingEvolutionStatus || !activeOrgId}
+              onClick={() => void syncEvolutionStatusForOrg(true, true)}
+            >
+              {syncingEvolutionStatus ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Wifi className="h-4 w-4 mr-2" />
+              )}
+              Sincronizar status com Evolution
+            </Button>
             <InstanceDisconnectionReportDialog organizationId={activeOrgId} />
           </div>
           {/* Quadro de Status das Instâncias */}
@@ -2608,7 +2770,7 @@ export default function BroadcastCampaigns2() {
               <InstanceGroupManager
                 organizationId={activeOrgId!}
                 instances={instances}
-                onGroupSelect={(group) => {
+                onGroupSelect={async (group) => {
                   const ids = normalizeInstanceIdList(group.instance_ids);
                   setNewCampaign((prev) => ({
                     ...prev,
@@ -2616,7 +2778,9 @@ export default function BroadcastCampaigns2() {
                     instanceIds: ids,
                     sendingMethod: "separate",
                   }));
-                  const disc = getDisconnectedForInstanceIds(ids, instances);
+                  await syncEvolutionStatusForOrg(false);
+                  const freshInstances = await fetchInstances();
+                  const { disconnected: disc } = await resolveDisconnectedWithLiveCheck(ids, freshInstances);
                   if (disc.length > 0) {
                     setDisconnectedInstanceDialog({ mode: "groupPreview", disconnected: disc });
                   }
@@ -2728,7 +2892,7 @@ export default function BroadcastCampaigns2() {
                   </p>
                 </CardHeader>
                 <CardContent>
-                  {instances.filter((i: any) => !i.is_connected).length === 0 ? (
+                  {instances.filter((i: any) => i.is_connected === false).length === 0 ? (
                     <div className="text-center py-8">
                       <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
                       <p className="text-lg font-medium">Todas as instâncias estão conectadas!</p>
@@ -2739,7 +2903,7 @@ export default function BroadcastCampaigns2() {
                   ) : (
                     <div className="space-y-3">
                       {instances
-                        .filter((i: any) => !i.is_connected)
+                        .filter((i: any) => i.is_connected === false)
                         .map((instance: any) => (
                           <div
                             key={instance.id}
@@ -2995,7 +3159,7 @@ export default function BroadcastCampaigns2() {
                         {instancesSortedAlphabetically.map((instance) => (
                           <SelectItem key={instance.id} value={instance.id}>
                             {instance.instance_name}
-                            {instance.is_connected !== true ? " — desconectada" : ""}
+                            {instance.is_connected === false ? " — desconectada" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -3009,7 +3173,7 @@ export default function BroadcastCampaigns2() {
                         <Label>Ou selecione um Grupo de Instâncias</Label>
                         <Select
                           value={newCampaign.selectedGroupId}
-                          onValueChange={(groupId) => {
+                          onValueChange={async (groupId) => {
                             const group = instanceGroups.find((g) => g.id === groupId);
                             if (!group) return;
                             const ids = normalizeInstanceIdList(group.instance_ids);
@@ -3018,7 +3182,12 @@ export default function BroadcastCampaigns2() {
                               selectedGroupId: group.id,
                               instanceIds: ids,
                             }));
-                            const disc = getDisconnectedForInstanceIds(ids, instances);
+                            await syncEvolutionStatusForOrg(false);
+                            const freshInstances = await fetchInstances();
+                            const { disconnected: disc } = await resolveDisconnectedWithLiveCheck(
+                              ids,
+                              freshInstances,
+                            );
                             if (disc.length > 0) {
                               setDisconnectedInstanceDialog({ mode: "groupPreview", disconnected: disc });
                             }
@@ -3074,7 +3243,7 @@ export default function BroadcastCampaigns2() {
                               className="h-4 w-4 shrink-0"
                             />
                             <span className="text-sm truncate min-w-0">{instance.instance_name}</span>
-                            {instance.is_connected !== true && (
+                            {instance.is_connected === false && (
                               <span className="flex items-center gap-1 shrink-0 text-amber-700 dark:text-amber-400" title="Não conectada à Evolution API">
                                 <WifiOff className="h-3.5 w-3.5" />
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-600/50 text-amber-800 dark:text-amber-300">
