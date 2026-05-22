@@ -971,30 +971,25 @@ serve(async (req) => {
           );
         }
 
-        const st = String(stateRaw).trim().toLowerCase();
-        const explicitClose = ["close", "closed", "disconnected", "offline", "down"].includes(st);
         const lastMs = configs.updated_at ? new Date(configs.updated_at).getTime() : 0;
         const ageMs = Date.now() - lastMs;
-        const MIN_PERSIST_MS = 12000;
+        const MIN_PERSIST_MS = 30000;
 
-        // Evita flip rápido true↔false no DB (oscilação no painel / Disparador 2)
+        // Evita flip rápido true↔false no DB (inclui close explícito da Evolution)
         if (ageMs < MIN_PERSIST_MS) {
-          const allowDisconnect = !isNowConnected && wasConnected && explicitClose;
-          if (!allowDisconnect) {
-            console.log(
-              `[connection.update] throttle persist instance=${instance} state=${stateRaw} ageMs=${ageMs}`,
-            );
-            return new Response(
-              JSON.stringify({
-                success: true,
-                instance,
-                state: stateRaw,
-                is_connected: configs.is_connected,
-                skipped: "persist_throttled",
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            );
-          }
+          console.log(
+            `[connection.update] throttle persist instance=${instance} state=${stateRaw} ageMs=${ageMs}`,
+          );
+          return new Response(
+            JSON.stringify({
+              success: true,
+              instance,
+              state: stateRaw,
+              is_connected: configs.is_connected,
+              skipped: "persist_throttled",
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
         }
 
         await supabase

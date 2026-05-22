@@ -110,7 +110,7 @@ serve(async (req) => {
 
   let query = admin
     .from("evolution_config")
-    .select("id, instance_name, api_url, api_key, is_connected")
+    .select("id, instance_name, api_url, api_key, is_connected, updated_at")
     .eq("organization_id", organizationId);
 
   if (body.onlyMarkedDisconnected === true) {
@@ -196,6 +196,13 @@ serve(async (req) => {
       }
 
       if (live === cfg.is_connected) {
+        unchanged++;
+        return;
+      }
+
+      const lastMs = cfg.updated_at ? new Date(String(cfg.updated_at)).getTime() : 0;
+      const ageMs = Date.now() - lastMs;
+      if (ageMs < 30000) {
         unchanged++;
         return;
       }
