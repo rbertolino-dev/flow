@@ -1,6 +1,7 @@
 import { syncEvolutionConnectionBatch } from "@/lib/syncEvolutionConnectionBatch";
 import {
   getExplicitlyDisconnected,
+  resolveDisconnectedWithLiveCheck,
   type InstanceRowForDisconnect,
   type DisconnectedInstanceInfo,
 } from "@/lib/verifyInstanceConnectionLive";
@@ -25,12 +26,15 @@ export async function ensureSyncedAndGetDisconnected(
   freshInstances: InstanceRowForDisconnect[];
   syncResult: Awaited<ReturnType<typeof syncEvolutionConnectionBatch>>;
 }> {
+  const scopedIds = instanceIds.map((id) => String(id).trim()).filter(Boolean);
   const syncResult = await syncEvolutionConnectionBatch(organizationId, {
     onlyMarkedDisconnected: false,
+    instanceIds: scopedIds.length > 0 ? scopedIds : undefined,
   });
   const freshInstances = await fetchFreshInstances();
-  const disconnected = getExplicitlyDisconnected(instanceIds, freshInstances);
-  return { disconnected, freshInstances, syncResult };
+  const preliminary = getExplicitlyDisconnected(instanceIds, freshInstances);
+  const { disconnected } = await resolveDisconnectedWithLiveCheck(instanceIds, freshInstances);
+  return { disconnected, freshInstances, syncResult, preliminaryCount: preliminary.length };
 }
 
 /**

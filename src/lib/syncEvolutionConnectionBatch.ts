@@ -35,13 +35,14 @@ export type SyncEvolutionBatchResult = {
   setDisconnected?: number;
   checked?: number;
   verifyErrors?: number;
+  skippedTransient?: number;
   total?: number;
   error?: string;
 };
 
 export async function syncEvolutionConnectionBatch(
   organizationId: string,
-  options?: { onlyMarkedDisconnected?: boolean },
+  options?: { onlyMarkedDisconnected?: boolean; instanceIds?: string[] },
 ): Promise<SyncEvolutionBatchResult> {
   const baseUrl = resolveFunctionsBaseUrl();
   const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -66,8 +67,11 @@ export async function syncEvolutionConnectionBatch(
       },
       body: JSON.stringify({
         organizationId,
-        // false = sincroniza todas as instâncias da org (corrige em massa)
         onlyMarkedDisconnected: options?.onlyMarkedDisconnected ?? false,
+        instanceIds:
+          options?.instanceIds && options.instanceIds.length > 0
+            ? options.instanceIds
+            : undefined,
       }),
     });
     const text = await res.text();

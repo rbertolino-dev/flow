@@ -1,6 +1,7 @@
 import {
   connectionStateToBoolean,
   extractConnectionStateFromBody,
+  extractConnectionStateFromBodyForBatchSync,
   extractConnectionStateFromBodyForPersist,
   normalizeApiUrl,
 } from "./evolution-connection-parse.ts";
@@ -80,7 +81,7 @@ export async function fetchConnectionStateSingle(
   apiKey: string,
   instanceName: string,
   timeoutMs = 12000,
-  forPersist = false,
+  forPersist: boolean | "batchSync" = false,
 ): Promise<InstanceLiveStatus> {
   const baseUrl = normalizeApiUrl(apiUrl);
   const url =
@@ -107,10 +108,14 @@ export async function fetchConnectionStateSingle(
         error: `HTTP_${res.status}`,
       };
     }
+    const live =
+      forPersist === "batchSync"
+        ? extractConnectionStateFromBodyForBatchSync(parsed)
+        : forPersist
+          ? extractConnectionStateFromBodyForPersist(parsed)
+          : extractConnectionStateFromBody(parsed);
     return {
-      live: forPersist
-        ? extractConnectionStateFromBodyForPersist(parsed)
-        : extractConnectionStateFromBody(parsed),
+      live,
       source: "connectionState",
       httpStatus: res.status,
     };
@@ -175,7 +180,7 @@ export async function resolveInstanceLiveStatusForSync(
     apiKey,
     instanceName,
     12000,
-    true,
+    "batchSync",
   );
 
   if (direct.live === true) {

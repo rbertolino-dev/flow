@@ -961,13 +961,20 @@ export default function BroadcastCampaigns2() {
     return instancesData;
   }, [activeOrgId]);
 
-  const syncEvolutionStatusForOrg = useCallback(async (showToast = true, syncAll = true) => {
+  const syncEvolutionStatusForOrg = useCallback(async (
+    showToast = true,
+    options?: { syncAll?: boolean; instanceIds?: string[] },
+  ) => {
     if (!activeOrgId || syncingEvolutionStatus) return;
+
+    const syncAll = options?.syncAll ?? true;
+    const instanceIds = options?.instanceIds?.filter(Boolean);
 
     setSyncingEvolutionStatus(true);
     try {
       const result = await syncEvolutionConnectionBatch(activeOrgId, {
-        onlyMarkedDisconnected: syncAll ? false : true,
+        onlyMarkedDisconnected: syncAll && !instanceIds?.length,
+        instanceIds: instanceIds?.length ? instanceIds : undefined,
       });
       if (!result.ok) {
         if (showToast) {
@@ -1059,13 +1066,12 @@ export default function BroadcastCampaigns2() {
     evolutionSyncAttemptedOrgRef.current = null;
   }, [activeOrgId]);
 
-  // Sincroniza TODAS as instâncias com Evolution ao abrir o Disparador 2 (1x por org)
-  // Necessário para corrigir status fantasma (fetchInstances open + connectionState connecting)
+  // Sync leve ao abrir (1x por org): só instâncias já marcadas desconectadas no DB
   useEffect(() => {
     if (!activeOrgId || instances.length === 0) return;
     if (evolutionSyncAttemptedOrgRef.current === activeOrgId) return;
     evolutionSyncAttemptedOrgRef.current = activeOrgId;
-    void syncEvolutionStatusForOrg(false, true);
+    void syncEvolutionStatusForOrg(false, { syncAll: false });
   }, [activeOrgId, instances.length, syncEvolutionStatusForOrg]);
 
   // Atualiza is_connected no banco periodicamente (somente evolution_config; zero impacto em fila/campanhas)
@@ -2691,7 +2697,7 @@ export default function BroadcastCampaigns2() {
               variant="outline"
               size="sm"
               disabled={syncingEvolutionStatus || !activeOrgId}
-              onClick={() => void syncEvolutionStatusForOrg(true, true)}
+              onClick={() => void syncEvolutionStatusForOrg(true, { syncAll: true })}
             >
               {syncingEvolutionStatus ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2778,7 +2784,7 @@ export default function BroadcastCampaigns2() {
                     instanceIds: ids,
                     sendingMethod: "separate",
                   }));
-                  await syncEvolutionStatusForOrg(false);
+                  await syncEvolutionStatusForOrg(false, { instanceIds: ids });
                   const freshInstances = await fetchInstances();
                   const { disconnected: disc } = await resolveDisconnectedWithLiveCheck(ids, freshInstances);
                   if (disc.length > 0) {
@@ -3182,7 +3188,7 @@ export default function BroadcastCampaigns2() {
                               selectedGroupId: group.id,
                               instanceIds: ids,
                             }));
-                            await syncEvolutionStatusForOrg(false);
+                            await syncEvolutionStatusForOrg(false, { instanceIds: ids });
                             const freshInstances = await fetchInstances();
                             const { disconnected: disc } = await resolveDisconnectedWithLiveCheck(
                               ids,
@@ -3243,14 +3249,19 @@ export default function BroadcastCampaigns2() {
                               className="h-4 w-4 shrink-0"
                             />
                             <span className="text-sm truncate min-w-0">{instance.instance_name}</span>
-                            {instance.is_connected === false && (
+                            {syncingEvolutionStatus ? (
+                              <span className="flex items-center gap-1 shrink-0 text-muted-foreground" title="Conferindo status na Evolution">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span className="text-[10px]">Verificando…</span>
+                              </span>
+                            ) : instance.is_connected === false ? (
                               <span className="flex items-center gap-1 shrink-0 text-amber-700 dark:text-amber-400" title="Não conectada à Evolution API">
                                 <WifiOff className="h-3.5 w-3.5" />
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-600/50 text-amber-800 dark:text-amber-300">
                                   Desconectada
                                 </Badge>
                               </span>
-                            )}
+                            ) : null}
                           </label>
                         ))}
                       </div>

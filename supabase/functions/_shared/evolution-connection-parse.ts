@@ -30,12 +30,26 @@ export function connectionStateToBoolean(state: string | undefined): boolean | n
   return null;
 }
 
-/** Para webhook/sync/DB: connecting e demais não-open => desconectado (evita status fantasma). */
+/** Para webhook: connecting => desconectado (evita status fantasma persistente). */
 export function connectionStateToPersistBoolean(state: string | undefined): boolean | null {
   if (!state || typeof state !== "string") return null;
   const v = state.trim().toLowerCase();
   if (CONNECTED_STATES.has(v)) return true;
   if (TRANSIENT_STATES.has(v) || DISCONNECTED_STATES.has(v)) return false;
+  return null;
+}
+
+/**
+ * Sync em lote (UI): só grava true/false explícitos.
+ * connecting/qr/etc. não alteram o DB — evita flicker ao checar dezenas de chips.
+ */
+export function connectionStateToPersistBooleanForBatchSync(
+  state: string | undefined,
+): boolean | null {
+  if (!state || typeof state !== "string") return null;
+  const v = state.trim().toLowerCase();
+  if (CONNECTED_STATES.has(v)) return true;
+  if (DISCONNECTED_STATES.has(v)) return false;
   return null;
 }
 
@@ -87,5 +101,25 @@ export function extractConnectionStateFromBodyForPersist(input: unknown): boolea
     o.state ??
     o.status;
   if (typeof candidate === "string") return connectionStateToPersistBoolean(candidate);
+  return null;
+}
+
+export function extractConnectionStateFromBodyForBatchSync(input: unknown): boolean | null {
+  if (!input || typeof input !== "object") return null;
+  const o = input as Record<string, unknown>;
+  const inst = o.instance as Record<string, unknown> | undefined;
+  const dataInst = (o.data as Record<string, unknown> | undefined)?.instance as
+    | Record<string, unknown>
+    | undefined;
+  const candidate =
+    inst?.state ??
+    inst?.status ??
+    dataInst?.state ??
+    dataInst?.status ??
+    o.state ??
+    o.status;
+  if (typeof candidate === "string") {
+    return connectionStateToPersistBooleanForBatchSync(candidate);
+  }
   return null;
 }

@@ -75,7 +75,11 @@ serve(async (req) => {
     });
   }
 
-  let body: { organizationId?: string; onlyMarkedDisconnected?: boolean } = {};
+  let body: {
+    organizationId?: string;
+    onlyMarkedDisconnected?: boolean;
+    instanceIds?: string[];
+  } = {};
   try {
     body = await req.json();
   } catch {
@@ -109,9 +113,15 @@ serve(async (req) => {
     .select("id, instance_name, api_url, api_key, is_connected")
     .eq("organization_id", organizationId);
 
-  // false = sincroniza TODAS as instâncias da org (corrige painel vs Evolution)
   if (body.onlyMarkedDisconnected === true) {
     query = query.eq("is_connected", false);
+  }
+
+  const filterIds = Array.isArray(body.instanceIds)
+    ? body.instanceIds.map((id) => String(id).trim()).filter(Boolean)
+    : [];
+  if (filterIds.length > 0) {
+    query = query.in("id", filterIds);
   }
 
   const { data: configs, error: cfgErr } = await query;
@@ -128,6 +138,8 @@ serve(async (req) => {
   let setDisconnected = 0;
   let unchanged = 0;
   let verifyErrors = 0;
+  let skippedTransient = 0;
+  const SYNC_CONCURRENCY = 5;
   const samples: Array<{
     instance_name: string;
     was: boolean;
@@ -157,11 +169,11 @@ serve(async (req) => {
 
     const fetchMap = await buildFetchInstancesStatusMap(apiUrl, apiKey);
 
-    for (const cfg of groupConfigs) {
+    const processOne = async (cfg: (typeof list)[0]) => {
       const name = String(cfg.instance_name ?? "").trim();
       if (!name) {
         verifyErrors++;
-        continue;
+        return;
       }
 
       const resolved = await resolveInstanceLiveStatusForSync(apiUrl, apiKey, name, fetchMap);
@@ -179,13 +191,13 @@ serve(async (req) => {
       }
 
       if (live === null) {
-        verifyErrors++;
-        continue;
+        skippedTransient++;
+        return;
       }
 
       if (live === cfg.is_connected) {
         unchanged++;
-        continue;
+        return;
       }
 
       const { error: upErr } = await admin
@@ -198,11 +210,16 @@ serve(async (req) => {
 
       if (upErr) {
         verifyErrors++;
-        continue;
+        return;
       }
 
       if (live) setConnected++;
       else setDisconnected++;
+    };
+
+    for (let i = 0; i < groupConfigs.length; i += SYNC_CONCURRENCY) {
+      const chunk = groupConfigs.slice(i, i + SYNC_CONCURRENCY);
+      await Promise.all(chunk.map((cfg) => processOne(cfg)));
     }
   }
 
@@ -216,7 +233,9 @@ serve(async (req) => {
       setDisconnected,
       unchanged,
       verifyErrors,
-      method: "sync_connectionState_first_fetchInstances_fallback",
+      skippedTransient,
+      scopedInstanceIds: filterIds.length > 0 ? filterIds.length : null,
+      method: "sync_batch_safe_transient_connectionState_first",
       samples,
     }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
