@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- página legada do CRM */
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
@@ -74,11 +75,12 @@ const Index = () => {
   const { configs, refetch: refetchEvolutionConfigs } = useEvolutionConfigs();
   const { toast } = useToast();
   
-  // Health check periódico das instâncias (verifica a cada 30s)
+  // Health check: com muitas instâncias (ex.: IClass ~42) gera flips no DB — usar sync em lote no Disparador
   useInstanceHealthCheck({
     instances: configs || [],
-    enabled: true,
-    intervalMs: 30000,
+    enabled: (configs?.length ?? 0) > 0 && (configs?.length ?? 0) <= 15,
+    intervalMs: 45000,
+    stableIntervalMs: 120000,
     onAfterStatusPersist: refetchEvolutionConfigs,
   });
   
