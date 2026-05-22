@@ -28,7 +28,7 @@ export function useInstanceHealthCheck({
   intervalMs = 30000,
   stableIntervalMs = 120000,
   checksUntilStable = 5,
-  checksUntilDisconnected = 3,
+  checksUntilDisconnected = 5,
   onAfterStatusPersist,
 }: UseInstanceHealthCheckOptions) {
   const intervalRef = useRef<NodeJS.Timeout>();
@@ -36,6 +36,7 @@ export function useInstanceHealthCheck({
   const isCheckingRef = useRef(false);
   const onAfterStatusPersistRef = useRef(onAfterStatusPersist);
   onAfterStatusPersistRef.current = onAfterStatusPersist;
+  const afterPersistDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Lista atual (evita re-disparar efeito só porque veio novo array de configs com os mesmos ids). */
   const instancesRef = useRef(instances);
   instancesRef.current = instances;
@@ -149,7 +150,8 @@ export function useInstanceHealthCheck({
 
             const canPersistDisconnection =
               isConnected === false && health.consecutiveFailures >= checksUntilDisconnected;
-            const canPersistConnection = isConnected === true;
+            const canPersistConnection =
+              isConnected === true && health.consecutiveSuccesses >= checksUntilStable;
             const shouldPersist =
               isConnected !== null &&
               isConnected !== instance.is_connected &&
@@ -169,7 +171,13 @@ export function useInstanceHealthCheck({
               if (error) {
                 console.error(`❌ Erro ao atualizar status de ${instance.instance_name}:`, error);
               } else {
-                onAfterStatusPersistRef.current?.();
+                if (afterPersistDebounceRef.current) {
+                  clearTimeout(afterPersistDebounceRef.current);
+                }
+                afterPersistDebounceRef.current = setTimeout(() => {
+                  onAfterStatusPersistRef.current?.();
+                  afterPersistDebounceRef.current = null;
+                }, 5000);
               }
             }
           } else {
@@ -205,6 +213,9 @@ export function useInstanceHealthCheck({
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+      }
+      if (afterPersistDebounceRef.current) {
+        clearTimeout(afterPersistDebounceRef.current);
       }
       isCheckingRef.current = false;
     };

@@ -27,6 +27,7 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report",
     "test:e2e:install": "playwright install",
+    "test:oscilacao:iclass": "python3 scripts/teste-oscilacao-status-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "test:e2e:auto": "./scripts/teste-automatico-completo.sh",
     "test:e2e:analyze": "./scripts/teste-automatico-completo.sh --report-only",
     "test:e2e:fix": "./scripts/teste-automatico-completo.sh auto --fix",

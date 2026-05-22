@@ -11,9 +11,16 @@ import { format as formatDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { extractConnectionState } from "@/lib/evolutionStatus";
 import { fetchEvolutionConnectionStateByConfigId } from "@/lib/evolutionConnectionStateProxy";
+import {
+  flushStableStatuses,
+  normalizeConnectionBool,
+  upsertPending,
+  type StableConnectionPending,
+} from "@/lib/stableConnectionStatus";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
+import { syncEvolutionConnectionBatch } from "@/lib/syncEvolutionConnectionBatch";
 import { InstanceDetailDialog } from "./InstanceDetailDialog";
 import { SegmentManagerDialog } from "./SegmentManagerDialog";
 import { EditDispatchLimitsDialog } from "./EditDispatchLimitsDialog";
@@ -57,46 +64,89 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [addReserveInstance, setAddReserveInstance] = useState<Instance | null>(null);
   const { toast } = useToast();
   const checkingRef = useRef<Set<string>>(new Set());
-  const lastUpdateRef = useRef<Record<string, boolean>>({});
   const lastKnownRealtimeStatusRef = useRef<Record<string, boolean | null>>({});
   const lastRealtimeToastAtRef = useRef<Record<string, number>>({});
   const REALTIME_TOAST_COOLDOWN_MS = 2 * 60 * 1000;
+  const pendingStableRef = useRef<Record<string, StableConnectionPending>>({});
+  const initializedStableRef = useRef<Set<string>>(new Set());
 
-  // Inicializar status do banco de dados apenas quando necessário
+  const applyDisplayedStatus = useCallback((id: string, isConnected: boolean | null) => {
+    setStatusMap((prev) => ({
+      ...prev,
+      [id]: {
+        isConnected,
+        checking: prev[id]?.checking ?? false,
+        lastCheck: Date.now(),
+      },
+    }));
+  }, []);
+
+  const ingestConnectionStatus = useCallback(
+    (id: string, raw: boolean | null | undefined) => {
+      const next = normalizeConnectionBool(raw);
+      if (next === null) return;
+
+      if (!initializedStableRef.current.has(id)) {
+        initializedStableRef.current.add(id);
+        applyDisplayedStatus(id, next);
+        lastKnownRealtimeStatusRef.current[id] = next;
+        return;
+      }
+
+      pendingStableRef.current = upsertPending(pendingStableRef.current, id, next);
+    },
+    [applyDisplayedStatus],
+  );
+
+  const statusMapRef = useRef(statusMap);
+  statusMapRef.current = statusMap;
+
   useEffect(() => {
-    setStatusMap(prev => {
-      const updated: Record<string, { isConnected: boolean | null; checking: boolean; lastCheck?: number }> = {};
-      let hasChanges = false;
-      
-      instances.forEach(instance => {
-        const currentStatus = prev[instance.id];
-        const newStatus = instance.is_connected ?? null;
-        
-        // Só atualiza se não existir ou se o status mudou
-        if (!currentStatus || currentStatus.isConnected !== newStatus) {
-          updated[instance.id] = {
-            isConnected: newStatus,
-            checking: currentStatus?.checking || false,
-            lastCheck: currentStatus?.lastCheck
-          };
-          hasChanges = true;
-        } else {
-          updated[instance.id] = currentStatus;
+    const tick = window.setInterval(() => {
+      const displayed: Record<string, boolean | null> = {};
+      for (const [id, row] of Object.entries(statusMapRef.current)) {
+        displayed[id] = row.isConnected;
+      }
+      const { pending, displayed: nextDisplayed, changed } = flushStableStatuses(
+        pendingStableRef.current,
+        displayed,
+      );
+      pendingStableRef.current = pending;
+      if (!changed) return;
+
+      for (const [id, value] of Object.entries(nextDisplayed)) {
+        if (displayed[id] === value) continue;
+        applyDisplayedStatus(id, value);
+        const prev = lastKnownRealtimeStatusRef.current[id] ?? null;
+        lastKnownRealtimeStatusRef.current[id] = value;
+        if (prev !== true && value === true) {
+          const instance = instancesRef.current.find((i) => i.id === id);
+          if (instance) {
+            const now = Date.now();
+            const lastToastAt = lastRealtimeToastAtRef.current[id] ?? 0;
+            if (now - lastToastAt >= REALTIME_TOAST_COOLDOWN_MS) {
+              toast({
+                title: "✅ Instância Conectada",
+                description: `${instance.instance_name} está conectada.`,
+              });
+              lastRealtimeToastAtRef.current[id] = now;
+            }
+          }
         }
-      });
-      
-      // Remove instâncias que não existem mais
-      Object.keys(prev).forEach(id => {
-        if (!instances.find(i => i.id === id)) {
-          hasChanges = true;
-        } else if (!updated[id]) {
-          updated[id] = prev[id];
-        }
-      });
-      
-      return hasChanges ? updated : prev;
+      }
+    }, 1000);
+    return () => window.clearInterval(tick);
+  }, [applyDisplayedStatus, toast]);
+
+  const instancesRef = useRef(instances);
+  instancesRef.current = instances;
+
+  // Props do pai (fetchInstances): passam pelo estabilizador — não piscam no painel
+  useEffect(() => {
+    instances.forEach((instance) => {
+      ingestConnectionStatus(instance.id, instance.is_connected);
     });
-  }, [instances.map(i => `${i.id}-${i.is_connected}`).join(',')]);
+  }, [instances.map((i) => `${i.id}-${i.is_connected}`).join(","), ingestConnectionStatus]);
 
   useEffect(() => {
     instances.forEach((instance) => {
@@ -123,38 +173,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
           
           // Só atualiza se for uma das instâncias que estamos monitorando
           if (instanceIds.includes(updatedInstance.id)) {
-            console.log('📡 Realtime: status atualizado', updatedInstance.id, updatedInstance.is_connected);
-            
-            setStatusMap(prev => ({
-              ...prev,
-              [updatedInstance.id]: {
-                isConnected: updatedInstance.is_connected,
-                checking: false,
-                lastCheck: Date.now()
-              }
-            }));
-
-            const previousRealtimeStatus =
-              lastKnownRealtimeStatusRef.current[updatedInstance.id] ?? null;
-            lastKnownRealtimeStatusRef.current[updatedInstance.id] = updatedInstance.is_connected;
-
-            // Mostrar toast apenas em transição real de desconectado -> conectado (com cooldown)
-            if (previousRealtimeStatus !== true && updatedInstance.is_connected === true) {
-              const instance = instances.find(i => i.id === updatedInstance.id);
-              if (instance) {
-                const now = Date.now();
-                const lastToastAt = lastRealtimeToastAtRef.current[updatedInstance.id] ?? 0;
-                if (now - lastToastAt >= REALTIME_TOAST_COOLDOWN_MS) {
-                  toast({
-                    title: "✅ Instância Conectada",
-                    description: `${instance.instance_name} está conectada.`,
-                  });
-                  lastRealtimeToastAtRef.current[updatedInstance.id] = now;
-                }
-              }
-            }
-
-            // statusMap já reflete o realtime; refetch em massa causava oscilação visual
+            ingestConnectionStatus(updatedInstance.id, updatedInstance.is_connected);
           }
         }
       )
@@ -163,7 +182,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [instances.map(i => i.id).join(','), onRefresh, toast]);
+  }, [instances.map(i => i.id).join(','), ingestConnectionStatus]);
 
   const checkInstanceStatus = useCallback(async (instance: Instance, skipDbUpdate = false) => {
     // Prevenir verificações duplicadas simultâneas
@@ -255,28 +274,10 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
 
       const isConnected = normalized === true;
 
-      setStatusMap(prev => ({
-        ...prev,
-        [instance.id]: { 
-          isConnected, 
-          checking: false,
-          lastCheck: now
-        }
-      }));
-
-      // Persistir só open/close explícitos (nunca inferir false a partir de null)
-      if (!skipDbUpdate && previousStatus !== isConnected) {
-        if (lastUpdateRef.current[instance.id] !== isConnected) {
-          lastUpdateRef.current[instance.id] = isConnected;
-          await supabase
-            .from('evolution_config')
-            .update({ 
-              is_connected: isConnected,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', instance.id);
-        }
-      }
+      applyDisplayedStatus(instance.id, isConnected);
+      delete pendingStableRef.current[instance.id];
+      // DB: não gravar por chip (evita rajadas); sync em lote em "Verificar todas"
+      void skipDbUpdate;
 
     } catch (error: any) {
       // Em erro de rede/CORS/timeout não sabemos o estado real (doc Evolution): manter estado anterior na UI e não persistir
@@ -308,35 +309,49 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   }, [toast]);
 
   const checkAllInstances = useCallback(async () => {
-    if (checkingAll) return; // Prevenir múltiplas execuções
-    
+    if (checkingAll) return;
+
     setCheckingAll(true);
-    
-    // Verificar em lotes para não sobrecarregar
-    const batchSize = 3;
-    const batches: Instance[][] = [];
-    for (let i = 0; i < instances.length; i += batchSize) {
-      batches.push(instances.slice(i, i + batchSize));
-    }
-    
-    // Processar lotes sequencialmente com pequeno delay
-    for (const batch of batches) {
-      await Promise.all(
-        batch.map(instance => checkInstanceStatus(instance, false))
-      );
-      // Pequeno delay entre lotes para não sobrecarregar
-      if (batches.length > 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+    try {
+      const orgId = await getUserOrganizationId();
+      if (!orgId) {
+        toast({
+          title: "Organização não encontrada",
+          description: "Não foi possível sincronizar o status das instâncias.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      const result = await syncEvolutionConnectionBatch(orgId, {
+        instanceIds: instances.map((i) => i.id),
+      });
+
+      if (!result.ok) {
+        toast({
+          title: "Erro ao sincronizar",
+          description: result.error ?? "Tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const batchSize = 3;
+      for (let i = 0; i < instances.length; i += batchSize) {
+        const batch = instances.slice(i, i + batchSize);
+        await Promise.all(batch.map((instance) => checkInstanceStatus(instance, true)));
+        if (i + batchSize < instances.length) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+      }
+
+      if (onRefresh) {
+        onRefresh();
+      }
+    } finally {
+      setCheckingAll(false);
     }
-    
-    setCheckingAll(false);
-    
-    // Atualizar lista apenas uma vez ao final
-    if (onRefresh) {
-      onRefresh();
-    }
-  }, [instances, checkInstanceStatus, checkingAll, onRefresh]);
+  }, [instances, checkInstanceStatus, checkingAll, onRefresh, toast]);
 
   // Memoizar listas para evitar recálculos desnecessários
   // Usa apenas os IDs e status para comparação, não o objeto completo
