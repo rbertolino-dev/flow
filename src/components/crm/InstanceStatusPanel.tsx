@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations, react-hooks/exhaustive-deps */
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,9 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const { toast } = useToast();
   const checkingRef = useRef<Set<string>>(new Set());
   const lastUpdateRef = useRef<Record<string, boolean>>({});
+  const lastKnownRealtimeStatusRef = useRef<Record<string, boolean | null>>({});
+  const lastRealtimeToastAtRef = useRef<Record<string, number>>({});
+  const REALTIME_TOAST_COOLDOWN_MS = 2 * 60 * 1000;
 
   // Inicializar status do banco de dados apenas quando necessário
   useEffect(() => {
@@ -94,6 +98,12 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     });
   }, [instances.map(i => `${i.id}-${i.is_connected}`).join(',')]);
 
+  useEffect(() => {
+    instances.forEach((instance) => {
+      lastKnownRealtimeStatusRef.current[instance.id] = instance.is_connected ?? null;
+    });
+  }, [instances]);
+
   // Realtime: atualizar status quando evolution_config mudar
   useEffect(() => {
     const instanceIds = instances.map(i => i.id);
@@ -124,21 +134,27 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
               }
             }));
 
-            // Mostrar toast se reconectou
-            if (updatedInstance.is_connected === true) {
+            const previousRealtimeStatus =
+              lastKnownRealtimeStatusRef.current[updatedInstance.id] ?? null;
+            lastKnownRealtimeStatusRef.current[updatedInstance.id] = updatedInstance.is_connected;
+
+            // Mostrar toast apenas em transição real de desconectado -> conectado (com cooldown)
+            if (previousRealtimeStatus !== true && updatedInstance.is_connected === true) {
               const instance = instances.find(i => i.id === updatedInstance.id);
               if (instance) {
-                toast({
-                  title: "✅ Instância Conectada",
-                  description: `${instance.instance_name} está conectada.`,
-                });
+                const now = Date.now();
+                const lastToastAt = lastRealtimeToastAtRef.current[updatedInstance.id] ?? 0;
+                if (now - lastToastAt >= REALTIME_TOAST_COOLDOWN_MS) {
+                  toast({
+                    title: "✅ Instância Conectada",
+                    description: `${instance.instance_name} está conectada.`,
+                  });
+                  lastRealtimeToastAtRef.current[updatedInstance.id] = now;
+                }
               }
             }
 
-            // Atualizar lista para refletir mudanças
-            if (onRefresh) {
-              onRefresh();
-            }
+            // statusMap já reflete o realtime; refetch em massa causava oscilação visual
           }
         }
       )
@@ -221,7 +237,23 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         throw new Error(`HTTP ${result.evolutionHttpStatus ?? "?"}`);
       }
 
-      const isConnected = extractConnectionState(result.body) === true;
+      const normalized = extractConnectionState(result.body);
+
+      // null = connecting/qr/formato desconhecido — manter último status (alinha com health check)
+      if (normalized === null) {
+        setStatusMap(prev => ({
+          ...prev,
+          [instance.id]: {
+            isConnected: previousStatus,
+            checking: false,
+            lastCheck: now,
+          },
+        }));
+        checkingRef.current.delete(instance.id);
+        return;
+      }
+
+      const isConnected = normalized === true;
 
       setStatusMap(prev => ({
         ...prev,
@@ -232,9 +264,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
         }
       }));
 
-      // Atualizar no banco APENAS se o status mudou (evita writes desnecessários)
+      // Persistir só open/close explícitos (nunca inferir false a partir de null)
       if (!skipDbUpdate && previousStatus !== isConnected) {
-        // Verificar se já atualizou recentemente para evitar writes duplicados
         if (lastUpdateRef.current[instance.id] !== isConnected) {
           lastUpdateRef.current[instance.id] = isConnected;
           await supabase
@@ -320,7 +351,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   );
   
   const disconnectedInstances = useMemo(() => 
-    instances.filter(inst => statusMap[inst.id]?.isConnected !== true),
+    instances.filter(inst => statusMap[inst.id]?.isConnected === false),
     [instances, statusKeys]
   );
 
