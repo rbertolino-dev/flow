@@ -7,8 +7,9 @@ export type StableConnectionPending = {
   sinceMs: number;
 };
 
-export const STABLE_MS_CONNECTED = 2000;
-export const STABLE_MS_DISCONNECTED = 8000;
+/** UI: conectado aparece rápido; desconectado só após persistir estável (evita piscar). */
+export const STABLE_MS_CONNECTED = 5000;
+export const STABLE_MS_DISCONNECTED = 30000;
 
 export function shouldCommitStableStatus(
   pending: StableConnectionPending | undefined,

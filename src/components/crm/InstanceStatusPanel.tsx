@@ -154,35 +154,8 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
     });
   }, [instances]);
 
-  // Realtime: atualizar status quando evolution_config mudar
-  useEffect(() => {
-    const instanceIds = instances.map(i => i.id);
-    if (instanceIds.length === 0) return;
-
-    const channel = supabase
-      .channel('instance-status-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'evolution_config',
-        },
-        (payload) => {
-          const updatedInstance = payload.new as { id: string; is_connected: boolean | null };
-          
-          // Só atualiza se for uma das instâncias que estamos monitorando
-          if (instanceIds.includes(updatedInstance.id)) {
-            ingestConnectionStatus(updatedInstance.id, updatedInstance.is_connected);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [instances.map(i => i.id).join(','), ingestConnectionStatus]);
+  // Sem realtime no painel: is_connected no DB oscila (webhook/Evolution) e causava piscar.
+  // Status vem do estabilizador + sync manual / props do pai (fetchInstances).
 
   const checkInstanceStatus = useCallback(async (instance: Instance, skipDbUpdate = false) => {
     // Prevenir verificações duplicadas simultâneas

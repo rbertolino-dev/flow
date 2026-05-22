@@ -42,6 +42,7 @@ import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { ParsedContact } from "@/lib/contactValidator";
 import { resolveDisconnectedWithLiveCheck } from "@/lib/verifyInstanceConnectionLive";
+import { useStableInstanceConnections } from "@/hooks/useStableInstanceConnections";
 import { syncEvolutionConnectionBatch } from "@/lib/syncEvolutionConnectionBatch";
 import {
   ensureSyncedAndGetDisconnected,
@@ -564,6 +565,8 @@ export default function BroadcastCampaigns2() {
     cancelled_count: number;
   } | null>(null);
   const [instances, setInstances] = useState<any[]>([]);
+  /** Exibição e chips do painel: não segue cada flip do DB (30s para marcar desconectado). */
+  const stableInstances = useStableInstanceConnections(instances);
   const [syncingEvolutionStatus, setSyncingEvolutionStatus] = useState(false);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
   const [reconnectingInstance, setReconnectingInstance] = useState<any | null>(null);
@@ -2659,12 +2662,12 @@ export default function BroadcastCampaigns2() {
 
   /** Instâncias ordenadas A–Z por nome (criar campanha: select único e lista de checkboxes) */
   const instancesSortedAlphabetically = useMemo(() => {
-    return [...instances].sort((a, b) => {
+    return [...stableInstances].sort((a, b) => {
       const na = String(a?.instance_name ?? "");
       const nb = String(b?.instance_name ?? "");
       return na.localeCompare(nb, "pt-BR", { sensitivity: "base" });
     });
-  }, [instances]);
+  }, [stableInstances]);
 
   /** Instâncias da campanha em ordem alfabética (nome) para o pop-up de simulação */
   const simulationInstanceIdsSorted = useMemo(() => {
@@ -2710,7 +2713,7 @@ export default function BroadcastCampaigns2() {
           </div>
           {/* Quadro de Status das Instâncias */}
           <InstanceStatusPanel 
-            instances={instances} 
+            instances={stableInstances} 
             onRefresh={fetchInstances}
           />
           
@@ -2883,7 +2886,7 @@ export default function BroadcastCampaigns2() {
             </TabsContent>
 
             <TabsContent value="status">
-              <WhatsAppStatusTab instances={instances} />
+              <WhatsAppStatusTab instances={stableInstances} />
             </TabsContent>
 
             <TabsContent value="reconnect">
@@ -2898,7 +2901,7 @@ export default function BroadcastCampaigns2() {
                   </p>
                 </CardHeader>
                 <CardContent>
-                  {instances.filter((i: any) => i.is_connected === false).length === 0 ? (
+                  {stableInstances.filter((i: any) => i.is_connected === false).length === 0 ? (
                     <div className="text-center py-8">
                       <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
                       <p className="text-lg font-medium">Todas as instâncias estão conectadas!</p>
@@ -2908,7 +2911,7 @@ export default function BroadcastCampaigns2() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {instances
+                      {stableInstances
                         .filter((i: any) => i.is_connected === false)
                         .map((instance: any) => (
                           <div

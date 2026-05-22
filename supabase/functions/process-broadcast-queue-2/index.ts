@@ -172,6 +172,19 @@ serve(async (req) => {
     
     const metricsMap = new Map<string, InstanceMetrics>();
     const markInstanceDisconnected = async (instanceId: string) => {
+      const { data: row } = await supabase
+        .from("evolution_config")
+        .select("is_connected, updated_at")
+        .eq("id", instanceId)
+        .maybeSingle();
+      if (row?.is_connected === false) return;
+      const lastMs = row?.updated_at ? new Date(String(row.updated_at)).getTime() : 0;
+      if (Date.now() - lastMs < 90000) {
+        console.log(
+          `[broadcast-queue-2] skip mark disconnected (throttle) id=${instanceId} ageMs=${Date.now() - lastMs}`,
+        );
+        return;
+      }
       await supabase
         .from("evolution_config")
         .update({ is_connected: false, updated_at: new Date().toISOString() })

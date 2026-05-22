@@ -202,7 +202,7 @@ serve(async (req) => {
 
       const lastMs = cfg.updated_at ? new Date(String(cfg.updated_at)).getTime() : 0;
       const ageMs = Date.now() - lastMs;
-      if (ageMs < 30000) {
+      if (ageMs < 45000) {
         unchanged++;
         return;
       }

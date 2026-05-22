@@ -79,16 +79,20 @@ export async function resolveDisconnectedWithLiveCheck(
         const live = extractConnectionState(result.body);
         if (live === true) {
           reconciledConnected += 1;
-          const { error } = await supabase
-            .from("evolution_config")
-            .update({
-              is_connected: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", entry.id);
-          if (error) {
-            console.error("Erro ao reconciliar is_connected:", entry.id, error);
-            stillDisconnected.push(entry);
+          // Só reconcilia DB se ainda estava false (evita rajada de writes)
+          const row = instancesList.find((i) => String(i.id) === entry.id);
+          if (row?.is_connected !== true) {
+            const { error } = await supabase
+              .from("evolution_config")
+              .update({
+                is_connected: true,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", entry.id);
+            if (error) {
+              console.error("Erro ao reconciliar is_connected:", entry.id, error);
+              stillDisconnected.push(entry);
+            }
           }
           return;
         }
@@ -98,7 +102,7 @@ export async function resolveDisconnectedWithLiveCheck(
           return;
         }
 
-        // Estado transitório / formato desconhecido: não bloquear campanha
+        // connecting / timeout / formato desconhecido: não bloquear disparo
       }),
     );
   }

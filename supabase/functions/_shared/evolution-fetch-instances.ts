@@ -234,6 +234,14 @@ export async function isInstanceReadyToSend(
       detail: status.error ?? "state_not_open",
     };
   }
+  // connecting/qr/timeout: não tratar como offline nem gravar false no CRM
+  if (status.live === null) {
+    return {
+      ready: true,
+      source: "connectionState_transient",
+      detail: status.error ?? "transient",
+    };
+  }
   const map = await buildFetchInstancesStatusMap(apiUrl, apiKey, 15000);
   const key = normalizeInstanceKey(instanceName);
   const fromList = map.get(key);

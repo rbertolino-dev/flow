@@ -973,7 +973,7 @@ serve(async (req) => {
 
         const lastMs = configs.updated_at ? new Date(configs.updated_at).getTime() : 0;
         const ageMs = Date.now() - lastMs;
-        const MIN_PERSIST_MS = 30000;
+        const MIN_PERSIST_MS = 45000;
 
         // Evita flip rápido true↔false no DB (inclui close explícito da Evolution)
         if (ageMs < MIN_PERSIST_MS) {
