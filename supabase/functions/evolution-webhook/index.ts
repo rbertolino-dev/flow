@@ -901,7 +901,7 @@ serve(async (req) => {
       let configs = null;
       const { data: bySecret } = await supabase
         .from('evolution_config')
-        .select('id, is_connected, organization_id, api_url, api_key, instance_name')
+        .select('id, is_connected, organization_id, api_url, api_key, instance_name, updated_at')
         .eq('webhook_secret', providedSecret)
         .eq('instance_name', instance)
         .maybeSingle();
@@ -910,7 +910,7 @@ serve(async (req) => {
       } else {
         const { data: byApiKey } = await supabase
           .from('evolution_config')
-          .select('id, is_connected, organization_id, api_url, api_key, instance_name')
+          .select('id, is_connected, organization_id, api_url, api_key, instance_name, updated_at')
           .eq('api_key', providedSecret)
           .eq('instance_name', instance)
           .maybeSingle();
