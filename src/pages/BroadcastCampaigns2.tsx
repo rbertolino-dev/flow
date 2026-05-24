@@ -2141,7 +2141,7 @@ export default function BroadcastCampaigns2() {
       const now = new Date();
       
       // Modo "separate": cada instância envia para TODOS os contatos, com filas independentes (paralelas).
-      // Modo "rotate": cada instância tem sua própria fila começando ao mesmo tempo (round-robin já definido nos itens) → reduz tempo total.
+      // Modo "rotate": cooldown por instância; o primeiro envio de cada chip pode sair imediatamente.
       // Modo "single": uma fila sequencial única.
       const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
       const messagesPerInstance = new Map<string, number>();
@@ -2152,12 +2152,64 @@ export default function BroadcastCampaigns2() {
       const allSameCount = counts.length > 0 && counts.every(count => count === counts[0]);
       const heuristicSeparate = allSameCount && uniqueInstances.size > 1;
       const isSeparate = campaign?.sending_method === "separate" || (campaign?.sending_method == null && heuristicSeparate);
-      const useParallelTimelines = isSeparate || campaign?.sending_method === "rotate";
+      const isRotate = campaign?.sending_method === "rotate";
+      const useParallelTimelines = isSeparate;
       
       let updates: Promise<any>[] = [];
       
-      if (useParallelTimelines) {
-        // Modo SEPARATE ou ROTATE: cada instância começa ao mesmo tempo, com sua própria fila (paralelas → reduz tempo total)
+      if (isRotate) {
+        // ROTATE: cada instância respeita seu próprio intervalo entre envios.
+        // A primeira mensagem de cada instância é liberada imediatamente; depois aplica delay aleatório [min, max].
+        const minDelaySec = Math.max(1, Math.floor(Number(campaign.min_delay_seconds) || 1));
+        const maxDelaySec = Math.max(minDelaySec, Math.floor(Number(campaign.max_delay_seconds) || minDelaySec));
+        const randomDelaySec = () =>
+          minDelaySec === maxDelaySec
+            ? minDelaySec
+            : Math.floor(Math.random() * (maxDelaySec - minDelaySec + 1)) + minDelaySec;
+
+        const nextAvailablePerInstance = new Map<string, Date>();
+        const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
+
+        // queueItems já vem ordenado por created_at no rotate; manter essa ordem preserva o rodízio.
+        for (const item of queueItems) {
+          const lastScheduledForInstance = nextAvailablePerInstance.get(item.instance_id);
+          let scheduledTime = lastScheduledForInstance ? new Date(lastScheduledForInstance) : new Date(now);
+
+          if (activeTimeWindow && action !== "exception" && !isTimeInWindow(activeTimeWindow, scheduledTime)) {
+            const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
+            if (nextWindowTime) {
+              scheduledTime = nextWindowTime;
+            }
+          }
+
+          const delayForNextSendMs = randomDelaySec() * 1000;
+          nextAvailablePerInstance.set(item.instance_id, new Date(scheduledTime.getTime() + delayForNextSendMs));
+
+          batchUpdates.push({
+            id: item.id,
+            scheduled_for: scheduledTime.toISOString(),
+            ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
+          });
+        }
+
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < batchUpdates.length; i += BATCH_SIZE) {
+          const batch = batchUpdates.slice(i, i + BATCH_SIZE);
+          const batchPromises = batch.map(update =>
+            supabase
+              .from("broadcast_queue_2")
+              .update({
+                status: "scheduled",
+                scheduled_for: update.scheduled_for,
+                ...(update.error_message && { error_message: update.error_message }),
+              })
+              .eq("id", update.id)
+          );
+          const results = await Promise.all(batchPromises);
+          updates.push(...results.map(r => Promise.resolve(r)));
+        }
+      } else if (useParallelTimelines) {
+        // Modo SEPARATE: cada instância começa ao mesmo tempo, com sua própria fila (paralelas).
         const instancesMap = new Map<string, any[]>();
         
         // Agrupar mensagens por instância

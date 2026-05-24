@@ -101,7 +101,7 @@ serve(async (req) => {
       .order("scheduled_for", { ascending: true })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
-      .limit(20); // Processar 20 por vez (grupos grandes ~35 chips)
+      .limit(200); // Permite primeira onda maior no rotate (ex.: 50+ instâncias)
 
     if (fetchError) throw fetchError;
 
