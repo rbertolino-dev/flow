@@ -82,11 +82,9 @@ async function validateOnInstance(
     const preview = await resp.text();
     if (!resp.ok) {
       if (preview.includes("Method not available") || preview.includes("method not available")) {
-        return {
-          ok: true,
-          results: formatted.map((number) => ({ number, exists: true })),
-          connectionClosed: false,
-        };
+        // Não aprovar em massa quando o endpoint não está disponível.
+        // Isso evita falso-positivo de 100% validado.
+        return { ok: false, results: [], connectionClosed: false };
       }
       if (isConnectionClosedError(resp.status, preview)) {
         return { ok: false, results: [], connectionClosed: true };
@@ -248,9 +246,9 @@ serve(async (req) => {
         skippedApiValidation: true,
         usedInstance: readyInstances[0]?.instance_name ?? null,
         warning:
-          "whatsappNumbers indisponível (Connection Closed), mas instâncias estão OPEN no painel Evolution. Contatos aceitos para a campanha.",
-        validatedNumbers: numbers,
-        rejectedNumbers: [] as string[],
+          "Validação técnica indisponível na Evolution (Connection Closed/Method not available). Nenhum número foi aprovado automaticamente.",
+        validatedNumbers: [] as string[],
+        rejectedNumbers: numbers,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
