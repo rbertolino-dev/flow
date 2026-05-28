@@ -239,14 +239,15 @@ serve(async (req) => {
     }
   }
 
-  if (!usedInstance && readyInstances.length > 0) {
+  if (!usedInstance && configs.length > 0) {
+    const fallbackInstance = readyInstances[0]?.instance_name ?? configs[0]?.instance_name ?? null;
     return new Response(
       JSON.stringify({
         ok: true,
         skippedApiValidation: true,
-        usedInstance: readyInstances[0]?.instance_name ?? null,
+        usedInstance: fallbackInstance,
         warning:
-          "Validação técnica indisponível na Evolution (Connection Closed/Method not available). Nenhum número foi aprovado automaticamente.",
+          "Validação técnica indisponível na Evolution para as instâncias selecionadas (Connection Closed/Method not available/instância não pronta). Nenhum número foi aprovado automaticamente.",
         validatedNumbers: [] as string[],
         rejectedNumbers: numbers,
       }),

@@ -125,3 +125,7 @@ export function buildValidationResultFromEdge(
     whatsappRejected: [...parsed.filter((c) => !c.valid), ...whatsappRejected],
   };
 }
+
+export function isBroadcastValidationSkipped(edge: BroadcastWhatsappValidationResponse): boolean {
+  return edge.skippedApiValidation === true;
+}

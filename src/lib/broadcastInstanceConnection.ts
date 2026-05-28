@@ -12,6 +12,7 @@ import {
 import {
   validateBroadcastWhatsappViaEdge,
   buildValidationResultFromEdge,
+  isBroadcastValidationSkipped,
 } from "@/lib/validateBroadcastWhatsapp";
 
 /**
@@ -25,6 +26,7 @@ export async function ensureSyncedAndGetDisconnected(
   disconnected: DisconnectedInstanceInfo[];
   freshInstances: InstanceRowForDisconnect[];
   syncResult: Awaited<ReturnType<typeof syncEvolutionConnectionBatch>>;
+  preliminaryCount?: number;
 }> {
   const scopedIds = instanceIds.map((id) => String(id).trim()).filter(Boolean);
   const syncResult = await syncEvolutionConnectionBatch(organizationId, {
@@ -47,7 +49,9 @@ export async function validateContactsForSelectedInstances(
   instanceIds: string[],
   instancesList: InstanceRowForDisconnect[],
   useLatamValidator: boolean,
-): Promise<ValidationResult & { warning?: string; usedInstance?: string | null }> {
+): Promise<
+  ValidationResult & { warning?: string; usedInstance?: string | null; skippedApiValidation?: boolean }
+> {
   const parsed = parseContactList(text, useLatamValidator);
   const numbers = parsed.filter((c) => c.valid).map((c) => c.phone);
 
@@ -79,5 +83,6 @@ export async function validateContactsForSelectedInstances(
     ...result,
     warning: edge.warning,
     usedInstance: edge.usedInstance ?? null,
+    skippedApiValidation: isBroadcastValidationSkipped(edge),
   };
 }

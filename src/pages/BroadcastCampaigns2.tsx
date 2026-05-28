@@ -1385,9 +1385,12 @@ export default function BroadcastCampaigns2() {
       setValidatedContactsList(simulationList);
 
       if (whatsappValid === 0) {
+        const technicalWarning = (validation as { skippedApiValidation?: boolean; warning?: string }).skippedApiValidation
+          ? (validation.warning || "Validação técnica indisponível no momento. Tente novamente em alguns segundos.")
+          : null;
         toast({
           title: "Nenhum contato válido",
-          description: "Nenhum contato com WhatsApp ativo foi encontrado",
+          description: technicalWarning || "Nenhum contato com WhatsApp ativo foi encontrado",
           variant: "destructive",
         });
         return;
