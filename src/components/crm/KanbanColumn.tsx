@@ -32,9 +32,10 @@ interface KanbanColumnProps {
   pendingScheduleCountByLead?: Record<string, number>;
   onScheduleLead?: (lead: Lead) => void;
   orgTagsApi: LeadOrgTagsPickerApi;
+  leadsInCallQueue?: Set<string>;
 }
 
-export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false, pendingScheduleCountByLead = {}, onScheduleLead, orgTagsApi }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection, onToggleAllInStage, onLeadClick, allStages, stagesLoading, onStageChange, instanceMap, onDeleteLead, columnWidth, onRefetch, onEditLeadName, compact = false, pendingScheduleCountByLead = {}, onScheduleLead, orgTagsApi, leadsInCallQueue }: KanbanColumnProps) {
   const [displayLimit, setDisplayLimit] = useState(LEADS_PER_PAGE);
   const [isExpanding, setIsExpanding] = useState(false);
 
@@ -143,6 +144,7 @@ export function KanbanColumn({ stage, leads, selectedLeadIds, onToggleSelection,
                     pendingScheduledCount={pendingScheduleCountByLead[lead.id] ?? 0}
                     onScheduleLead={onScheduleLead}
                     orgTagsApi={orgTagsApi}
+                    isInCallQueue={leadsInCallQueue?.has(lead.id) ?? false}
                   />
                 </div>
               );

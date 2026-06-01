@@ -5,8 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip, Clock } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useEffect, memo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PipelineStage } from "@/hooks/usePipelineStages";
@@ -47,6 +46,8 @@ interface LeadCardProps {
   onScheduleLead?: (lead: Lead) => void;
   /** API única do `useTags()` no funil — obrigatória para o botão de etiquetas. */
   orgTagsApi: LeadOrgTagsPickerApi;
+  /** Fonte: `leadsInCallQueue` no KanbanBoard (evita N+1 em call_queue). */
+  isInCallQueue?: boolean;
 }
 
 // ✅ OTIMIZAÇÃO: Memoizar componente para evitar re-renders desnecessários
@@ -66,33 +67,16 @@ export const LeadCard = memo(function LeadCard({
   pendingScheduledCount = 0,
   onScheduleLead,
   orgTagsApi,
+  isInCallQueue = false,
 }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
   const locationLine = leadCardLocationLine(lead);
 
-  const [isInCallQueue, setIsInCallQueue] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
-
-  // ✅ OTIMIZAÇÃO: Remover subscrição individual por card
-  // A fila de chamadas é gerenciada no KanbanBoard
-  useEffect(() => {
-    const checkCallQueue = async () => {
-      const { data } = await supabase
-        .from('call_queue')
-        .select('id')
-        .eq('lead_id', lead.id)
-        .eq('status', 'pending')
-        .maybeSingle();
-      
-      setIsInCallQueue(!!data);
-    };
-
-    checkCallQueue();
-  }, [lead.id]);
 
   const style = {
     transform: CSS.Transform.toString(transform),

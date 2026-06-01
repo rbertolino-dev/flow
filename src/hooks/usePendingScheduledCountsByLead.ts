@@ -63,6 +63,7 @@ export function usePendingScheduledCountsByLead(leadIds: string[]) {
       return fetchPendingCounts(ids, activeOrgId);
     },
     enabled: sortedKey.length > 0 && !!activeOrgId,
-    staleTime: 45_000,
+    staleTime: 3 * 60 * 1000,
+    refetchOnMount: false,
   });
 }

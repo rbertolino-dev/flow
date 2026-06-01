@@ -269,23 +269,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     (async () => {
       for (const lead of invalids) {
         try {
-          // Validação extra: garantir que estamos usando etapa da mesma org
           const targetStage = stages.find(s => s.id === firstStageId);
           if (!targetStage) continue;
-          
-          await supabase
-            .from('leads')
-            .update({ stage_id: firstStageId })
-            .eq('id', lead.id);
-            
+          onLeadUpdate(lead.id, firstStageId);
           console.log(`✅ Etapa corrigida para ${lead.name} -> ${targetStage.name}`);
         } catch (e) {
           console.error('Falha ao corrigir etapa do lead', lead.id, e);
         }
       }
-      onRefetch();
     })();
-  }, [filteredLeads, stageIdSet, firstStageId, stages, onRefetch]);
+  }, [filteredLeads, stageIdSet, firstStageId, stages, onLeadUpdate]);
 
   // ✅ OTIMIZAÇÃO: Criar Map de stages para lookup O(1) ao invés de O(n)
   // ✅ CORREÇÃO: Adicionar verificação de segurança para evitar erro React #310
@@ -866,6 +859,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   pendingScheduleCountByLead={pendingScheduleCountByLead}
                   onScheduleLead={openScheduleForLead}
                   orgTagsApi={orgTagsApi}
+                  leadsInCallQueue={leadsInCallQueue}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
@@ -921,6 +915,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
               isSelected={false}
               onToggleSelection={() => {}}
               orgTagsApi={orgTagsApi}
+              isInCallQueue={leadsInCallQueue.has(activeLead.id)}
             />
           ) : null}
         </DragOverlay>

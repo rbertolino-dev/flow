@@ -35,6 +35,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
+import { cn } from "@/lib/utils";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -214,8 +215,13 @@ const Index = () => {
       <OnboardingBanner />
       {/* Removido: messages-center agora é uma página separada em /messages-center */}
 
-      {activeView === "kanban" && (
-        <div className="h-full min-h-[min(138dvh,1760px)] bg-background flex flex-col">
+      <div
+        className={cn(
+          "h-full min-h-[min(138dvh,1760px)] bg-background flex flex-col",
+          activeView !== "kanban" && "hidden"
+        )}
+        aria-hidden={activeView !== "kanban"}
+      >
           <div className="p-3 sm:p-4 lg:p-6 border-b border-border space-y-3 sm:space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
@@ -467,11 +473,17 @@ const Index = () => {
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col min-h-[min(120dvh,1580px)]">
-            {viewMode === 'kanban' ? (
-              <KanbanBoard 
-                leads={leads} 
-                onLeadUpdate={handleLeadUpdate} 
-                searchQuery={debouncedSearchQuery} 
+            <div
+              className={cn(
+                "flex-1 min-h-0 overflow-hidden flex flex-col",
+                viewMode !== "kanban" && "hidden"
+              )}
+              aria-hidden={viewMode !== "kanban"}
+            >
+              <KanbanBoard
+                leads={leads}
+                onLeadUpdate={handleLeadUpdate}
+                searchQuery={debouncedSearchQuery}
                 onRefetch={refetchLeads}
                 onEditLeadName={handleEditLeadName}
                 filterInstance={filterInstance}
@@ -483,7 +495,14 @@ const Index = () => {
                 callQueue={callQueue}
                 filterTags={selectedTags}
               />
-            ) : viewMode === 'list' ? (
+            </div>
+            <div
+              className={cn(
+                "flex-1 min-h-0 overflow-hidden flex flex-col",
+                viewMode !== "list" && "hidden"
+              )}
+              aria-hidden={viewMode !== "list"}
+            >
               <LeadsListView
                 leads={leads}
                 stages={stages}
@@ -503,18 +522,27 @@ const Index = () => {
                 callQueue={callQueue}
                 searchQuery={debouncedSearchQuery}
               />
-            ) : (
+            </div>
+            <div
+              className={cn(
+                "flex-1 min-h-0 overflow-hidden flex flex-col",
+                viewMode !== "calendar" && "hidden"
+              )}
+              aria-hidden={viewMode !== "calendar"}
+            >
               <CalendarView
                 leads={leads}
                 onLeadUpdate={handleLeadUpdate}
                 searchQuery={debouncedSearchQuery}
               />
-            )}
+            </div>
           </div>
         </div>
-      )}
 
-      {activeView === "calls" && (
+      <div
+        className={cn("h-full", activeView !== "calls" && "hidden")}
+        aria-hidden={activeView !== "calls"}
+      >
         <CallQueue
           callQueue={callQueue}
           onCallComplete={handleCallComplete}
@@ -528,7 +556,7 @@ const Index = () => {
           onDeleteCall={deleteCall}
           onRefetch={refetchCallQueue}
         />
-      )}
+      </div>
 
       {activeView === "settings" && <Settings />}
 
