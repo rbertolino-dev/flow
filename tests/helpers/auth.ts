@@ -1,10 +1,12 @@
 import type { Page } from "@playwright/test";
+import { loadE2eEnvSecure } from "./loadE2eEnv";
 
 /**
  * Login E2E via formulário /login.
- * Requer variáveis de ambiente: E2E_EMAIL e E2E_PASSWORD
+ * Credenciais: E2E_EMAIL / E2E_PASSWORD ou arquivo .env.e2e.local (gitignored).
  */
 export async function loginAsTestUser(page: Page): Promise<boolean> {
+  loadE2eEnvSecure();
   const email = process.env.E2E_EMAIL?.trim();
   const password = process.env.E2E_PASSWORD?.trim();
   if (!email || !password) {
@@ -24,5 +26,5 @@ export async function loginAsTestUser(page: Page): Promise<boolean> {
 }
 
 export function hasE2ECredentials(): boolean {
-  return Boolean(process.env.E2E_EMAIL?.trim() && process.env.E2E_PASSWORD?.trim());
+  return loadE2eEnvSecure();
 }

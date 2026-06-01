@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { hasE2ECredentials, loginAsTestUser } from "../helpers/auth";
 import { waitForKanbanReady } from "../helpers/funnel";
+import { loadE2eEnvSecure } from "../helpers/loadE2eEnv";
 import {
   assertAgainstThresholds,
   buildFunnelPerfReport,
@@ -29,9 +29,7 @@ test.describe("@perf @performance Funil — troca de abas (baseline)", () => {
     page,
     baseURL,
   }) => {
-    test.skip(!hasE2ECredentials(), "Defina E2E_EMAIL e E2E_PASSWORD.");
-    const loggedIn = await loginAsTestUser(page);
-    test.skip(!loggedIn, "Login E2E falhou.");
+    test.skip(!loadE2eEnvSecure(), "Configure .env.e2e.local (veja .env.e2e.example).");
 
     const baseline = loadFunnelPerfBaseline();
     const baselineByScenario = new Map(

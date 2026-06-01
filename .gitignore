@@ -29,8 +29,12 @@ extensions/agilize-crm-sidekick/release/*.zip
 .last-deploy
 
 # Credenciais (não versionar)
+.env.e2e.local
+playwright/.auth/
+test-results/funnel-perf/baseline.json
 scripts/.ssh-credentials
 scripts/.github-credentials
+scripts/.e2e-credentials
 scripts/verificar-deploy-process-broadcast-queue.sql
 
 # Scripts de diagnóstico temporários
