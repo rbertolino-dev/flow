@@ -31,6 +31,8 @@
     "test:validacao:rotacao": "node scripts/teste-rotacao-validacao-broadcast.mjs",
     "test:validacao:iclass": "python3 scripts/teste-validacao-disparador2-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b --open-limit 3 --delay 1.2",
     "test:validacao:disparador2": "npm run test:validacao:rotacao && npm run test:validacao:iclass",
+    "test:validacao:edge-iclass": "python3 scripts/teste-validacao-edge-iclass.py",
+    "test:validacao:completa": "npm run test:validacao:rotacao && npm run test:validacao:iclass && npm run test:validacao:edge-iclass",
     "test:validacao:iclass:json": "python3 scripts/teste-validacao-disparador2-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b --open-limit 3 --delay 1.2 --json",
     "test:e2e:auto": "./scripts/teste-automatico-completo.sh",
     "test:e2e:analyze": "./scripts/teste-automatico-completo.sh --report-only",

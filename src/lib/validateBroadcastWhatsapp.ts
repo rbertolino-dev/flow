@@ -179,6 +179,17 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Edge pode retornar ok:false com rejectedNumbers preenchido (falha técnica por chip). */
+function batchFullyProcessed(
+  batch: string[],
+  edge: BroadcastWhatsappValidationResponse,
+): boolean {
+  if (edge.ok) return true;
+  const val = edge.validatedNumbers ?? [];
+  const rej = edge.rejectedNumbers ?? [];
+  return val.length + rej.length >= batch.length;
+}
+
 function chunkArray<T>(items: T[], size: number): T[][] {
   if (size <= 0) return [items];
   const out: T[][] = [];
@@ -276,7 +287,7 @@ export async function validateBroadcastWhatsappBatched(
       { preferredInstanceId: preferredForBatch },
     );
 
-    if (!edge.ok) {
+    if (!edge.ok && !batchFullyProcessed(batch, edge)) {
       const partial = validatedNumbers.length + rejectedNumbers.length;
       const suffix =
         partial > 0
@@ -294,6 +305,12 @@ export async function validateBroadcastWhatsappBatched(
 
     validatedNumbers.push(...(edge.validatedNumbers ?? []));
     rejectedNumbers.push(...(edge.rejectedNumbers ?? []));
+    if (!edge.ok && edge.error) {
+      warning = warning ? `${warning} | ${edge.error}` : edge.error;
+    }
+    if (edge.skippedApiValidation && edge.warning) {
+      warning = warning ? `${warning} | ${edge.warning}` : edge.warning;
+    }
     if (edge.usedInstance) {
       usedInstance = edge.usedInstance;
       usedInstanceNames.add(edge.usedInstance);

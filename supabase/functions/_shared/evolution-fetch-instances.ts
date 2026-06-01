@@ -258,3 +258,37 @@ export async function isInstanceReadyToSend(
     detail: status.error ?? "unknown",
   };
 }
+
+/**
+ * Pronto para validação em lote (Disparador 2): aceita chip OPEN na lista fetchInstances
+ * ou connectionState open — mais permissivo que isInstanceReadyToSend (disparo).
+ */
+export async function isInstanceReadyForValidation(
+  apiUrl: string,
+  apiKey: string,
+  instanceName: string,
+  fetchMap?: Map<string, boolean | null>,
+): Promise<{ ready: boolean; source: string; detail?: string }> {
+  const key = normalizeInstanceKey(instanceName);
+
+  let fromList: boolean | null | undefined = fetchMap?.get(key);
+  if (fromList === undefined) {
+    const map = fetchMap ?? (await buildFetchInstancesStatusMap(apiUrl, apiKey, 20000));
+    fromList = map.get(key);
+  }
+
+  if (fromList === true) {
+    return { ready: true, source: "fetchInstances" };
+  }
+
+  const status = await fetchConnectionStateSingle(apiUrl, apiKey, instanceName, 12000, true);
+  if (status.live === true) {
+    return { ready: true, source: "connectionState" };
+  }
+
+  return {
+    ready: false,
+    source: status.source,
+    detail: status.error ?? "not_ready",
+  };
+}
