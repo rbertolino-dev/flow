@@ -10,9 +10,11 @@ import {
   type ValidationResult,
 } from "@/lib/contactValidator";
 import {
-  validateBroadcastWhatsappViaEdge,
+  validateBroadcastWhatsappBatched,
   buildValidationResultFromEdge,
   isBroadcastValidationSkipped,
+  buildValidationRotatorPool,
+  type BroadcastValidationProgress,
 } from "@/lib/validateBroadcastWhatsapp";
 
 /**
@@ -39,9 +41,23 @@ export async function ensureSyncedAndGetDisconnected(
   return { disconnected, freshInstances, syncResult, preliminaryCount: preliminary.length };
 }
 
+function buildInstanceIdToName(
+  instanceIds: string[],
+  instancesList: InstanceRowForDisconnect[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const rawId of instanceIds) {
+    const id = String(rawId).trim();
+    if (!id) continue;
+    const inst = instancesList.find((i) => String(i.id) === id);
+    map.set(id, String(inst?.instance_name ?? "Instância"));
+  }
+  return map;
+}
+
 /**
  * Valida contatos via edge (servidor), alinhado ao painel Evolution.
- * Não percorre dezenas de instâncias no browser com whatsappNumbers.
+ * Listas grandes são divididas em lotes para evitar timeout 504 do Supabase.
  */
 export async function validateContactsForSelectedInstances(
   text: string,
@@ -49,6 +65,7 @@ export async function validateContactsForSelectedInstances(
   instanceIds: string[],
   instancesList: InstanceRowForDisconnect[],
   useLatamValidator: boolean,
+  options?: { onProgress?: (progress: BroadcastValidationProgress) => void },
 ): Promise<
   ValidationResult & { warning?: string; usedInstance?: string | null; skippedApiValidation?: boolean }
 > {
@@ -64,11 +81,20 @@ export async function validateContactsForSelectedInstances(
     };
   }
 
-  const edge = await validateBroadcastWhatsappViaEdge(
+  const rotatorPool = buildValidationRotatorPool(instanceIds, instancesList);
+  const instanceIdToName = buildInstanceIdToName(instanceIds, instancesList);
+
+  const edge = await validateBroadcastWhatsappBatched(
     organizationId,
     instanceIds,
     numbers,
     useLatamValidator,
+    {
+      preferredInstanceId: rotatorPool[0] ?? null,
+      rotatorInstanceIds: rotatorPool.length > 1 ? rotatorPool : undefined,
+      instanceIdToName,
+      onProgress: options?.onProgress,
+    },
   );
 
   if (!edge.ok) {

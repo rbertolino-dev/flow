@@ -602,6 +602,13 @@ export default function BroadcastCampaigns2() {
   const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
   const [validatingContacts, setValidatingContacts] = useState(false);
+  const [validationProgress, setValidationProgress] = useState<{
+    processed: number;
+    total: number;
+    batchIndex: number;
+    batchCount: number;
+    validatorInstanceName?: string;
+  } | null>(null);
   const [validationResult, setValidationResult] = useState<{
     total: number;
     valid: number;
@@ -1120,6 +1127,7 @@ export default function BroadcastCampaigns2() {
 
     try {
       setValidatingContacts(true);
+      setValidationProgress(null);
       setValidationResult(null);
 
       // Ler contatos
@@ -1306,6 +1314,9 @@ export default function BroadcastCampaigns2() {
         instanceIdsForValidation,
         freshInstances,
         newCampaign.useLatamValidator,
+        {
+          onProgress: (p) => setValidationProgress(p),
+        },
       );
 
       // Mostrar resultado da validação
@@ -1409,6 +1420,7 @@ export default function BroadcastCampaigns2() {
       });
     } finally {
       setValidatingContacts(false);
+      setValidationProgress(null);
     }
   };
 
@@ -1800,6 +1812,9 @@ export default function BroadcastCampaigns2() {
           instanceIdsForValidation,
           freshInstances,
           newCampaign.useLatamValidator,
+          {
+            onProgress: (p) => setValidationProgress(p),
+          },
         );
 
         // Se temos CSV parseado, combinar com validação WhatsApp
@@ -3708,11 +3723,36 @@ export default function BroadcastCampaigns2() {
 
                 {/* Resultado da Validação */}
                 {validatingContacts && (
-                  <div className="p-4 border rounded-lg bg-muted/50">
+                  <div className="p-4 border rounded-lg bg-muted/50 space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="font-medium">Validando contatos e verificando WhatsApp via Evolution API...</span>
+                      <span className="font-medium">
+                        {validationProgress && validationProgress.total > 0
+                          ? `Validando WhatsApp… ${Math.min(validationProgress.processed, validationProgress.total)} de ${validationProgress.total}${
+                              validationProgress.batchCount > 1
+                                ? ` (lote ${validationProgress.batchIndex}/${validationProgress.batchCount})`
+                                : ""
+                            }${
+                              validationProgress.validatorInstanceName
+                                ? ` · chip ${validationProgress.validatorInstanceName}`
+                                : ""
+                            }`
+                          : "Validando contatos e verificando WhatsApp via Evolution API…"}
+                      </span>
                     </div>
+                    {validationProgress && validationProgress.total > 0 && (
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.round((validationProgress.processed / validationProgress.total) * 100),
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 

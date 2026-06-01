@@ -1,12 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { isInstanceReadyToSend } from "../_shared/evolution-fetch-instances.ts";
+import {
+  buildFetchInstancesStatusMap,
+  isInstanceReadyForValidation,
+} from "../_shared/evolution-fetch-instances.ts";
 import { normalizeApiUrl } from "../_shared/evolution-connection-parse.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+/** Limite de instâncias verificadas em paralelo (evita 28× sequencial antes do timeout). */
+const READY_PROBE_CONCURRENCY = 6;
+
+type EvolutionConfigRow = {
+  id: string;
+  instance_name: string | null;
+  api_url: string | null;
+  api_key: string | null;
+  is_connected: boolean | null;
 };
 
 function isConnectionClosedError(status: number, bodyText: string): boolean {
@@ -76,14 +90,12 @@ async function validateOnInstance(
         apikey: apiKey,
       },
       body: JSON.stringify({ numbers: formatted }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(25000),
     });
 
     const preview = await resp.text();
     if (!resp.ok) {
       if (preview.includes("Method not available") || preview.includes("method not available")) {
-        // Não aprovar em massa quando o endpoint não está disponível.
-        // Isso evita falso-positivo de 100% validado.
         return { ok: false, results: [], connectionClosed: false };
       }
       if (isConnectionClosedError(resp.status, preview)) {
@@ -111,7 +123,56 @@ async function validateOnInstance(
     }
   }
 
-  return { ok: aggregated.length > 0, results: aggregated, connectionClosed: false };
+  return {
+    ok: aggregated.length > 0,
+    results: aggregated,
+    connectionClosed: false,
+  };
+}
+
+async function probeReadyInstances(
+  configs: EvolutionConfigRow[],
+  fetchMaps: Map<string, Map<string, boolean | null>>,
+): Promise<EvolutionConfigRow[]> {
+  const ready: EvolutionConfigRow[] = [];
+
+  const probeOne = async (cfg: EvolutionConfigRow) => {
+    const name = String(cfg.instance_name ?? "").trim();
+    const apiUrl = String(cfg.api_url ?? "").trim();
+    const apiKey = String(cfg.api_key ?? "").trim();
+    if (!name || !apiUrl || !apiKey) return;
+    const gk = `${apiUrl}|||${apiKey}`;
+    const fetchMap = fetchMaps.get(gk);
+    const readyCheck = await isInstanceReadyForValidation(apiUrl, apiKey, name, fetchMap);
+    if (readyCheck.ready) ready.push(cfg);
+  };
+
+  for (let i = 0; i < configs.length; i += READY_PROBE_CONCURRENCY) {
+    const slice = configs.slice(i, i + READY_PROBE_CONCURRENCY);
+    await Promise.all(slice.map((cfg) => probeOne(cfg)));
+  }
+
+  return ready;
+}
+
+function buildTryOrder(
+  configs: EvolutionConfigRow[],
+  readyInstances: EvolutionConfigRow[],
+  preferredCfg: EvolutionConfigRow | null,
+): EvolutionConfigRow[] {
+  const rest = configs.filter((c) => c.id !== preferredCfg?.id);
+  const readyRest = readyInstances.filter((c) => c.id !== preferredCfg?.id);
+  const notReadyRest = rest.filter((c) => !readyRest.some((o) => o.id === c.id));
+
+  if (preferredCfg) {
+    const prefReady = readyInstances.some((c) => c.id === preferredCfg.id);
+    if (prefReady) {
+      return [preferredCfg, ...readyRest, ...notReadyRest];
+    }
+    return [...readyRest, preferredCfg, ...notReadyRest];
+  }
+
+  return [...readyInstances, ...configs.filter((c) => !readyInstances.some((o) => o.id === c.id))];
 }
 
 serve(async (req) => {
@@ -150,6 +211,7 @@ serve(async (req) => {
     instanceIds?: string[];
     numbers?: string[];
     useLatamValidator?: boolean;
+    preferredInstanceId?: string;
   } = {};
   try {
     body = await req.json();
@@ -168,6 +230,7 @@ serve(async (req) => {
     ? body.numbers.map((n) => String(n).trim()).filter(Boolean)
     : [];
   const useLatam = body.useLatamValidator === true;
+  const preferredInstanceId = String(body.preferredInstanceId ?? "").trim();
 
   if (!organizationId || instanceIds.length === 0 || numbers.length === 0) {
     return new Response(
@@ -197,22 +260,54 @@ serve(async (req) => {
     });
   }
 
-  const readyInstances: typeof configs = [];
-  for (const cfg of configs) {
-    const name = String(cfg.instance_name ?? "").trim();
-    const apiUrl = String(cfg.api_url ?? "").trim();
-    const apiKey = String(cfg.api_key ?? "").trim();
-    if (!name || !apiUrl || !apiKey) continue;
-    const ready = await isInstanceReadyToSend(apiUrl, apiKey, name);
-    if (ready.ready) readyInstances.push(cfg);
+  const configList = configs as EvolutionConfigRow[];
+
+  const groups = new Map<string, EvolutionConfigRow[]>();
+  for (const cfg of configList) {
+    const gk = `${cfg.api_url}|||${cfg.api_key}`;
+    if (!groups.has(gk)) groups.set(gk, []);
+    groups.get(gk)!.push(cfg);
   }
 
-  const tryOrder = [
-    ...readyInstances,
-    ...configs.filter((c) => !readyInstances.some((o) => o.id === c.id)),
-  ];
+  const fetchMaps = new Map<string, Map<string, boolean | null>>();
+  for (const [gk, group] of groups) {
+    const sample = group[0];
+    const map = await buildFetchInstancesStatusMap(
+      String(sample.api_url),
+      String(sample.api_key),
+    );
+    fetchMaps.set(gk, map);
+  }
+
+  const preferredCfg =
+    preferredInstanceId && configList.find((c) => c.id === preferredInstanceId)
+      ? configList.find((c) => c.id === preferredInstanceId)!
+      : null;
+
+  let readyInstances: EvolutionConfigRow[] = [];
+
+  if (preferredCfg) {
+    const name = String(preferredCfg.instance_name ?? "").trim();
+    const apiUrl = String(preferredCfg.api_url ?? "").trim();
+    const apiKey = String(preferredCfg.api_key ?? "").trim();
+    if (name && apiUrl && apiKey) {
+      const gk = `${apiUrl}|||${apiKey}`;
+      const ready = await isInstanceReadyForValidation(apiUrl, apiKey, name, fetchMaps.get(gk));
+      if (ready.ready) readyInstances.push(preferredCfg);
+    }
+    const others = configList.filter((c) => c.id !== preferredCfg.id);
+    if (others.length > 0 && readyInstances.length === 0) {
+      const moreReady = await probeReadyInstances(others, fetchMaps);
+      readyInstances = [...readyInstances, ...moreReady];
+    }
+  } else {
+    readyInstances = await probeReadyInstances(configList, fetchMaps);
+  }
+
+  const tryOrder = buildTryOrder(configList, readyInstances, preferredCfg);
 
   let usedInstance: string | null = null;
+  let usedInstanceId: string | null = null;
   let apiResults: Array<{ number: string; exists: boolean }> = [];
   let allConnectionClosed = tryOrder.length > 0;
 
@@ -234,20 +329,19 @@ serve(async (req) => {
 
     if (attempt.ok) {
       usedInstance = name;
+      usedInstanceId = cfg.id;
       apiResults = attempt.results;
       break;
     }
   }
 
-  if (!usedInstance && configs.length > 0) {
-    const fallbackInstance = readyInstances[0]?.instance_name ?? configs[0]?.instance_name ?? null;
+  if (!usedInstance && readyInstances.length > 0) {
+    const names = readyInstances.map((c) => c.instance_name).filter(Boolean).slice(0, 5).join(", ");
     return new Response(
       JSON.stringify({
-        ok: true,
-        skippedApiValidation: true,
-        usedInstance: fallbackInstance,
-        warning:
-          "Validação técnica indisponível na Evolution para as instâncias selecionadas (Connection Closed/Method not available/instância não pronta). Nenhum número foi aprovado automaticamente.",
+        ok: false,
+        error:
+          `As instâncias estão OPEN no painel (${names}${readyInstances.length > 5 ? "…" : ""}), mas a Evolution não validou os números (sessão fechada ou whatsappNumbers indisponível). Reconecte um chip e tente de novo.`,
         validatedNumbers: [] as string[],
         rejectedNumbers: numbers,
       }),
@@ -279,11 +373,12 @@ serve(async (req) => {
     );
     const found = [...existsSet].some((ex) => {
       const exDigits = ex.replace(/\D/g, "");
-      return (
-        exDigits === digits ||
-        exDigits.endsWith(digits.slice(-8)) ||
-        digits.endsWith(exDigits.slice(-8))
-      );
+      if (!exDigits || !digits) return false;
+      if (exDigits === digits) return true;
+      if (digits.length >= 10 && exDigits.length >= 10) {
+        return exDigits.slice(-10) === digits.slice(-10) || exDigits.slice(-11) === digits.slice(-11);
+      }
+      return false;
     });
     if (found) validatedNumbers.push(n);
     else rejectedNumbers.push(n);
@@ -294,6 +389,7 @@ serve(async (req) => {
       ok: true,
       skippedApiValidation: false,
       usedInstance,
+      usedInstanceId,
       validatedNumbers,
       rejectedNumbers,
     }),
