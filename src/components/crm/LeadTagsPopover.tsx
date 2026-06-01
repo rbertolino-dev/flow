@@ -15,6 +15,7 @@ import { Tag as TagIcon, X, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateTagDialog } from "@/components/shared/CreateTagDialog";
 import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
+import { broadcastLeadTagsChanged } from "@/utils/leadTagsSync";
 
 interface LeadTagsPopoverProps {
   leadId: string;
@@ -28,14 +29,14 @@ interface LeadTagsPopoverProps {
 export const LeadTagsPopover = memo(function LeadTagsPopover({
   leadId,
   leadTags,
-  onRefetch,
   compact = false,
   orgTagsApi,
 }: LeadTagsPopoverProps) {
   const { orgTags, orgTagsLoading, addTagToLead, removeTagFromLead, refetchOrgTags } = orgTagsApi;
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busyTagId, setBusyTagId] = useState<string | null>(null);
+  const [busyAdd, setBusyAdd] = useState(false);
   const [addTagId, setAddTagId] = useState<string>("");
   const [createTagOpen, setCreateTagOpen] = useState(false);
 
@@ -57,41 +58,62 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
   }, [open]);
 
   const handleAdd = async () => {
-    if (!addTagId) return;
-    setBusy(true);
+    if (!addTagId || busyAdd) return;
+    const tag = orgTags.find((t) => t.id === addTagId);
+    if (!tag) return;
+
+    setBusyAdd(true);
+    broadcastLeadTagsChanged({ leadId, action: "add", tag });
+    setAddTagId("");
+
     try {
-      const result = await addTagToLead(leadId, addTagId);
-      if (!result.success) return;
+      const result = await addTagToLead(leadId, tag.id, { skipPreflight: true });
+      if (!result.success) {
+        broadcastLeadTagsChanged({ leadId, action: "remove", tag });
+        return;
+      }
       if (result.alreadyExists) {
         toast({
           title: "Etiqueta já associada",
-          description: result.tagName
-            ? `"${result.tagName}" já está neste lead.`
-            : undefined,
-        });
-      } else {
-        toast({
-          title: "Etiqueta adicionada",
-          description: result.tagName ? `"${result.tagName}" associada ao lead.` : undefined,
+          description: result.tagName ? `"${result.tagName}" já está neste lead.` : undefined,
         });
       }
-      setAddTagId("");
-      onRefetch?.();
+    } catch {
+      broadcastLeadTagsChanged({ leadId, action: "remove", tag });
+      toast({
+        title: "Erro ao adicionar etiqueta",
+        description: "Não foi possível associar a etiqueta. Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
-      setBusy(false);
+      setBusyAdd(false);
     }
   };
 
-  const handleRemove = async (tagId: string) => {
-    setBusy(true);
+  const handleRemove = async (tag: Tag) => {
+    if (busyTagId) return;
+    setBusyTagId(tag.id);
+    broadcastLeadTagsChanged({ leadId, action: "remove", tag });
+
     try {
-      const ok = await removeTagFromLead(leadId, tagId);
-      if (ok) {
-        toast({ title: "Etiqueta removida" });
-        onRefetch?.();
+      const ok = await removeTagFromLead(leadId, tag.id, { skipPreflight: true });
+      if (!ok) {
+        broadcastLeadTagsChanged({ leadId, action: "add", tag });
+        toast({
+          title: "Erro ao remover etiqueta",
+          description: "Não foi possível remover a etiqueta. Tente novamente.",
+          variant: "destructive",
+        });
       }
+    } catch {
+      broadcastLeadTagsChanged({ leadId, action: "add", tag });
+      toast({
+        title: "Erro ao remover etiqueta",
+        description: "Não foi possível remover a etiqueta. Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
-      setBusy(false);
+      setBusyTagId(null);
     }
   };
 
@@ -111,7 +133,6 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
                       ? "h-6 px-2 shrink-0"
                       : "h-8 px-2 shrink-0 max-w-[160px]"
                   }
-                  disabled={busy}
                   aria-label="Gerenciar etiquetas do lead"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -172,10 +193,10 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
                       variant="ghost"
                       size="sm"
                       className="h-5 w-5 p-0 hover:bg-destructive/15"
-                      disabled={busy}
+                      disabled={busyTagId === t.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleRemove(t.id);
+                        void handleRemove(t);
                       }}
                       aria-label={`Remover etiqueta ${t.name}`}
                     >
@@ -200,7 +221,7 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
                   <Select
                     value={addTagId || undefined}
                     onValueChange={setAddTagId}
-                    disabled={busy}
+                    disabled={busyAdd}
                   >
                     <SelectTrigger className="flex-1">
                       <SelectValue placeholder="Escolher etiqueta" />
@@ -216,10 +237,10 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={busy || !addTagId}
+                    disabled={busyAdd || !addTagId}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleAdd();
+                      void handleAdd();
                     }}
                   >
                     Adicionar
@@ -231,7 +252,7 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
                 variant="outline"
                 size="sm"
                 className="w-full gap-1"
-                disabled={busy}
+                disabled={busyAdd || !!busyTagId}
                 onClick={(e) => {
                   e.stopPropagation();
                   setCreateTagOpen(true);
@@ -262,7 +283,6 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
     prev.compact === next.compact &&
     prev.orgTagsApi.orgTags === next.orgTagsApi.orgTags &&
     prev.orgTagsApi.orgTagsLoading === next.orgTagsApi.orgTagsLoading &&
-    JSON.stringify(prev.leadTags) === JSON.stringify(next.leadTags) &&
-    prev.onRefetch === next.onRefetch
+    JSON.stringify(prev.leadTags) === JSON.stringify(next.leadTags)
   );
 });

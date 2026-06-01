@@ -42,6 +42,8 @@
     "test:e2e:fix": "./scripts/teste-automatico-completo.sh auto --fix",
     "test:e2e:codegen": "playwright codegen http://localhost:8080",
     "test:e2e:wordpress-api": "playwright test tests/e2e/wordpress-ai-auth.spec.ts --project=chromium",
+    "test:e2e:funnel-tags": "playwright test tests/e2e/funnel-lead-tags.spec.ts tests/e2e/lead-tags-sync.unit.spec.ts --project=chromium",
+    "test:unit:lead-tags": "playwright test tests/e2e/lead-tags-sync.unit.spec.ts --project=chromium",
     "test:e2e:human": "playwright test --grep @human-behavior",
     "test:e2e:accessibility": "playwright test --grep @accessibility",
     "test:e2e:performance": "playwright test --grep @performance",

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Lead, LeadStatus, Activity, LeadAssignee } from "@/types/lead";
+import { Lead, LeadStatus, Activity, LeadAssignee, type Tag } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import {
@@ -9,6 +9,11 @@ import {
   LEAD_NOTES_SAVED_EVENT,
   type LeadNotesSavedDetail,
 } from "@/utils/forceRefreshAfterMutation";
+import {
+  LEAD_TAGS_CHANGED_EVENT,
+  applyLeadTagsPatch,
+  type LeadTagsChangedDetail,
+} from "@/utils/leadTagsSync";
 import {
   buildBudgetSummaryByLeadId,
   buildBudgetPreviewsByLeadId,
@@ -716,10 +721,53 @@ export function useLeads() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'lead_tags' },
-        (payload) => {
-          console.log('🏷️ Tags do lead alteradas:', payload);
-          // Refetch para atualizar as tags dos leads
-          fetchFn();
+        async (payload) => {
+          const eventType =
+            (payload as { eventType?: string; type?: string }).eventType ||
+            (payload as { type?: string }).type;
+          const rowNew = payload.new as { lead_id?: string; tag_id?: string } | null;
+          const rowOld = payload.old as { lead_id?: string; tag_id?: string } | null;
+          const leadId = rowNew?.lead_id || rowOld?.lead_id;
+          const tagId = rowNew?.tag_id || rowOld?.tag_id;
+          if (!leadId || !tagId) return;
+
+          if (eventType === "DELETE") {
+            setLeads((prev) =>
+              prev.map((l) => {
+                if (l.id !== leadId) return l;
+                return {
+                  ...l,
+                  tags: (l.tags ?? []).filter((t) => t.id !== tagId),
+                };
+              })
+            );
+            return;
+          }
+
+          if (eventType === "INSERT" && rowNew) {
+            const { data: tagData } = await supabase
+              .from("tags")
+              .select("id, name, color")
+              .eq("id", tagId)
+              .maybeSingle();
+
+            if (!tagData) return;
+
+            const tag: Tag = {
+              id: tagData.id,
+              name: tagData.name,
+              color: tagData.color,
+            };
+
+            setLeads((prev) =>
+              prev.map((l) => {
+                if (l.id !== leadId) return l;
+                const current = l.tags ?? [];
+                if (current.some((t) => t.id === tag.id)) return l;
+                return { ...l, tags: [...current, tag] };
+              })
+            );
+          }
         }
       )
       .on(
@@ -1040,9 +1088,16 @@ export function useLeads() {
         });
     };
 
+    const handleLeadTagsChanged = (event: Event) => {
+      const detail = (event as CustomEvent<LeadTagsChangedDetail>).detail;
+      if (!detail?.leadId || !detail?.tag?.id) return;
+      setLeads((prev) => applyLeadTagsPatch(prev, detail));
+    };
+
     window.addEventListener(LEAD_NOTES_SAVED_EVENT, handleLeadNotesSaved);
     window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
     window.addEventListener('tag-updated', handleTagUpdated as EventListener);
+    window.addEventListener(LEAD_TAGS_CHANGED_EVENT, handleLeadTagsChanged);
 
     return () => {
       console.log('🔌 Desconectando realtime de leads...');
@@ -1050,6 +1105,7 @@ export function useLeads() {
       window.removeEventListener(LEAD_NOTES_SAVED_EVENT, handleLeadNotesSaved);
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
       window.removeEventListener('tag-updated', handleTagUpdated as EventListener);
+      window.removeEventListener(LEAD_TAGS_CHANGED_EVENT, handleLeadTagsChanged);
       if (channel) {
         try {
           supabase.removeChannel(channel);

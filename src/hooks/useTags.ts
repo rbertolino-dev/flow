@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { toastSafeErrorDescription } from "@/lib/utils";
 import { isAuthStorageLockError, sleep } from "@/lib/supabaseAuthLock";
+import type { TagMutationOptions } from "@/components/crm/leadTagPickerTypes";
 
 export interface Tag {
   id: string;
@@ -303,11 +304,12 @@ export function useTags() {
     }
   };
 
-  const addTagToLead = async (leadId: string, tagId: string): Promise<{ success: boolean; alreadyExists?: boolean; tagName?: string }> => {
+  const addTagToLead = async (
+    leadId: string,
+    tagId: string,
+    options?: TagMutationOptions
+  ): Promise<{ success: boolean; alreadyExists?: boolean; tagName?: string }> => {
     try {
-      console.log('🏷️ Adicionando etiqueta:', { leadId, tagId });
-      
-      // Validação: verificar se leadId e tagId existem e são válidos
       if (!leadId || !tagId) {
         toast({
           title: "Dados inválidos",
@@ -316,6 +318,41 @@ export function useTags() {
         });
         return { success: false };
       }
+
+      if (options?.skipPreflight) {
+        const cachedTag = tags.find((t) => t.id === tagId);
+        const { error } = await supabase.from("lead_tags").insert({
+          lead_id: leadId,
+          tag_id: tagId,
+        });
+
+        if (error) {
+          if (error.code === "23505") {
+            return {
+              success: true,
+              alreadyExists: true,
+              tagName: cachedTag?.name,
+            };
+          }
+          if (error.code === "23503") {
+            toast({
+              title: "Erro de referência",
+              description: "O lead ou a etiqueta foram removidos durante a operação.",
+              variant: "destructive",
+            });
+            return { success: false };
+          }
+          throw error;
+        }
+
+        return {
+          success: true,
+          alreadyExists: false,
+          tagName: cachedTag?.name,
+        };
+      }
+
+      console.log('🏷️ Adicionando etiqueta:', { leadId, tagId });
 
       // Passo 1: Verificar se o lead existe
       const { data: leadExists, error: leadCheckError } = await supabase
@@ -444,11 +481,12 @@ export function useTags() {
     }
   };
 
-  const removeTagFromLead = async (leadId: string, tagId: string): Promise<boolean> => {
+  const removeTagFromLead = async (
+    leadId: string,
+    tagId: string,
+    options?: TagMutationOptions
+  ): Promise<boolean> => {
     try {
-      console.log('🗑️ Removendo etiqueta:', { leadId, tagId });
-      
-      // Validação: verificar se leadId e tagId existem e são válidos
       if (!leadId || !tagId) {
         toast({
           title: "Dados inválidos",
@@ -457,6 +495,19 @@ export function useTags() {
         });
         return false;
       }
+
+      if (options?.skipPreflight) {
+        const { error } = await supabase
+          .from("lead_tags")
+          .delete()
+          .eq("lead_id", leadId)
+          .eq("tag_id", tagId);
+
+        if (error) throw error;
+        return true;
+      }
+
+      console.log('🗑️ Removendo etiqueta:', { leadId, tagId });
 
       // Verificar se a associação existe antes de tentar remover
       const { data: existingAssociation, error: checkError } = await supabase
