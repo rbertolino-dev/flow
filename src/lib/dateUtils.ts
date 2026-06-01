@@ -60,5 +60,12 @@ export function parseSaoPauloDateTime(dateStr: string, timeStr: string): Date {
   return toDate(isoLocal, { timeZone: TIMEZONE });
 }
 
+/**
+ * Retorna a data civil "hoje" no fuso de São Paulo em formato yyyy-MM-dd.
+ * Use em inputs type="date" (min/max) para evitar drift causado por UTC.
+ */
+export function getTodaySaoPauloISODate(referenceDate: Date = new Date()): string {
+  return formatInTimeZone(referenceDate, TIMEZONE, "yyyy-MM-dd");
+}
 
 

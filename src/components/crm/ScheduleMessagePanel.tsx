@@ -11,11 +11,10 @@ import { Calendar, Clock, X, Trash2, Image as ImageIcon, Repeat, Link2, Send, Lo
 import { useScheduledMessages, type ScheduledMessage } from "@/hooks/useScheduledMessages";
 import { useOrganizationFeatures } from "@/hooks/useOrganizationFeatures";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
 import { Badge } from "@/components/ui/badge";
-import { parseSaoPauloDateTime } from "@/lib/dateUtils";
+import { getTodaySaoPauloISODate, parseSaoPauloDateTime } from "@/lib/dateUtils";
 import { formatScheduledMessageError } from "@/lib/scheduledMessageErrors";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 interface ScheduleMessagePanelProps {
@@ -68,9 +67,8 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const openRescheduleDialog = (msg: ScheduledMessage) => {
     const d = new Date();
     d.setMinutes(d.getMinutes() + 15);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    setRescheduleDate(format(d, "yyyy-MM-dd"));
-    setRescheduleTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    setRescheduleDate(formatInTimeZone(d, "America/Sao_Paulo", "yyyy-MM-dd"));
+    setRescheduleTime(formatInTimeZone(d, "America/Sao_Paulo", "HH:mm"));
     setRescheduleTarget(msg);
     setRescheduleOpen(true);
   };
@@ -205,6 +203,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
   const historyMessages = scheduledMessages.filter(m => m.status !== 'pending');
 
   const now = new Date();
+  const minDateSaoPaulo = getTodaySaoPauloISODate(now);
   const isPendingOverdue = (msg: ScheduledMessage) =>
     msg.status === 'pending' && new Date(msg.scheduled_for) <= now;
 
@@ -339,7 +338,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                 type="date"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                min={minDateSaoPaulo}
               />
             </div>
             <div>
@@ -371,7 +370,10 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
             <div className="space-y-3 pl-6 border-l-2">
               <div>
                 <Label htmlFor="repeat-period">Período de Repetição</Label>
-                <Select value={repeatPeriod} onValueChange={(value) => setRepeatPeriod(value as any)}>
+                <Select
+                  value={repeatPeriod}
+                  onValueChange={(value: 'daily' | 'weekly' | 'monthly' | 'yearly') => setRepeatPeriod(value)}
+                >
                   <SelectTrigger id="repeat-period">
                     <SelectValue />
                   </SelectTrigger>
@@ -784,7 +786,7 @@ export function ScheduleMessagePanel({ leadId, leadPhone, instances, onClose }: 
                 type="date"
                 value={rescheduleDate}
                 onChange={(e) => setRescheduleDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
+                min={minDateSaoPaulo}
               />
             </div>
             <div className="space-y-2">

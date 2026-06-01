@@ -105,6 +105,21 @@ function getEvolutionSendDelayMs(): number {
   return Number.isNaN(p) ? 650 : Math.min(5000, Math.max(0, p));
 }
 
+function buildTimeDiagnostics(now: Date): { nowIsoUtc: string; nowSaoPaulo: string } {
+  const nowIsoUtc = now.toISOString();
+  const nowSaoPaulo = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(now);
+  return { nowIsoUtc, nowSaoPaulo };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -121,10 +136,14 @@ serve(async (req) => {
     const evolutionSendDelayMs = getEvolutionSendDelayMs();
 
     // ✅ DEBUG: Log detalhado antes de buscar
+    const now = new Date();
+    const { nowIsoUtc, nowSaoPaulo } = buildTimeDiagnostics(now);
+
     console.log('🔍 [process-scheduled-messages] Buscando mensagens agendadas...');
     console.log('🔍 [process-scheduled-messages] Filtros:', {
       status: 'pending',
-      scheduled_for: `<= ${new Date().toISOString()}`,
+      scheduled_for: `<= ${nowIsoUtc}`,
+      now_sao_paulo: nowSaoPaulo,
       limit: batchLimit,
       evolutionDelayMs: evolutionSendDelayMs,
     });
@@ -134,7 +153,7 @@ serve(async (req) => {
       .from('scheduled_messages')
       .select('*')
       .eq('status', 'pending')
-      .lte('scheduled_for', new Date().toISOString())
+      .lte('scheduled_for', nowIsoUtc)
       .order('scheduled_for', { ascending: true })
       .limit(batchLimit);
 
@@ -177,16 +196,16 @@ serve(async (req) => {
         console.log('ℹ️ [process-scheduled-messages] Exemplos:', allMessages);
       }
 
-      const nowIso = new Date().toISOString();
       const { count: dueCount, error: dueErr } = await supabase
         .from('scheduled_messages')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending')
-        .lte('scheduled_for', nowIso);
+        .lte('scheduled_for', nowIsoUtc);
       console.log('🔍 [process-scheduled-messages] Contagem pending com scheduled_for <= now:', {
         count: dueCount ?? null,
         error: dueErr?.message ?? null,
-        nowIso,
+        nowIso: nowIsoUtc,
+        nowSaoPaulo,
       });
     }
 

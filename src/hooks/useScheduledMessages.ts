@@ -5,6 +5,7 @@ import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { PENDING_SCHEDULED_COUNTS_QUERY_KEY } from "@/hooks/usePendingScheduledCountsByLead";
 import { normalizeScheduledMessageMediaFields } from "@/lib/scheduledMessageMediaValidation";
+import { formatInTimeZone } from "date-fns-tz";
 
 
 export interface ScheduledMessage {
@@ -110,7 +111,13 @@ export function useScheduledMessages(leadId?: string) {
       }
 
       const originalDate = params.scheduledFor;
-      const originalDateOnly = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+      if (Number.isNaN(originalDate.getTime())) {
+        throw new Error('Data/hora inválida para agendamento');
+      }
+      // Preserva o dia civil de São Paulo, independente do timezone do navegador.
+      const originalDateOnly = formatInTimeZone(originalDate, "America/Sao_Paulo", "yyyy-MM-dd");
+      const scheduledForUtc = originalDate.toISOString();
+      const scheduledForBrt = formatInTimeZone(originalDate, "America/Sao_Paulo", "yyyy-MM-dd HH:mm:ss");
 
       // Calcular data final para repeat_until
       let repeatUntil: string | null = null;
@@ -162,20 +169,21 @@ export function useScheduledMessages(leadId?: string) {
         leadId: params.leadId,
         instanceId: params.instanceId,
         phone: cleanPhone,
-        scheduledFor: params.scheduledFor.toISOString(),
+        scheduledForUtc,
+        scheduledForBrt,
         messageLength: params.message.length,
       });
 
       // ✅ SEGUIR MESMA LÓGICA DO MÓDULO DE DISPARO (que funciona)
       // Inserir primeiro com campos básicos (igual ao que funciona)
-      const firstMessageData: any = {
+      const firstMessageData: Record<string, unknown> = {
           organization_id: organizationId,
           user_id: user.id,
           lead_id: params.leadId,
           instance_id: params.instanceId,
           phone: cleanPhone, // ✅ Usar telefone limpo
           message: params.message,
-          scheduled_for: params.scheduledFor.toISOString(),
+          scheduled_for: scheduledForUtc,
           status: 'pending', // ✅ Explícito (igual ao que funciona)
           media_url: mainMedia.mediaUrl,
           media_type: mainMedia.mediaType,
@@ -186,7 +194,7 @@ export function useScheduledMessages(leadId?: string) {
         firstMessageData.repeat_enabled = true;
         firstMessageData.repeat_period = params.repeatPeriod || null;
         firstMessageData.repeat_until = repeatUntil;
-        firstMessageData.original_scheduled_date = originalDateOnly.toISOString().split('T')[0];
+        firstMessageData.original_scheduled_date = originalDateOnly;
       }
 
       const { data: firstMessage, error: firstError } = await supabase
@@ -208,13 +216,13 @@ export function useScheduledMessages(leadId?: string) {
         throw firstError;
       }
 
-      let parentMessageId = firstMessage.id;
+      const parentMessageId = firstMessage.id;
 
       // Se repetição está habilitada, criar mensagens repetidas baseado na duração
       if (params.repeatEnabled && params.repeatPeriod && params.repeatDuration) {
-        const repeatMessages: any[] = [];
+        const repeatMessages: Record<string, unknown>[] = [];
         const duration = params.repeatDuration;
-        let currentDate = new Date(originalDate);
+        const currentDate = new Date(originalDate);
         const endDate = new Date(originalDate);
         
         // Calcular data final baseado no período e duração
@@ -248,7 +256,7 @@ export function useScheduledMessages(leadId?: string) {
             case 'weekly':
               currentDate.setDate(currentDate.getDate() + 7);
               break;
-            case 'monthly':
+            case 'monthly': {
               // Repetir sempre no mesmo dia do mês
               currentDate.setMonth(currentDate.getMonth() + 1);
               // Garantir que o dia não ultrapasse o último dia do mês
@@ -259,6 +267,7 @@ export function useScheduledMessages(leadId?: string) {
                 currentDate.setDate(originalDate.getDate());
               }
               break;
+            }
             case 'yearly':
               currentDate.setFullYear(currentDate.getFullYear() + 1);
               break;
@@ -277,7 +286,7 @@ export function useScheduledMessages(leadId?: string) {
               media_url: mainMedia.mediaUrl,
               media_type: mainMedia.mediaType,
               repeat_enabled: false, // Mensagens repetidas não repetem novamente
-              original_scheduled_date: originalDateOnly.toISOString().split('T')[0],
+              original_scheduled_date: originalDateOnly,
               parent_message_id: parentMessageId, // Todas apontam para a primeira
             });
           }
@@ -313,7 +322,7 @@ export function useScheduledMessages(leadId?: string) {
         const comboDate = new Date(originalDate);
         comboDate.setDate(comboDate.getDate() + params.comboDelayDays);
 
-        const comboMessageData: any = {
+        const comboMessageData: Record<string, unknown> = {
           organization_id: organizationId,
           user_id: user.id,
           lead_id: params.leadId,
@@ -348,27 +357,28 @@ export function useScheduledMessages(leadId?: string) {
         description: "A mensagem será enviada no horário programado",
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       // ✅ DEBUG: Log erro completo
       console.error('❌ Erro ao agendar mensagem (onError):', error);
       
       // ✅ Melhorar mensagem de erro baseada no tipo
-      let errorMessage = error.message || 'Erro desconhecido ao agendar mensagem';
+      const err = error as { message?: string; code?: string };
+      let errorMessage = err.message || 'Erro desconhecido ao agendar mensagem';
       
       // Erros comuns e suas mensagens amigáveis
-      if (error.code === '23503') {
+      if (err.code === '23503') {
         errorMessage = 'Erro de referência: Verifique se o lead, instância ou organização são válidos';
-      } else if (error.code === '23505') {
+      } else if (err.code === '23505') {
         errorMessage = 'Mensagem duplicada: Esta mensagem já foi agendada';
-      } else if (error.code === '42501') {
+      } else if (err.code === '42501') {
         errorMessage = 'Permissão negada: Você não tem permissão para agendar mensagens nesta organização';
-      } else if (error.message?.includes('organization')) {
+      } else if (err.message?.includes('organization')) {
         errorMessage = 'Erro de organização: Verifique se você pertence à organização do lead';
-      } else if (error.message?.includes('RLS') || error.message?.includes('policy')) {
+      } else if (err.message?.includes('RLS') || err.message?.includes('policy')) {
         errorMessage = 'Erro de permissão: Verifique se você tem permissão para agendar mensagens';
-      } else if (error.message?.includes('futuro') || error.message?.includes('future')) {
+      } else if (err.message?.includes('futuro') || err.message?.includes('future')) {
         errorMessage = 'Data inválida: A data de agendamento deve ser no futuro';
-      } else if (error.message?.includes('telefone') || error.message?.includes('phone')) {
+      } else if (err.message?.includes('telefone') || err.message?.includes('phone')) {
         errorMessage = 'Telefone inválido: Verifique o número do telefone';
       }
       
@@ -382,7 +392,7 @@ export function useScheduledMessages(leadId?: string) {
 
   const cancelScheduledMessage = useMutation({
     mutationFn: async (params: { messageId: string; reason?: string }) => {
-      const updateData: any = {
+      const updateData: { status: 'cancelled'; cancelled_at: string; cancel_reason?: string } = {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
       };
@@ -427,7 +437,7 @@ export function useScheduledMessages(leadId?: string) {
         description: "O agendamento foi cancelado",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao cancelar mensagem",
         description: error.message,
@@ -453,7 +463,7 @@ export function useScheduledMessages(leadId?: string) {
         description: "O agendamento foi removido",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Erro ao excluir mensagem",
         description: error.message,
@@ -528,17 +538,24 @@ export function useScheduledMessages(leadId?: string) {
       scheduledFor: Date;
       fromStatus?: 'failed' | 'pending';
     }) => {
+      if (Number.isNaN(scheduledFor.getTime())) {
+        throw new Error('A nova data/hora é inválida.');
+      }
       const now = new Date();
       const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
       if (scheduledFor < fiveMinutesAgo) {
         throw new Error('A nova data não pode ser mais de 5 minutos no passado.');
       }
 
+      const scheduledForUtc = scheduledFor.toISOString();
+      const scheduledForBrt = formatInTimeZone(scheduledFor, "America/Sao_Paulo", "yyyy-MM-dd HH:mm:ss");
+      console.log('📅 Reagendando mensagem:', { messageId, fromStatus, scheduledForUtc, scheduledForBrt });
+
       if (fromStatus === 'pending') {
         const { error } = await supabase
           .from('scheduled_messages')
           .update({
-            scheduled_for: scheduledFor.toISOString(),
+            scheduled_for: scheduledForUtc,
             error_message: null,
           })
           .eq('id', messageId)
@@ -552,7 +569,7 @@ export function useScheduledMessages(leadId?: string) {
         .from('scheduled_messages')
         .update({
           status: 'pending',
-          scheduled_for: scheduledFor.toISOString(),
+          scheduled_for: scheduledForUtc,
           error_message: null,
           sent_at: null,
         })
