@@ -15,7 +15,6 @@ import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { buildCopyNumber } from "@/lib/phoneUtils";
-import { supabase } from "@/integrations/supabase/client";
 
 interface LeadsListViewProps {
   leads: Lead[];
@@ -71,7 +70,16 @@ export function LeadsListView({
   const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
   // ✅ CORREÇÃO: Adicionar opções de ordenação por nome e valor
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'value-asc' | 'value-desc'>('newest');
-  const [leadsInCallQueue, setLeadsInCallQueue] = useState<Set<string>>(new Set());
+  const leadsInCallQueue = useMemo(
+    () =>
+      new Set(
+        (callQueue ?? [])
+          .filter((q) => q.status === "pending")
+          .map((q) => q.leadId)
+          .filter(Boolean)
+      ),
+    [callQueue]
+  );
 
   const toggleStageCollapse = (stageId: string) => {
     setCollapsedStages(prev => {
@@ -111,40 +119,6 @@ export function LeadsListView({
       window.removeEventListener('data-refresh', handleDataRefresh as EventListener);
     };
   }, [onRefetch]);
-
-  // ✅ NOVO: Buscar leads que estão na fila de ligação
-  useEffect(() => {
-    const fetchCallQueueLeads = async () => {
-      const { data } = await supabase
-        .from('call_queue')
-        .select('lead_id')
-        .eq('status', 'pending');
-      
-      if (data) {
-        setLeadsInCallQueue(new Set(data.map(item => item.lead_id)));
-      }
-    };
-
-    fetchCallQueueLeads();
-
-    // ✅ OTIMIZAÇÃO: Manter apenas realtime da call_queue
-    const channel = supabase
-      .channel('call-queue-changes-list-view')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'call_queue'
-        },
-        () => fetchCallQueueLeads()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   // ✅ NOVO: Função para normalizar telefone (remover caracteres não numéricos)
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '');

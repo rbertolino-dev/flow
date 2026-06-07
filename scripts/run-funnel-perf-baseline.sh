@@ -9,6 +9,11 @@ cd "$PROJECT_ROOT"
 # shellcheck source=scripts/load-e2e-env.sh
 source "$SCRIPT_DIR/load-e2e-env.sh"
 
+if [[ ! -f "$PROJECT_ROOT/.env.e2e.local" ]]; then
+  echo "Criando .env.e2e.local (setup seguro)..."
+  FORCE_E2E_SETUP="${FORCE_E2E_SETUP:-}" "$SCRIPT_DIR/setup-e2e-local.sh" || true
+fi
+
 echo "Medindo performance do funil (Playwright, build Docker)..."
 npm run test:e2e:funnel-perf:secure
 

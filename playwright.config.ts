@@ -12,6 +12,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   // Diretório de testes
   testDir: './tests/e2e',
+
+  // Performance/diagnóstico do funil roda só via playwright.deployed.config.ts
+  testIgnore: [/\.perf\.spec\.ts$/],
   
   // Timeout padrão para cada teste
   timeout: 30 * 1000, // 30 segundos

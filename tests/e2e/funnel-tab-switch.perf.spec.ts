@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { waitForKanbanReady } from "../helpers/funnel";
+import {
+  clickKanbanListViewToggle,
+  returnToKanbanViewMode,
+  clickSidebarView,
+  countVisibleKanbanCards,
+  gotoFunnelPage,
+  waitForKanbanReady,
+} from "../helpers/funnel";
 import { loadE2eEnvSecure } from "../helpers/loadE2eEnv";
 import {
   assertAgainstThresholds,
@@ -10,7 +17,6 @@ import {
   measureInitialKanbanLoad,
   measureReturnToKanban,
   writeFunnelPerfReport,
-  clickSidebarView,
   waitForCallsView,
   waitForListView,
   formatDiagnosisMarkdown,
@@ -23,13 +29,24 @@ import {
  * FUNNEL_PERF_STRICT=1 — falha em critical, limites absolutos e regressão vs baseline
  */
 test.describe("@perf @performance Funil — troca de abas (baseline)", () => {
-  test.describe.configure({ mode: "serial" });
+  test.describe.configure({ mode: "serial", timeout: 300_000 });
 
   test("mede primeira carga, volta após Ligações e Kanban ↔ Lista", async ({
     page,
     baseURL,
   }) => {
     test.skip(!loadE2eEnvSecure(), "Configure .env.e2e.local (veja .env.e2e.example).");
+
+    await gotoFunnelPage(page);
+    const cardsOnLoad = await countVisibleKanbanCards(page);
+    if (cardsOnLoad === 0) {
+      await page.waitForTimeout(5000);
+    }
+    const cardsAfterWait = await countVisibleKanbanCards(page);
+    test.skip(
+      cardsAfterWait === 0,
+      "Funil sem cards visíveis — use conta E2E com leads no pipeline."
+    );
 
     const baseline = loadFunnelPerfBaseline();
     const baselineByScenario = new Map(
@@ -66,9 +83,11 @@ test.describe("@perf @performance Funil — troca de abas (baseline)", () => {
         "view_list_to_kanban",
         {
           leaveView: async () => {
-            const listToggle = page.getByRole("button", { name: /ver em lista/i });
-            await listToggle.click();
+            await clickKanbanListViewToggle(page);
             await waitForListView(page);
+          },
+          returnToKanban: async () => {
+            await returnToKanbanViewMode(page);
           },
         },
         baselineByScenario.get("view_list_to_kanban")

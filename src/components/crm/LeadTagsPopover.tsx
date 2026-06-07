@@ -165,6 +165,7 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
         <PopoverContent
           className="w-80"
           align="start"
+          data-testid="lead-tags-popover"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >

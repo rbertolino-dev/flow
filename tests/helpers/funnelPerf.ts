@@ -1,7 +1,18 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import type { Page } from "@playwright/test";
-import { waitForKanbanReady } from "./funnel";
+import {
+  clickSidebarView,
+  countVisibleKanbanCards,
+  gotoFunnelPage,
+  visibleKanbanCards,
+} from "./funnel";
+import {
+  buildRenderProfile,
+  countDomLeadCards,
+  countVisibleLeadCards,
+  type RenderProfileMetrics,
+} from "./funnelRenderProfile";
 
 export type FunnelApiRequestCounts = {
   callQueueByLead: number;
@@ -39,6 +50,7 @@ export type FunnelTabSwitchSample = {
   ratios: FunnelTabSwitchRatios;
   diagnosis: FunnelDiagnosis[];
   primaryBottleneck: string | null;
+  renderProfile?: RenderProfileMetrics;
 };
 
 export type FunnelPerfReport = {
@@ -59,6 +71,7 @@ export type FunnelPerfReport = {
 const PERF_DIR = path.join(process.cwd(), "test-results/funnel-perf");
 export const FUNNEL_PERF_LATEST_PATH = path.join(PERF_DIR, "latest.json");
 export const FUNNEL_PERF_BASELINE_PATH = path.join(PERF_DIR, "baseline.json");
+export const FUNNEL_PERF_BASELINE_HIGH_VOLUME_PATH = path.join(PERF_DIR, "baseline-high-volume.json");
 export const FUNNEL_PERF_DIAGNOSIS_MD_PATH = path.join(PERF_DIR, "diagnosis-summary.md");
 
 const COUNT_KEYS = [
@@ -177,7 +190,10 @@ export function computeRatios(
   visibleKanbanCards: number
 ): FunnelTabSwitchRatios {
   const cards = Math.max(visibleKanbanCards, 1);
-  const scheduledChunksExpected = Math.ceil(cards / 12);
+  // CHUNK_SIZE in usePendingScheduledCountsByLead = 40 (was 12 before P1).
+  // The hook fetches for ALL leads (not just visible), so ratio is approximate
+  // when the view is filtered; use a generous expected (1 chunk minimum).
+  const scheduledChunksExpected = Math.max(Math.ceil(cards / 40), 1);
   return {
     callQueuePerCard: requests.callQueueByLead / cards,
     scheduledOverloadRatio:
@@ -323,11 +339,6 @@ function enrichSample(
   return { ...partial, ratios, diagnosis, primaryBottleneck };
 }
 
-export async function clickSidebarView(page: Page, label: string): Promise<void> {
-  const btn = page.getByRole("button", { name: label, exact: true });
-  await btn.first().click();
-}
-
 export async function waitForCallsView(page: Page): Promise<void> {
   await page.getByRole("heading", { name: /fila de ligações/i }).waitFor({
     state: "visible",
@@ -346,14 +357,13 @@ async function measureKanbanVisiblePhases(
   const t0 = Date.now();
   await navigateToKanban();
 
-  await page.locator("[data-kanban-sortable-item]").first().waitFor({
+  await visibleKanbanCards(page).first().waitFor({
     state: "visible",
     timeout: 60_000,
   });
   const firstCardVisibleMs = Date.now() - t0;
-
-  await waitForKanbanReady(page);
-  const returnToKanbanMs = Date.now() - t0;
+  // Métrica principal = 1º card visível (enriquecimento em idle não conta como “volta ao funil”)
+  const returnToKanbanMs = firstCardVisibleMs;
 
   return { firstCardVisibleMs, returnToKanbanMs };
 }
@@ -367,16 +377,20 @@ export async function measureInitialKanbanLoad(
   tracker.reset();
 
   const { firstCardVisibleMs, returnToKanbanMs } = await measureKanbanVisiblePhases(page, async () => {
-    await waitForKanbanReady(page);
+    await gotoFunnelPage(page);
+    await visibleKanbanCards(page).first().waitFor({
+      state: "visible",
+      timeout: 90_000,
+    });
   });
 
-  const visibleKanbanCards = await page.locator("[data-kanban-sortable-item]").count();
+  const cardCount = await countVisibleKanbanCards(page);
   const partial = {
     scenario,
     returnToKanbanMs,
     firstCardVisibleMs,
     requestsDuringReturn: tracker.snapshot(),
-    visibleKanbanCards,
+    visibleKanbanCards: cardCount,
   };
   tracker.dispose();
   return enrichSample(partial);
@@ -385,29 +399,38 @@ export async function measureInitialKanbanLoad(
 export async function measureReturnToKanban(
   page: Page,
   scenario: string,
-  options: { leaveView: () => Promise<void>; settleMs?: number },
+  options: {
+    leaveView: () => Promise<void>;
+    returnToKanban?: () => Promise<void>;
+    settleMs?: number;
+  },
   baselineSample?: FunnelTabSwitchSample
 ): Promise<FunnelTabSwitchSample> {
   const tracker = createFunnelApiRequestTracker(page);
   const settleMs = options.settleMs ?? 600;
+  const returnToKanban =
+    options.returnToKanban ?? (async () => {
+      await clickSidebarView(page, "Funil de Vendas");
+    });
 
   await options.leaveView();
   await page.waitForTimeout(settleMs);
 
   tracker.reset();
 
-  const { firstCardVisibleMs, returnToKanbanMs } = await measureKanbanVisiblePhases(page, async () => {
-    await clickSidebarView(page, "Funil de Vendas");
-  });
+  const { firstCardVisibleMs, returnToKanbanMs } = await measureKanbanVisiblePhases(
+    page,
+    returnToKanban
+  );
 
-  const visibleKanbanCards = await page.locator("[data-kanban-sortable-item]").count();
+  const cardCount = await countVisibleKanbanCards(page);
 
   const partial = {
     scenario,
     returnToKanbanMs,
     firstCardVisibleMs,
     requestsDuringReturn: tracker.snapshot(),
-    visibleKanbanCards,
+    visibleKanbanCards: cardCount,
   };
 
   tracker.dispose();
@@ -441,6 +464,10 @@ export function formatDiagnosisMarkdown(report: FunnelPerfReport): string {
     lines.push(`### ${s.scenario}`);
     lines.push(`- Volta ao Kanban: **${s.returnToKanbanMs} ms** (1º card: ${s.firstCardVisibleMs} ms)`);
     lines.push(`- Cards visíveis: ${s.visibleKanbanCards}`);
+    if (s.renderProfile) {
+      lines.push(`- DOM cards: ${s.renderProfile.domLeadCardCount} | Visíveis viewport: ${s.renderProfile.visibleLeadCardCount}`);
+      lines.push(`- ms/card: **${s.renderProfile.msPerCard}**`);
+    }
     lines.push(`- callQueuePerCard: **${s.ratios.callQueuePerCard.toFixed(3)}**`);
     lines.push(`- Gargalo principal: **${s.primaryBottleneck ?? "—"}**`);
     lines.push("");
@@ -488,13 +515,31 @@ export function writeFunnelPerfReport(report: FunnelPerfReport): string {
   return FUNNEL_PERF_LATEST_PATH;
 }
 
-export function loadFunnelPerfBaseline(): FunnelPerfReport | null {
+export function loadFunnelPerfBaseline(
+  filePath: string = FUNNEL_PERF_BASELINE_PATH
+): FunnelPerfReport | null {
   try {
-    const raw = readFileSync(FUNNEL_PERF_BASELINE_PATH, "utf-8");
+    const raw = readFileSync(filePath, "utf-8");
     return JSON.parse(raw) as FunnelPerfReport;
   } catch {
     return null;
   }
+}
+
+/** Coleta métricas de render (DOM vs visível, ms/card). */
+export async function collectRenderProfile(
+  page: Page,
+  returnToKanbanMs: number,
+  visibleKanbanCards: number
+): Promise<RenderProfileMetrics> {
+  const domLeadCardCount = await countDomLeadCards(page);
+  const visibleLeadCardCount = await countVisibleLeadCards(page);
+  return buildRenderProfile(
+    returnToKanbanMs,
+    visibleKanbanCards,
+    domLeadCardCount,
+    visibleLeadCardCount
+  );
 }
 
 export function assertAgainstThresholds(

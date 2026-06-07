@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity, LeadAssignee, type Tag } from "@/types/lead";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,11 @@ import {
   sumApprovedBudgetTotalsByLeadId,
   type BudgetRowForLeadCard,
 } from "@/lib/leadBudgetSummary";
+import {
+  funnelInteractionDelayExtra,
+  isFunnelKanbanInteractionWindow,
+  runAfterFunnelInteractionWindow,
+} from "@/utils/funnelInteractionGate";
 
 /**
  * Executa uma query por lote de lead_ids com no máximo `parallel` pedidos HTTP em voo.
@@ -64,6 +69,16 @@ function isTransientSupabaseError(err: unknown): boolean {
   );
 }
 
+const EMPTY_BUDGET_SUMMARY = { kind: "none" as const, count: 0 };
+const EMPTY_BUDGET_PREVIEW = { previews: [], totalCount: 0 };
+
+function mapAssigneesToDisplay(assignees: LeadAssignee[], fallback?: string | null): string {
+  if (assignees.length > 0) {
+    return assignees.map((a) => a.fullName || a.email).join(", ");
+  }
+  return fallback?.trim() ? fallback : "Não atribuído";
+}
+
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +86,9 @@ export function useLeads() {
   const { activeOrgId } = useActiveOrganization();
   const fetchGenerationRef = useRef(0);
   const notesTouchRef = useRef<Record<string, number>>({});
+  /** Evita refetch global duplicado logo após hidratação progressiva na 1ª carga */
+  const globalRefreshAllowedAfterRef = useRef(0);
+  const initialHydrationRef = useRef(true);
 
   const fetchLeads = useCallback(async () => {
     const fetchStartedAt = Date.now();
@@ -155,6 +173,7 @@ export function useLeads() {
       // Usuário vê o funil preenchido em <500ms em vez de esperar TODAS as queries secundárias.
       // Tags/orçamentos/anexos aparecem logo a seguir, sem bloquear a UI.
       if (myGeneration === fetchGenerationRef.current) {
+        globalRefreshAllowedAfterRef.current = Date.now() + 8000;
         const initialLeads: Lead[] = (leadsData || []).map((lead) => {
           const statusRaw = (lead.status || '').toLowerCase();
           const statusMap: Record<string, LeadStatus> = { new: 'novo' };
@@ -200,6 +219,15 @@ export function useLeads() {
         setLeads(initialLeads);
         setLoading(false); // ← libera a UI AGORA
       }
+
+      // Deixa a renderização inicial respirar antes das consultas secundárias.
+      await new Promise<void>((resolve) => {
+        if ("requestIdleCallback" in window) {
+          requestIdleCallback(() => resolve(), { timeout: 300 });
+          return;
+        }
+        setTimeout(resolve, 50);
+      });
 
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)
       // ✅ CORREÇÃO: Limitar a máximo de 1000 activities para evitar erro 400
@@ -553,24 +581,48 @@ export function useLeads() {
         return;
       }
 
-      setLeads((prev) => {
-        const prevById = new Map(prev.map((l) => [l.id, l]));
-        return leadsWithActivities.map((lead) => {
-          const p = prevById.get(lead.id);
-          const touched = notesTouchRef.current[lead.id] ?? 0;
-          if (p && touched >= fetchStartedAt) {
-            const prevActs = p.activities || [];
-            const nextActs = lead.activities || [];
+      const mergeLeadsPreservingRecentNotes = (prev: Lead[], incoming: Lead[]) => {
+        const incomingById = new Map(incoming.map((lead) => [lead.id, lead]));
+        return prev.map((currentLead) => {
+          const nextLead = incomingById.get(currentLead.id);
+          if (!nextLead) return currentLead;
+          const touched = notesTouchRef.current[currentLead.id] ?? 0;
+          if (touched >= fetchStartedAt) {
+            const prevActs = currentLead.activities || [];
+            const nextActs = nextLead.activities || [];
             return {
-              ...lead,
-              notes: p.notes ?? lead.notes,
-              activities:
-                prevActs.length > nextActs.length ? prevActs : nextActs,
+              ...nextLead,
+              notes: currentLead.notes ?? nextLead.notes,
+              activities: prevActs.length > nextActs.length ? prevActs : nextActs,
             };
           }
-          return lead;
+          return nextLead;
         });
-      });
+      };
+
+      const PRIORITY_LEADS_COUNT = 80;
+      const priorityLeads = leadsWithActivities.slice(0, PRIORITY_LEADS_COUNT);
+
+      // Atualiza primeiro os leads mais prováveis de aparecer na viewport.
+      setLeads((prev) => mergeLeadsPreservingRecentNotes(prev, priorityLeads));
+
+      const applyRemainingEnrichment = () => {
+        if (myGeneration !== fetchGenerationRef.current) return;
+        initialHydrationRef.current = false;
+        if (isFunnelKanbanInteractionWindow()) {
+          runAfterFunnelInteractionWindow(applyRemainingEnrichment);
+          return;
+        }
+        startTransition(() => {
+          setLeads((prev) => mergeLeadsPreservingRecentNotes(prev, leadsWithActivities));
+        });
+      };
+
+      if ("requestIdleCallback" in window) {
+        requestIdleCallback(() => applyRemainingEnrichment(), { timeout: 2500 });
+      } else {
+        setTimeout(applyRemainingEnrichment, 120);
+      }
     } catch (error: any) {
       console.error('❌ Erro ao carregar leads:', error);
       toast({
@@ -585,6 +637,8 @@ export function useLeads() {
 
   useEffect(() => {
     if (activeOrgId) {
+      initialHydrationRef.current = true;
+      globalRefreshAllowedAfterRef.current = Date.now() + 2000;
       fetchLeads();
     } else {
       setLoading(false);
@@ -594,6 +648,168 @@ export function useLeads() {
     let channel: any = null;
     const maxReconnectAttempts = 3;
     let reconnectAttempts = 0;
+    let globalRefreshTimer: number | null = null;
+    const leadRefreshTimers = new Map<string, number>();
+
+    const clearScheduledRefreshes = () => {
+      if (globalRefreshTimer) {
+        window.clearTimeout(globalRefreshTimer);
+        globalRefreshTimer = null;
+      }
+      leadRefreshTimers.forEach((timerId) => window.clearTimeout(timerId));
+      leadRefreshTimers.clear();
+    };
+
+    const scheduleGlobalRefresh = (reason: string, delayMs = 1200) => {
+      const allowEarlyGlobal =
+        /online-recovery|fallback|force/i.test(reason) || reason.includes("tag-updated-fallback");
+      if (
+        initialHydrationRef.current &&
+        !allowEarlyGlobal &&
+        !/event:/.test(reason)
+      ) {
+        return;
+      }
+      if (!allowEarlyGlobal && Date.now() < globalRefreshAllowedAfterRef.current) {
+        return;
+      }
+      if (globalRefreshTimer) {
+        window.clearTimeout(globalRefreshTimer);
+      }
+      const waitMs = delayMs + funnelInteractionDelayExtra();
+      globalRefreshTimer = window.setTimeout(() => {
+        globalRefreshTimer = null;
+        console.log(`🔄 Refetch global (debounced): ${reason}`);
+        fetchLeads().catch((error) => console.error("Erro no refresh global:", error));
+      }, waitMs);
+    };
+
+    const scheduleLeadRefresh = (kind: string, leadId: string, task: () => Promise<void>, delayMs = 350) => {
+      const key = `${kind}:${leadId}`;
+      const current = leadRefreshTimers.get(key);
+      if (current) window.clearTimeout(current);
+      const waitMs = delayMs + funnelInteractionDelayExtra();
+      const timerId = window.setTimeout(async () => {
+        leadRefreshTimers.delete(key);
+        try {
+          await task();
+        } catch (error) {
+          console.warn(`⚠️ ${kind} local falhou para lead ${leadId}; fallback global.`, error);
+          scheduleGlobalRefresh(`${kind}-fallback`, 600);
+        }
+      }, waitMs);
+      leadRefreshTimers.set(key, timerId);
+    };
+
+    const refreshAssigneesForLead = async (leadId: string) => {
+      const { data: rows, error } = await supabase
+        .from("lead_assignees")
+        .select("lead_id, user_id, created_at")
+        .eq("lead_id", leadId);
+      if (error) throw error;
+
+      const userIds = Array.from(
+        new Set((rows || []).map((r) => r.user_id).filter((id): id is string => Boolean(id)))
+      );
+      let profileById = new Map<string, { full_name?: string | null; email?: string | null }>();
+      if (userIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", userIds);
+        if (profileError) throw profileError;
+        profileById = new Map(
+          (profiles || []).map((p) => [p.id, { full_name: p.full_name, email: p.email }])
+        );
+      }
+
+      const assignees: LeadAssignee[] = (rows || [])
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+        )
+        .filter((row) => !!row.user_id)
+        .map((row) => {
+          const profile = profileById.get(row.user_id);
+          return {
+            userId: row.user_id,
+            fullName: profile?.full_name ?? null,
+            email: profile?.email ?? "",
+          };
+        });
+
+      setLeads((prev) =>
+        prev.map((lead) => {
+          if (lead.id !== leadId) return lead;
+          return {
+            ...lead,
+            assignees,
+            assignedTo: mapAssigneesToDisplay(assignees, lead.assignedTo),
+          };
+        })
+      );
+    };
+
+    const refreshBudgetForLead = async (leadId: string) => {
+      if (!activeOrgId) return;
+      const { data: budgetRows, error } = await (supabase as any)
+        .from("budgets")
+        .select("id, lead_id, budget_number, total, created_at, expires_at, approved, rejected")
+        .eq("organization_id", activeOrgId)
+        .eq("lead_id", leadId);
+      if (error) throw error;
+
+      const normalizedRows: BudgetRowForLeadCard[] = (budgetRows || []).map((row: any) => ({
+        id: row.id,
+        lead_id: row.lead_id ?? null,
+        budget_number: row.budget_number ?? "",
+        total: Number(row.total) || 0,
+        created_at: row.created_at,
+        expires_at: row.expires_at ?? null,
+        approved: row.approved ?? null,
+        rejected: row.rejected ?? null,
+      }));
+
+      const summaryByLead = buildBudgetSummaryByLeadId(
+        normalizedRows.map((row) => ({
+          lead_id: row.lead_id,
+          expires_at: row.expires_at,
+          approved: row.approved,
+          rejected: row.rejected,
+        }))
+      );
+      const previewsByLead = buildBudgetPreviewsByLeadId(normalizedRows);
+      const approvedTotalsByLead = sumApprovedBudgetTotalsByLeadId(normalizedRows);
+
+      setLeads((prev) =>
+        prev.map((lead) => {
+          if (lead.id !== leadId) return lead;
+          const storedEstimate = lead.estimatedValueStored;
+          const approvedTotal = approvedTotalsByLead[leadId] || 0;
+          return {
+            ...lead,
+            value: approvedTotal > 0 ? approvedTotal : storedEstimate,
+            budgetSummary: summaryByLead[leadId] ?? EMPTY_BUDGET_SUMMARY,
+            budgetsPreview: previewsByLead[leadId] ?? EMPTY_BUDGET_PREVIEW,
+          };
+        })
+      );
+    };
+
+    const refreshAttachmentCountForLead = async (leadId: string) => {
+      if (!activeOrgId) return;
+      const { count, error } = await (supabase as any)
+        .from("lead_attachments")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", activeOrgId)
+        .eq("lead_id", leadId);
+      if (error) throw error;
+
+      setLeads((prev) =>
+        prev.map((lead) => (lead.id === leadId ? { ...lead, attachmentCount: count || 0 } : lead))
+      );
+    };
     
     const setupRealtime = (fetchFn: () => Promise<void>) => {
       // Reset contador ao tentar reconectar
@@ -775,7 +991,14 @@ export function useLeads() {
         { event: '*', schema: 'public', table: 'lead_assignees' },
         (payload) => {
           console.log('👤 Responsáveis do lead alterados:', payload);
-          fetchFn();
+          const rowNew = payload.new as { lead_id?: string } | null;
+          const rowOld = payload.old as { lead_id?: string } | null;
+          const leadId = rowNew?.lead_id || rowOld?.lead_id;
+          if (!leadId) {
+            scheduleGlobalRefresh("lead_assignees-sem-lead");
+            return;
+          }
+          scheduleLeadRefresh("lead_assignees", leadId, () => refreshAssigneesForLead(leadId));
         }
       )
       .on(
@@ -792,7 +1015,14 @@ export function useLeads() {
             if (orgN !== activeOrgId && orgO !== activeOrgId) return;
           }
           console.log('💰 Orçamento alterado (realtime):', payload);
-          fetchFn();
+          const rowNew = payload.new as { lead_id?: string } | null;
+          const rowOld = payload.old as { lead_id?: string } | null;
+          const leadId = rowNew?.lead_id || rowOld?.lead_id;
+          if (!leadId) {
+            scheduleGlobalRefresh("budgets-sem-lead");
+            return;
+          }
+          scheduleLeadRefresh("budgets", leadId, () => refreshBudgetForLead(leadId));
         }
       )
       .on(
@@ -805,7 +1035,14 @@ export function useLeads() {
         },
         (payload) => {
           console.log("📎 Anexo do lead alterado (realtime):", payload);
-          fetchFn();
+          const rowNew = payload.new as { lead_id?: string } | null;
+          const rowOld = payload.old as { lead_id?: string } | null;
+          const leadId = rowNew?.lead_id || rowOld?.lead_id;
+          if (!leadId) {
+            scheduleGlobalRefresh("attachments-sem-lead");
+            return;
+          }
+          scheduleLeadRefresh("attachments", leadId, () => refreshAttachmentCountForLead(leadId));
         }
       )
       .on(
@@ -1031,8 +1268,8 @@ export function useLeads() {
     const handleRefreshEvent = (event: CustomEvent) => {
       const { type, entity } = event.detail;
       if (entity === 'lead' || entity === 'budget') {
-        console.log(`🔄 Evento de refresh recebido: ${type} ${entity}. Atualizando leads...`);
-        fetchLeads();
+        console.log(`🔄 Evento de refresh recebido: ${type} ${entity}. Atualizando leads (debounced)...`);
+        scheduleGlobalRefresh(`event:${type}:${entity}`, 500);
       }
     };
 
@@ -1053,7 +1290,7 @@ export function useLeads() {
           if (error) {
             console.error('❌ Erro ao buscar tag atualizada:', error);
             // Fallback: refetch completo
-            fetchLeads();
+            scheduleGlobalRefresh("tag-updated-fallback", 500);
             return;
           }
           
@@ -1094,18 +1331,26 @@ export function useLeads() {
       setLeads((prev) => applyLeadTagsPatch(prev, detail));
     };
 
+    const handleOnline = () => {
+      clearScheduledRefreshes();
+      scheduleGlobalRefresh("online-recovery", 2000);
+    };
+
     window.addEventListener(LEAD_NOTES_SAVED_EVENT, handleLeadNotesSaved);
     window.addEventListener('data-refresh', handleRefreshEvent as EventListener);
     window.addEventListener('tag-updated', handleTagUpdated as EventListener);
     window.addEventListener(LEAD_TAGS_CHANGED_EVENT, handleLeadTagsChanged);
+    window.addEventListener("online", handleOnline);
 
     return () => {
       console.log('🔌 Desconectando realtime de leads...');
       clearInterval(fallbackPolling);
+      clearScheduledRefreshes();
       window.removeEventListener(LEAD_NOTES_SAVED_EVENT, handleLeadNotesSaved);
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
       window.removeEventListener('tag-updated', handleTagUpdated as EventListener);
       window.removeEventListener(LEAD_TAGS_CHANGED_EVENT, handleLeadTagsChanged);
+      window.removeEventListener("online", handleOnline);
       if (channel) {
         try {
           supabase.removeChannel(channel);

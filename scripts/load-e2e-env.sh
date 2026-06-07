@@ -7,7 +7,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 E2E_ENV_FILE="${E2E_ENV_FILE:-$PROJECT_ROOT/.env.e2e.local}"
 
 if [[ -n "${E2E_EMAIL:-}" && -n "${E2E_PASSWORD:-}" ]]; then
-  exit 0
+  # return quando sourced; exit só se executado diretamente
+  return 0 2>/dev/null || exit 0
 fi
 
 if [[ ! -f "$E2E_ENV_FILE" ]]; then

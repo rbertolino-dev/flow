@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip, Clock } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, memo } from "react";
+import { useState, memo, useEffect, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PipelineStage } from "@/hooks/usePipelineStages";
@@ -48,6 +48,8 @@ interface LeadCardProps {
   orgTagsApi: LeadOrgTagsPickerApi;
   /** Fonte: `leadsInCallQueue` no KanbanBoard (evita N+1 em call_queue). */
   isInCallQueue?: boolean;
+  /** Coluna visível no scroll horizontal — adia subcomponentes pesados nos cards. */
+  horizontalInView?: boolean;
 }
 
 // ✅ OTIMIZAÇÃO: Memoizar componente para evitar re-renders desnecessários
@@ -68,20 +70,36 @@ export const LeadCard = memo(function LeadCard({
   onScheduleLead,
   orgTagsApi,
   isInCallQueue = false,
+  horizontalInView = true,
 }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
   const locationLine = leadCardLocationLine(lead);
+  const lazyHeavyContent = !horizontalInView;
+  const [heavyReady, setHeavyReady] = useState(!lazyHeavyContent);
+  const showHeavyContent = !lazyHeavyContent || heavyReady;
+
+  useEffect(() => {
+    if (!lazyHeavyContent) {
+      setHeavyReady(true);
+    }
+  }, [lazyHeavyContent]);
+
+  const enableHeavyContent = () => {
+    if (lazyHeavyContent) setHeavyReady(true);
+  };
 
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(lead.name);
 
-  const style = {
+  const sortableStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    contentVisibility: "auto",
+    containIntrinsicSize: compact ? "auto 120px" : "auto 180px",
   };
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
@@ -145,7 +163,8 @@ export const LeadCard = memo(function LeadCard({
       <Card
         ref={setNodeRef}
         data-kanban-sortable-item=""
-        style={style}
+        data-lead-card=""
+        style={sortableStyle}
         {...attributes}
         {...listeners}
         className={`p-2 transition-all duration-200 bg-card border group ${
@@ -156,6 +175,7 @@ export const LeadCard = memo(function LeadCard({
               : 'border-border hover:shadow-md hover:border-primary/50'
         }`}
         onClick={onClick}
+        onMouseEnter={enableHeavyContent}
       >
         <div className="space-y-1">
           <div className="flex items-start gap-2">
@@ -217,7 +237,7 @@ export const LeadCard = memo(function LeadCard({
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
-              <LeadBudgetBadge summary={lead.budgetSummary} compact />
+              {showHeavyContent ? <LeadBudgetBadge summary={lead.budgetSummary} compact /> : null}
               {(lead.attachmentCount ?? 0) > 0 && (
                 <Badge
                   variant="secondary"
@@ -373,21 +393,25 @@ export const LeadCard = memo(function LeadCard({
               <ArrowRightCircle className="h-3 w-3" />
             </Button>
 
-            <LeadAssigneesPopover
-              leadId={lead.id}
-              assignees={lead.assignees ?? []}
-              onRefetch={onRefetch}
-              compact
-              tooltipFallbackDisplay={lead.assignedTo}
-            />
+            {showHeavyContent ? (
+              <LeadAssigneesPopover
+                leadId={lead.id}
+                assignees={lead.assignees ?? []}
+                onRefetch={onRefetch}
+                compact
+                tooltipFallbackDisplay={lead.assignedTo}
+              />
+            ) : null}
 
-            <LeadTagsPopover
-              leadId={lead.id}
-              leadTags={lead.tags ?? []}
-              onRefetch={onRefetch}
-              compact
-              orgTagsApi={orgTagsApi}
-            />
+            {showHeavyContent ? (
+              <LeadTagsPopover
+                leadId={lead.id}
+                leadTags={lead.tags ?? []}
+                onRefetch={onRefetch}
+                compact
+                orgTagsApi={orgTagsApi}
+              />
+            ) : null}
             
             {onDelete && (
               <Button
@@ -423,7 +447,8 @@ export const LeadCard = memo(function LeadCard({
     <Card
       ref={setNodeRef}
       data-kanban-sortable-item=""
-      style={style}
+      data-lead-card=""
+      style={sortableStyle}
       {...attributes}
       {...listeners}
       className={`p-4 transition-all duration-200 bg-card border ${
@@ -434,6 +459,7 @@ export const LeadCard = memo(function LeadCard({
             : 'border-border hover:shadow-md hover:border-primary/50'
       }`}
       onClick={onClick}
+      onMouseEnter={enableHeavyContent}
     >
       <div className="space-y-3">
         {onToggleSelection && (
@@ -493,7 +519,7 @@ export const LeadCard = memo(function LeadCard({
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <LeadBudgetBadge summary={lead.budgetSummary} />
+              {showHeavyContent ? <LeadBudgetBadge summary={lead.budgetSummary} /> : null}
               {(lead.attachmentCount ?? 0) > 0 && (
                 <Badge
                   variant="secondary"
@@ -650,19 +676,23 @@ export const LeadCard = memo(function LeadCard({
             Transferir
           </Button>
 
-          <LeadAssigneesPopover
-            leadId={lead.id}
-            assignees={lead.assignees ?? []}
-            onRefetch={onRefetch}
-            tooltipFallbackDisplay={lead.assignedTo}
-          />
+          {showHeavyContent ? (
+            <LeadAssigneesPopover
+              leadId={lead.id}
+              assignees={lead.assignees ?? []}
+              onRefetch={onRefetch}
+              tooltipFallbackDisplay={lead.assignedTo}
+            />
+          ) : null}
 
-          <LeadTagsPopover
-            leadId={lead.id}
-            leadTags={lead.tags ?? []}
-            onRefetch={onRefetch}
-            orgTagsApi={orgTagsApi}
-          />
+          {showHeavyContent ? (
+            <LeadTagsPopover
+              leadId={lead.id}
+              leadTags={lead.tags ?? []}
+              onRefetch={onRefetch}
+              orgTagsApi={orgTagsApi}
+            />
+          ) : null}
           
           {onDelete && (
             <Button
@@ -716,6 +746,7 @@ export const LeadCard = memo(function LeadCard({
     prevProps.pendingScheduledCount === nextProps.pendingScheduledCount &&
     prevProps.onScheduleLead === nextProps.onScheduleLead &&
     prevProps.orgTagsApi.orgTags === nextProps.orgTagsApi.orgTags &&
-    prevProps.orgTagsApi.orgTagsLoading === nextProps.orgTagsApi.orgTagsLoading
+    prevProps.orgTagsApi.orgTagsLoading === nextProps.orgTagsApi.orgTagsLoading &&
+    prevProps.horizontalInView === nextProps.horizontalInView
   );
 });

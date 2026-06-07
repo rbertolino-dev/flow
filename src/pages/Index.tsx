@@ -36,6 +36,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
+import { markFunnelKanbanInteraction } from "@/utils/funnelInteractionGate";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -90,6 +91,13 @@ const Index = () => {
 
   // Ativar sistema de gatilhos de fluxos
   useFlowTriggers();
+
+  // Adia enriquecimento/realtime pesado enquanto o usuário volta ao Kanban
+  useEffect(() => {
+    if (activeView === "kanban" && viewMode === "kanban") {
+      markFunnelKanbanInteraction();
+    }
+  }, [activeView, viewMode]);
 
   // Iniciar scheduler de execuções agendadas
   useEffect(() => {
@@ -218,7 +226,7 @@ const Index = () => {
       <div
         className={cn(
           "h-full min-h-[min(138dvh,1760px)] bg-background flex flex-col",
-          activeView !== "kanban" && "hidden"
+          activeView !== "kanban" && "hidden [content-visibility:hidden]"
         )}
         aria-hidden={activeView !== "kanban"}
       >
@@ -476,7 +484,7 @@ const Index = () => {
             <div
               className={cn(
                 "flex-1 min-h-0 overflow-hidden flex flex-col",
-                viewMode !== "kanban" && "hidden"
+                viewMode !== "kanban" && "hidden [content-visibility:hidden]"
               )}
               aria-hidden={viewMode !== "kanban"}
             >
@@ -499,7 +507,7 @@ const Index = () => {
             <div
               className={cn(
                 "flex-1 min-h-0 overflow-hidden flex flex-col",
-                viewMode !== "list" && "hidden"
+                viewMode !== "list" && "hidden [content-visibility:hidden]"
               )}
               aria-hidden={viewMode !== "list"}
             >
@@ -526,7 +534,7 @@ const Index = () => {
             <div
               className={cn(
                 "flex-1 min-h-0 overflow-hidden flex flex-col",
-                viewMode !== "calendar" && "hidden"
+                viewMode !== "calendar" && "hidden [content-visibility:hidden]"
               )}
               aria-hidden={viewMode !== "calendar"}
             >
@@ -540,7 +548,7 @@ const Index = () => {
         </div>
 
       <div
-        className={cn("h-full", activeView !== "calls" && "hidden")}
+        className={cn("h-full", activeView !== "calls" && "hidden [content-visibility:hidden]")}
         aria-hidden={activeView !== "calls"}
       >
         <CallQueue

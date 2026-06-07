@@ -9,6 +9,7 @@ let realtimeInitialized = false;
 let initAttempts = 0;
 let monitorChannel: any = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
+let reconnectInFlight = false;
 const MAX_INIT_ATTEMPTS = 5;
 const MONITOR_INTERVAL = 30000; // Verificar conexão a cada 30 segundos
 
@@ -115,6 +116,10 @@ function startRealtimeConnection(): void {
  * Tenta reconectar o Realtime
  */
 function handleReconnect(): void {
+  if (reconnectInFlight) {
+    return;
+  }
+
   // Limpar timer anterior se existir
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
@@ -137,13 +142,16 @@ function handleReconnect(): void {
   }
 
   realtimeInitialized = false;
+  reconnectInFlight = true;
 
-  // Esperar um pouco antes de tentar novamente (exponential backoff)
-  const delay = Math.min(1000 * Math.pow(2, initAttempts - 1), 10000);
+  // Esperar um pouco antes de tentar novamente (exponential backoff + jitter)
+  const delay =
+    Math.min(1000 * Math.pow(2, initAttempts - 1), 10000) + Math.floor(Math.random() * 500);
   console.log(`🔄 Tentando reconectar em ${delay}ms... (tentativa ${initAttempts}/${MAX_INIT_ATTEMPTS})`);
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
+    reconnectInFlight = false;
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         initializeRealtime();

@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback, useDeferredValue, memo, type RefObject, type ReactNode } from "react";
 import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 import { Lead, LeadStatus, CallQueueItem } from "@/types/lead";
 import { LeadCard } from "./LeadCard";
@@ -30,6 +30,40 @@ import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizatio
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useTags } from "@/hooks/useTags";
 import { useKanbanHorizontalPan } from "@/hooks/useKanbanHorizontalPan";
+import { markFunnelKanbanInteraction } from "@/utils/funnelInteractionGate";
+
+/** Observa viewport horizontal do scroll do Kanban — evita montar colunas off-screen. */
+const KanbanHorizontalColumnGate = memo(function KanbanHorizontalColumnGate({
+  scrollRootRef,
+  stageId,
+  children,
+}: {
+  scrollRootRef: RefObject<HTMLDivElement | null>;
+  stageId: string;
+  children: (horizontalInView: boolean) => ReactNode;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [horizontalInView, setHorizontalInView] = useState(true);
+
+  useEffect(() => {
+    const root = scrollRootRef.current;
+    const el = wrapRef.current;
+    if (!root || !el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setHorizontalInView(entry.isIntersecting),
+      { root, rootMargin: "280px 0px", threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scrollRootRef, stageId]);
+
+  return (
+    <div ref={wrapRef} className="flex-shrink-0 h-full min-h-0 self-stretch">
+      {children(horizontalInView)}
+    </div>
+  );
+});
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -61,7 +95,16 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-  const [leadsInCallQueue, setLeadsInCallQueue] = useState<Set<string>>(new Set());
+  const leadsInCallQueue = useMemo(
+    () =>
+      new Set(
+        (callQueue ?? [])
+          .filter((q) => q.status === "pending")
+          .map((q) => q.leadId)
+          .filter(Boolean)
+      ),
+    [callQueue]
+  );
   const [reportsOpen, setReportsOpen] = useState(false);
   const { stages, loading: stagesLoading } = usePipelineStages();
   const { configs } = useEvolutionConfigs();
@@ -97,7 +140,21 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   const [isAddingTag, setIsAddingTag] = useState(false);
   // ✅ CORREÇÃO: Rastrear última etapa sobreposta durante drag para permitir soltar mesmo sem espaço visual
   const [overStageId, setOverStageId] = useState<string | null>(null);
-  
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [deferHeavyKanbanQueries, setDeferHeavyKanbanQueries] = useState(true);
+
+  useEffect(() => {
+    markFunnelKanbanInteraction();
+    if ("requestIdleCallback" in window) {
+      const id = requestIdleCallback(() => setDeferHeavyKanbanQueries(false), {
+        timeout: 3000,
+      });
+      return () => cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(() => setDeferHeavyKanbanQueries(false), 800);
+    return () => window.clearTimeout(t);
+  }, []);
+
   // Criar mapa de instâncias para lookup rápido
   const instanceMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -115,49 +172,15 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     })
   );
 
-  // Buscar leads que estão na fila de ligação
-  useEffect(() => {
-    const fetchCallQueueLeads = async () => {
-      const { data } = await supabase
-        .from('call_queue')
-        .select('lead_id')
-        .eq('status', 'pending');
-      
-      if (data) {
-        setLeadsInCallQueue(new Set(data.map(item => item.lead_id)));
-      }
-    };
-
-    fetchCallQueueLeads();
-
-    // ✅ OTIMIZAÇÃO: Manter apenas realtime da call_queue (useLeads já gerencia leads)
-    const channel = supabase
-      .channel('call-queue-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'call_queue'
-        },
-        () => fetchCallQueueLeads()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
   // ✅ OTIMIZAÇÃO: Memoizar filtros para evitar recálculos desnecessários
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
       // Filtro de busca
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase().trim();
+      if (deferredSearchQuery) {
+        const query = deferredSearchQuery.toLowerCase().trim();
         if (!query) return true; // Se query vazia após trim, mostrar todos
         
-        const normalizedQuery = normalizePhone(searchQuery);
+        const normalizedQuery = normalizePhone(deferredSearchQuery);
         
         // ✅ CORREÇÃO: Verificar valores null/undefined antes de usar métodos de string
         const matchesName = lead.name?.toLowerCase().includes(query) || false;
@@ -218,7 +241,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
       return true;
     });
-  }, [leads, searchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
+  }, [leads, deferredSearchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
 
   // Map de etapas válidas (apenas da organização atual)
   const stageIdSet = useMemo(() => new Set(stages.map(s => s.id)), [stages]);
@@ -244,9 +267,33 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     });
   }, [filteredLeads, stageIdSet, firstStageId]);
 
+  const sortedNormalizedLeads = useMemo(() => {
+    const sorted = [...normalizedLeads];
+    sorted.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+    return sorted;
+  }, [normalizedLeads, sortOrder]);
+
+  const leadsByStage = useMemo(() => {
+    const map = new Map<string, Lead[]>();
+    for (const stage of stages) {
+      map.set(stage.id, []);
+    }
+    for (const lead of sortedNormalizedLeads) {
+      if (!lead.stageId) continue;
+      const bucket = map.get(lead.stageId);
+      if (!bucket) continue;
+      bucket.push(lead);
+    }
+    return map;
+  }, [stages, sortedNormalizedLeads]);
+
   const leadIdsForScheduledCounts = useMemo(
-    () => normalizedLeads.map((l) => l.id),
-    [normalizedLeads]
+    () => (deferHeavyKanbanQueries ? [] : normalizedLeads.map((l) => l.id)),
+    [deferHeavyKanbanQueries, normalizedLeads]
   );
   const { data: pendingScheduleCountByLead = {} } =
     usePendingScheduledCountsByLead(leadIdsForScheduledCounts);
@@ -317,14 +364,14 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     }
 
     // ✅ CORREÇÃO: Se sobrepor um lead, encontrar a etapa desse lead
-    const overLead = leads.find(lead => lead.id === overId);
+    const overLead = normalizedLeads.find((lead) => lead.id === overId);
     if (overLead && overLead.stageId) {
       setOverStageId(overLead.stageId);
       return;
     }
 
     // Se não encontrar, manter último estado conhecido
-  }, [stagesMap, leads]);
+  }, [stagesMap, normalizedLeads]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -333,7 +380,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     const leadId = active.id as string;
     
     // ✅ CORREÇÃO: Encontrar etapa atual do lead sendo arrastado
-    const draggedLead = leads.find(lead => lead.id === leadId);
+    const draggedLead = normalizedLeads.find((lead) => lead.id === leadId);
     if (!draggedLead) {
       setOverStageId(null);
       return;
@@ -351,7 +398,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
         targetStageId = directStage.id;
       } else {
         // ✅ CORREÇÃO: Tentar 2 - Verificar se sobrepôs um lead e pegar etapa desse lead
-        const overLead = leads.find(lead => lead.id === overId);
+        const overLead = normalizedLeads.find((lead) => lead.id === overId);
         if (overLead && overLead.stageId) {
           targetStageId = overLead.stageId;
         } else {
@@ -385,12 +432,12 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
     // Reset estado de rastreamento
     setOverStageId(null);
-  }, [stagesMap, leads, overStageId, onLeadUpdate]);
+  }, [stagesMap, normalizedLeads, overStageId, onLeadUpdate]);
 
   // Normalização e correção movidas para antes do carregamento.
 
 
-  const activeLead = activeId ? leads.find((lead) => lead.id === activeId) : null;
+  const activeLead = activeId ? normalizedLeads.find((lead) => lead.id === activeId) : null;
 
   // ✅ OTIMIZAÇÃO: Memoizar handleScroll
   const handleScroll = useCallback((direction: 'left' | 'right') => {
@@ -832,16 +879,15 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
 
           <div ref={scrollContainerRef} className="flex gap-2 sm:gap-4 flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 sm:p-6 pb-16 sm:pb-20 kanban-scroll pl-6 pr-6 cursor-grab">
             {stages.map((stage) => {
-              const columnLeads = normalizedLeads
-                .filter((lead) => lead.stageId === stage.id)
-                .sort((a, b) => {
-                  const dateA = new Date(a.createdAt).getTime();
-                  const dateB = new Date(b.createdAt).getTime();
-                  return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
-                });
+              const columnLeads = leadsByStage.get(stage.id) || [];
               return (
-                <KanbanColumn
+                <KanbanHorizontalColumnGate
                   key={stage.id}
+                  scrollRootRef={scrollContainerRef}
+                  stageId={stage.id}
+                >
+                  {(horizontalInView) => (
+                <KanbanColumn
                   stage={stage}
                   leads={columnLeads}
                   selectedLeadIds={selectedLeadIds}
@@ -860,6 +906,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   onScheduleLead={openScheduleForLead}
                   orgTagsApi={orgTagsApi}
                   leadsInCallQueue={leadsInCallQueue}
+                  horizontalInView={horizontalInView}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')
@@ -872,6 +919,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                     onRefetch();
                   }}
                 />
+                  )}
+                </KanbanHorizontalColumnGate>
               );
             })}
           </div>

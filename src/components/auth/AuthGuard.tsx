@@ -2,138 +2,158 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { getSessionWithTimeout } from "@/lib/getSessionWithTimeout";
+import {
+  getSessionWithTimeout,
+  GET_SESSION_TIMEOUT_CACHED_MS,
+  GET_SESSION_TIMEOUT_MS,
+} from "@/lib/getSessionWithTimeout";
+
+const SUPABASE_PROJECT_REF = "ogeljmbhqxpfjbpnbwog";
+
+function hasSupabaseTokenInStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!localStorage.getItem(`sb-${SUPABASE_PROJECT_REF}-auth-token`);
+}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const navigate = useNavigate();
 
+  const redirectToLogin = useCallback(() => {
+    navigate("/login", { replace: true });
+  }, [navigate]);
+
+  const resolveSession = useCallback(async (timeoutMs?: number) => {
+    const { data, error } = await getSessionWithTimeout({ timeoutMs });
+    if (error?.message === "GETSESSION_TIMEOUT") {
+      console.warn("⏱️ Timeout ao obter sessão");
+      return null;
+    }
+    if (error) {
+      const errMsg = String(error?.message || "");
+      const isTransientNetwork =
+        /failed to fetch|networkerror|load failed|authretryablefetcherror|err_network_io_suspended/i.test(
+          errMsg
+        );
+      if (isTransientNetwork) {
+        console.warn("Rede instável ao obter sessão — tentará novamente via listener");
+      } else {
+        console.error("❌ Erro ao obter sessão:", error?.message);
+      }
+      return null;
+    }
+    return data.session;
+  }, []);
+
   const checkAuth = useCallback(async () => {
     try {
-      // Só aguardar se não há sessão em cache no localStorage (ex: logo após login com redirect).
-      // Evita 500ms de espera desnecessária em carregamentos normais já autenticados.
-      const supabaseProjectRef = "ogeljmbhqxpfjbpnbwog";
-      const hasLocalSession = !!localStorage.getItem(`sb-${supabaseProjectRef}-auth-token`);
+      const hasLocalSession = hasSupabaseTokenInStorage();
       if (!hasLocalSession) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
-      // Tentar obter a sessão. Para sessões em cache, uma tentativa é suficiente.
-      let session = null;
-      let attempts = 0;
-      const maxAttempts = hasLocalSession ? 1 : 3;
+      let session = await resolveSession(
+        hasLocalSession ? GET_SESSION_TIMEOUT_CACHED_MS : GET_SESSION_TIMEOUT_MS
+      );
 
-      while (!session && attempts < maxAttempts) {
-        const { data, error } = await getSessionWithTimeout();
-
-        if (error?.message === "GETSESSION_TIMEOUT") {
-          console.warn("⏱️ Timeout ao obter sessão (tentativa " + (attempts + 1) + ")");
-        } else if (error) {
-          // ERR_NETWORK_IO_SUSPENDED é comportamento normal (aba em background) - pode ignorar
-          // Mas outros erros de rede devem ser logados
-          const isNetworkSuspended = error?.message?.includes('ERR_NETWORK_IO_SUSPENDED');
-          
-          if (!isNetworkSuspended) {
-            console.error('❌ Erro ao obter sessão:', {
-              message: error?.message,
-              name: error?.name,
-              code: error?.code,
-              attempt: attempts + 1
-            });
-          }
-          
-          // Não quebrar imediatamente, tentar mais vezes
-          if (attempts < maxAttempts - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            attempts++;
-            continue;
-          }
-          break;
-        }
-
-        session = data.session;
-        
-        if (!session && attempts < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-        attempts++;
+      // Token no storage mas getSession falhou/timeout — segunda chance com timeout completo
+      if (!session && hasLocalSession) {
+        session = await resolveSession(GET_SESSION_TIMEOUT_MS);
       }
-      
+
       if (session) {
-        console.log('Session found, user authenticated');
+        console.log("Session found, user authenticated");
         setAuthenticated(true);
-      } else {
-        console.log('No session found after all attempts');
-        // Não redirecionar imediatamente, pode ser que a sessão ainda esteja sendo salva
-        // Deixar o onAuthStateChange lidar com isso
-        setAuthenticated(false);
-        // Só redirecionar se realmente não houver sessão após todas as tentativas
-        setTimeout(() => {
-          void getSessionWithTimeout().then(({ data: { session: finalSession } }) => {
-            if (!finalSession) {
-              navigate('/login', { replace: true });
-            }
-          });
-        }, 2000);
+        return;
       }
+
+      if (!hasLocalSession) {
+        console.log("No session found after all attempts");
+        setAuthenticated(false);
+        setTimeout(() => {
+          void resolveSession().then((finalSession) => {
+            if (!finalSession) redirectToLogin();
+          });
+        }, 1500);
+        return;
+      }
+
+      // Token local sem sessão válida — aguardar INITIAL_SESSION / refresh no listener
+      console.warn("Token local sem sessão imediata — aguardando onAuthStateChange");
     } catch (error) {
-      console.error('Error checking auth:', error);
+      console.error("Error checking auth:", error);
       setAuthenticated(false);
-      // Não redirecionar imediatamente em caso de erro, aguardar um pouco
-      setTimeout(() => {
-        navigate('/login', { replace: true });
-      }, 2000);
+      if (!hasSupabaseTokenInStorage()) {
+        setTimeout(() => redirectToLogin(), 1500);
+      }
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [redirectToLogin, resolveSession]);
 
   useEffect(() => {
     let mounted = true;
     let subscription: { unsubscribe: () => void } | null = null;
 
     const setupAuth = async () => {
-      // Primeiro verificar a sessão atual
       await checkAuth();
 
-      // Depois configurar o listener
-      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state changed:', event, !!session);
-        
+      const {
+        data: { subscription: authSubscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log("Auth state changed:", event, !!session);
+
         if (!mounted) return;
 
         if (session) {
-          console.log('Session detected in onAuthStateChange');
           setAuthenticated(true);
           setLoading(false);
-        } else {
-          // Não redirecionar imediatamente, aguardar um pouco
-          if (event === 'SIGNED_OUT') {
-            console.log('User signed out, redirecting to login');
+          return;
+        }
+
+        if (event === "SIGNED_OUT") {
+          setAuthenticated(false);
+          setLoading(false);
+          redirectToLogin();
+          return;
+        }
+
+        if (event === "INITIAL_SESSION") {
+          const hasLocal = hasSupabaseTokenInStorage();
+          if (!hasLocal) {
             setAuthenticated(false);
             setLoading(false);
-            navigate('/login', { replace: true });
-          } else if (event !== 'INITIAL_SESSION' && event !== 'TOKEN_REFRESHED') {
-            // Aguardar um pouco antes de redirecionar para dar tempo da sessão ser salva
-            setTimeout(() => {
-              if (!mounted) return;
-              const checkSession = async () => {
-                const { data: { session: currentSession } } = await supabase.auth.getSession();
-                if (!currentSession) {
-                  console.log('No session after timeout, redirecting to login');
-                  setAuthenticated(false);
-                  setLoading(false);
-                  navigate('/login', { replace: true });
-                } else {
-                  console.log('Session found after timeout, user authenticated');
-                  setAuthenticated(true);
-                  setLoading(false);
-                }
-              };
-              checkSession();
-            }, 1000);
+            redirectToLogin();
+            return;
           }
+
+          const recovered = await resolveSession(GET_SESSION_TIMEOUT_MS);
+          if (recovered) {
+            setAuthenticated(true);
+          } else {
+            console.warn("Sessão local expirada ou inválida — redirecionando para login");
+            setAuthenticated(false);
+            redirectToLogin();
+          }
+          setLoading(false);
+          return;
+        }
+
+        if (event !== "TOKEN_REFRESHED") {
+          setTimeout(() => {
+            if (!mounted) return;
+            void resolveSession(GET_SESSION_TIMEOUT_MS).then((currentSession) => {
+              if (!mounted) return;
+              if (currentSession) {
+                setAuthenticated(true);
+              } else {
+                setAuthenticated(false);
+                redirectToLogin();
+              }
+              setLoading(false);
+            });
+          }, 800);
         }
       });
 
@@ -144,11 +164,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      if (subscription) {
-        subscription.unsubscribe();
-      }
+      subscription?.unsubscribe();
     };
-  }, [navigate, checkAuth]);
+  }, [checkAuth, redirectToLogin, resolveSession]);
+
+  // Evita ficar preso em "Acesso negado" sem redirecionar
+  useEffect(() => {
+    if (loading || authenticated) return;
+    const timer = setTimeout(() => redirectToLogin(), 2000);
+    return () => clearTimeout(timer);
+  }, [loading, authenticated, redirectToLogin]);
 
   if (loading) {
     return (
@@ -163,16 +188,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="h-screen w-full flex items-center justify-center bg-background p-6">
         <div className="max-w-md w-full space-y-4 text-center">
           <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <h2 className="text-lg font-semibold text-destructive mb-2">
-              Acesso Negado
-            </h2>
+            <h2 className="text-lg font-semibold text-destructive mb-2">Acesso Negado</h2>
             <p className="text-sm text-muted-foreground">
               Você precisa estar autenticado para acessar o CRM.
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Redirecionando para login...
-          </p>
+          <p className="text-sm text-muted-foreground">Redirecionando para login...</p>
         </div>
       </div>
     );
