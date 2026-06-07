@@ -490,6 +490,7 @@ const Index = () => {
             >
               <KanbanBoard
                 leads={leads}
+                panelActive={viewMode === "kanban"}
                 onLeadUpdate={handleLeadUpdate}
                 searchQuery={debouncedSearchQuery}
                 onRefetch={refetchLeads}

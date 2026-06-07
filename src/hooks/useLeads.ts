@@ -223,10 +223,10 @@ export function useLeads() {
       // Deixa a renderização inicial respirar antes das consultas secundárias.
       await new Promise<void>((resolve) => {
         if ("requestIdleCallback" in window) {
-          requestIdleCallback(() => resolve(), { timeout: 300 });
+          requestIdleCallback(() => resolve(), { timeout: 800 });
           return;
         }
-        setTimeout(resolve, 50);
+        setTimeout(resolve, 120);
       });
 
       // ✅ OTIMIZAÇÃO: Limitar activities carregadas (apenas últimas 5 por lead)

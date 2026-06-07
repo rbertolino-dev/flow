@@ -79,9 +79,11 @@ interface KanbanBoardProps {
   filterInCallQueue?: boolean;
   filterTags?: string[];
   callQueue?: CallQueueItem[];
+  /** false quando painel Kanban está oculto (lista/calendário). */
+  panelActive?: boolean;
 }
 
-export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [] }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, onEditLeadName, filterInstance = "all", filterCreatedDateStart = "", filterCreatedDateEnd = "", filterReturnDateStart = "", filterReturnDateEnd = "", filterInCallQueue = false, filterTags = [], callQueue = [], panelActive = true }: KanbanBoardProps) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [scheduleLead, setScheduleLead] = useState<Lead | null>(null);
 
@@ -907,6 +909,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   orgTagsApi={orgTagsApi}
                   leadsInCallQueue={leadsInCallQueue}
                   horizontalInView={horizontalInView}
+                  panelActive={panelActive}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')

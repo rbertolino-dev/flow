@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, startTransition } from 'react';
 
 export type ViewMode = 'kanban' | 'list' | 'calendar';
 export type CardSize = 'normal' | 'compact';
@@ -25,11 +25,17 @@ export function useViewPreference() {
     localStorage.setItem(CARD_SIZE_STORAGE_KEY, cardSize);
   }, [cardSize]);
 
+  const setViewModeTransition = useCallback((mode: ViewMode) => {
+    startTransition(() => setViewMode(mode));
+  }, []);
+
   const toggleView = () => {
-    setViewMode(prev => {
-      if (prev === 'kanban') return 'list';
-      if (prev === 'list') return 'calendar';
-      return 'kanban';
+    startTransition(() => {
+      setViewMode((prev) => {
+        if (prev === 'kanban') return 'list';
+        if (prev === 'list') return 'calendar';
+        return 'kanban';
+      });
     });
   };
 
@@ -39,7 +45,7 @@ export function useViewPreference() {
 
   return {
     viewMode,
-    setViewMode,
+    setViewMode: setViewModeTransition,
     toggleView,
     cardSize,
     setCardSize,

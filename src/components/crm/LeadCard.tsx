@@ -2,7 +2,7 @@ import { Lead } from "@/types/lead";
 import { buildCopyNumber, buildTelUri, formatBrazilianPhone, formatBrazilianCep, normalizeCep } from "@/lib/phoneUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip, Clock } from "lucide-react";
+import { Phone, DollarSign, Smartphone, MessageCircle, Trash2, PhoneCall, ArrowRightCircle, Pencil, MapPin, Paperclip, Clock, GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, memo, useEffect, type CSSProperties } from "react";
@@ -166,18 +166,25 @@ export const LeadCard = memo(function LeadCard({
         data-lead-card=""
         style={sortableStyle}
         {...attributes}
-        {...listeners}
-        className={`p-2 transition-all duration-200 bg-card border group ${
+        className={`relative p-2 transition-all duration-200 bg-card border group ${
           isDragging 
             ? 'border-primary shadow-lg scale-105' 
             : isSelected
               ? 'border-primary shadow-md ring-2 ring-primary/50'
               : 'border-border hover:shadow-md hover:border-primary/50'
         }`}
-        onClick={onClick}
         onMouseEnter={enableHeavyContent}
       >
-        <div className="space-y-1">
+        <button
+          type="button"
+          className="absolute top-1 right-1 z-10 flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70 hover:bg-muted touch-none cursor-grab active:cursor-grabbing"
+          aria-label="Arrastar card"
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <div className="space-y-1 cursor-pointer" onClick={onClick}>
           <div className="flex items-start gap-2">
             {onToggleSelection && (
               <div 
@@ -340,8 +347,13 @@ export const LeadCard = memo(function LeadCard({
               </Badge>
             )}
           </div>
+        </div>
 
-          <div className="flex items-center gap-1 pt-1">
+          <div
+            className="flex items-center gap-1 pt-1"
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             {lead.phone && (
               <>
                 <Button
@@ -403,15 +415,13 @@ export const LeadCard = memo(function LeadCard({
               />
             ) : null}
 
-            {showHeavyContent ? (
-              <LeadTagsPopover
-                leadId={lead.id}
-                leadTags={lead.tags ?? []}
-                onRefetch={onRefetch}
-                compact
-                orgTagsApi={orgTagsApi}
-              />
-            ) : null}
+            <LeadTagsPopover
+              leadId={lead.id}
+              leadTags={lead.tags ?? []}
+              onRefetch={onRefetch}
+              compact
+              orgTagsApi={orgTagsApi}
+            />
             
             {onDelete && (
               <Button
@@ -424,7 +434,6 @@ export const LeadCard = memo(function LeadCard({
               </Button>
             )}
           </div>
-        </div>
 
         <TransferLeadToStageDialog
           lead={lead}
@@ -450,18 +459,25 @@ export const LeadCard = memo(function LeadCard({
       data-lead-card=""
       style={sortableStyle}
       {...attributes}
-      {...listeners}
-      className={`p-4 transition-all duration-200 bg-card border ${
+      className={`relative p-4 transition-all duration-200 bg-card border ${
         isDragging 
           ? 'border-primary shadow-lg scale-105 rotate-2' 
           : isSelected
             ? 'border-primary shadow-md ring-2 ring-primary/50'
             : 'border-border hover:shadow-md hover:border-primary/50'
       }`}
-      onClick={onClick}
       onMouseEnter={enableHeavyContent}
     >
-      <div className="space-y-3">
+      <button
+        type="button"
+        className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-70 touch-none cursor-grab active:cursor-grabbing"
+        aria-label="Arrastar card"
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <div className="space-y-3 cursor-pointer" onClick={onClick}>
         {onToggleSelection && (
           <div 
             className="flex items-center justify-end touch-none" 
@@ -619,8 +635,13 @@ export const LeadCard = memo(function LeadCard({
             {lead.unread_message_count} nova{lead.unread_message_count > 1 ? 's' : ''} mensage{lead.unread_message_count > 1 ? 'ns' : 'm'}
           </Badge>
         )}
+      </div>
 
-        <div className="flex items-center gap-2 pt-2 flex-wrap">
+        <div
+          className="flex items-center gap-2 pt-2 flex-wrap"
+          onPointerDownCapture={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
           {lead.phone && (
             <>
               <Button
@@ -685,14 +706,12 @@ export const LeadCard = memo(function LeadCard({
             />
           ) : null}
 
-          {showHeavyContent ? (
-            <LeadTagsPopover
-              leadId={lead.id}
-              leadTags={lead.tags ?? []}
-              onRefetch={onRefetch}
-              orgTagsApi={orgTagsApi}
-            />
-          ) : null}
+          <LeadTagsPopover
+            leadId={lead.id}
+            leadTags={lead.tags ?? []}
+            onRefetch={onRefetch}
+            orgTagsApi={orgTagsApi}
+          />
           
           {onDelete && (
             <Button
@@ -705,7 +724,6 @@ export const LeadCard = memo(function LeadCard({
             </Button>
           )}
         </div>
-      </div>
 
       <TransferLeadToStageDialog
         lead={lead}

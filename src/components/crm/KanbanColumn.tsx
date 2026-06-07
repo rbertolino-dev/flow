@@ -14,7 +14,7 @@ import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 const LEAD_GAP_PX = 12;
 /** Altura estimada por card — calibrada com containIntrinsicSize do LeadCard. */
 const ESTIMATED_CARD_HEIGHT = { compact: 120, normal: 180 } as const;
-const VIRTUAL_OVERSCAN = 10;
+const VIRTUAL_OVERSCAN = 4;
 
 interface KanbanColumnProps {
   stage: PipelineStage;
@@ -38,6 +38,8 @@ interface KanbanColumnProps {
   leadsInCallQueue?: Set<string>;
   /** false = shell leve (coluna fora do viewport horizontal). */
   horizontalInView?: boolean;
+  /** false quando funil oculto (lista/calendário) — desmonta cards. */
+  panelActive?: boolean;
 }
 
 export const KanbanColumn = memo(function KanbanColumn({
@@ -61,28 +63,56 @@ export const KanbanColumn = memo(function KanbanColumn({
   orgTagsApi,
   leadsInCallQueue,
   horizontalInView = true,
+  panelActive = true,
 }: KanbanColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [columnInView, setColumnInView] = useState(false);
   const estimatedRowHeight = compact ? ESTIMATED_CARD_HEIGHT.compact : ESTIMATED_CARD_HEIGHT.normal;
+  const virtualListHeight = Math.max(
+    leads.length * (estimatedRowHeight + LEAD_GAP_PX),
+    estimatedRowHeight + LEAD_GAP_PX
+  );
+  const mountCards = horizontalInView && panelActive && columnInView;
 
   useEffect(() => {
+    if (!panelActive) {
+      setColumnInView(false);
+      return;
+    }
+
     const el = columnRef.current;
     if (!el) return;
 
+    const syncVisible = () => {
+      const rect = el.getBoundingClientRect();
+      const inViewport =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.top < window.innerHeight &&
+        rect.right > 0 &&
+        rect.left < window.innerWidth;
+      setColumnInView(inViewport);
+    };
+
+    syncVisible();
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setColumnInView(true);
-        }
+        setColumnInView(entry.isIntersecting);
       },
-      { root: null, rootMargin: "240px 120px", threshold: 0 }
+      { root: null, rootMargin: "120px 80px", threshold: 0 }
     );
 
     observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    const rafId = requestAnimationFrame(syncVisible);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
+  }, [panelActive]);
 
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
@@ -94,7 +124,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   };
 
   const rowVirtualizer = useVirtualizer({
-    count: columnInView && horizontalInView ? leads.length : 0,
+    count: mountCards ? leads.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => estimatedRowHeight,
     gap: LEAD_GAP_PX,
@@ -179,13 +209,10 @@ export const KanbanColumn = memo(function KanbanColumn({
             >
               {totalLeads} lead{totalLeads === 1 ? "" : "s"}
             </div>
-          ) : !columnInView ? (
+          ) : !mountCards ? (
             <div
               className="min-h-[120px]"
-              aria-hidden
-              style={{
-                height: Math.min(leads.length, 3) * (estimatedRowHeight + LEAD_GAP_PX),
-              }}
+              style={{ height: virtualListHeight }}
             />
           ) : (
             <div
@@ -228,7 +255,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                       onScheduleLead={onScheduleLead}
                       orgTagsApi={orgTagsApi}
                       isInCallQueue={leadsInCallQueue?.has(lead.id) ?? false}
-                      horizontalInView={horizontalInView && columnInView}
+                      horizontalInView={mountCards}
                     />
                   </div>
                 );

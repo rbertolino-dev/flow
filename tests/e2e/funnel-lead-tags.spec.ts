@@ -5,18 +5,20 @@ import { waitForKanbanReady, trackLeadsListFetches, gotoFunnelPage } from "../he
 async function openTagsPopover(page: import("@playwright/test").Page) {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   const tagButton = page
-    .getByRole("button", { name: "Gerenciar etiquetas do lead" })
-    .first();
+    .locator("[data-lead-card]")
+    .filter({ has: page.getByTestId("lead-tags-trigger") })
+    .first()
+    .getByTestId("lead-tags-trigger");
   await tagButton.scrollIntoViewIfNeeded();
-  await tagButton.click({ force: true });
+  await expect(tagButton).toBeVisible({ timeout: 10_000 });
+  await tagButton.click();
 
-  const popover = page
-    .getByTestId("lead-tags-popover")
-    .or(page.locator("[data-state=open]").filter({ hasText: "Adicionar etiqueta" }));
-  await expect(popover.first()).toBeVisible({ timeout: 15_000 });
-  return popover.first();
+  const popover = page.getByTestId("lead-tags-popover");
+  await expect(popover).toBeVisible({ timeout: 15_000 });
+  return popover;
 }
 
 async function pickFirstAvailableTag(page: import("@playwright/test").Page, popover: import("@playwright/test").Locator) {
@@ -67,7 +69,7 @@ test.describe("@funnel-tags Funil — etiquetas no card", () => {
     await waitForKanbanReady(page);
     await page.waitForTimeout(1500);
 
-    const tagBtn = page.getByRole("button", { name: "Gerenciar etiquetas do lead" }).first();
+    const tagBtn = page.getByTestId("lead-tags-trigger").first();
     const tagBtnVisible = await tagBtn.isVisible().catch(() => false);
     test.skip(!tagBtnVisible, "Nenhum botão de etiquetas visível no funil (scroll/virtualização).");
   });

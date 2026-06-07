@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, memo } from "react";
 import type { Tag } from "@/types/lead";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -120,48 +119,39 @@ export const LeadTagsPopover = memo(function LeadTagsPopover({
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <Tooltip delayDuration={250}>
-          <TooltipTrigger asChild>
-            <span className="inline-flex shrink-0 relative">
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={
-                    compact
-                      ? "h-6 px-2 shrink-0"
-                      : "h-8 px-2 shrink-0 max-w-[160px]"
-                  }
-                  aria-label="Gerenciar etiquetas do lead"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <TagIcon className={compact ? "h-3 w-3" : "h-4 w-4"} />
-                  {!compact && leadTags.length > 0 && (
-                    <span className="ml-1 text-xs text-muted-foreground truncate max-w-[100px]">
-                      {leadTags.length === 1
-                        ? leadTags[0].name
-                        : `${leadTags.length} etiquetas`}
-                    </span>
-                  )}
-                  {leadTags.length === 0 && (
-                    <span
-                      className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary"
-                      aria-hidden
-                    />
-                  )}
-                </Button>
-              </PopoverTrigger>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent
-            side="top"
-            align="center"
-            className="max-w-[240px] whitespace-pre-line text-xs font-normal leading-snug"
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={
+              compact
+                ? "h-6 px-2 shrink-0 relative"
+                : "h-8 px-2 shrink-0 max-w-[160px] relative"
+            }
+            aria-label="Gerenciar etiquetas do lead"
+            data-testid="lead-tags-trigger"
+            title={tooltipText.replace(/\n/g, " · ")}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
-            {tooltipText}
-          </TooltipContent>
-        </Tooltip>
+            <TagIcon className={compact ? "h-3 w-3" : "h-4 w-4"} />
+            {!compact && leadTags.length > 0 && (
+              <span className="ml-1 text-xs text-muted-foreground truncate max-w-[100px]">
+                {leadTags.length === 1
+                  ? leadTags[0].name
+                  : `${leadTags.length} etiquetas`}
+              </span>
+            )}
+            {leadTags.length === 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary"
+                aria-hidden
+              />
+            )}
+          </Button>
+        </PopoverTrigger>
         <PopoverContent
           className="w-80"
           align="start"
