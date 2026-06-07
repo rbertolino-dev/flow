@@ -140,19 +140,10 @@ test.describe("@funnel-tags Funil — etiquetas no card", () => {
   });
 
   test("abrir modal do lead após trocar etiqueta mantém tags no popover", async ({ page }) => {
-    const tagButton = page
-      .getByRole("button", { name: "Gerenciar etiquetas do lead" })
-      .first();
-    const card = page.locator("[data-kanban-sortable-item]").first();
+    const card = page.locator("[data-lead-card]").first();
     const leadName = await card.locator("h3").first().textContent();
 
-    await tagButton.scrollIntoViewIfNeeded();
-    await tagButton.click();
-
-    const popover = page
-      .getByTestId("lead-tags-popover")
-      .or(page.locator("[data-state=open]").filter({ hasText: "Adicionar etiqueta" }))
-      .first();
+    const popover = await openTagsPopover(page);
     await expect(popover.getByText("Etiquetas", { exact: true })).toBeVisible();
 
     let tagName = "";
@@ -178,7 +169,7 @@ test.describe("@funnel-tags Funil — etiquetas no card", () => {
     if (leadName?.trim()) {
       await card.getByRole("heading", { name: leadName.trim() }).click();
     } else {
-      await card.click({ position: { x: 40, y: 40 } });
+      await card.locator("h3").first().click();
     }
 
     const modal = page.getByRole("dialog").filter({ hasText: /etiqueta|detalhes|lead/i });
