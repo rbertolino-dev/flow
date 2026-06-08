@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { initializeRealtime } from "@/utils/realtimeInit";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ActiveOrganizationProvider } from "@/contexts/ActiveOrganizationProvider";
 
 // Páginas críticas (Index=funil + Login) carregam eager para não ter spinner nas rotas mais usadas.
 import Index from "./pages/Index";
@@ -137,7 +138,8 @@ const App = () => {
               v7_relativeSplatPath: true,
             }}
           >
-            <Suspense fallback={<PageSpinner />}>
+            <ActiveOrganizationProvider>
+              <Suspense fallback={<PageSpinner />}>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
@@ -193,6 +195,7 @@ const App = () => {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            </ActiveOrganizationProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>

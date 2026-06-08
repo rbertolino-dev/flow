@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
+import { KanbanBoardSkeleton } from "@/components/crm/KanbanBoardSkeleton";
 import { LeadsListView } from "@/components/crm/LeadsListView";
 import { CalendarView } from "@/components/crm/CalendarView";
 import { CallQueue } from "@/components/crm/CallQueue";
@@ -13,6 +14,7 @@ import { CreateLeadDialog } from "@/components/crm/CreateLeadDialog";
 import { ImportLeadsDialog } from "@/components/crm/ImportLeadsDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { useCallQueue } from "@/hooks/useCallQueue";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useTags } from "@/hooks/useTags";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
@@ -21,7 +23,7 @@ import { useAutoSync } from "@/hooks/useAutoSync";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useFlowTriggers } from "@/hooks/useFlowTriggers";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
-import { Loader2, Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload, MessageSquare } from "lucide-react";
+import { Search, Plus, Filter, X, LayoutGrid, List, PhoneCall, CalendarDays, Upload, MessageSquare } from "lucide-react";
 // Removido: import { MessagesCenter } from "@/components/crm/MessagesCenter";
 // Agora usamos navegação para a página /messages-center
 import Settings from "./Settings";
@@ -69,6 +71,7 @@ const Index = () => {
   const [filterInCallQueue, setFilterInCallQueue] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
+  const { activeOrgId, loading: orgLoading } = useActiveOrganization();
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, assignToUser, updateCallStatus, bulkUpdateStatus, bulkDeleteCalls, deleteCall, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
@@ -192,16 +195,6 @@ const Index = () => {
       return [...prev, tagId];
     });
   };
-
-  // ✅ OTIMIZAÇÃO: Só bloqueamos a UI pelos leads. A fila de chamadas (`callQueue`) carrega
-  // em background — só é usada em filtros opcionais; não deve atrasar a renderização do funil.
-  if (leadsLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const handleViewChange = (view: CRMView) => {
     if (view === "broadcast") {
@@ -488,6 +481,9 @@ const Index = () => {
               )}
               aria-hidden={viewMode !== "kanban"}
             >
+              {leadsLoading || orgLoading ? (
+                <KanbanBoardSkeleton />
+              ) : (
               <KanbanBoard
                 leads={leads}
                 panelActive={viewMode === "kanban"}
@@ -504,6 +500,7 @@ const Index = () => {
                 callQueue={callQueue}
                 filterTags={selectedTags}
               />
+              )}
             </div>
             <div
               className={cn(

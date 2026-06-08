@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SyncIndicator } from "./SyncIndicator";
 import { OrganizationSwitcher } from "./OrganizationSwitcher";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { clearActiveOrganizationStorage } from "@/lib/organizationUtils";
 import { AGILIZE_LOGO_URL } from "@/constants/branding";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
@@ -69,6 +70,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
 
   const handleLogout = async () => {
     try {
+      clearActiveOrganizationStorage();
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -78,10 +80,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       });
       
       navigate('/login');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao fazer logout",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     }
@@ -155,6 +157,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     }
     
     return filtered;
+    // allBaseMenuItems e menuToFeatureMap são estáveis dentro do render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFeature, featuresLoading, featuresData, isPubdigitalUser, isAdmin]);
 
   const adminMenuItems: typeof allBaseMenuItems = [];

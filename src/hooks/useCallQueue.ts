@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- hook legado com queries Supabase dinâmicas */
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CallQueueItem } from "@/types/lead";
@@ -23,12 +24,15 @@ export function useCallQueue() {
   const [callQueue, setCallQueue] = useState<CallQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { activeOrgId } = useActiveOrganization();
+  const { activeOrgId, loading: orgLoading } = useActiveOrganization();
 
   useEffect(() => {
+    if (orgLoading) return;
+
     if (activeOrgId) {
       fetchCallQueue();
     } else {
+      setCallQueue([]);
       setLoading(false);
     }
 
@@ -64,7 +68,9 @@ export function useCallQueue() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeOrgId]);
+    // fetchCallQueue depende de activeOrgId; incluir quebraria o efeito a cada render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrgId, orgLoading]);
 
   const fetchCallQueue = async () => {
     try {

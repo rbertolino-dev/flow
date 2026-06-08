@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { AGILIZE_LOGO_URL } from "@/constants/branding";
+import { prefetchAppBootstrapWithTimeout } from "@/lib/prefetchAppBootstrap";
 
 function loginErrorDescription(error: unknown): string {
   const msg =
@@ -92,25 +93,22 @@ export default function Login() {
         description: "Bem-vindo de volta.",
       });
 
-      // Aguardar um tempo suficiente para garantir que a sessão está salva no localStorage
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Verificar se a sessão está realmente salva
+      // Prefetch org + menu/funil enquanto sessão já está em memória (signIn retorna session)
+      await prefetchAppBootstrapWithTimeout(data.session);
+
       const sessionCheck = await supabase.auth.getSession();
-      console.log('Session check after login:', !!sessionCheck.data.session);
-      
       if (sessionCheck.data.session) {
-        // Usar window.location.replace para garantir reload completo
-        window.location.replace('/');
+        window.location.replace("/");
+        return;
+      }
+
+      // Fallback curto — sessão costuma estar disponível imediatamente após signIn
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const finalCheck = await supabase.auth.getSession();
+      if (finalCheck.data.session) {
+        window.location.replace("/");
       } else {
-        // Se não encontrou sessão, tentar mais uma vez após aguardar
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const finalCheck = await supabase.auth.getSession();
-        if (finalCheck.data.session) {
-          window.location.replace('/');
-        } else {
-          throw new Error('Sessão não foi salva corretamente. Tente fazer login novamente.');
-        }
+        throw new Error("Sessão não foi salva corretamente. Tente fazer login novamente.");
       }
     } catch (error: unknown) {
       console.error('Login error:', error);
@@ -181,25 +179,22 @@ export default function Login() {
         throw new Error('Sessão não foi criada');
       }
 
-      // Aguardar um momento para garantir que a sessão está estabelecida
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Verificar novamente a sessão antes de navegar
+      await prefetchAppBootstrapWithTimeout(signInData.session);
+
       const { data: { session: verifiedSession } } = await supabase.auth.getSession();
       if (verifiedSession) {
         toast({
           title: "Conta criada e login realizado!",
           description: "Bem-vindo!",
         });
-        // Usar window.location para garantir que a página recarregue e o AuthGuard detecte a sessão
-        window.location.href = '/';
+        window.location.replace("/");
       } else {
         throw new Error('Sessão não foi estabelecida corretamente');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao criar conta",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {

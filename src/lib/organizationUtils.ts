@@ -17,24 +17,39 @@ export function invalidateOrgCache(): void {
   _orgCache = null;
 }
 
+/** Remove org ativa do storage — chamar no logout ou troca de conta */
+export function clearActiveOrganizationStorage(): void {
+  localStorage.removeItem(STORAGE_KEY);
+  invalidateOrgCache();
+}
+
+/** Preenche cache após login/prefetch — evita revalidação imediata em hooks paralelos */
+export function seedOrgCache(orgId: string, userId: string): void {
+  localStorage.setItem(STORAGE_KEY, orgId);
+  _orgCache = { orgId, userId, verifiedAt: Date.now() };
+}
+
 export async function getUserOrganizationId(): Promise<string | null> {
-  const activeOrgId = localStorage.getItem(STORAGE_KEY);
-
-  // Cache em memória ainda válido para o mesmo org: zero chamadas API
-  if (
-    activeOrgId &&
-    _orgCache &&
-    _orgCache.orgId === activeOrgId &&
-    Date.now() - _orgCache.verifiedAt < ORG_CACHE_TTL_MS
-  ) {
-    return activeOrgId;
-  }
-
-  // getSession() lê do localStorage (sem requisição de rede para sessões válidas não expiradas)
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return null;
 
   const userId = session.user.id;
+  const activeOrgId = localStorage.getItem(STORAGE_KEY);
+
+  if (_orgCache && _orgCache.userId !== userId) {
+    invalidateOrgCache();
+  }
+
+  // Cache em memória válido para o mesmo usuário e mesma org
+  if (
+    activeOrgId &&
+    _orgCache &&
+    _orgCache.orgId === activeOrgId &&
+    _orgCache.userId === userId &&
+    Date.now() - _orgCache.verifiedAt < ORG_CACHE_TTL_MS
+  ) {
+    return activeOrgId;
+  }
 
   if (activeOrgId) {
     // Verifica no DB se o usuário ainda pertence a essa organização

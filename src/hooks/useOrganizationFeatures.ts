@@ -53,11 +53,13 @@ interface UseOrganizationFeaturesResult {
 }
 
 export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
-  const { activeOrgId } = useActiveOrganization();
+  const { activeOrgId, loading: orgLoading } = useActiveOrganization();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<OrganizationFeaturesData | null>(null);
 
   const fetchFeatures = useCallback(async () => {
+    if (orgLoading) return;
+
     if (!activeOrgId) {
       setData(null);
       setLoading(false);
@@ -101,7 +103,10 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
         return;
       }
 
-      const planData = (limitsData as any).plans;
+      const planData = limitsData.plans as
+        | { id: string; name: string; features: unknown }
+        | null
+        | undefined;
       const trialEndsAt = limitsData.trial_ends_at ? new Date(limitsData.trial_ends_at) : null;
       const isInTrial = trialEndsAt !== null && trialEndsAt > new Date();
 
@@ -140,13 +145,13 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
     } finally {
       setLoading(false);
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, orgLoading]);
 
   useEffect(() => {
     fetchFeatures();
 
     // Subscrição realtime para mudanças em organization_limits
-    if (!activeOrgId) return;
+    if (!activeOrgId || orgLoading) return;
 
     const channel = supabase
       .channel(`org-features-${activeOrgId}`)
@@ -167,7 +172,7 @@ export function useOrganizationFeatures(): UseOrganizationFeaturesResult {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchFeatures, activeOrgId]);
+  }, [fetchFeatures, activeOrgId, orgLoading]);
 
   // Verifica se a organização tem acesso a uma feature específica
   const hasFeature = useCallback((feature: FeatureKey): boolean => {

@@ -158,7 +158,7 @@ export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { activeOrgId } = useActiveOrganization();
+  const { activeOrgId, loading: orgLoading } = useActiveOrganization();
   const fetchGenerationRef = useRef(0);
   const notesTouchRef = useRef<Record<string, number>>({});
   /** Evita refetch global duplicado logo após hidratação progressiva na 1ª carga */
@@ -711,12 +711,16 @@ export function useLeads() {
   }, [activeOrgId, toast]);
 
   useEffect(() => {
+    if (orgLoading) return;
+
     if (activeOrgId) {
       initialHydrationRef.current = true;
       globalRefreshAllowedAfterRef.current = Date.now() + 2000;
       fetchLeads();
     } else {
+      setLeads([]);
       setLoading(false);
+      return;
     }
 
     // ✅ OTIMIZAÇÃO: Realtime com updates otimistas + Polling como fallback
@@ -1434,7 +1438,7 @@ export function useLeads() {
         }
       }
     };
-  }, [toast, activeOrgId, fetchLeads]);
+  }, [toast, activeOrgId, orgLoading, fetchLeads]);
 
   const updateLeadStatus = async (leadId: string, newStageId: string) => {
     try {
