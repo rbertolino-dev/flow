@@ -311,27 +311,6 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
     if (!open) setScheduleLead(null);
   }, []);
 
-  // Correção automática no banco APENAS para leads com etapa inválida
-  useEffect(() => {
-    if (!firstStageId || stages.length === 0) return;
-    
-    const invalids = filteredLeads.filter(l => !l.stageId || !stageIdSet.has(l.stageId));
-    if (invalids.length === 0) return;
-
-    (async () => {
-      for (const lead of invalids) {
-        try {
-          const targetStage = stages.find(s => s.id === firstStageId);
-          if (!targetStage) continue;
-          onLeadUpdate(lead.id, firstStageId);
-          console.log(`✅ Etapa corrigida para ${lead.name} -> ${targetStage.name}`);
-        } catch (e) {
-          console.error('Falha ao corrigir etapa do lead', lead.id, e);
-        }
-      }
-    })();
-  }, [filteredLeads, stageIdSet, firstStageId, stages, onLeadUpdate]);
-
   // ✅ OTIMIZAÇÃO: Criar Map de stages para lookup O(1) ao invés de O(n)
   // ✅ CORREÇÃO: Adicionar verificação de segurança para evitar erro React #310
   const stagesMap = useMemo(() => {

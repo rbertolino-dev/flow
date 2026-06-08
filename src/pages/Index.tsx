@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- página legada do CRM */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { KanbanBoard } from "@/components/crm/KanbanBoard";
@@ -114,9 +114,12 @@ const Index = () => {
     };
   }, []);
 
-  const handleLeadUpdate = (leadId: string, newStatus: string) => {
-    updateLeadStatus(leadId, newStatus);
-  };
+  const handleLeadUpdate = useCallback(
+    (leadId: string, newStatus: string) => {
+      updateLeadStatus(leadId, newStatus);
+    },
+    [updateLeadStatus]
+  );
 
   const handleCallComplete = (callId: string, callNotes?: string) => {
     completeCall(callId, callNotes);
