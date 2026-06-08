@@ -1,19 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useDeferredValue } from "react";
+import { VirtualizedStageLeadRows } from "./VirtualizedStageLeadRows";
 import { Lead, CallQueueItem } from "@/types/lead";
 import { PipelineStage } from "@/hooks/usePipelineStages";
 import { LeadDetailModal } from "./LeadDetailModal";
 import { LeadScheduleSheet } from "./LeadScheduleSheet";
-import { LeadBudgetBadge } from "./LeadBudgetBadge";
-import { MessageSquare, Phone, Calendar, ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
+import { ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { ScheduleGoogleEventDialog } from "./ScheduleGoogleEventDialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildCopyNumber } from "@/lib/phoneUtils";
 
 interface LeadsListViewProps {
@@ -123,15 +120,17 @@ export function LeadsListView({
   // ✅ NOVO: Função para normalizar telefone (remover caracteres não numéricos)
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   // ✅ NOVO: Aplicar filtros aos leads (mesma lógica do KanbanBoard)
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
       // Filtro de busca
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase().trim();
+      if (deferredSearchQuery) {
+        const query = deferredSearchQuery.toLowerCase().trim();
         if (!query) return true; // Se query vazia após trim, mostrar todos
         
-        const normalizedQuery = normalizePhone(searchQuery);
+        const normalizedQuery = normalizePhone(deferredSearchQuery);
         
         // ✅ CORREÇÃO: Verificar valores null/undefined antes de usar métodos de string
         const matchesName = lead.name?.toLowerCase().includes(query) || false;
@@ -191,7 +190,7 @@ export function LeadsListView({
 
       return true;
     });
-  }, [leads, searchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
+  }, [leads, deferredSearchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
 
   // Agrupar leads por etapa e ordenar conforme seleção
   const leadsByStage = useMemo(() => {
@@ -210,14 +209,16 @@ export function LeadsListView({
               return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
             case 'name-desc':
               return b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' });
-            case 'value-asc':
+            case 'value-asc': {
               const valueA = a.value || 0;
               const valueB = b.value || 0;
               return valueA - valueB;
-            case 'value-desc':
+            }
+            case 'value-desc': {
               const valueA2 = a.value || 0;
               const valueB2 = b.value || 0;
               return valueB2 - valueA2;
+            }
             default:
               return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
           }
@@ -289,129 +290,43 @@ export function LeadsListView({
                 {/* Tabela de leads */}
                 {!isCollapsed && stageLeads.length > 0 && (
                   <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12"></TableHead>
-                          <TableHead>Nome</TableHead>
-                          <TableHead className="hidden sm:table-cell">Telefone</TableHead>
-                          <TableHead className="hidden md:table-cell">Data de Retorno</TableHead>
-                          <TableHead className="hidden lg:table-cell">Origem</TableHead>
-                          <TableHead className="hidden lg:table-cell">Valor</TableHead>
-                          <TableHead className="hidden xl:table-cell">Último Contato</TableHead>
-                          <TableHead className="hidden 2xl:table-cell">Observações</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {stageLeads.map((lead) => (
-                          <TableRow
-                            key={lead.id}
-                            className={cn(
-                              "cursor-pointer hover:bg-muted/50",
-                              selectedLeads.has(lead.id) && "bg-muted/30"
-                            )}
-                            onClick={() => setSelectedLead(lead)}
-                          >
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={selectedLeads.has(lead.id)}
-                                onCheckedChange={() => onLeadSelect(lead.id)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                  <LeadBudgetBadge summary={lead.budgetSummary} compact />
-                                  <span className="font-medium">{lead.name}</span>
-                                  {lead.has_unread_messages && (
-                                    <Badge variant="destructive" className="text-xs px-1.5 py-0">
-                                      {lead.unread_message_count}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="text-xs text-muted-foreground sm:hidden">
-                                  {lead.phone}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="hidden sm:table-cell text-sm">
-                              {lead.phone}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell text-sm">
-                              {lead.returnDate ? (
-                                <Badge variant="outline">
-                                  {new Date(lead.returnDate).toLocaleDateString('pt-BR')}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell text-sm">
-                              {lead.sourceInstanceName || lead.source || '-'}
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell text-sm">
-                              {lead.value ? (
-                                <span className="font-medium">
-                                  {new Intl.NumberFormat('pt-BR', {
-                                    style: 'currency',
-                                    currency: 'BRL',
-                                  }).format(Number(lead.value))}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                              {lead.lastContact
-                                ? formatDistanceToNow(new Date(lead.lastContact), {
-                                    addSuffix: true,
-                                    locale: ptBR,
-                                  })
-                                : '-'}
-                            </TableCell>
-                            <TableCell className="hidden 2xl:table-cell text-sm text-muted-foreground max-w-xs">
-                              {lead.notes ? (
-                                <p className="line-clamp-2">{lead.notes}</p>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleWhatsAppClick(lead.phone)}
-                                  title="Abrir WhatsApp"
-                                >
-                                  <MessageSquare className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handlePhoneClick(lead.phone)}
-                                  title="Ligar"
-                                >
-                                  <Phone className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => setScheduleEventLead(lead)}
-                                  title="Agendar"
-                                >
-                                  <Calendar className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
+                    {stageLeads.length < 25 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12"></TableHead>
+                            <TableHead>Nome</TableHead>
+                            <TableHead className="hidden sm:table-cell">Telefone</TableHead>
+                            <TableHead className="hidden md:table-cell">Data de Retorno</TableHead>
+                            <TableHead className="hidden lg:table-cell">Origem</TableHead>
+                            <TableHead className="hidden lg:table-cell">Valor</TableHead>
+                            <TableHead className="hidden xl:table-cell">Último Contato</TableHead>
+                            <TableHead className="hidden 2xl:table-cell">Observações</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <VirtualizedStageLeadRows
+                          stageLeads={stageLeads}
+                          selectedLeads={selectedLeads}
+                          onLeadSelect={onLeadSelect}
+                          onLeadClick={setSelectedLead}
+                          onWhatsAppClick={handleWhatsAppClick}
+                          onPhoneClick={handlePhoneClick}
+                          onScheduleClick={setScheduleEventLead}
+                        />
+                      </Table>
+                    ) : (
+                      <VirtualizedStageLeadRows
+                        stageLeads={stageLeads}
+                        selectedLeads={selectedLeads}
+                        onLeadSelect={onLeadSelect}
+                        onLeadClick={setSelectedLead}
+                        onWhatsAppClick={handleWhatsAppClick}
+                        onPhoneClick={handlePhoneClick}
+                        onScheduleClick={setScheduleEventLead}
+                        standalone
+                      />
+                    )}
                   </div>
                 )}
 

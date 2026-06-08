@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- hook legado com queries Supabase dinâmicas e fallbacks de schema */
 import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, Activity, LeadAssignee, type Tag } from "@/types/lead";
@@ -25,6 +26,9 @@ import {
   isFunnelKanbanInteractionWindow,
   runAfterFunnelInteractionWindow,
 } from "@/utils/funnelInteractionGate";
+import { FUNNEL_LEAD_SELECT_COLUMNS } from "@/lib/funnelLeadSelect";
+import { fetchFunnelEnrichmentViaRpc } from "@/lib/funnelLeadEnrichment";
+import { getFunnelVisibleLeadIds } from "@/utils/funnelVisibleLeadsRegistry";
 
 /**
  * Executa uma query por lote de lead_ids com no máximo `parallel` pedidos HTTP em voo.
@@ -79,6 +83,77 @@ function mapAssigneesToDisplay(assignees: LeadAssignee[], fallback?: string | nu
   return fallback?.trim() ? fallback : "Não atribuído";
 }
 
+const PRIORITY_LEADS_COUNT = 80;
+
+function pickPriorityLeadsForEnrichment<T extends { id: string }>(
+  allLeads: T[],
+  maxCount = PRIORITY_LEADS_COUNT,
+): T[] {
+  const visibleIds = getFunnelVisibleLeadIds();
+  if (visibleIds.length > 0) {
+    const visibleSet = new Set(visibleIds);
+    const visibleFirst = allLeads.filter((lead) => visibleSet.has(lead.id));
+    if (visibleFirst.length > 0) {
+      const remainder = allLeads.filter((lead) => !visibleSet.has(lead.id));
+      return [...visibleFirst, ...remainder].slice(0, maxCount);
+    }
+  }
+  return allLeads.slice(0, maxCount);
+}
+
+async function fetchLeadsBaseQuery(activeOrgId: string) {
+  const withExcluded = await (supabase as any)
+    .from("leads")
+    .select(FUNNEL_LEAD_SELECT_COLUMNS)
+    .eq("organization_id", activeOrgId)
+    .is("deleted_at", null)
+    .eq("excluded_from_funnel", false)
+    .order("created_at", { ascending: false });
+
+  if (!withExcluded.error) {
+    return { data: withExcluded.data, error: null as null };
+  }
+
+  if (
+    withExcluded.error.message?.includes("does not exist") ||
+    withExcluded.error.code === "42703"
+  ) {
+    console.warn("⚠️ Coluna excluded_from_funnel não existe, usando fallback...");
+    const fallback = await (supabase as any)
+      .from("leads")
+      .select(FUNNEL_LEAD_SELECT_COLUMNS)
+      .eq("organization_id", activeOrgId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    return { data: fallback.data, error: fallback.error };
+  }
+
+  console.warn("⚠️ Select enxuto falhou; tentando select('*')...");
+  const full = await (supabase as any)
+    .from("leads")
+    .select("*")
+    .eq("organization_id", activeOrgId)
+    .is("deleted_at", null)
+    .eq("excluded_from_funnel", false)
+    .order("created_at", { ascending: false });
+
+  if (!full.error) {
+    return { data: full.data, error: null as null };
+  }
+
+  if (full.error.message?.includes("does not exist") || full.error.code === "42703") {
+    const fallbackFull = await (supabase as any)
+      .from("leads")
+      .select("*")
+      .eq("organization_id", activeOrgId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    return { data: fallbackFull.data, error: fallbackFull.error };
+  }
+
+  return { data: full.data, error: full.error };
+}
+
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,35 +191,9 @@ export function useLeads() {
       let leadsData: any[] | null = null;
       let leadsError: any = null;
 
-      // Primeira tentativa: query completa com excluded_from_funnel
-      const result1 = await (supabase as any)
-        .from('leads')
-        .select('*')
-        .eq('organization_id', activeOrgId)
-        .is('deleted_at', null)
-        .eq('excluded_from_funnel', false)
-        .order('created_at', { ascending: false });
-
-      if (result1.error) {
-        // Se erro de coluna não existir, tenta sem o filtro
-        if (result1.error.message?.includes('does not exist') || 
-            result1.error.code === '42703') {
-          console.warn('⚠️ Coluna excluded_from_funnel não existe, usando fallback...');
-          const result2 = await (supabase as any)
-            .from('leads')
-            .select('*')
-            .eq('organization_id', activeOrgId)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: false });
-          
-          leadsData = result2.data;
-          leadsError = result2.error;
-        } else {
-          leadsError = result1.error;
-        }
-      } else {
-        leadsData = result1.data;
-      }
+      const baseResult = await fetchLeadsBaseQuery(activeOrgId);
+      leadsData = baseResult.data;
+      leadsError = baseResult.error;
 
       if (leadsError) throw leadsError;
 
@@ -243,10 +292,10 @@ export function useLeads() {
               .in("lead_id", batch),
           );
 
-        let batches = await fetchBudgetSummaryBatches(
+        const batches = await fetchBudgetSummaryBatches(
           "id, lead_id, budget_number, total, created_at, expires_at, approved, rejected"
         );
-        let budgetErr = batches.find((r) => r.error)?.error;
+        const budgetErr = batches.find((r) => r.error)?.error;
 
         // Migration 20260321120000_add_budget_rejected pode não estar aplicada no Supabase:
         // PostgREST devolve 400; a mensagem nem sempre menciona "rejected".
@@ -312,109 +361,136 @@ export function useLeads() {
         return counts;
       };
 
-      // ✅ PARALELO: Os 5 tipos de queries rodam simultaneamente (máx 5×3 = 15 HTTP em voo — seguro).
-      // Antes: sequencial (5 waves) = 500-1500ms. Agora: 1 wave paralela = 100-300ms.
-      const [
-        activitiesResults,
-        tagsResults,
-        assigneesResults,
-        allBudgetRows,
-        attachmentCountByLead,
-      ] = await Promise.all([
-        mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
-          (supabase as any)
-            .from("activities")
-            .select("*")
-            .in("lead_id", batch)
-            .order("created_at", { ascending: false })
-            .limit(Math.min(batch.length * 5, 200)),
-        ),
-        mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
-          (supabase as any)
-            .from("lead_tags")
-            .select("lead_id, tag_id, tags(id, name, color)")
-            .in("lead_id", batch)
-            .limit(500),
-        ),
-        mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
-          supabase
-            .from("lead_assignees")
-            .select("lead_id, user_id, created_at")
-            .in("lead_id", batch),
-        ),
-        loadBudgetRowsForLeads(),
-        loadAttachmentCountsByLead(),
-      ]);
+      let allActivities: any[];
+      let allLeadTags: any[];
+      let allLeadAssigneeRows: any[];
+      let allBudgetRows: any[];
+      let attachmentCountByLead: Record<string, number>;
 
-      // Combinar resultados de todos os lotes
-      const allActivities = activitiesResults.flatMap(r => r.data || []).slice(0, maxActivitiesLimit);
-      let allLeadTags = tagsResults.flatMap(r => r.data || []);
+      const rpcPayload = await fetchFunnelEnrichmentViaRpc(activeOrgId, leadIds);
 
-      let allLeadAssigneeRows: any[] = assigneesResults.flatMap((r) => r.data || []);
-      const failedAssignee = assigneesResults.find((r) => r.error);
-      if (failedAssignee?.error) {
-        const err = failedAssignee.error as { message?: string; code?: string; name?: string };
-        const msg = String(err.message || "");
-        if (
-          msg.includes("does not exist") ||
-          err.code === "42P01" ||
-          err.code === "PGRST205"
-        ) {
-          console.warn("⚠️ Tabela lead_assignees indisponível, ignorando responsáveis múltiplos.");
-          allLeadAssigneeRows = [];
-        } else if (isTransientSupabaseError(failedAssignee.error)) {
-          console.warn(
-            "⚠️ lead_assignees: falha de rede/gateway. Funil carregado; responsáveis podem estar incompletos."
-          );
-        } else {
-          throw failedAssignee.error;
-        }
-      }
-
-      // Hidratar profiles em pedidos à parte (URLs curtas) — evita 502/CORS por query string gigante com embed
-      if (allLeadAssigneeRows.length > 0) {
-        const userIds = [
-          ...new Set(
-            allLeadAssigneeRows
-              .map((r: { user_id?: string }) => r.user_id)
-              .filter((id): id is string => Boolean(id))
+      if (rpcPayload) {
+        allActivities = Object.values(rpcPayload.activities)
+          .flat()
+          .slice(0, maxActivitiesLimit);
+        allLeadTags = Object.values(rpcPayload.tags).flat();
+        allLeadAssigneeRows = Object.values(rpcPayload.assignees)
+          .flat()
+          .map((row) => ({
+            lead_id: row.lead_id,
+            user_id: row.user_id,
+            created_at: row.created_at,
+            profiles: {
+              full_name: row.full_name ?? null,
+              email: row.email ?? "",
+            },
+          }));
+        allBudgetRows = rpcPayload.budget_rows ?? [];
+        attachmentCountByLead = rpcPayload.attachment_counts ?? {};
+      } else {
+        // ✅ PARALELO: fallback em batches quando RPC não está disponível
+        const [
+          activitiesResults,
+          tagsResults,
+          assigneesResults,
+          budgetRowsFromBatches,
+          attachmentCountsFromBatches,
+        ] = await Promise.all([
+          mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
+            (supabase as any)
+              .from("activities")
+              .select("*")
+              .in("lead_id", batch)
+              .order("created_at", { ascending: false })
+              .limit(Math.min(batch.length * 5, 200)),
           ),
-        ];
-        const profileById = new Map<
-          string,
-          { full_name?: string | null; email?: string | null }
-        >();
-        const PROFILE_IN_CHUNK = 12;
-        try {
-          const profileChunks: string[][] = [];
-          for (let i = 0; i < userIds.length; i += PROFILE_IN_CHUNK) {
-            profileChunks.push(userIds.slice(i, i + PROFILE_IN_CHUNK));
+          mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
+            (supabase as any)
+              .from("lead_tags")
+              .select("lead_id, tag_id, tags(id, name, color)")
+              .in("lead_id", batch)
+              .limit(500),
+          ),
+          mapBatchesWithConcurrency(leadIdBatches, BATCH_PARALLEL, (batch) =>
+            supabase
+              .from("lead_assignees")
+              .select("lead_id, user_id, created_at")
+              .in("lead_id", batch),
+          ),
+          loadBudgetRowsForLeads(),
+          loadAttachmentCountsByLead(),
+        ]);
+
+        allActivities = activitiesResults.flatMap((r) => r.data || []).slice(0, maxActivitiesLimit);
+        allLeadTags = tagsResults.flatMap((r) => r.data || []);
+        allLeadAssigneeRows = assigneesResults.flatMap((r) => r.data || []);
+        allBudgetRows = budgetRowsFromBatches;
+        attachmentCountByLead = attachmentCountsFromBatches;
+
+        const failedAssignee = assigneesResults.find((r) => r.error);
+        if (failedAssignee?.error) {
+          const err = failedAssignee.error as { message?: string; code?: string; name?: string };
+          const msg = String(err.message || "");
+          if (
+            msg.includes("does not exist") ||
+            err.code === "42P01" ||
+            err.code === "PGRST205"
+          ) {
+            console.warn("⚠️ Tabela lead_assignees indisponível, ignorando responsáveis múltiplos.");
+            allLeadAssigneeRows = [];
+          } else if (isTransientSupabaseError(failedAssignee.error)) {
+            console.warn(
+              "⚠️ lead_assignees: falha de rede/gateway. Funil carregado; responsáveis podem estar incompletos."
+            );
+          } else {
+            throw failedAssignee.error;
           }
-          const profileRes = await mapBatchesWithConcurrency(
-            profileChunks,
-            BATCH_PARALLEL,
-            (ids) => supabase.from("profiles").select("id, full_name, email").in("id", ids),
-          );
-          const profErr = profileRes.find((r) => r.error)?.error;
-          if (profErr) {
-            console.warn("⚠️ Perfis (responsáveis):", profErr.message || profErr);
-          }
-          for (const pr of profileRes) {
-            for (const p of pr.data || []) {
-              profileById.set(p.id, {
-                full_name: p.full_name,
-                email: p.email,
-              });
-            }
-          }
-        } catch (e) {
-          console.warn("⚠️ Falha ao carregar perfis para responsáveis:", e);
         }
-        for (const row of allLeadAssigneeRows) {
-          const p = profileById.get(row.user_id);
-          row.profiles = p
-            ? { full_name: p.full_name, email: p.email ?? "" }
-            : null;
+
+        if (allLeadAssigneeRows.length > 0) {
+          const userIds = [
+            ...new Set(
+              allLeadAssigneeRows
+                .map((r: { user_id?: string }) => r.user_id)
+                .filter((id): id is string => Boolean(id))
+            ),
+          ];
+          const profileById = new Map<
+            string,
+            { full_name?: string | null; email?: string | null }
+          >();
+          const PROFILE_IN_CHUNK = 12;
+          try {
+            const profileChunks: string[][] = [];
+            for (let i = 0; i < userIds.length; i += PROFILE_IN_CHUNK) {
+              profileChunks.push(userIds.slice(i, i + PROFILE_IN_CHUNK));
+            }
+            const profileRes = await mapBatchesWithConcurrency(
+              profileChunks,
+              BATCH_PARALLEL,
+              (ids) => supabase.from("profiles").select("id, full_name, email").in("id", ids),
+            );
+            const profErr = profileRes.find((r) => r.error)?.error;
+            if (profErr) {
+              console.warn("⚠️ Perfis (responsáveis):", profErr.message || profErr);
+            }
+            for (const pr of profileRes) {
+              for (const p of pr.data || []) {
+                profileById.set(p.id, {
+                  full_name: p.full_name,
+                  email: p.email,
+                });
+              }
+            }
+          } catch (e) {
+            console.warn("⚠️ Falha ao carregar perfis para responsáveis:", e);
+          }
+          for (const row of allLeadAssigneeRows) {
+            const p = profileById.get(row.user_id);
+            row.profiles = p
+              ? { full_name: p.full_name, email: p.email ?? "" }
+              : null;
+          }
         }
       }
 
@@ -600,8 +676,7 @@ export function useLeads() {
         });
       };
 
-      const PRIORITY_LEADS_COUNT = 80;
-      const priorityLeads = leadsWithActivities.slice(0, PRIORITY_LEADS_COUNT);
+      const priorityLeads = pickPriorityLeadsForEnrichment(leadsWithActivities);
 
       // Atualiza primeiro os leads mais prováveis de aparecer na viewport.
       setLeads((prev) => mergeLeadsPreservingRecentNotes(prev, priorityLeads));

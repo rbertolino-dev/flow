@@ -47,6 +47,7 @@
     "test:e2e:funnel-perf:deployed": "playwright test tests/e2e/funnel-tab-switch.perf.spec.ts tests/e2e/funnel-perf-diagnosis.unit.spec.ts --config=playwright.deployed.config.ts",
     "test:e2e:funnel-perf:secure": "playwright test tests/e2e/funnel-tab-switch.perf.spec.ts tests/e2e/funnel-perf-diagnosis.unit.spec.ts --config=playwright.deployed.config.ts",
     "test:e2e:funnel-perf:multirun": "chmod +x scripts/run-funnel-perf-multirun.sh && ./scripts/run-funnel-perf-multirun.sh",
+    "test:funnel-perf-gate": "chmod +x scripts/run-funnel-perf-gate.sh && ./scripts/run-funnel-perf-gate.sh",
     "test:e2e:funnel-outage": "playwright test tests/e2e/funnel-network-outage.perf.spec.ts --config=playwright.deployed.config.ts",
     "test:e2e:funnel-validation": "playwright test tests/e2e/funnel-diagnosis-validation.perf.spec.ts --config=playwright.deployed.config.ts",
     "test:unit:funnel-validation": "playwright test tests/e2e/funnel-diagnosis-validation.unit.spec.ts --config=playwright.deployed.config.ts --project=chromium-unit",

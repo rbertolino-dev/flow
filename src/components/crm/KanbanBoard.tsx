@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- handlers DnD e integrações legadas */
 import { useState, useRef, useMemo, useEffect, useCallback, useDeferredValue, memo, type RefObject, type ReactNode } from "react";
 import type { LeadOrgTagsPickerApi } from "./leadTagPickerTypes";
 import { Lead, LeadStatus, CallQueueItem } from "@/types/lead";
@@ -175,7 +176,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
   );
 
   // ✅ OTIMIZAÇÃO: Memoizar filtros para evitar recálculos desnecessários
-  const filteredLeads = useMemo(() => {
+  const filteredLeadsRaw = useMemo(() => {
     return leads.filter(lead => {
       // Filtro de busca
       if (deferredSearchQuery) {
@@ -244,6 +245,8 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
       return true;
     });
   }, [leads, deferredSearchQuery, filterInstance, filterCreatedDateStart, filterCreatedDateEnd, filterReturnDateStart, filterReturnDateEnd, filterInCallQueue, leadsInCallQueue, filterTags]);
+
+  const filteredLeads = useDeferredValue(filteredLeadsRaw);
 
   // Map de etapas válidas (apenas da organização atual)
   const stageIdSet = useMemo(() => new Set(stages.map(s => s.id)), [stages]);
@@ -910,6 +913,7 @@ export function KanbanBoard({ leads, onLeadUpdate, searchQuery = "", onRefetch, 
                   leadsInCallQueue={leadsInCallQueue}
                   horizontalInView={horizontalInView}
                   panelActive={panelActive}
+                  draggingLeadId={activeId}
                   onDeleteLead={async (leadId) => {
                     await supabase
                       .from('leads')

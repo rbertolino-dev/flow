@@ -1,4 +1,8 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  registerFunnelColumnVisibleLeads,
+  unregisterFunnelColumnVisibleLeads,
+} from "@/utils/funnelVisibleLeadsRegistry";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -40,6 +44,8 @@ interface KanbanColumnProps {
   horizontalInView?: boolean;
   /** false quando funil oculto (lista/calendário) — desmonta cards. */
   panelActive?: boolean;
+  /** ID do card em drag — incluído no SortableContext mesmo fora da janela virtual. */
+  draggingLeadId?: string | null;
 }
 
 export const KanbanColumn = memo(function KanbanColumn({
@@ -64,6 +70,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   leadsInCallQueue,
   horizontalInView = true,
   panelActive = true,
+  draggingLeadId = null,
 }: KanbanColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -133,7 +140,45 @@ export const KanbanColumn = memo(function KanbanColumn({
 
   const totalValue = leads.reduce((sum, lead) => sum + (lead.value || 0), 0);
   const totalLeads = leads.length;
-  const sortableIds = leads.map((lead) => lead.id);
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const syncVisibleLeads = useCallback(() => {
+    if (!mountCards) {
+      unregisterFunnelColumnVisibleLeads(stage.id);
+      return;
+    }
+    const ids = rowVirtualizer
+      .getVirtualItems()
+      .map((vi) => leads[vi.index]?.id)
+      .filter((id): id is string => Boolean(id));
+    registerFunnelColumnVisibleLeads(stage.id, ids);
+  }, [mountCards, stage.id, leads, rowVirtualizer]);
+
+  useEffect(() => {
+    syncVisibleLeads();
+    return () => unregisterFunnelColumnVisibleLeads(stage.id);
+  }, [syncVisibleLeads, stage.id]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !mountCards) return;
+    const onScroll = () => syncVisibleLeads();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [mountCards, syncVisibleLeads]);
+
+  const sortableIds = useMemo(() => {
+    if (!mountCards) return leads.map((lead) => lead.id);
+    const ids = new Set<string>();
+    for (const vi of virtualItems) {
+      const id = leads[vi.index]?.id;
+      if (id) ids.add(id);
+    }
+    if (draggingLeadId) ids.add(draggingLeadId);
+    if (ids.size === 0) return leads.map((lead) => lead.id);
+    return Array.from(ids);
+  }, [mountCards, virtualItems, leads, draggingLeadId]);
 
   const allSelected = leads.length > 0 && leads.every((lead) => selectedLeadIds?.has(lead.id));
 
