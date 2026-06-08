@@ -21,7 +21,7 @@ import { useTags } from "@/hooks/useTags";
 import { CreateTagDialog } from "@/components/shared/CreateTagDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useCallQueue } from "@/hooks/useCallQueue";
+import { addLeadToCallQueueItem } from "@/hooks/useCallQueue";
 import { useLeads } from "@/hooks/useLeads";
 import { useEvolutionConfigs } from "@/hooks/useEvolutionConfigs";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
@@ -86,7 +86,7 @@ const activityColors = {
 
 export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMessage = false, onOpenScheduleModule }: LeadDetailModalProps) {
   const { tags, addTagToLead, removeTagFromLead, refetch: refetchTags } = useTags();
-  const { addToQueue, refetch: refetchCallQueue } = useCallQueue();
+  const { activeOrgId } = useActiveOrganization();
   const { deleteLead, updateLeadStatus } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
   const { stages: pipelineStages, loading: pipelineStagesLoading } = usePipelineStages();
@@ -118,7 +118,6 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const [createTagDialogOpen, setCreateTagDialogOpen] = useState(false);
   const [isMovingStage, setIsMovingStage] = useState(false);
   const [isSavingComment, setIsSavingComment] = useState(false);
-  const { activeOrgId } = useActiveOrganization();
 
   // Estados para edição de informações do lead
   const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -569,24 +568,31 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
       ? `Primeira mensagem: "${firstMessage.content.substring(0, 100)}${firstMessage.content.length > 100 ? '...' : ''}"`
       : undefined;
 
-    const success = await addToQueue({
-      leadId: lead.id,
-      leadName: lead.name,
-      phone: lead.phone,
-      priority: 'medium',
-      notes,
-      callCount: 0,
-    });
+    const result = await addLeadToCallQueueItem(
+      {
+        leadId: lead.id,
+        leadName: lead.name,
+        phone: lead.phone,
+        priority: "medium",
+        notes,
+        callCount: 0,
+      },
+      activeOrgId
+    );
 
-    if (success) {
-      // Forçar atualização imediata da fila
-      await refetchCallQueue();
-      
+    if (result.success) {
       toast({
         title: "Adicionado à fila",
         description: "O lead foi adicionado à fila de ligações.",
       });
+      return;
     }
+
+    toast({
+      title: result.code === "duplicate" ? "Lead já está na fila" : "Erro ao adicionar à fila",
+      description: result.message,
+      variant: result.code === "duplicate" ? "default" : "destructive",
+    });
   };
 
   const handleAddComment = async () => {
