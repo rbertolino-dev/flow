@@ -293,25 +293,10 @@ serve(async (req) => {
         }
 
         // Só tratar como "desligada" quando is_connected === false (null = desconhecido → tentar enviar)
-        // BUG antigo: !config.is_connected era true para null e bloqueava/enviava para fallback errado.
-        if (config && config.is_connected === false && message.organization_id) {
-          console.warn(`⚠️ [process-scheduled-messages] Instância ${config.instance_name} marcada desconectada, tentando fallback...`);
-          
-          const { data: fallbackConfig } = await supabase
-            .from('evolution_config')
-            .select('api_url, api_key, instance_name, is_connected, organization_id')
-            .eq('organization_id', message.organization_id)
-            .eq('is_connected', true)
-            .neq('id', message.instance_id)
-            .limit(1)
-            .maybeSingle();
-
-          if (fallbackConfig) {
-            console.log(`✅ [process-scheduled-messages] Usando instância fallback: ${fallbackConfig.instance_name}`);
-            config = fallbackConfig;
-          } else {
-            throw new Error('Instância não está conectada e nenhuma instância alternativa disponível');
-          }
+        if (config && config.is_connected === false) {
+          throw new Error(
+            `Instância "${config.instance_name}" desconectada — envio cancelado (fallback para outro chip desabilitado)`,
+          );
         }
 
         if (!config) {

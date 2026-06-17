@@ -3,9 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { classifyBroadcastError } from "../_shared/broadcast-error-classify.ts";
 import { isInstanceReadyToSend } from "../_shared/evolution-fetch-instances.ts";
 
-const MAX_SEND_ATTEMPTS = 4;
-const FAILOVER_DELAY_MS = 45_000;
-
 function isConnectionClosedMessage(text: string): boolean {
   const lower = text.toLowerCase();
   return lower.includes("connection closed") || lower.includes("precondition required");
@@ -191,83 +188,6 @@ serve(async (req) => {
         .eq("id", instanceId);
     };
 
-    const resolveFailoverInstance = async (
-      item: {
-        instance_id: string;
-        organization_id: string;
-        send_attempts?: number | null;
-      },
-      campaign: {
-        sending_method?: string | null;
-        instance_id?: string | null;
-        instance_ids?: string[] | null;
-      },
-      currentInstanceId: string,
-    ): Promise<{
-      id: string;
-      instance_name: string;
-      api_url: string;
-      api_key: string;
-    } | null> => {
-      if (campaign.sending_method === "separate") return null;
-      const attempts = item.send_attempts ?? 0;
-      if (attempts >= MAX_SEND_ATTEMPTS) return null;
-
-      const poolIds = (
-        (campaign.instance_ids?.length ? campaign.instance_ids : null) ??
-        (campaign.instance_id ? [campaign.instance_id] : [])
-      ).filter((id) => id && id !== currentInstanceId);
-
-      if (poolIds.length === 0) return null;
-
-      const { data: pool } = await supabase
-        .from("evolution_config")
-        .select("id, instance_name, api_url, api_key")
-        .eq("organization_id", item.organization_id)
-        .in("id", poolIds);
-
-      for (const cfg of pool ?? []) {
-        const ready = await isInstanceReadyToSend(
-          String(cfg.api_url),
-          String(cfg.api_key),
-          String(cfg.instance_name),
-        );
-        if (ready.ready) {
-          return cfg as {
-            id: string;
-            instance_name: string;
-            api_url: string;
-            api_key: string;
-          };
-        }
-      }
-      return null;
-    };
-
-    const rescheduleWithFailover = async (
-      itemId: string,
-      fromInstance: { id: string; instance_name: string },
-      toInstance: { id: string; instance_name: string },
-      attempts: number,
-      reason: string,
-    ): Promise<boolean> => {
-      const { data: updated } = await supabase
-        .from("broadcast_queue_2")
-        .update({
-          instance_id: toInstance.id,
-          attempted_instance_id: fromInstance.id,
-          send_attempts: attempts + 1,
-          last_attempt_at: new Date().toISOString(),
-          scheduled_for: new Date(Date.now() + FAILOVER_DELAY_MS).toISOString(),
-          error_message: `${reason} → reagendado via ${toInstance.instance_name}`,
-        })
-        .eq("id", itemId)
-        .eq("status", "scheduled")
-        .select("id");
-
-      return (updated?.length ?? 0) > 0;
-    };
-
     // Função auxiliar para obter ou criar métricas de uma instância
     const getOrCreateMetrics = (instanceId: string): InstanceMetrics => {
       if (!metricsMap.has(instanceId)) {
@@ -400,28 +320,8 @@ serve(async (req) => {
             `⚠️ ${instance.instance_name} não pronta para envio (${readyCheck.source}: ${readyCheck.detail ?? "offline"})`,
           );
           await markInstanceDisconnected(instance.id);
-          const failoverCfg = await resolveFailoverInstance(
-            item,
-            campaign,
-            instance.id,
-          );
-          if (failoverCfg) {
-            const ok = await rescheduleWithFailover(
-              item.id,
-              instance,
-              failoverCfg,
-              item.send_attempts ?? 0,
-              `Chip ${instance.instance_name} offline no painel Evolution`,
-            );
-            if (ok) {
-              console.log(
-                `🔁 Item ${item.id} reagendado para ${failoverCfg.instance_name}`,
-              );
-              continue;
-            }
-          }
           throw new Error(
-            `Instância "${instance.instance_name}" desconectada na Evolution (connectionState direto). Conecte o chip em api.ordemservico.com antes do disparo.`,
+            `Instância "${instance.instance_name}" desconectada na Evolution (connectionState direto). Conecte o chip antes do disparo — failover para outro chip desabilitado.`,
           );
         }
 
@@ -470,26 +370,6 @@ serve(async (req) => {
 
           if (isConnectionClosedMessage(errorText)) {
             await markInstanceDisconnected(instance.id);
-            const failoverCfg = await resolveFailoverInstance(
-              item,
-              campaign,
-              instance.id,
-            );
-            if (failoverCfg) {
-              const ok = await rescheduleWithFailover(
-                item.id,
-                instance,
-                failoverCfg,
-                item.send_attempts ?? 0,
-                `Connection Closed em ${instance.instance_name}`,
-              );
-              if (ok) {
-                console.log(
-                  `🔁 Connection Closed: item ${item.id} → ${failoverCfg.instance_name}`,
-                );
-                continue;
-              }
-            }
           }
 
           throw new Error(`Evolution API error: ${errorText}`);
