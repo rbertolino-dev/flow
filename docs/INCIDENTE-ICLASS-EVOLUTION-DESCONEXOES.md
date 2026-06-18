@@ -299,7 +299,18 @@ Alteração aplicada após este diagnóstico: o `process-broadcast-queue-2` pass
 
 Backup do yaml: `/root/evolution-hardening-backups/`. O `stack deploy` reinicia o container Evolution (~1–2 min de indisponibilidade); chips com sessão válida reconectam em background; chips já `close` ou com sessão expirada exigem novo QR. **Upgrade para v2.4.x não aplicado** — exige licença Evolution Foundation (`503 LICENSE_REQUIRED`).
 
+### ⚠️ Incidente pós-hardening: preso em `connecting` (resolvido)
+
+| Fase | Sintoma | Causa raiz |
+|------|---------|------------|
+| Após hardening (~35 min) | 0 `open`, 37 `connecting`, `/instance/connect` retornava QR mesmo com `Session` no Postgres | `CACHE_REDIS_SAVE_INSTANCES=true` persistiu hashes Baileys no Redis (`evolution:instance:*`, tipo `hash`) incompatíveis com reload do Postgres após restart |
+| Após recovery | **14 `open`** em ~60s | `CACHE_REDIS_SAVE_INSTANCES=false` + flush das 75 chaves `evolution:instance:*` + phone version do backup |
+
+**Lição:** não reativar `CACHE_REDIS_SAVE_INSTANCES=true` em produção sem teste em ambiente isolado e flush prévio do Redis db 8. Script de recovery: `scripts/evolution-recovery-stuck-connecting.sh`.
+
 **Registro completo + procedimento de rollback:** `docs/INCIDENTE-EVOLUTION-HARDENING-ROLLBACK.md` e `scripts/evolution-hardening-rollback.sh`.
+
+**Atualização 18/06/2026 ~19:47 UTC — Recovery aplicado:** instâncias presas em `connecting` por ~35 min após hardening. Causa: `CACHE_REDIS_SAVE_INSTANCES=true` deixou hashes Redis (`evolution:instance:*`) inconsistentes com sessões Postgres no restart. **Correção:** `scripts/evolution-recovery-stuck-connecting.sh` — reverteu `CACHE_REDIS_SAVE_INSTANCES=false`, `CONFIG_SESSION_PHONE_VERSION=2.3000.1019673114`, limpou 75 chaves Redis instance, `stack deploy`. Resultado: **14 open** no Postgres (nível pré-hardening). Chatwoot URI corrigida **mantida**.
 
 ### 6. Processo operacional mais seguro
 

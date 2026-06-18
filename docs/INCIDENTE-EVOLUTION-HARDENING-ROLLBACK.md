@@ -21,9 +21,9 @@ Documento para **análise de impacto** e **rollback controlado** das alteraçõe
 |-----------------|-----------|------------|--------|
 | `image` (yaml) | `atendai/evolution-api:latest` | `evoapicloud/evolution-api:v2.3.7` | Evitar pull acidental de imagem diferente; manter versão estável sem licença 2.4+ |
 | Imagem em execução | Já era `evoapicloud/evolution-api:v2.3.7` | Mesma (`sha256:1bd8afc4…`) | **Sem upgrade de binário** — só fixou o yaml |
-| `CACHE_REDIS_SAVE_INSTANCES` | `false` | `true` | Persistir metadados de instância no Redis (sobrevive restart mais robusto) |
+| `CACHE_REDIS_SAVE_INSTANCES` | `false` | `true` → **revertido `false`** após incidente | Ver seção incidente `connecting` abaixo |
 | `CHATWOOT_IMPORT_DATABASE_CONNECTION_URI` | `@pgvector:5432/chatwoot` | `@postgres:5432/chatwoot_nestor` | Host `pgvector` não existe no Swarm → erros `ENOTFOUND` |
-| `CONFIG_SESSION_PHONE_VERSION` | `2.3000.1019673114` | `2.3000.1025099606` | Sincronizado com valor já rodando no serviço antes do deploy |
+| `CONFIG_SESSION_PHONE_VERSION` | `2.3000.1019673114` | `2.3000.1025099606` → **revertido** `2.3000.1019673114` | Sincronizado no hardening; revertido no recovery |
 | `DATABASE_SAVE_DATA_INSTANCE` | `true` (inalterado) | `true` | Sessões Baileys continuam no Postgres |
 | `CACHE_REDIS_ENABLED` | `true` (inalterado) | `true` | Redis cache ativo |
 
@@ -215,4 +215,36 @@ docker inspect --format='{{.LogPath}}' $(docker ps --filter name=evolution_evolu
 
 ---
 
-*Última atualização: 2026-06-18 — gerado após hardening em produção.*
+## 9. Incidente: preso em `connecting` após hardening (18/06/2026)
+
+### Sintoma
+- 30+ minutos com **0 `open`**, 37 `connecting`, 219 eventos QR nos logs
+- `Session` existia no Postgres (creds ~3 KB) mas `GET /instance/connect/{nome}` retornava QR
+- **0 eventos `state: open`** no log do container desde o hardening
+
+### Causa raiz
+`CACHE_REDIS_SAVE_INSTANCES=true` gravou estado Baileys em Redis como **hash** (`evolution:instance:{uuid}` com pre-keys, device-list, etc.). Após `stack deploy`, esse cache **conflitou** com as sessões em Postgres — Evolution ficou em loop `connecting` sem nunca atingir `open`.
+
+### Correção aplicada (`scripts/evolution-recovery-stuck-connecting.sh`)
+1. `CACHE_REDIS_SAVE_INSTANCES=false`
+2. `CONFIG_SESSION_PHONE_VERSION=2.3000.1019673114` (backup)
+3. `DEL` de todas as chaves `evolution:instance:*` no Redis db 8 (75 chaves)
+4. `stack deploy`
+5. Em **~60s**: **14 `open`** (Postgres), IClass API **12 `open`**
+
+### Estado final recomendado (produção)
+| Item | Valor |
+|------|-------|
+| `CACHE_REDIS_SAVE_INSTANCES` | **`false`** (não reativar sem teste) |
+| `CHATWOOT_IMPORT_DATABASE_CONNECTION_URI` | `@postgres:5432/chatwoot_nestor` (**manter**) |
+| `image` | `evoapicloud/evolution-api:v2.3.7` (**manter**) |
+| `CONFIG_SESSION_PHONE_VERSION` | `2.3000.1019673114` |
+
+### Se voltar a travar em `connecting`
+```bash
+ssh root@62.72.8.186 '/root/evolution-recovery-stuck-connecting.sh'
+```
+
+---
+
+*Última atualização: 2026-06-18 19:47 UTC — recovery aplicado, 14 open restaurados.*

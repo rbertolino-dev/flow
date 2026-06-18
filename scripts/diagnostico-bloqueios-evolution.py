@@ -518,7 +518,7 @@ def main() -> int:
         print("     (Aparelhos conectados) e reconectar via QR só os necessários.")
     print("  2. Rampa na 1ª onda: máx. 1 envio/chip nos primeiros 10–15 min.")
     print("  3. Pausar campanha se 3+ chips caírem em poucos minutos (disjuntor).")
-    print("  4. Manter CACHE_REDIS_SAVE_INSTANCES=true no servidor Evolution (hardening aplicado).")
+    print("  4. Manter CACHE_REDIS_SAVE_INSTANCES=false no Evolution (true causou loop connecting em 18/06).")
     print("  5. Evitar reconectar chips em massa no mesmo dia de campanha grande.")
     print("=" * 78)
     return 0

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Hardening cauteloso da Evolution API no servidor (Docker Swarm).
 # - Backup do evolution.yaml
-# - CACHE_REDIS_SAVE_INSTANCES=true
+# - CACHE_REDIS_SAVE_INSTANCES: NÃO ativar (ver recovery 18/06/2026)
 # - Corrige CHATWOOT_IMPORT_DATABASE_CONNECTION_URI (pgvector -> postgres/chatwoot_nestor)
 # - Fixa imagem em evoapicloud/evolution-api:v2.3.7 (sem upgrade para 2.4+)
 # - Verificações antes/depois
@@ -76,12 +76,12 @@ text = re.sub(
     count=1,
 )
 
-# 2) Redis persistência de instâncias
-text = re.sub(
-    r"CACHE_REDIS_SAVE_INSTANCES=false",
-    "CACHE_REDIS_SAVE_INSTANCES=true",
-    text,
-)
+# 2) Redis persistência de instâncias — DESABILITADO: true causou loop connecting em produção (18/06/2026)
+# text = re.sub(
+#     r"CACHE_REDIS_SAVE_INSTANCES=false",
+#     "CACHE_REDIS_SAVE_INSTANCES=true",
+#     text,
+# )
 
 # 3) Corrigir URI Chatwoot import a partir da URI principal do Postgres Evolution
 m = re.search(r"DATABASE_CONNECTION_URI=postgresql://postgres:([^@]+)@postgres:5432/evolution", text)
