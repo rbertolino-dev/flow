@@ -47,7 +47,7 @@ export default defineConfig({
     },
     {
       name: "chromium-unit",
-      testMatch: /funnel-(perf-diagnosis|diagnosis-validation)\.unit\.spec\.ts/,
+      testMatch: /(funnel-(perf-diagnosis|diagnosis-validation)|broadcast-rotate-stagger)\.unit\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
   ],

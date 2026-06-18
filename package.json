@@ -31,6 +31,8 @@
     "report:servidor-vs-campanha:iclass": "python3 scripts/relatorio-servidor-vs-campanha-iclass.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "report:quedas-iclass:chart": "python3 scripts/relatorio-quedas-iclass-chart.py",
     "test:validacao:rotacao": "node scripts/teste-rotacao-validacao-broadcast.mjs",
+    "test:validacao:rotate-stagger": "playwright test tests/e2e/broadcast-rotate-stagger.unit.spec.ts --project=chromium-unit",
+    "test:validacao:disparador2:seguro": "chmod +x scripts/teste-disparador2-seguro.sh && ./scripts/teste-disparador2-seguro.sh",
     "test:validacao:iclass": "python3 scripts/teste-validacao-disparador2-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b --open-limit 3 --delay 1.2",
     "test:validacao:disparador2": "npm run test:validacao:rotacao && npm run test:validacao:iclass",
     "test:validacao:edge-iclass": "python3 scripts/teste-validacao-edge-iclass.py",

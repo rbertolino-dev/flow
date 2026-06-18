@@ -99,6 +99,11 @@ export default defineConfig({
       name: 'Mobile Safari',
       use: { ...devices['iPhone 12'] },
     },
+    {
+      name: 'chromium-unit',
+      testMatch: /\.unit\.spec\.ts$/,
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   
   // Servidor web para desenvolvimento

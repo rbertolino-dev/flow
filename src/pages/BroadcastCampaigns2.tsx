@@ -58,6 +58,7 @@ import {
   getNextWindowTime,
   TimeWindow 
 } from "@/lib/broadcastTimeWindow";
+import { computeRotateSchedule } from "@/lib/broadcastRotateSchedule";
 import {
   Dialog,
   DialogContent,
@@ -2176,9 +2177,6 @@ export default function BroadcastCampaigns2() {
       let updates: Promise<any>[] = [];
       
       if (isRotate) {
-        // ROTATE: cada instância respeita seu próprio intervalo entre envios.
-        // 1ª mensagem de cada chip: escalonada (+N s por posição no pool) para não disparar todos no mesmo segundo.
-        const ROTATE_FIRST_SEND_STAGGER_SECONDS = 5;
         const minDelaySec = Math.max(1, Math.floor(Number(campaign.min_delay_seconds) || 1));
         const maxDelaySec = Math.max(minDelaySec, Math.floor(Number(campaign.max_delay_seconds) || minDelaySec));
         const randomDelaySec = () =>
@@ -2186,26 +2184,22 @@ export default function BroadcastCampaigns2() {
             ? minDelaySec
             : Math.floor(Math.random() * (maxDelaySec - minDelaySec + 1)) + minDelaySec;
 
-        const poolOrder: string[] = Array.isArray(campaign.instance_ids) && campaign.instance_ids.length > 0
-          ? [...campaign.instance_ids]
-          : Array.from(uniqueInstances).sort();
-        const staggerIndexByInstance = new Map(poolOrder.map((id, idx) => [id, idx]));
+        const rotateScheduled = computeRotateSchedule({
+          queueItems: queueItems.map((item) => ({
+            id: item.id,
+            instance_id: item.instance_id,
+          })),
+          instanceIds: campaign.instance_ids,
+          minDelaySeconds: minDelaySec,
+          maxDelaySeconds: maxDelaySec,
+          now,
+          randomDelaySec,
+        });
 
-        const nextAvailablePerInstance = new Map<string, Date>();
         const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
 
-        // queueItems já vem ordenado por created_at no rotate; manter essa ordem preserva o rodízio.
-        for (const item of queueItems) {
-          const lastScheduledForInstance = nextAvailablePerInstance.get(item.instance_id);
-          let scheduledTime: Date;
-          if (lastScheduledForInstance) {
-            scheduledTime = new Date(lastScheduledForInstance);
-          } else {
-            const staggerIdx = staggerIndexByInstance.get(item.instance_id) ?? 0;
-            scheduledTime = new Date(
-              now.getTime() + staggerIdx * ROTATE_FIRST_SEND_STAGGER_SECONDS * 1000,
-            );
-          }
+        for (const row of rotateScheduled) {
+          let scheduledTime = new Date(row.scheduled_for);
 
           if (activeTimeWindow && action !== "exception" && !isTimeInWindow(activeTimeWindow, scheduledTime)) {
             const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
@@ -2214,11 +2208,8 @@ export default function BroadcastCampaigns2() {
             }
           }
 
-          const delayForNextSendMs = randomDelaySec() * 1000;
-          nextAvailablePerInstance.set(item.instance_id, new Date(scheduledTime.getTime() + delayForNextSendMs));
-
           batchUpdates.push({
-            id: item.id,
+            id: row.id,
             scheduled_for: scheduledTime.toISOString(),
             ...(action === "exception" && { error_message: "Enviado com exceção à janela de horário" }),
           });
