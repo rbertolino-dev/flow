@@ -287,6 +287,18 @@ Alteração aplicada após este diagnóstico: o `process-broadcast-queue-2` pass
 5. Corrigir o ruído `ENOTFOUND pgvector` da integração Chatwoot para reduzir erro operacional, mesmo não sendo a causa confirmada.
 6. Testar upgrade controlado da Evolution fora de produção se houver loops de sessão/decriptação em `v2.3.7`; issues públicas indicam relatos de problemas nessa versão durante janelas de reconexão.
 
+**Hardening aplicado em 18/06/2026** (`scripts/evolution-hardening-deploy.sh` no servidor `62.72.8.186`):
+
+| Item | Antes | Depois |
+|------|-------|--------|
+| `CACHE_REDIS_SAVE_INSTANCES` | `false` | `true` |
+| `CHATWOOT_IMPORT_DATABASE_CONNECTION_URI` | `@pgvector:5432/chatwoot` (host inexistente) | `@postgres:5432/chatwoot_nestor` |
+| Imagem Evolution | `atendai/evolution-api:latest` no yaml | `evoapicloud/evolution-api:v2.3.7` (fixada) |
+| Ruído `ENOTFOUND pgvector` | presente nos logs | **0** nos logs pós-deploy |
+| Chaves Redis `evolution:instance:*` | ~270 (sem persistência de instância) | ~75 com TTL `-1` (persistente) |
+
+Backup do yaml: `/root/evolution-hardening-backups/`. O `stack deploy` reinicia o container Evolution (~1–2 min de indisponibilidade); chips com sessão válida reconectam em background; chips já `close` ou com sessão expirada exigem novo QR. **Upgrade para v2.4.x não aplicado** — exige licença Evolution Foundation (`503 LICENSE_REQUIRED`).
+
 ### 6. Processo operacional mais seguro
 
 1. Separar chips por maturidade: novos, estáveis, instáveis, quarentena.
@@ -302,7 +314,7 @@ Alteração aplicada após este diagnóstico: o `process-broadcast-queue-2` pass
 1. **`evolution_logs`** no dia 17/06: 977 eventos, todos `messages.upsert` — não grava `connection.update` nessa tabela.
 2. **Tabela `instance_connection_events`**: histórico confiável de transições `disconnect`/`reconnect` (trigger em `evolution_config.is_connected`).
 3. **Delay 1200–1600 s** na campanha vs **50+ envios/chip** no dia: volume real maior que o delay nominal sugere — investigar se failover + fila pré-atribuída explicam; após desligar failover, validar em nova campanha.
-4. **Erro `pgvector` ENOTFOUND** nos logs Evolution — integração Chatwoot; corrigir DNS/serviço se necessário (não causou o incidente de desconexão em massa).
+4. **Erro `pgvector` ENOTFOUND** nos logs Evolution — **corrigido** em 18/06/2026 (URI Chatwoot apontava para host inexistente).
 5. **Frontend**: health check desabilitado com `configs.length > 15` para evitar flips no DB em orgs grandes.
 
 ---
