@@ -299,6 +299,8 @@ Alteração aplicada após este diagnóstico: o `process-broadcast-queue-2` pass
 
 Backup do yaml: `/root/evolution-hardening-backups/`. O `stack deploy` reinicia o container Evolution (~1–2 min de indisponibilidade); chips com sessão válida reconectam em background; chips já `close` ou com sessão expirada exigem novo QR. **Upgrade para v2.4.x não aplicado** — exige licença Evolution Foundation (`503 LICENSE_REQUIRED`).
 
+**Registro completo + procedimento de rollback:** `docs/INCIDENTE-EVOLUTION-HARDENING-ROLLBACK.md` e `scripts/evolution-hardening-rollback.sh`.
+
 ### 6. Processo operacional mais seguro
 
 1. Separar chips por maturidade: novos, estáveis, instáveis, quarentena.
