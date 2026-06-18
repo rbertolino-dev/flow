@@ -35,6 +35,7 @@ test-results/funnel-perf/baseline.json
 scripts/.ssh-credentials
 scripts/.github-credentials
 scripts/.e2e-credentials
+scripts/.evolution-ssh-credentials
 scripts/verificar-deploy-process-broadcast-queue.sql
 
 # Scripts de diagnóstico temporários

@@ -307,6 +307,24 @@ Alteração aplicada após este diagnóstico: o `process-broadcast-queue-2` pass
 
 ---
 
+## Diagnóstico de bloqueios (script robusto)
+
+`scripts/diagnostico-bloqueios-evolution.py` — read-only. Cruza, por data, os **logs reais do servidor Evolution** (lidos via SSH direto no `json.log` do container, porque `docker logs` trava nesse host) com o **CRM/Supabase** (`instance_connection_events`, `broadcast_campaigns_2`, `broadcast_queue_2`, `evolution_config`).
+
+Classifica cada chip pelo **motivo Baileys** (`DisconnectReason`): `device_removed` (conflict → WhatsApp removeu o dispositivo vinculado), `401 loggedOut`, `403 forbidden`, `428 connectionClosed`, `440 connectionReplaced`, etc., e dá veredito + recomendações.
+
+```bash
+python3 scripts/diagnostico-bloqueios-evolution.py --date 2026-06-18
+python3 scripts/diagnostico-bloqueios-evolution.py --date 2026-06-18 --json --save
+python3 scripts/diagnostico-bloqueios-evolution.py --date 2026-06-18 --no-evolution   # só DB
+```
+
+Pré-requisito: `scripts/.evolution-ssh-credentials` (gitignored) com `EVOLUTION_SSH_HOST`, `EVOLUTION_SSH_USER`, `EVOLUTION_SSH_PASSWORD`, `EVOLUTION_CONTAINER`. **Servidor Evolution é `62.72.8.186`** (≠ CRM `95.217.2.116`).
+
+**Achado confirmado (18/06/2026):** logs registram **`conflict` com `type: device_removed`** no pico da campanha (12:11–12:13 BRT) — o WhatsApp **remove o dispositivo vinculado** (sessão Evolution/Baileys), por isso o celular continua logado mas a instância cai. Motivos predominantes: `401 loggedOut` e `403 forbidden`. Não é falso status do CRM; o webhook apenas espelha o `close` enviado pela Evolution.
+
+---
+
 ## Como usar este doc em um novo chat
 
 Sugestão de prompt:
@@ -315,4 +333,4 @@ Sugestão de prompt:
 
 ---
 
-*Última atualização: investigação e consolidação pós-incidente 17/06/2026 — diagnóstico CRM, Supabase, SSH Evolution e desativação de failover.*
+*Última atualização: 18/06/2026 — diagnóstico de bloqueios via SSH (device_removed/401/403 confirmados nos logs Evolution) + script `diagnostico-bloqueios-evolution.py`.*
