@@ -28,6 +28,7 @@
     "test:e2e:report": "playwright show-report",
     "test:e2e:install": "playwright install",
     "test:oscilacao:iclass": "python3 scripts/teste-oscilacao-status-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
+    "report:servidor-vs-campanha:iclass": "python3 scripts/relatorio-servidor-vs-campanha-iclass.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "test:validacao:rotacao": "node scripts/teste-rotacao-validacao-broadcast.mjs",
     "test:validacao:iclass": "python3 scripts/teste-validacao-disparador2-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b --open-limit 3 --delay 1.2",
     "test:validacao:disparador2": "npm run test:validacao:rotacao && npm run test:validacao:iclass",

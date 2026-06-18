@@ -39,6 +39,7 @@ scripts/verificar-deploy-process-broadcast-queue.sql
 
 # Scripts de diagnóstico temporários
 scripts/*diagnostico*.sql
+!scripts/diagnostico-servidor-vs-campanha-iclass.sql
 scripts/*diagnostico*.sh
 scripts/verificar-*.sql
 scripts/verificar-*.sh
@@ -54,5 +55,6 @@ scripts/ver-logs-*.sh
 # Arquivos de diagnóstico temporários
 *.md
 !extensions/agilize-crm-sidekick/README.md
+!docs/INCIDENTE-*.md
 *.txt
 scripts/diagnosticar-*.sql
