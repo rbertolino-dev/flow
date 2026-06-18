@@ -168,6 +168,7 @@ serve(async (req) => {
     }
     
     const metricsMap = new Map<string, InstanceMetrics>();
+    const TRANSIENT_READY_RETRY_LIMIT = 3;
     const markInstanceDisconnected = async (instanceId: string) => {
       const { data: row } = await supabase
         .from("evolution_config")
@@ -319,9 +320,35 @@ serve(async (req) => {
           console.warn(
             `⚠️ ${instance.instance_name} não pronta para envio (${readyCheck.source}: ${readyCheck.detail ?? "offline"})`,
           );
-          await markInstanceDisconnected(instance.id);
+          if (readyCheck.persistDisconnected) {
+            await markInstanceDisconnected(instance.id);
+            throw new Error(
+              `Instância "${instance.instance_name}" desconectada na Evolution (connectionState direto). Conecte o chip antes do disparo — failover para outro chip desabilitado.`,
+            );
+          }
+
+          const transientAttempt = (item.send_attempts ?? 0) + 1;
+          if (transientAttempt <= TRANSIENT_READY_RETRY_LIMIT) {
+            const retryDelaySeconds = Math.min(900, 120 * transientAttempt);
+            const retryAt = new Date(Date.now() + retryDelaySeconds * 1000).toISOString();
+            await supabase
+              .from("broadcast_queue_2")
+              .update({
+                send_attempts: transientAttempt,
+                last_attempt_at: new Date().toISOString(),
+                scheduled_for: retryAt,
+                error_message: `Estado transitório/inconclusivo na Evolution (${readyCheck.source}: ${readyCheck.detail ?? "transient"}). Nova tentativa agendada.`,
+              })
+              .eq("id", item.id)
+              .eq("status", "scheduled");
+            console.warn(
+              `⏳ ${instance.instance_name} em estado transitório/inconclusivo; item ${item.id} reagendado para ${retryAt}`,
+            );
+            continue;
+          }
+
           throw new Error(
-            `Instância "${instance.instance_name}" desconectada na Evolution (connectionState direto). Conecte o chip antes do disparo — failover para outro chip desabilitado.`,
+            `Instância "${instance.instance_name}" sem confirmação de connectionState=open após ${TRANSIENT_READY_RETRY_LIMIT} tentativas. Envio bloqueado para evitar falso positivo.`,
           );
         }
 

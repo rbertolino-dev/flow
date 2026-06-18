@@ -222,8 +222,8 @@ export async function isInstanceReadyToSend(
   apiUrl: string,
   apiKey: string,
   instanceName: string,
-): Promise<{ ready: boolean; source: string; detail?: string }> {
-  const status = await fetchConnectionStateSingle(apiUrl, apiKey, instanceName, 12000, true);
+): Promise<{ ready: boolean; source: string; detail?: string; persistDisconnected?: boolean }> {
+  const status = await fetchConnectionStateSingle(apiUrl, apiKey, instanceName, 12000, "batchSync");
   if (status.live === true) {
     return { ready: true, source: "connectionState" };
   }
@@ -232,14 +232,17 @@ export async function isInstanceReadyToSend(
       ready: false,
       source: "connectionState",
       detail: status.error ?? "state_not_open",
+      persistDisconnected: true,
     };
   }
-  // connecting/qr/timeout: não tratar como offline nem gravar false no CRM
+  // Fail closed para disparo em massa: estado inconclusivo nao deve enviar.
+  // Nao persiste desconexao para evitar falsos negativos por timeout/transitorio.
   if (status.live === null) {
     return {
-      ready: true,
+      ready: false,
       source: "connectionState_transient",
       detail: status.error ?? "transient",
+      persistDisconnected: false,
     };
   }
   const map = await buildFetchInstancesStatusMap(apiUrl, apiKey, 15000);
@@ -250,12 +253,14 @@ export async function isInstanceReadyToSend(
       ready: false,
       source: "fetchInstances_only",
       detail: "connectionState_indisponivel_lista_open",
+      persistDisconnected: false,
     };
   }
   return {
     ready: false,
     source: status.source,
     detail: status.error ?? "unknown",
+    persistDisconnected: false,
   };
 }
 

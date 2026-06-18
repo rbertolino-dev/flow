@@ -210,6 +210,93 @@ Deploy: edge functions publicadas no Supabase (`process-broadcast-queue-2`, `pro
 
 ---
 
+## Plano cauteloso para instâncias mais estáveis
+
+Não existe garantia técnica de manter sessões Baileys/Evolution conectadas indefinidamente, porque a conexão depende do WhatsApp Web, da reputação do número, da sessão salva e da rede. A estratégia mais segura é reduzir estímulos que pareçam automação agressiva, detectar instâncias frágeis antes do envio e parar cedo quando o padrão de queda aparece.
+
+### 1. Regras de ouro confirmadas por documentação
+
+| Tema | Decisão prática |
+|------|-----------------|
+| Fonte de verdade para disparo | Exigir `GET /instance/connectionState/{nome}` com `state = open`; `fetchInstances` pode ficar defasado |
+| Estados transitórios | `connecting`, timeout ou resposta inconclusiva **não devem enviar** em campanha; também não devem marcar o chip como desconectado sem confirmação |
+| `428 Connection Closed` | Tratar como perda de conexão/sessão; Evolution/Baileys pode tentar reconectar, mas a mensagem atual deve falhar sem failover |
+| `401`, `403`, `406` | Tratar como problema permanente ou sessão inválida; remover do pool até reconectar QR/recriar instância |
+| Webhooks | Manter `CONNECTION_UPDATE` ativo em todas as instâncias para atualizar o CRM em tempo real |
+| Sessão persistida | Conferir no servidor Evolution se `DATABASE_SAVE_DATA_INSTANCE=true` e/ou `CACHE_REDIS_SAVE_INSTANCES=true` estão ativos |
+| Conexão duplicada | Evitar o mesmo número conectado em outro WhatsApp Web/automação; múltiplas conexões do mesmo número podem substituir ou derrubar sessão |
+
+Referências consultadas:
+
+- Evolution API — Connection Management: `https://evolutionapi-evolution-api-90.mintlify.app/whatsapp/connections`
+- Evolution API — Baileys Provider: `https://evolutionapi-evolution-api-90.mintlify.app/whatsapp/baileys`
+- Baileys — Connection Lifecycle: `https://whiskeysockets-baileys-94.mintlify.app/concepts/connection`
+
+### 2. Checklist obrigatório antes de campanha
+
+1. Rodar diagnóstico leve:
+
+```bash
+./scripts/diagnostico-evolution-robusto.py 34086d07-9181-43fc-a3e8-6aa28974d68b --limit 3
+```
+
+2. Sincronizar somente as instâncias do grupo que será usado, não todas as 42.
+3. Remover do pool qualquer instância com `close`, `connecting`, `qr`, `fantasma_lista` ou `fantasma_crm`.
+4. Validar uma amostra pequena de contatos usando apenas chips `open`.
+5. Iniciar campanha com rampa: poucos envios nos primeiros 15–30 minutos antes de liberar o volume completo.
+6. Se houver várias quedas no arranque, pausar a campanha antes de continuar.
+
+### 3. Limites conservadores recomendados
+
+Como a queda aconteceu até com chips que tinham 0 ou 1 envio, o controle não deve olhar só “mensagens por chip no dia”. Precisa haver proteção contra pico, primeira onda e concentração silenciosa.
+
+| Controle | Recomendação inicial |
+|----------|----------------------|
+| Primeira onda da campanha | No máximo 1 envio por instância nos primeiros 10–15 minutos |
+| Taxa por organização | Limitar a poucos envios por minuto, mesmo com muitos chips no pool |
+| Taxa por chip | Começar abaixo de 5 envios/hora por chip e aumentar só após evidência de estabilidade |
+| Teto diário por chip | Manter teto baixo para números novos/frágeis; aumentar por histórico de sucesso, não por urgência |
+| Pausa por erro 428 | Quarentena automática do chip por algumas horas; não realocar mensagens para outro chip |
+| Pausa por rajada | Se 3+ instâncias caírem em poucos minutos, pausar campanha e exigir revisão manual |
+
+Esses números são deliberadamente conservadores. A IClass teve chips caindo com baixa contagem individual, então o melhor ganho vem de rampa + pausa por rajada + remoção preventiva de instâncias frágeis.
+
+### 4. Melhorias de produto a implementar
+
+| Prioridade | Melhoria | Objetivo |
+|------------|----------|----------|
+| Alta | **Fail closed** no disparo quando `connectionState` for timeout/inconclusivo | Evitar enviar em sessão possivelmente instável sem marcar falso offline |
+| Alta | Quarentena por instância após `Connection Closed` | Tirar chip do pool por cooldown configurável |
+| Alta | Disjuntor de campanha por rajada de desconexões | Pausar automaticamente quando o padrão do incidente reaparecer |
+| Média | Score de saúde por chip | Combinar quedas recentes, falhas, tempo desde reconexão e mensagens enviadas |
+| Média | Rampa automática de campanha | Agendar início gradual em vez de liberar 200 itens prontos no primeiro processamento |
+| Média | Painel “pronto para disparo” | Mostrar chips `open`, em quarentena, fantasmas e instáveis antes de iniciar |
+| Baixa | Recomendação de reconexão QR guiada | Gerar lista operacional para reconectar apenas os chips realmente necessários |
+
+Alteração aplicada após este diagnóstico: o `process-broadcast-queue-2` passou a exigir `connectionState=open` para enviar. Estados transitórios/inconclusivos (`connecting`, `qr`, timeout ou resposta indefinida) não são tratados como conectados nem como desconectados definitivos: o envio atual é reagendado com cooldown limitado. Só `close/closed` confirmado marca `is_connected=false` e falha a mensagem sem failover.
+
+### 5. Recomendações para o servidor Evolution
+
+1. Verificar persistência de sessão:
+   - `DATABASE_SAVE_DATA_INSTANCE=true`
+   - `CACHE_REDIS_ENABLED=true`
+   - `CACHE_REDIS_SAVE_INSTANCES=true`
+2. Confirmar que Postgres e Redis não reiniciam nem perdem dados de sessão.
+3. Conferir se só há **1 réplica** ativa da Evolution para Baileys; múltiplas réplicas usando a mesma sessão podem gerar concorrência.
+4. Manter `CONNECTION_UPDATE` e `QRCODE_UPDATED` ativos nos webhooks.
+5. Corrigir o ruído `ENOTFOUND pgvector` da integração Chatwoot para reduzir erro operacional, mesmo não sendo a causa confirmada.
+6. Testar upgrade controlado da Evolution fora de produção se houver loops de sessão/decriptação em `v2.3.7`; issues públicas indicam relatos de problemas nessa versão durante janelas de reconexão.
+
+### 6. Processo operacional mais seguro
+
+1. Separar chips por maturidade: novos, estáveis, instáveis, quarentena.
+2. Não misturar chips recém-reconectados em campanhas grandes no mesmo dia.
+3. Usar mensagens com opt-in, variação legítima e identificação clara da empresa.
+4. Evitar disparos frios para listas sem consentimento; bloqueios/denúncias reduzem reputação e aumentam risco de queda/ban.
+5. Preferir WhatsApp Business Platform oficial para fluxos críticos que exigem estabilidade contratual, templates e limites previsíveis.
+
+---
+
 ## Pontos técnicos para investigações futuras
 
 1. **`evolution_logs`** no dia 17/06: 977 eventos, todos `messages.upsert` — não grava `connection.update` nessa tabela.

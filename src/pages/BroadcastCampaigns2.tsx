@@ -2159,7 +2159,7 @@ export default function BroadcastCampaigns2() {
       const now = new Date();
       
       // Modo "separate": cada instância envia para TODOS os contatos, com filas independentes (paralelas).
-      // Modo "rotate": cooldown por instância; o primeiro envio de cada chip pode sair imediatamente.
+      // Modo "rotate": cooldown por instância; 1º envio de cada chip é escalonado para evitar rajada na Evolution.
       // Modo "single": uma fila sequencial única.
       const uniqueInstances = new Set(queueItems.map(item => item.instance_id));
       const messagesPerInstance = new Map<string, number>();
@@ -2177,7 +2177,8 @@ export default function BroadcastCampaigns2() {
       
       if (isRotate) {
         // ROTATE: cada instância respeita seu próprio intervalo entre envios.
-        // A primeira mensagem de cada instância é liberada imediatamente; depois aplica delay aleatório [min, max].
+        // 1ª mensagem de cada chip: escalonada (+N s por posição no pool) para não disparar todos no mesmo segundo.
+        const ROTATE_FIRST_SEND_STAGGER_SECONDS = 5;
         const minDelaySec = Math.max(1, Math.floor(Number(campaign.min_delay_seconds) || 1));
         const maxDelaySec = Math.max(minDelaySec, Math.floor(Number(campaign.max_delay_seconds) || minDelaySec));
         const randomDelaySec = () =>
@@ -2185,13 +2186,26 @@ export default function BroadcastCampaigns2() {
             ? minDelaySec
             : Math.floor(Math.random() * (maxDelaySec - minDelaySec + 1)) + minDelaySec;
 
+        const poolOrder: string[] = Array.isArray(campaign.instance_ids) && campaign.instance_ids.length > 0
+          ? [...campaign.instance_ids]
+          : Array.from(uniqueInstances).sort();
+        const staggerIndexByInstance = new Map(poolOrder.map((id, idx) => [id, idx]));
+
         const nextAvailablePerInstance = new Map<string, Date>();
         const batchUpdates: Array<{ id: string; scheduled_for: string; error_message?: string }> = [];
 
         // queueItems já vem ordenado por created_at no rotate; manter essa ordem preserva o rodízio.
         for (const item of queueItems) {
           const lastScheduledForInstance = nextAvailablePerInstance.get(item.instance_id);
-          let scheduledTime = lastScheduledForInstance ? new Date(lastScheduledForInstance) : new Date(now);
+          let scheduledTime: Date;
+          if (lastScheduledForInstance) {
+            scheduledTime = new Date(lastScheduledForInstance);
+          } else {
+            const staggerIdx = staggerIndexByInstance.get(item.instance_id) ?? 0;
+            scheduledTime = new Date(
+              now.getTime() + staggerIdx * ROTATE_FIRST_SEND_STAGGER_SECONDS * 1000,
+            );
+          }
 
           if (activeTimeWindow && action !== "exception" && !isTimeInWindow(activeTimeWindow, scheduledTime)) {
             const nextWindowTime = getNextWindowTime(activeTimeWindow, scheduledTime);
