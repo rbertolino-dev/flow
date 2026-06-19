@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   ROTATE_FIRST_SEND_STAGGER_SECONDS,
+  ROTATE_CONSERVATIVE_RAMP_STAGGER_SECONDS,
   computeRotateSchedule,
   firstSendPerInstance,
 } from "../../src/lib/broadcastRotateSchedule";
@@ -21,7 +22,7 @@ function buildRoundRobinQueue(chipCount: number, rounds: number) {
 }
 
 test.describe("@unit @human-behavior broadcast rotate stagger (simulação segura)", () => {
-  test("1ª onda: chips não disparam todos no mesmo segundo (IClass 30 chips)", () => {
+  test("1ª onda: chips não disparam todos no mesmo segundo (IClass 30 chips, rampa 25s)", () => {
     const { chips, items } = buildRoundRobinQueue(30, 1);
     const scheduled = computeRotateSchedule({
       queueItems: items,
@@ -40,12 +41,12 @@ test.describe("@unit @human-behavior broadcast rotate stagger (simulação segur
     expect(uniqueTimes.size).toBe(30);
 
     for (let i = 0; i < chips.length; i++) {
-      const expected = now.getTime() + i * ROTATE_FIRST_SEND_STAGGER_SECONDS * 1000;
+      const expected = now.getTime() + i * ROTATE_CONSERVATIVE_RAMP_STAGGER_SECONDS * 1000;
       expect(firstByChip.get(chips[i])!.getTime()).toBe(expected);
     }
 
     const spreadSec = (Math.max(...times) - Math.min(...times)) / 1000;
-    expect(spreadSec).toBe((30 - 1) * ROTATE_FIRST_SEND_STAGGER_SECONDS);
+    expect(spreadSec).toBe((30 - 1) * ROTATE_CONSERVATIVE_RAMP_STAGGER_SECONDS);
   });
 
   test("2º envio no mesmo chip respeita min delay após o 1º", () => {
@@ -73,7 +74,7 @@ test.describe("@unit @human-behavior broadcast rotate stagger (simulação segur
     }
   });
 
-  test("ordem do pool instance_ids define o escalonamento", () => {
+  test("ordem do pool instance_ids define o escalonamento (pool pequeno, 5s)", () => {
     const pool = ["c-a", "c-b", "c-c"];
     const items = pool.map((id, i) => ({ id: `m${i}`, instance_id: id }));
     const scheduled = computeRotateSchedule({
@@ -87,11 +88,11 @@ test.describe("@unit @human-behavior broadcast rotate stagger (simulação segur
 
     const first = firstSendPerInstance(scheduled, items);
     expect(first.get("c-a")!.getTime()).toBe(now.getTime());
-    expect(first.get("c-b")!.getTime()).toBe(now.getTime() + 5000);
-    expect(first.get("c-c")!.getTime()).toBe(now.getTime() + 10000);
+    expect(first.get("c-b")!.getTime()).toBe(now.getTime() + ROTATE_FIRST_SEND_STAGGER_SECONDS * 1000);
+    expect(first.get("c-c")!.getTime()).toBe(now.getTime() + 2 * ROTATE_FIRST_SEND_STAGGER_SECONDS * 1000);
   });
 
-  test("simulação IClass: nenhum par de 1º envios com gap < 5s", () => {
+  test("simulação IClass: nenhum par de 1º envios com gap < 25s", () => {
     const { chips, items } = buildRoundRobinQueue(30, 1);
     const first = firstSendPerInstance(
       computeRotateSchedule({
@@ -110,7 +111,7 @@ test.describe("@unit @human-behavior broadcast rotate stagger (simulação segur
     );
     for (let i = 1; i < sorted.length; i++) {
       const gap = (sorted[i][1].getTime() - sorted[i - 1][1].getTime()) / 1000;
-      expect(gap).toBeGreaterThanOrEqual(ROTATE_FIRST_SEND_STAGGER_SECONDS);
+      expect(gap).toBeGreaterThanOrEqual(ROTATE_CONSERVATIVE_RAMP_STAGGER_SECONDS);
     }
   });
 });

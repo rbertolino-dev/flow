@@ -29,6 +29,7 @@
     "test:e2e:install": "playwright install",
     "test:oscilacao:iclass": "python3 scripts/teste-oscilacao-status-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "report:servidor-vs-campanha:iclass": "python3 scripts/relatorio-servidor-vs-campanha-iclass.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
+    "report:mes-desconexoes:iclass": "python3 scripts/relatorio-mes-desconexoes-iclass.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "report:quedas-iclass:chart": "python3 scripts/relatorio-quedas-iclass-chart.py",
     "test:validacao:rotacao": "node scripts/teste-rotacao-validacao-broadcast.mjs",
     "test:validacao:rotate-stagger": "playwright test tests/e2e/broadcast-rotate-stagger.unit.spec.ts --project=chromium-unit",

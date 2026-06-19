@@ -45,6 +45,10 @@ import { resolveDisconnectedWithLiveCheck } from "@/lib/verifyInstanceConnection
 import { useStableInstanceConnections } from "@/hooks/useStableInstanceConnections";
 import { syncEvolutionConnectionBatch } from "@/lib/syncEvolutionConnectionBatch";
 import {
+  isLargeInstanceOrg,
+  LARGE_ORG_BATCH_SYNC_INTERVAL_MS,
+} from "@/lib/evolutionOrgSync";
+import {
   ensureSyncedAndGetDisconnected,
   validateContactsForSelectedInstances,
 } from "@/lib/broadcastInstanceConnection";
@@ -1077,12 +1081,22 @@ export default function BroadcastCampaigns2() {
     evolutionSyncAttemptedOrgRef.current = null;
   }, [activeOrgId]);
 
-  // Sync leve ao abrir (1x por org): só instâncias já marcadas desconectadas no DB
+  // Sync ao abrir (1x por org): pequena = só offline no DB; grande = batch fetchInstances completo
   useEffect(() => {
     if (!activeOrgId || instances.length === 0) return;
     if (evolutionSyncAttemptedOrgRef.current === activeOrgId) return;
     evolutionSyncAttemptedOrgRef.current = activeOrgId;
-    void syncEvolutionStatusForOrg(false, { syncAll: false });
+    const large = isLargeInstanceOrg(instances.length);
+    void syncEvolutionStatusForOrg(false, { syncAll: !large });
+  }, [activeOrgId, instances.length, syncEvolutionStatusForOrg]);
+
+  // Orgs grandes: sync periódico em lote (sem health check por chip)
+  useEffect(() => {
+    if (!activeOrgId || !isLargeInstanceOrg(instances.length)) return;
+    const intervalId = window.setInterval(() => {
+      void syncEvolutionStatusForOrg(false, { syncAll: false });
+    }, LARGE_ORG_BATCH_SYNC_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
   }, [activeOrgId, instances.length, syncEvolutionStatusForOrg]);
 
   // Atualiza is_connected no banco periodicamente (somente evolution_config; zero impacto em fila/campanhas)
@@ -1951,9 +1965,16 @@ export default function BroadcastCampaigns2() {
           });
         }
         const idList = normalizeInstanceIdList(Array.from(idSet));
+        if (activeOrgId && idList.length > 0) {
+          await syncEvolutionConnectionBatch(activeOrgId, {
+            onlyMarkedDisconnected: false,
+            instanceIds: idList,
+          });
+        }
+        const freshInstances = await fetchInstances();
         const { disconnected, reconciledConnected } = await resolveDisconnectedWithLiveCheck(
           idList,
-          instances,
+          freshInstances.length > 0 ? freshInstances : instances,
         );
         if (reconciledConnected > 0) {
           await fetchInstances();

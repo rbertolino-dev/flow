@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { classifyBroadcastError } from "../_shared/broadcast-error-classify.ts";
+import { applyRampProcessingCap } from "../_shared/broadcast-ramp-cap.ts";
 import { isInstanceReadyToSend } from "../_shared/evolution-fetch-instances.ts";
 
 function isConnectionClosedMessage(text: string): boolean {
@@ -87,6 +88,7 @@ serve(async (req) => {
           sending_method,
           instance_id,
           instance_ids,
+          started_at,
           message_template:message_templates(content)
         ),
         instance:evolution_config!instance_id(id, api_url, api_key, instance_name, is_connected),
@@ -134,7 +136,14 @@ serve(async (req) => {
 
     console.log(`✅ ${validItems.length} itens válidos para envio (${queueItems.length - validItems.length} bloqueados por segurança)`);
 
-    if (validItems.length === 0) {
+    const itemsToProcess = applyRampProcessingCap(validItems);
+    if (itemsToProcess.length < validItems.length) {
+      console.log(
+        `🐢 Rampa 1ª onda: processando ${itemsToProcess.length}/${validItems.length} itens (cap por pool rotate)`,
+      );
+    }
+
+    if (itemsToProcess.length === 0) {
       return new Response(
         JSON.stringify({ processed: 0, blocked: queueItems.length, message: "Todos os itens foram bloqueados (campanhas canceladas)" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -209,7 +218,7 @@ serve(async (req) => {
       return metricsMap.get(instanceId)!;
     };
 
-    for (const item of validItems) {
+    for (const item of itemsToProcess) {
       try {
         const campaign = item.campaign;
         const instance = item.instance;

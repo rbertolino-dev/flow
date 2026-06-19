@@ -310,6 +310,9 @@ Backup do yaml: `/root/evolution-hardening-backups/`. O `stack deploy` reinicia 
 
 **Registro completo + procedimento de rollback:** `docs/INCIDENTE-EVOLUTION-HARDENING-ROLLBACK.md` e `scripts/evolution-hardening-rollback.sh`.
 
+**Runbook operacional Evolution:** `docs/INCIDENTE-EVOLUTION-RUNBOOK-OPERACIONAL.md`  
+**Checklist pré/pós campanha:** `docs/INCIDENTE-CHECKLIST-CAMPANHA-WHATSAPP.md`
+
 **Atualização 18/06/2026 ~19:47 UTC — Recovery aplicado:** instâncias presas em `connecting` por ~35 min após hardening. Causa: `CACHE_REDIS_SAVE_INSTANCES=true` deixou hashes Redis (`evolution:instance:*`) inconsistentes com sessões Postgres no restart. **Correção:** `scripts/evolution-recovery-stuck-connecting.sh` — reverteu `CACHE_REDIS_SAVE_INSTANCES=false`, `CONFIG_SESSION_PHONE_VERSION=2.3000.1019673114`, limpou 75 chaves Redis instance, `stack deploy`. Resultado: **14 open** no Postgres (nível pré-hardening). Chatwoot URI corrigida **mantida**.
 
 ### 6. Processo operacional mais seguro
