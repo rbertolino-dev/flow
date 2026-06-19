@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { classifyBroadcastError } from "../_shared/broadcast-error-classify.ts";
 import { applyRampProcessingCap } from "../_shared/broadcast-ramp-cap.ts";
 import { isInstanceReadyToSend } from "../_shared/evolution-fetch-instances.ts";
+import { validateEvolutionSendResponse } from "../_shared/evolution-send-response.ts";
 
 function isConnectionClosedMessage(text: string): boolean {
   const lower = text.toLowerCase();
@@ -391,24 +392,32 @@ serve(async (req) => {
         const responseTime = Date.now() - startTime;
         metrics.responseTimes.push(responseTime);
 
-        // Capturar código HTTP para métricas
         const httpStatus = evolutionResponse.status;
+        const responseText = await evolutionResponse.text();
         if (httpStatus === 200) metrics.http200++;
         else if (httpStatus === 401) metrics.http401++;
         else if (httpStatus === 404) metrics.http404++;
-        else if (httpStatus === 429) metrics.http429++; // Rate limit!
+        else if (httpStatus === 429) metrics.http429++;
         else if (httpStatus >= 500) metrics.http500++;
 
-        if (!evolutionResponse.ok) {
-          const errorText = await evolutionResponse.text();
-          metrics.lastError = errorText.slice(0, 200); // Limitar tamanho
-          metrics.lastErrorCode = `HTTP_${httpStatus}`;
-
-          if (isConnectionClosedMessage(errorText)) {
+        const validation = validateEvolutionSendResponse(httpStatus, responseText);
+        if (!validation.ok) {
+          metrics.lastError = (validation.error ?? "send_failed").slice(0, 200);
+          if (validation.connectionClosed) {
+            metrics.lastErrorCode = "CONNECTION_CLOSED";
             await markInstanceDisconnected(instance.id);
+          } else if (validation.numberNotExists) {
+            metrics.lastErrorCode = "NUMBER_NOT_EXISTS";
+          } else if (httpStatus === 429) {
+            metrics.lastErrorCode = "HTTP_429";
+          } else if (httpStatus === 401) {
+            metrics.lastErrorCode = "HTTP_401";
+          } else if (httpStatus === 404) {
+            metrics.lastErrorCode = "HTTP_404";
+          } else if (httpStatus >= 500) {
+            metrics.lastErrorCode = "HTTP_500";
           }
-
-          throw new Error(`Evolution API error: ${errorText}`);
+          throw new Error(validation.error ?? `Evolution API error HTTP ${httpStatus}`);
         }
 
         // Marcar como enviado - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'

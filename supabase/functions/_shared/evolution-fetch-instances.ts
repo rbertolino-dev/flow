@@ -8,7 +8,7 @@ import {
 
 export type InstanceLiveStatus = {
   live: boolean | null;
-  source: "fetchInstances" | "connectionState" | "none";
+  source: "fetchInstances" | "connectionState" | "none" | "fetchInstances_only";
   httpStatus?: number | null;
   error?: string;
 };
@@ -203,10 +203,11 @@ export async function resolveInstanceLiveStatusForSync(
     fromList = map.get(key);
   }
 
+  // fetchInstances sozinho não confirma sessão real — alinhado a isInstanceReadyToSend.
   if (fromList === true) {
     return {
-      live: true,
-      source: "fetchInstances",
+      live: null,
+      source: "fetchInstances_only",
       error: "connectionState_indisponivel_lista_open",
     };
   }
@@ -265,35 +266,18 @@ export async function isInstanceReadyToSend(
 }
 
 /**
- * Pronto para validação em lote (Disparador 2): aceita chip OPEN na lista fetchInstances
- * ou connectionState open — mais permissivo que isInstanceReadyToSend (disparo).
+ * Validação de contatos (Disparador 2): mesmo critério do envio — connectionState=open direto.
  */
 export async function isInstanceReadyForValidation(
   apiUrl: string,
   apiKey: string,
   instanceName: string,
-  fetchMap?: Map<string, boolean | null>,
+  _fetchMap?: Map<string, boolean | null>,
 ): Promise<{ ready: boolean; source: string; detail?: string }> {
-  const key = normalizeInstanceKey(instanceName);
-
-  let fromList: boolean | null | undefined = fetchMap?.get(key);
-  if (fromList === undefined) {
-    const map = fetchMap ?? (await buildFetchInstancesStatusMap(apiUrl, apiKey, 20000));
-    fromList = map.get(key);
-  }
-
-  if (fromList === true) {
-    return { ready: true, source: "fetchInstances" };
-  }
-
-  const status = await fetchConnectionStateSingle(apiUrl, apiKey, instanceName, 12000, true);
-  if (status.live === true) {
-    return { ready: true, source: "connectionState" };
-  }
-
+  const result = await isInstanceReadyToSend(apiUrl, apiKey, instanceName);
   return {
-    ready: false,
-    source: status.source,
-    detail: status.error ?? "not_ready",
+    ready: result.ready,
+    source: result.source,
+    detail: result.detail,
   };
 }

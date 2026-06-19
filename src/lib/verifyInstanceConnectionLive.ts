@@ -113,3 +113,59 @@ export async function resolveDisconnectedWithLiveCheck(
     reconciledConnected,
   };
 }
+
+const LIVE_POOL_CHECK_CONCURRENCY = 5;
+
+/**
+ * Verifica connectionState=open de cada chip do pool antes de iniciar campanha.
+ * Detecta chips marcados conectados no DB mas offline na Evolution (status fantasma).
+ */
+export async function findInstancesExplicitlyOffline(
+  ids: string[],
+  instancesList: InstanceRowForDisconnect[],
+): Promise<DisconnectedInstanceInfo[]> {
+  const out: DisconnectedInstanceInfo[] = [];
+  const seen = new Set<string>();
+
+  const checkOne = async (rawId: string) => {
+    const id = String(rawId).trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+
+    const inst = instancesList.find((i) => String(i.id) === id);
+    if (!inst) {
+      out.push({
+        id,
+        name: "Instância não encontrada (removida ou indisponível)",
+      });
+      return;
+    }
+
+    const result = await fetchEvolutionConnectionStateByConfigId(id);
+    if (result.edgeError || result.proxyError || !result.evolutionOk) return;
+
+    const live = extractConnectionState(result.body);
+    if (live === false) {
+      out.push({
+        id,
+        name: String(inst.instance_name ?? "Instância"),
+      });
+      if (inst.is_connected !== false) {
+        await supabase
+          .from("evolution_config")
+          .update({
+            is_connected: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+      }
+    }
+  };
+
+  for (let i = 0; i < ids.length; i += LIVE_POOL_CHECK_CONCURRENCY) {
+    const batch = ids.slice(i, i + LIVE_POOL_CHECK_CONCURRENCY);
+    await Promise.all(batch.map((id) => checkOne(id)));
+  }
+
+  return out;
+}

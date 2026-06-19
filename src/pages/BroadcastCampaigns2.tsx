@@ -41,7 +41,7 @@ import { WorkflowListManager } from "@/components/whatsapp/workflows/WorkflowLis
 import { useWorkflowLists } from "@/hooks/useWorkflowLists";
 import { useLeadOptions } from "@/hooks/useLeadOptions";
 import { ParsedContact } from "@/lib/contactValidator";
-import { resolveDisconnectedWithLiveCheck } from "@/lib/verifyInstanceConnectionLive";
+import { resolveDisconnectedWithLiveCheck, findInstancesExplicitlyOffline } from "@/lib/verifyInstanceConnectionLive";
 import { useStableInstanceConnections } from "@/hooks/useStableInstanceConnections";
 import { syncEvolutionConnectionBatch } from "@/lib/syncEvolutionConnectionBatch";
 import {
@@ -1972,10 +1972,18 @@ export default function BroadcastCampaigns2() {
           });
         }
         const freshInstances = await fetchInstances();
+        const instancesForCheck = freshInstances.length > 0 ? freshInstances : instances;
         const { disconnected, reconciledConnected } = await resolveDisconnectedWithLiveCheck(
           idList,
-          freshInstances.length > 0 ? freshInstances : instances,
+          instancesForCheck,
         );
+        const explicitlyOffline = await findInstancesExplicitlyOffline(idList, instancesForCheck);
+        const blockedInstances = [
+          ...disconnected,
+          ...explicitlyOffline.filter(
+            (o) => !disconnected.some((d) => d.id === o.id),
+          ),
+        ];
         if (reconciledConnected > 0) {
           await fetchInstances();
           toast({
@@ -1983,10 +1991,10 @@ export default function BroadcastCampaigns2() {
             description: `${reconciledConnected} instância(s) confirmada(s) conectadas na Evolution.`,
           });
         }
-        if (disconnected.length > 0) {
+        if (blockedInstances.length > 0) {
           setDisconnectedInstanceDialog({
             mode: "start",
-            disconnected,
+            disconnected: blockedInstances,
             campaignId,
             scheduleForNextWindow,
           });
