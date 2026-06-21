@@ -47,6 +47,12 @@ verify_jwt = false
 [functions.process-broadcast-queue-2]
 verify_jwt = false
 
+[functions.validate-broadcast-whatsapp]
+verify_jwt = false
+
+[functions.sync-evolution-connection-batch]
+verify_jwt = false
+
 [functions.process-scheduled-messages]
 verify_jwt = false
 

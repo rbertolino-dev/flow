@@ -112,7 +112,11 @@ export async function validateBroadcastWhatsappViaEdge(
         error:
           res.status === 504
             ? "Validação expirou (muitos números de uma vez). Tente novamente — o sistema divide em lotes automaticamente."
-            : text.slice(0, 200),
+            : res.status === 500
+              ? "Servidor de validação indisponível (500). Tente com menos chips ou aguarde e tente novamente."
+              : !res.status
+                ? "Não foi possível contactar o servidor de validação (rede bloqueada ou timeout)."
+                : text.slice(0, 200),
       };
     }
     if (!res.ok && !payload.error) {
@@ -167,8 +171,19 @@ export function buildValidationRotatorPool(
   }
 
   if (pool.length === 0) {
-    const fallback = instanceIds.map((id) => String(id).trim()).find(Boolean);
-    if (fallback) pool.push(fallback);
+    const connectedFallback = instanceIds
+      .map((id) => String(id).trim())
+      .filter(Boolean)
+      .filter((id) => {
+        const inst = instancesList.find((i) => String(i.id) === id);
+        return inst?.is_connected === true;
+      });
+    if (connectedFallback.length > 0) {
+      pool.push(...connectedFallback.slice(0, maxChips));
+    } else {
+      const fallback = instanceIds.map((id) => String(id).trim()).find(Boolean);
+      if (fallback) pool.push(fallback);
+    }
   }
 
   return pool;

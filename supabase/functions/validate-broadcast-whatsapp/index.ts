@@ -1,8 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import {
-  buildFetchInstancesStatusMap,
-  isInstanceReadyForValidation,
+  fetchConnectionStateSingle,
 } from "../_shared/evolution-fetch-instances.ts";
 import { normalizeApiUrl } from "../_shared/evolution-connection-parse.ts";
 
@@ -14,6 +13,13 @@ const corsHeaders = {
 
 /** Limite de instâncias verificadas em paralelo (evita 28× sequencial antes do timeout). */
 const READY_PROBE_CONCURRENCY = 6;
+/** Máx. chips tentados em whatsappNumbers quando nenhum está pronto (evita 504 do gateway). */
+const MAX_VALIDATE_ATTEMPTS = 4;
+/** Tempo máximo total da função (ms) — gateway Supabase ~60s. */
+const FUNCTION_DEADLINE_MS = 48000;
+/** Timeout por chamada à Evolution na validação (ms). */
+const VALIDATION_FETCH_TIMEOUT_MS = 10000;
+const CONNECTION_STATE_TIMEOUT_MS = 5000;
 
 type EvolutionConfigRow = {
   id: string;
@@ -63,13 +69,30 @@ async function userCanAccessOrganization(
   return !!member;
 }
 
+function isEvolutionTechnicalError(status: number, bodyText: string): boolean {
+  const lower = bodyText.toLowerCase();
+  return (
+    status >= 500 ||
+    lower.includes("p1001") ||
+    lower.includes("can't reach database") ||
+    lower.includes("prismaclient") ||
+    lower.includes("internal server error")
+  );
+}
+
 async function validateOnInstance(
   apiUrl: string,
   apiKey: string,
   instanceName: string,
   numbers: string[],
   useLatam: boolean,
-): Promise<{ ok: boolean; results: Array<{ number: string; exists: boolean }>; connectionClosed: boolean }> {
+): Promise<{
+  ok: boolean;
+  results: Array<{ number: string; exists: boolean }>;
+  connectionClosed: boolean;
+  fetchFailed?: boolean;
+  technicalError?: boolean;
+}> {
   const base = normalizeApiUrl(apiUrl);
   const endpoint = `${base}/chat/whatsappNumbers/${encodeURIComponent(instanceName)}`;
   const chunkSize = 50;
@@ -82,24 +105,33 @@ async function validateOnInstance(
       return normalizePhoneBr(n);
     });
 
-    const resp = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        apikey: apiKey,
-      },
-      body: JSON.stringify({ numbers: formatted }),
-      signal: AbortSignal.timeout(25000),
-    });
+    let resp: Response;
+    let preview: string;
+    try {
+      resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          apikey: apiKey,
+        },
+        body: JSON.stringify({ numbers: formatted }),
+        signal: AbortSignal.timeout(VALIDATION_FETCH_TIMEOUT_MS),
+      });
+      preview = await resp.text();
+    } catch {
+      return { ok: false, results: [], connectionClosed: false, fetchFailed: true };
+    }
 
-    const preview = await resp.text();
     if (!resp.ok) {
       if (preview.includes("Method not available") || preview.includes("method not available")) {
-        return { ok: false, results: [], connectionClosed: false };
+        return { ok: false, results: [], connectionClosed: false, technicalError: true };
       }
       if (isConnectionClosedError(resp.status, preview)) {
         return { ok: false, results: [], connectionClosed: true };
+      }
+      if (isEvolutionTechnicalError(resp.status, preview)) {
+        return { ok: false, results: [], connectionClosed: false, technicalError: true };
       }
       return { ok: false, results: [], connectionClosed: false };
     }
@@ -132,7 +164,6 @@ async function validateOnInstance(
 
 async function probeReadyInstances(
   configs: EvolutionConfigRow[],
-  fetchMaps: Map<string, Map<string, boolean | null>>,
 ): Promise<EvolutionConfigRow[]> {
   const ready: EvolutionConfigRow[] = [];
 
@@ -141,10 +172,14 @@ async function probeReadyInstances(
     const apiUrl = String(cfg.api_url ?? "").trim();
     const apiKey = String(cfg.api_key ?? "").trim();
     if (!name || !apiUrl || !apiKey) return;
-    const gk = `${apiUrl}|||${apiKey}`;
-    const fetchMap = fetchMaps.get(gk);
-    const readyCheck = await isInstanceReadyForValidation(apiUrl, apiKey, name, fetchMap);
-    if (readyCheck.ready) ready.push(cfg);
+    const cs = await fetchConnectionStateSingle(
+      apiUrl,
+      apiKey,
+      name,
+      CONNECTION_STATE_TIMEOUT_MS,
+      "batchSync",
+    );
+    if (cs.live === true) ready.push(cfg);
   };
 
   for (let i = 0; i < configs.length; i += READY_PROBE_CONCURRENCY) {
@@ -175,7 +210,18 @@ function buildTryOrder(
   return [...readyInstances, ...configs.filter((c) => !readyInstances.some((o) => o.id === c.id))];
 }
 
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
+  const startedAt = Date.now();
+  const pastDeadline = () => Date.now() - startedAt >= FUNCTION_DEADLINE_MS;
+
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
@@ -262,23 +308,6 @@ serve(async (req) => {
 
   const configList = configs as EvolutionConfigRow[];
 
-  const groups = new Map<string, EvolutionConfigRow[]>();
-  for (const cfg of configList) {
-    const gk = `${cfg.api_url}|||${cfg.api_key}`;
-    if (!groups.has(gk)) groups.set(gk, []);
-    groups.get(gk)!.push(cfg);
-  }
-
-  const fetchMaps = new Map<string, Map<string, boolean | null>>();
-  for (const [gk, group] of groups) {
-    const sample = group[0];
-    const map = await buildFetchInstancesStatusMap(
-      String(sample.api_url),
-      String(sample.api_key),
-    );
-    fetchMaps.set(gk, map);
-  }
-
   const preferredCfg =
     preferredInstanceId && configList.find((c) => c.id === preferredInstanceId)
       ? configList.find((c) => c.id === preferredInstanceId)!
@@ -291,17 +320,22 @@ serve(async (req) => {
     const apiUrl = String(preferredCfg.api_url ?? "").trim();
     const apiKey = String(preferredCfg.api_key ?? "").trim();
     if (name && apiUrl && apiKey) {
-      const gk = `${apiUrl}|||${apiKey}`;
-      const ready = await isInstanceReadyForValidation(apiUrl, apiKey, name, fetchMaps.get(gk));
-      if (ready.ready) readyInstances.push(preferredCfg);
+      const cs = await fetchConnectionStateSingle(
+        apiUrl,
+        apiKey,
+        name,
+        CONNECTION_STATE_TIMEOUT_MS,
+        "batchSync",
+      );
+      if (cs.live === true) readyInstances.push(preferredCfg);
     }
     const others = configList.filter((c) => c.id !== preferredCfg.id);
     if (others.length > 0 && readyInstances.length === 0) {
-      const moreReady = await probeReadyInstances(others, fetchMaps);
+      const moreReady = await probeReadyInstances(others.slice(0, READY_PROBE_CONCURRENCY));
       readyInstances = [...readyInstances, ...moreReady];
     }
   } else {
-    readyInstances = await probeReadyInstances(configList, fetchMaps);
+    readyInstances = await probeReadyInstances(configList.slice(0, READY_PROBE_CONCURRENCY));
   }
 
   const tryOrder = buildTryOrder(configList, readyInstances, preferredCfg);
@@ -310,10 +344,17 @@ serve(async (req) => {
   let usedInstanceId: string | null = null;
   let apiResults: Array<{ number: string; exists: boolean }> = [];
   let allConnectionClosed = tryOrder.length > 0;
+  let validateAttempts = 0;
+  let hadFetchFailure = false;
+  let hadTechnicalError = false;
 
   for (const cfg of tryOrder) {
+    if (validateAttempts >= MAX_VALIDATE_ATTEMPTS || pastDeadline()) break;
+
     const name = String(cfg.instance_name ?? "").trim();
     if (!name || !cfg.api_url || !cfg.api_key) continue;
+
+    validateAttempts += 1;
 
     const attempt = await validateOnInstance(
       cfg.api_url,
@@ -323,6 +364,14 @@ serve(async (req) => {
       useLatam,
     );
 
+    if (attempt.fetchFailed) {
+      hadFetchFailure = true;
+      continue;
+    }
+    if (attempt.technicalError) {
+      hadTechnicalError = true;
+      continue;
+    }
     if (attempt.connectionClosed) continue;
 
     allConnectionClosed = false;
@@ -350,13 +399,19 @@ serve(async (req) => {
   }
 
   if (!usedInstance) {
-    const msg = allConnectionClosed
+    let msg = allConnectionClosed
       ? "Nenhuma instância conseguiu validar (sessão WhatsApp fechada na Evolution)."
       : "Falha ao validar números na Evolution API.";
-    return new Response(JSON.stringify({ error: msg, ok: false }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (hadFetchFailure) {
+      msg =
+        "Não foi possível contactar a Evolution API (timeout ou URL inacessível). Verifique api_url do chip e se o servidor Evolution está online.";
+    } else if (hadTechnicalError) {
+      msg =
+        "Evolution API respondeu com erro interno (base de dados/serviço). Reconecte o chip ou contacte o suporte da Evolution.";
+    } else if (pastDeadline()) {
+      msg = "Validação expirou (muitas instâncias lentas). Reduza os chips selecionados e tente novamente.";
+    }
+    return jsonResponse({ error: msg, ok: false, validatedNumbers: [], rejectedNumbers: numbers });
   }
 
   const existsSet = new Set(
@@ -384,15 +439,24 @@ serve(async (req) => {
     else rejectedNumbers.push(n);
   }
 
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      skippedApiValidation: false,
-      usedInstance,
-      usedInstanceId,
-      validatedNumbers,
-      rejectedNumbers,
-    }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-  );
+  return jsonResponse({
+    ok: true,
+    skippedApiValidation: false,
+    usedInstance,
+    usedInstanceId,
+    validatedNumbers,
+    rejectedNumbers,
+  });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[validate-broadcast-whatsapp] erro não tratado:", message);
+    return jsonResponse(
+      {
+        ok: false,
+        error: "Erro interno na validação WhatsApp. Tente novamente com menos instâncias selecionadas.",
+        detail: message.slice(0, 200),
+      },
+      200,
+    );
+  }
 });
