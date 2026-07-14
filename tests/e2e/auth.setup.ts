@@ -16,6 +16,17 @@ setup("autenticar usuário E2E (uma vez por execução)", async ({ page }) => {
   const loggedIn = await loginAsTestUser(page);
   expect(loggedIn, "Login E2E falhou — verifique .env.e2e.local").toBe(true);
 
+  // Org ativa com leads no funil (conta E2E pode ter várias orgs; a default pode estar vazia).
+  const orgId = process.env.E2E_ORG_ID?.trim();
+  if (orgId) {
+    await page.evaluate((id) => {
+      localStorage.setItem("active_organization_id", id);
+    }, orgId);
+    await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
+    console.log(`E2E_ORG_ID ativo: ${orgId.slice(0, 8)}…`);
+  }
+
   mkdirSync(path.dirname(E2E_AUTH_FILE), { recursive: true, mode: 0o700 });
   await page.context().storageState({ path: E2E_AUTH_FILE });
 
