@@ -297,29 +297,54 @@ serve(async (req) => {
           continue; // Pular este item
         }
 
-        // Rotate/single: se o mesmo telefone já foi (ou está sendo) enviado nesta campanha,
-        // cancela esta linha — evita lista com WhatsApp repetido em empresas diferentes.
+        // Rotate/single: se o mesmo telefone já foi, está sendo, ou tem outra linha ativa
+        // (pending/scheduled) nesta campanha, cancela — evita lista com WhatsApp repetido.
         // Separate: intencional enviar por cada instância; só bloqueia mesma instância.
         const sendingMethod = campaign.sending_method ?? "single";
         if (sendingMethod !== "separate") {
-          const { data: siblingSent } = await supabase
+          const { data: siblings } = await supabase
             .from("broadcast_queue_2")
-            .select("id")
+            .select("id, status, scheduled_for, created_at")
             .eq("campaign_id", item.campaign_id)
             .eq("phone", item.phone)
             .neq("id", item.id)
-            .in("status", ["sent", "sending"])
-            .limit(1);
+            .in("status", ["sent", "sending", "scheduled", "pending"]);
 
-          if (siblingSent && siblingSent.length > 0) {
+          const siblingList = siblings ?? [];
+          const alreadyGoing = siblingList.find((s) =>
+            s.status === "sent" || s.status === "sending"
+          );
+          if (alreadyGoing) {
             console.log(
-              `🚫 Duplicata bloqueada: ${item.phone} já enviado/enviando na campanha ${item.campaign_id} (item ${siblingSent[0].id})`,
+              `🚫 Duplicata bloqueada: ${item.phone} já enviado/enviando na campanha ${item.campaign_id} (item ${alreadyGoing.id})`,
             );
             await supabase
               .from("broadcast_queue_2")
               .update({
                 status: "cancelled",
                 error_message: "Telefone duplicado na campanha — já enviado por outra linha da fila",
+              })
+              .eq("id", item.id)
+              .eq("status", "scheduled");
+            blocked++;
+            continue;
+          }
+
+          const itemKey = `${item.scheduled_for ?? ""}|${item.created_at ?? ""}|${item.id}`;
+          const earlierActive = siblingList.find((s) => {
+            if (s.status !== "scheduled" && s.status !== "pending") return false;
+            const key = `${s.scheduled_for ?? ""}|${s.created_at ?? ""}|${s.id}`;
+            return key < itemKey;
+          });
+          if (earlierActive) {
+            console.log(
+              `🚫 Duplicata bloqueada: ${item.phone} perde prioridade para ${earlierActive.id}`,
+            );
+            await supabase
+              .from("broadcast_queue_2")
+              .update({
+                status: "cancelled",
+                error_message: "Telefone duplicado na campanha — mantida ocorrência com prioridade",
               })
               .eq("id", item.id)
               .eq("status", "scheduled");
@@ -472,15 +497,24 @@ serve(async (req) => {
         const metrics = getOrCreateMetrics(instance.instance_name);
         const startTime = Date.now();
 
-        await supabase
+        // Claim atômico ANTES do HTTP: só 1 worker segue com sendText
+        const { data: claimed, error: claimError } = await supabase
           .from("broadcast_queue_2")
           .update({
+            status: "sending",
             send_attempts: (item.send_attempts ?? 0) + 1,
             last_attempt_at: new Date().toISOString(),
             sending_started_at: new Date().toISOString(),
           })
           .eq("id", item.id)
-          .eq("status", "scheduled");
+          .eq("status", "scheduled")
+          .select("id");
+
+        if (claimError) throw claimError;
+        if (!claimed || claimed.length === 0) {
+          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já reclamada por outro worker. Pulando.`);
+          continue;
+        }
 
         // Enviar mensagem via Evolution API usando credenciais da instância específica
         const evolutionResponse = await fetch(evolutionUrl, {
@@ -523,25 +557,26 @@ serve(async (req) => {
           } else if (httpStatus >= 500) {
             metrics.lastErrorCode = "HTTP_500";
           }
+          // Devolve para scheduled/failed no catch; aqui só propaga
           throw new Error(validation.error ?? `Evolution API error HTTP ${httpStatus}`);
         }
 
-        // Marcar como enviado - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-        // Isso previne que múltiplos workers processem a mesma mensagem
-        const { error: updateError, count: updateCount } = await supabase
+        // Marcar como enviado — só se ainda estiver 'sending' (claim deste worker)
+        const { data: markedSent, error: updateError } = await supabase
           .from("broadcast_queue_2")
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
           })
           .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .eq("status", "sending")
+          .select("id");
 
         if (updateError) throw updateError;
 
-        if (updateCount === 0) {
+        if (!markedSent || markedSent.length === 0) {
           console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando.`);
-          continue; // Pular para o próximo item se já foi processado
+          continue;
         }
 
         // Registrar sucesso nas métricas
@@ -603,8 +638,8 @@ serve(async (req) => {
 
         const classified = classifyBroadcastError(errMsg);
 
-        // Marcar como falha - ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
-        const { count: updateCount } = await supabase
+        // Marcar como falha — claim coloca 'sending' antes do HTTP; aceitar scheduled|sending
+        const { data: markedFailed } = await supabase
           .from("broadcast_queue_2")
           .update({
             status: "failed",
@@ -614,11 +649,12 @@ serve(async (req) => {
             failed_at: new Date().toISOString(),
           })
           .eq("id", item.id)
-          .eq("status", "scheduled"); // ✅ ATOMICIDADE: Só atualiza se ainda estiver 'scheduled'
+          .in("status", ["scheduled", "sending"])
+          .select("id");
 
-        if (updateCount === 0) {
-          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker ou não estava 'scheduled'. Pulando atualização de falha.`);
-          continue; // Pular para o próximo item se já foi processado
+        if (!markedFailed || markedFailed.length === 0) {
+          console.log(`⚠️ Mensagem ${item.id} para ${item.phone} já foi processada por outro worker. Pulando atualização de falha.`);
+          continue;
         }
 
         // Atualizar contador de falhas - CONTA DIRETAMENTE DA FILA PARA GARANTIR PRECISÃO
