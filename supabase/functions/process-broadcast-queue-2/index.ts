@@ -137,23 +137,72 @@ serve(async (req) => {
 
     console.log(`✅ ${validItems.length} itens válidos para envio (${queueItems.length - validItems.length} bloqueados por segurança)`);
 
-    const itemsToProcess = applyRampProcessingCap(validItems);
-    if (itemsToProcess.length < validItems.length) {
+    // Pré-filtro no lote: em rotate/single, só a 1ª linha por telefone+campanha segue;
+    // as demais são canceladas (lista com WhatsApp repetido).
+    const phoneCampaignSeen = new Set<string>();
+    const dedupedItems: typeof validItems = [];
+    let preBlockedDupes = 0;
+    for (const item of validItems) {
+      const method = item.campaign?.sending_method ?? "single";
+      if (method === "separate") {
+        const key = `${item.campaign_id}|${item.phone}|${item.instance_id}`;
+        if (phoneCampaignSeen.has(key)) {
+          await supabase
+            .from("broadcast_queue_2")
+            .update({
+              status: "cancelled",
+              error_message: "Duplicata mesma instância no lote — cancelada",
+            })
+            .eq("id", item.id)
+            .eq("status", "scheduled");
+          preBlockedDupes++;
+          continue;
+        }
+        phoneCampaignSeen.add(key);
+        dedupedItems.push(item);
+        continue;
+      }
+      const key = `${item.campaign_id}|${item.phone}`;
+      if (phoneCampaignSeen.has(key)) {
+        await supabase
+          .from("broadcast_queue_2")
+          .update({
+            status: "cancelled",
+            error_message: "Telefone duplicado no lote — cancelada (mantida 1ª ocorrência)",
+          })
+          .eq("id", item.id)
+          .eq("status", "scheduled");
+        preBlockedDupes++;
+        continue;
+      }
+      phoneCampaignSeen.add(key);
+      dedupedItems.push(item);
+    }
+    if (preBlockedDupes > 0) {
+      console.log(`🧹 ${preBlockedDupes} item(ns) duplicado(s) cancelado(s) antes do envio`);
+    }
+
+    const itemsToProcess = applyRampProcessingCap(dedupedItems);
+    if (itemsToProcess.length < dedupedItems.length) {
       console.log(
-        `🐢 Rampa 1ª onda: processando ${itemsToProcess.length}/${validItems.length} itens (cap por pool rotate)`,
+        `🐢 Rampa 1ª onda: processando ${itemsToProcess.length}/${dedupedItems.length} itens (cap por pool rotate)`,
       );
     }
 
     if (itemsToProcess.length === 0) {
       return new Response(
-        JSON.stringify({ processed: 0, blocked: queueItems.length, message: "Todos os itens foram bloqueados (campanhas canceladas)" }),
+        JSON.stringify({
+          processed: 0,
+          blocked: queueItems.length - dedupedItems.length,
+          message: "Todos os itens foram bloqueados (campanhas canceladas ou duplicatas)",
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     let processed = 0;
     let failed = 0;
-    let blocked = queueItems.length - validItems.length;
+    let blocked = queueItems.length - dedupedItems.length;
 
     // ============================================================================
     // COLETA DE MÉTRICAS DE SAÚDE (OTIMIZADA - ZERO CUSTO ADICIONAL)
@@ -246,6 +295,63 @@ serve(async (req) => {
           
           blocked++;
           continue; // Pular este item
+        }
+
+        // Rotate/single: se o mesmo telefone já foi (ou está sendo) enviado nesta campanha,
+        // cancela esta linha — evita lista com WhatsApp repetido em empresas diferentes.
+        // Separate: intencional enviar por cada instância; só bloqueia mesma instância.
+        const sendingMethod = campaign.sending_method ?? "single";
+        if (sendingMethod !== "separate") {
+          const { data: siblingSent } = await supabase
+            .from("broadcast_queue_2")
+            .select("id")
+            .eq("campaign_id", item.campaign_id)
+            .eq("phone", item.phone)
+            .neq("id", item.id)
+            .in("status", ["sent", "sending"])
+            .limit(1);
+
+          if (siblingSent && siblingSent.length > 0) {
+            console.log(
+              `🚫 Duplicata bloqueada: ${item.phone} já enviado/enviando na campanha ${item.campaign_id} (item ${siblingSent[0].id})`,
+            );
+            await supabase
+              .from("broadcast_queue_2")
+              .update({
+                status: "cancelled",
+                error_message: "Telefone duplicado na campanha — já enviado por outra linha da fila",
+              })
+              .eq("id", item.id)
+              .eq("status", "scheduled");
+            blocked++;
+            continue;
+          }
+        } else {
+          const { data: siblingSameInstance } = await supabase
+            .from("broadcast_queue_2")
+            .select("id")
+            .eq("campaign_id", item.campaign_id)
+            .eq("phone", item.phone)
+            .eq("instance_id", item.instance_id)
+            .neq("id", item.id)
+            .in("status", ["sent", "sending"])
+            .limit(1);
+
+          if (siblingSameInstance && siblingSameInstance.length > 0) {
+            console.log(
+              `🚫 Duplicata mesma instância bloqueada: ${item.phone} / ${item.instance_id}`,
+            );
+            await supabase
+              .from("broadcast_queue_2")
+              .update({
+                status: "cancelled",
+                error_message: "Duplicata na mesma instância — já enviado",
+              })
+              .eq("id", item.id)
+              .eq("status", "scheduled");
+            blocked++;
+            continue;
+          }
         }
 
         // Usar mensagem personalizada se disponível, senão usar mensagem da campanha/template

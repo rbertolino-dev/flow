@@ -27,6 +27,7 @@ import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
+import { dedupeBroadcastContactsByPhone } from "@/lib/broadcastContactDedupe";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisconnectionReportDialog";
@@ -1450,6 +1451,20 @@ export default function BroadcastCampaigns2() {
     if (!user) throw new Error("Usuário não autenticado");
     if (!activeOrgId) throw new Error("Organização não identificada");
 
+    // Mesmo WhatsApp em empresas diferentes virava N envios no rotate.
+    // Deduplica sempre na lista de destinos (no modo separate ainda multiplica por instância).
+    const { contacts: uniqueContacts, removedCount, duplicatePhones } =
+      dedupeBroadcastContactsByPhone(contacts);
+    if (uniqueContacts.length === 0) {
+      throw new Error("Nenhum contato válido após remover telefones duplicados");
+    }
+    if (removedCount > 0) {
+      toast({
+        title: "Telefones duplicados removidos",
+        description: `${removedCount} contato(s) repetido(s) foram ignorados (${duplicatePhones.length} número(s) único(s)). Cada WhatsApp recebe a mensagem só uma vez.`,
+      });
+    }
+
     const { data: campaign, error: campaignError } = await supabase
       .from("broadcast_campaigns_2")
       .insert({
@@ -1461,7 +1476,7 @@ export default function BroadcastCampaigns2() {
         custom_message: nc.customMessage || null,
         min_delay_seconds: Math.floor(Number(nc.minDelay)),
         max_delay_seconds: Math.floor(Number(nc.maxDelay)),
-        total_contacts: contacts.length,
+        total_contacts: uniqueContacts.length,
         status: "draft",
         sending_method: nc.sendingMethod,
         instance_ids: nc.instanceIds?.length ? nc.instanceIds : null,
@@ -1479,7 +1494,7 @@ export default function BroadcastCampaigns2() {
 
     if (nc.sendingMethod === "separate") {
       nc.instanceIds.forEach((instanceId: string) => {
-        contacts.forEach((contact, index) => {
+        uniqueContacts.forEach((contact, index) => {
           const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
           const personalizedMessage = messagesToUse[messageIndex];
           queueItems.push({
@@ -1503,7 +1518,7 @@ export default function BroadcastCampaigns2() {
       const instancesForRotation = nc.sendingMethod === "single"
         ? [nc.instanceId]
         : nc.instanceIds;
-      queueItems = contacts.map((contact, index) => {
+      queueItems = uniqueContacts.map((contact, index) => {
         const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
         const personalizedMessage = messagesToUse[messageIndex];
         const instanceIndex = index % instancesForRotation.length;
@@ -1534,8 +1549,8 @@ export default function BroadcastCampaigns2() {
     const instanceCount = nc.sendingMethod === "single" ? 1 : nc.instanceIds.length;
     const instanceLabel = instanceCount === 1 ? "1 instância" : `${instanceCount} instâncias`;
     const totalMessages = nc.sendingMethod === "separate"
-      ? contacts.length * instanceCount
-      : contacts.length;
+      ? uniqueContacts.length * instanceCount
+      : uniqueContacts.length;
 
     toast({
       title: "Campanha criada!",
