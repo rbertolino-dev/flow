@@ -3,6 +3,19 @@
 export function normalizeApiUrl(url: string): string {
   try {
     const u = new URL(url);
+    // POST (whatsappNumbers) em http:// costuma receber 308; GET connectionState
+    // segue 301 e parece OPEN — gera o falso "OPEN no painel, validação falhou".
+    const host = u.hostname.toLowerCase();
+    const isLocal =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+    if (u.protocol === "http:" && !isLocal) {
+      u.protocol = "https:";
+    }
     let base = u.origin + u.pathname.replace(/\/$/, "");
     base = base.replace(/\/(manager|dashboard|app)$/i, "");
     return base;
