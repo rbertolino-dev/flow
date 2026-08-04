@@ -1446,7 +1446,6 @@ export default function BroadcastCampaigns2() {
   useEffect(() => {
     if (revalidateAfterDisconnectRemove === 0) return;
     void handleValidateContacts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o token muda após Remover
   }, [revalidateAfterDisconnectRemove]);
 
   type CreateCampaignContact = Broadcast2CreateCampaignContact;
