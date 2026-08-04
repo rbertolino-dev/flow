@@ -28,6 +28,11 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
 import { dedupeBroadcastContactsByPhone } from "@/lib/broadcastContactDedupe";
+import {
+  aggregateInstanceFallReportFromLogs,
+  mapRpcFallReportRow,
+  type CampaignInstanceFallRow,
+} from "@/lib/broadcastCampaignInstanceFallReport";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisconnectionReportDialog";
@@ -570,6 +575,7 @@ export default function BroadcastCampaigns2() {
     scheduled_count: number;
     cancelled_count: number;
   } | null>(null);
+  const [logsInstanceFallReport, setLogsInstanceFallReport] = useState<CampaignInstanceFallRow[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
   /** Exibição e chips do painel: não segue cada flip do DB (30s para marcar desconectado). */
   const stableInstances = useStableInstanceConnections(instances);
@@ -2632,27 +2638,30 @@ export default function BroadcastCampaigns2() {
   const handleViewLogs = async (campaignId: string) => {
     try {
       setLogsCampaignQueueTotals(null);
+      setLogsInstanceFallReport([]);
       const rpcClient = supabase as unknown as {
         rpc: (
           fn: string,
           args: { p_campaign_id: string },
         ) => Promise<{ data: unknown; error: { message?: string } | null }>;
       };
-      const [queueRes, totalsRes] = await Promise.all([
+      const [queueRes, totalsRes, fallRes] = await Promise.all([
         supabase
           .from("broadcast_queue_2")
           .select(`
           *,
-          instance:evolution_config!instance_id(id, instance_name)
+          instance:evolution_config!instance_id(id, instance_name, is_connected)
         `)
           .eq("campaign_id", campaignId)
           .order("created_at", { ascending: false }),
         rpcClient.rpc("get_broadcast_campaign_queue_totals", { p_campaign_id: campaignId }),
+        rpcClient.rpc("get_broadcast_campaign_instance_fall_report", { p_campaign_id: campaignId }),
       ]);
 
       if (queueRes.error) throw queueRes.error;
 
-      setSelectedCampaignLogs(queueRes.data || []);
+      const queueRows = queueRes.data || [];
+      setSelectedCampaignLogs(queueRows);
 
       if (!totalsRes.error && totalsRes.data && Array.isArray(totalsRes.data) && totalsRes.data.length > 0) {
         const t = totalsRes.data[0] as Record<string, unknown>;
@@ -2665,6 +2674,15 @@ export default function BroadcastCampaigns2() {
           scheduled_count: Number(t.scheduled_count ?? 0),
           cancelled_count: Number(t.cancelled_count ?? 0),
         });
+      }
+
+      if (!fallRes.error && Array.isArray(fallRes.data) && fallRes.data.length > 0) {
+        setLogsInstanceFallReport(
+          (fallRes.data as Record<string, unknown>[]).map(mapRpcFallReportRow),
+        );
+      } else {
+        // Fallback se a RPC ainda não existir no banco (migration pendente)
+        setLogsInstanceFallReport(aggregateInstanceFallReportFromLogs(queueRows));
       }
 
       setLogsDialogOpen(true);
@@ -4308,7 +4326,10 @@ export default function BroadcastCampaigns2() {
         open={logsDialogOpen}
         onOpenChange={(open) => {
           setLogsDialogOpen(open);
-          if (!open) setLogsCampaignQueueTotals(null);
+          if (!open) {
+            setLogsCampaignQueueTotals(null);
+            setLogsInstanceFallReport([]);
+          }
         }}
       >
         <DialogContent className="max-w-4xl max-h-[80vh]">
@@ -4344,6 +4365,86 @@ export default function BroadcastCampaigns2() {
                   {logsCampaignQueueTotals.cancelled_count.toLocaleString("pt-BR")} · {logsCampaignQueueTotals.source_version}
                 </div>
               </div>
+            </div>
+          )}
+          {logsInstanceFallReport.length > 0 && (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 mb-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <WifiOff className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                <div>
+                  <p className="text-sm font-medium">Relatório de quedas por instância</p>
+                  <p className="text-xs text-muted-foreground">
+                    Quais chips caíram nesta campanha e quantos disparos fizeram até a 1ª desconexão.
+                  </p>
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-md border bg-background">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                      <th className="p-2 font-medium">Instância</th>
+                      <th className="p-2 font-medium">Status</th>
+                      <th className="p-2 font-medium text-right">Enviados</th>
+                      <th className="p-2 font-medium text-right">Até cair</th>
+                      <th className="p-2 font-medium text-right">Falhas desc.</th>
+                      <th className="p-2 font-medium">1ª queda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logsInstanceFallReport.map((row) => (
+                      <tr
+                        key={row.instance_id}
+                        className={`border-b last:border-0 ${row.fell ? "bg-destructive/5" : ""}`}
+                      >
+                        <td className="p-2">
+                          <div className="font-medium">{row.instance_name}</div>
+                          {row.fell && row.sample_disconnect_error && (
+                            <div className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5" title={row.sample_disconnect_error}>
+                              {row.sample_disconnect_error}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {row.fell ? (
+                            <Badge variant="destructive" className="text-[10px]">Caiu</Badge>
+                          ) : row.is_connected === false ? (
+                            <Badge variant="outline" className="text-[10px] border-amber-600/50 text-amber-800 dark:text-amber-300">
+                              Off agora
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                              OK
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="p-2 text-right tabular-nums">{row.sent_count.toLocaleString("pt-BR")}</td>
+                        <td className="p-2 text-right tabular-nums font-semibold">
+                          {row.fell ? row.sent_before_disconnect.toLocaleString("pt-BR") : "—"}
+                        </td>
+                        <td className="p-2 text-right tabular-nums">
+                          {row.disconnect_fail_count > 0
+                            ? row.disconnect_fail_count.toLocaleString("pt-BR")
+                            : "—"}
+                        </td>
+                        <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {row.first_disconnect_at
+                            ? new Date(row.first_disconnect_at).toLocaleString("pt-BR")
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {logsInstanceFallReport.some((r) => r.fell) ? (
+                <p className="text-xs text-muted-foreground">
+                  {logsInstanceFallReport.filter((r) => r.fell).length} instância(s) com queda nesta campanha.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma queda de conexão detectada nos erros desta campanha.
+                </p>
+              )}
             </div>
           )}
           <div className="mb-4 space-y-3">

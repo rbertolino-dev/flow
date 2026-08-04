@@ -50,14 +50,19 @@ export function classifyBroadcastError(
 
   if (
     lower.includes("connection closed") ||
-    lower.includes("precondition required")
+    lower.includes("precondition required") ||
+    lower.includes("desconect") ||
+    lower.includes("connectionstate") ||
+    /sess[aã]o.*(fech|closed)/.test(lower) ||
+    /chip.*(off|caiu)/.test(lower) ||
+    lower.includes("falso positivo")
   ) {
     return { code: "INSTANCE_UNAVAILABLE", detail: msg.slice(0, 300) };
   }
 
   if (
-    lower.includes("instance") &&
-    (lower.includes("not found") || lower.includes("disconnect") || lower.includes("closed"))
+    (lower.includes("instance") || lower.includes("instância") || lower.includes("instancia")) &&
+    (lower.includes("not found") || lower.includes("disconnect") || lower.includes("closed") || lower.includes("desconect"))
   ) {
     return { code: "INSTANCE_UNAVAILABLE", detail: msg.slice(0, 300) };
   }
