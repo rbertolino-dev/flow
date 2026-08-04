@@ -8,9 +8,10 @@ import { BudgetsList } from '@/components/budgets/BudgetsList';
 import { BudgetViewer } from '@/components/budgets/BudgetViewer';
 import { CreateBudgetDialog } from '@/components/budgets/CreateBudgetDialog';
 import { EditBudgetDialog } from '@/components/budgets/EditBudgetDialog';
-import { useBudgets } from '@/hooks/useBudgets';
+import { useBudgets, BUDGETS_PAGE_SIZE } from '@/hooks/useBudgets';
 import { Budget, Service, type Budget as BudgetType } from '@/types/budget';
-import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp, ImagePlus } from 'lucide-react';
+import { Plus, Search, X, Loader2, Wrench, Edit, Check, Receipt, Package, Trash2, ChevronDown, ChevronUp, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEvolutionConfigs } from '@/hooks/useEvolutionConfigs';
@@ -97,6 +98,7 @@ export default function Budgets() {
   const [budgetExpiresTo, setBudgetExpiresTo] = useState<string>('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState<'all' | 'valid' | 'expired' | 'expiring_soon' | 'approved'>('all');
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
+  const [budgetsPage, setBudgetsPage] = useState(1);
   
   // Estados para serviços
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
@@ -133,7 +135,19 @@ export default function Budgets() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const { budgets, loading, regenerateBudgetPDF, deleteBudget, approveBudget, rejectBudget, updateBudget, refetch } = useBudgets({
+  const {
+    budgets,
+    loading,
+    totalCount: budgetsTotalCount,
+    totalPages: budgetsTotalPages,
+    pageSize: budgetsPageSize,
+    regenerateBudgetPDF,
+    deleteBudget,
+    approveBudget,
+    rejectBudget,
+    updateBudget,
+    refetch,
+  } = useBudgets({
     search: searchQuery || undefined,
     lead_id: budgetClientFilter !== 'all' ? budgetClientFilter : undefined,
     expired_only: budgetStatusFilter === 'expired',
@@ -143,7 +157,29 @@ export default function Budgets() {
     date_to: budgetDateTo || undefined,
     expires_from: budgetExpiresFrom || undefined,
     expires_to: budgetExpiresTo || undefined,
+    page: budgetsPage,
+    page_size: BUDGETS_PAGE_SIZE,
   });
+
+  // Voltar à página 1 quando filtros/busca mudarem
+  useEffect(() => {
+    setBudgetsPage(1);
+  }, [
+    searchQuery,
+    budgetClientFilter,
+    budgetDateFrom,
+    budgetDateTo,
+    budgetExpiresFrom,
+    budgetExpiresTo,
+    budgetStatusFilter,
+  ]);
+
+  // Se a página atual ficar além do total (ex.: exclusão), ajustar
+  useEffect(() => {
+    if (budgetsPage > budgetsTotalPages) {
+      setBudgetsPage(budgetsTotalPages);
+    }
+  }, [budgetsPage, budgetsTotalPages]);
   const { configs: evolutionConfigs, loading: configsLoading } = useEvolutionConfigs();
   const { services, loading: servicesLoading, createService, updateService, deleteService, createServicesBulk, categories } = useServices();
   const { products, loading: productsLoading, createProduct, createProductsBulk, updateProduct, deleteProduct, refetch: refetchProducts } = useProducts();
@@ -701,36 +737,106 @@ export default function Budgets() {
                 onBack={() => setSelectedBudget(null)}
               />
             ) : (
-              <BudgetsList
-                budgets={budgets}
-                loading={loading}
-                onView={handleView}
-                onRegenerate={handleRegenerate}
-                onSend={handleSend}
-                onDownload={handleDownload}
-                onDelete={handleDelete}
-                onEdit={(budget) => {
-                  setSelectedBudget(budget);
-                  setShowEditDialog(true);
-                }}
-                onApprove={async (budget) => {
-                  try {
-                    await approveBudget(budget.id);
-                    refetch();
-                  } catch (error) {
-                    console.error('Erro ao aprovar orçamento:', error);
-                  }
-                }}
-                onReject={async (budget) => {
-                  if (!confirm('Marcar este orçamento como recusado pelo cliente?')) return;
-                  try {
-                    await rejectBudget(budget.id);
-                    refetch();
-                  } catch (error) {
-                    console.error('Erro ao recusar orçamento:', error);
-                  }
-                }}
-              />
+              <div className="space-y-4">
+                <BudgetsList
+                  budgets={budgets}
+                  loading={loading}
+                  onView={handleView}
+                  onRegenerate={handleRegenerate}
+                  onSend={handleSend}
+                  onDownload={handleDownload}
+                  onDelete={handleDelete}
+                  onEdit={(budget) => {
+                    setSelectedBudget(budget);
+                    setShowEditDialog(true);
+                  }}
+                  onApprove={async (budget) => {
+                    try {
+                      await approveBudget(budget.id);
+                      refetch();
+                    } catch (error) {
+                      console.error('Erro ao aprovar orçamento:', error);
+                    }
+                  }}
+                  onReject={async (budget) => {
+                    if (!confirm('Marcar este orçamento como recusado pelo cliente?')) return;
+                    try {
+                      await rejectBudget(budget.id);
+                      refetch();
+                    } catch (error) {
+                      console.error('Erro ao recusar orçamento:', error);
+                    }
+                  }}
+                />
+
+                {!loading && budgetsTotalCount > 0 && (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando{' '}
+                      {Math.min((budgetsPage - 1) * budgetsPageSize + 1, budgetsTotalCount)}
+                      {' a '}
+                      {Math.min(budgetsPage * budgetsPageSize, budgetsTotalCount)}
+                      {' de '}
+                      {budgetsTotalCount} orçamento{budgetsTotalCount !== 1 ? 's' : ''}
+                    </div>
+                    {budgetsTotalPages > 1 && (
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setBudgetsPage((p) => Math.max(1, p - 1))}
+                              disabled={budgetsPage === 1}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              Anterior
+                            </Button>
+                          </PaginationItem>
+
+                          {Array.from({ length: Math.min(5, budgetsTotalPages) }, (_, i) => {
+                            let pageNum: number;
+                            if (budgetsTotalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (budgetsPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (budgetsPage >= budgetsTotalPages - 2) {
+                              pageNum = budgetsTotalPages - 4 + i;
+                            } else {
+                              pageNum = budgetsPage - 2 + i;
+                            }
+
+                            return (
+                              <PaginationItem key={pageNum}>
+                                <PaginationLink
+                                  onClick={() => setBudgetsPage(pageNum)}
+                                  isActive={budgetsPage === pageNum}
+                                >
+                                  {pageNum}
+                                </PaginationLink>
+                              </PaginationItem>
+                            );
+                          })}
+
+                          <PaginationItem>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setBudgetsPage((p) => Math.min(budgetsTotalPages, p + 1))
+                              }
+                              disabled={budgetsPage === budgetsTotalPages}
+                            >
+                              Próxima
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </TabsContent>
 

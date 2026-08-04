@@ -9,6 +9,8 @@ import { generateBudgetPDF } from '@/lib/budgetPdfGenerator';
 import { SupabaseStorageService } from '@/services/contractStorage';
 import { format, addDays } from 'date-fns';
 
+export const BUDGETS_PAGE_SIZE = 20;
+
 interface BudgetFilters {
   lead_id?: string;
   search?: string;
@@ -19,6 +21,9 @@ interface BudgetFilters {
   date_to?: string;
   expires_from?: string;
   expires_to?: string;
+  /** Página 1-based; padrão 1 */
+  page?: number;
+  page_size?: number;
 }
 
 export function useBudgets(filters?: BudgetFilters) {
@@ -26,6 +31,10 @@ export function useBudgets(filters?: BudgetFilters) {
   const { toast } = useToast();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const pageSize = filters?.page_size ?? BUDGETS_PAGE_SIZE;
+  const page = Math.max(1, filters?.page ?? 1);
 
   useEffect(() => {
     if (activeOrgId) {
@@ -50,31 +59,8 @@ export function useBudgets(filters?: BudgetFilters) {
               return;
             }
             console.log('📡 Realtime: Mudança detectada em orçamentos', payload);
-            // Atualizar lista imediatamente baseado no evento
-            if (payload.eventType === 'INSERT' && payload.new) {
-              // Novo orçamento criado - adicionar à lista
-              setBudgets((prev) => {
-                const newBudget = payload.new as Budget;
-                const exists = prev.some(b => b.id === newBudget.id);
-                if (exists) return prev;
-                return [newBudget, ...prev];
-              });
-            } else if (payload.eventType === 'UPDATE' && payload.new) {
-              // Orçamento atualizado - atualizar na lista
-              setBudgets((prev) => {
-                return prev.map(b => b.id === payload.new.id ? (payload.new as Budget) : b);
-              });
-            } else if (payload.eventType === 'DELETE' && payload.old) {
-              // Orçamento deletado - remover da lista
-              setBudgets((prev) => {
-                return prev.filter(b => b.id !== payload.old.id);
-              });
-            } else {
-              // Refetch completo se não conseguir determinar o tipo de mudança
-              if (!loading) {
-                fetchBudgets();
-              }
-            }
+            // Refetch para manter contagem e página corretas
+            fetchBudgets();
           }
         )
         .subscribe((status, err) => {
@@ -96,41 +82,50 @@ export function useBudgets(filters?: BudgetFilters) {
       };
     } else {
       setBudgets([]);
+      setTotalCount(0);
       setLoading(false);
     }
-  }, [activeOrgId, filters?.lead_id, filters?.search, filters?.expired_only, filters?.date_from, filters?.date_to, filters?.expires_from, filters?.expires_to]);
+  }, [
+    activeOrgId,
+    filters?.lead_id,
+    filters?.search,
+    filters?.expired_only,
+    filters?.expiring_soon_only,
+    filters?.approved_only,
+    filters?.date_from,
+    filters?.date_to,
+    filters?.expires_from,
+    filters?.expires_to,
+    page,
+    pageSize,
+  ]);
 
   const fetchBudgets = async () => {
     if (!activeOrgId) return;
 
     try {
       setLoading(true);
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       // @ts-ignore - Tabela budgets existe
       let query = supabase
         .from('budgets')
-        .select(`
+        .select(
+          `
           *,
           lead:leads(id, name, phone, email, company),
           creator:profiles!budgets_created_by_fkey(id, email, full_name)
-        `)
+        `,
+          { count: 'exact' }
+        )
         .eq('organization_id', activeOrgId);
-
-      // Por padrão, carregar apenas 25 orçamentos mais recentes do mês atual
-      // A menos que haja filtros de data específicos
-      if (!filters?.date_from && !filters?.date_to) {
-        const now = new Date();
-        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        query = query.gte('created_at', firstDayOfMonth.toISOString());
-      }
 
       if (filters?.lead_id) {
         query = query.eq('lead_id', filters.lead_id);
       }
 
-      // Se houver busca, vamos buscar todos os orçamentos (com outros filtros aplicados)
-      // e filtrar no cliente porque client_data é JSONB e não funciona bem com .or() do Supabase
-      // A busca no client_data será feita no lado do cliente após buscar os resultados
-      // Não aplicar filtro de busca no banco aqui - vamos buscar todos e filtrar no cliente
+      // Busca textual em client_data (JSONB) é feita no cliente após o fetch da página
 
       if (filters?.expired_only) {
         query = query.lt('expires_at', new Date().toISOString().split('T')[0]);
@@ -164,12 +159,14 @@ export function useBudgets(filters?: BudgetFilters) {
         query = query.lte('expires_at', filters.expires_to);
       }
 
-      // Ordenar por data de criação (mais recente primeiro) e limitar a 25
-      query = query.order('created_at', { ascending: false }).limit(25);
+      // Todos os orçamentos (sem filtro de mês), paginados de pageSize em pageSize
+      query = query.order('created_at', { ascending: false }).range(from, to);
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
 
       if (error) throw error;
+
+      setTotalCount(count ?? 0);
       
       // Filtrar por nome do cliente se houver busca (client_data JSONB)
       let filteredData = (data || []) as Budget[];
@@ -702,9 +699,15 @@ export function useBudgets(filters?: BudgetFilters) {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
   return {
     budgets,
     loading,
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
     createBudget,
     regenerateBudgetPDF,
     deleteBudget,
