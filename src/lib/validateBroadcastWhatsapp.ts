@@ -28,14 +28,25 @@ function resolveFunctionsBaseUrl(): string {
   return ref ? `https://${ref}.supabase.co` : configured;
 }
 
-/** Máx. números por chamada à edge (2 lotes Evolution × 50; cabe no timeout ~60s). */
+/**
+ * Máx. números por chamada à edge com 1 chip.
+ * Com vários chips conectados usamos lote menor (ver BATCH_SIZE_MULTI_CHIP)
+ * para rotacionar preferred — espelha o script que funciona via API.
+ */
 export const BROADCAST_WHATSAPP_VALIDATION_BATCH_SIZE = 100;
 
-/** Máx. chips no rodízio de validação (chips conectados — evita cair em offline). */
-export const BROADCAST_VALIDATION_ROTATOR_MAX = 12;
+/** Lote menor quando há rodízio: cada lote tenta outro preferred (como campanha-tag-full-rotate). */
+export const BROADCAST_WHATSAPP_VALIDATION_BATCH_SIZE_MULTI_CHIP = 20;
+
+/**
+ * Máx. chips no pool enviado à edge.
+ * Com 12 (antes) o browser pegava só os primeiros A–Z (muitos OPEN fantasma)
+ * e falhava; o script Python enviava ~26 e encontrava chip saudável.
+ */
+export const BROADCAST_VALIDATION_ROTATOR_MAX = 40;
 
 /** Pausa entre lotes quando há rodízio de chips (reduz pico na Evolution). */
-export const BROADCAST_VALIDATION_INTER_BATCH_DELAY_MS = 1200;
+export const BROADCAST_VALIDATION_INTER_BATCH_DELAY_MS = 800;
 
 export type BroadcastWhatsappValidationResponse = {
   ok: boolean;
@@ -226,17 +237,22 @@ export async function validateBroadcastWhatsappBatched(
   useLatamValidator: boolean,
   options?: {
     preferredInstanceId?: string | null;
-    /** Opção 2: até 6 chips em rodízio (um chip por lote de números). */
+    /** Chips conectados em rodízio (preferred muda a cada lote). */
     rotatorInstanceIds?: string[];
     onProgress?: (progress: BroadcastValidationProgress) => void;
     batchSize?: number;
     instanceIdToName?: Map<string, string>;
   },
 ): Promise<BroadcastWhatsappValidationResponse> {
-  const batchSize = options?.batchSize ?? BROADCAST_WHATSAPP_VALIDATION_BATCH_SIZE;
-  const batches = chunkArray(numbers, batchSize);
   const rotator = (options?.rotatorInstanceIds ?? []).map((id) => String(id).trim()).filter(Boolean);
   const useRotator = rotator.length > 1;
+  // Com vários chips: lotes menores + preferred rotativo (mesmo padrão do script API).
+  const batchSize =
+    options?.batchSize ??
+    (useRotator
+      ? BROADCAST_WHATSAPP_VALIDATION_BATCH_SIZE_MULTI_CHIP
+      : BROADCAST_WHATSAPP_VALIDATION_BATCH_SIZE);
+  const batches = chunkArray(numbers, batchSize);
 
   const preferredForBatchIndex = (batchIndex: number): string | null => {
     if (useRotator) return rotator[batchIndex % rotator.length] ?? null;

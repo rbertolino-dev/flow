@@ -608,6 +608,8 @@ export default function BroadcastCampaigns2() {
   const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
   const [validatingContacts, setValidatingContacts] = useState(false);
+  /** Após "Remover da seleção" no aviso de desconectadas, revalida no próximo render. */
+  const [revalidateAfterDisconnectRemove, setRevalidateAfterDisconnectRemove] = useState(0);
   const [validationProgress, setValidationProgress] = useState<{
     processed: number;
     total: number;
@@ -1439,6 +1441,13 @@ export default function BroadcastCampaigns2() {
       setValidationProgress(null);
     }
   };
+
+  // Revalida após remover desconectadas (usa instanceIds já atualizados no state)
+  useEffect(() => {
+    if (revalidateAfterDisconnectRemove === 0) return;
+    void handleValidateContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o token muda após Remover
+  }, [revalidateAfterDisconnectRemove]);
 
   type CreateCampaignContact = Broadcast2CreateCampaignContact;
 
@@ -4634,14 +4643,14 @@ export default function BroadcastCampaigns2() {
             if (!open) setDisconnectedInstanceDialog(null);
           }}
         >
-          <AlertDialogContent className="max-w-md">
-            <AlertDialogHeader>
+          <AlertDialogContent className="max-w-md max-h-[85vh] flex flex-col gap-4 overflow-hidden">
+            <AlertDialogHeader className="shrink-0">
               <AlertDialogTitle className="flex items-center gap-2">
                 <WifiOff className="h-5 w-5 text-amber-600" />
                 Instância(s) desconectada(s)
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
-                <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="space-y-3 text-sm text-muted-foreground max-h-[40vh] overflow-y-auto pr-1">
                   <p>
                     {disconnectedInstanceDialog?.mode === "groupPreview"
                       ? "O grupo inclui instância(s) não conectadas à Evolution API (WhatsApp) ou não encontradas na organização. O envio pode falhar até reconectarem ou corrigir a seleção."
@@ -4680,8 +4689,10 @@ export default function BroadcastCampaigns2() {
                     setDisconnectedInstanceDialog(null);
                     toast({
                       title: "Seleção atualizada",
-                      description: "Instâncias com problema foram removidas da seleção.",
+                      description: "Instâncias com problema foram removidas. Revalidando contatos…",
                     });
+                    // Dispara revalidação no próximo render (com instanceIds já filtrados)
+                    setRevalidateAfterDisconnectRemove((n) => n + 1);
                   }}
                 >
                   Remover da seleção

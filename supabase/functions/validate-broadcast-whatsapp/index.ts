@@ -14,14 +14,16 @@ const corsHeaders = {
 /** Limite de instâncias verificadas em paralelo (evita 28× sequencial antes do timeout). */
 const READY_PROBE_CONCURRENCY = 8;
 /** Máx. chips com connectionState OPEN a sondar (prioridade: is_connected no CRM). */
-const MAX_READY_PROBES = 16;
+const MAX_READY_PROBES = 28;
 /** Máx. chips tentados em whatsappNumbers (evita 504 do gateway). */
-const MAX_VALIDATE_ATTEMPTS = 10;
+const MAX_VALIDATE_ATTEMPTS = 18;
 /** Tempo máximo total da função (ms) — gateway Supabase ~60s. */
-const FUNCTION_DEADLINE_MS = 48000;
+const FUNCTION_DEADLINE_MS = 52000;
 /** Timeout por chamada à Evolution na validação (ms). */
 const VALIDATION_FETCH_TIMEOUT_MS = 10000;
 const CONNECTION_STATE_TIMEOUT_MS = 5000;
+/** Número inócuo para smoke-test de whatsappNumbers (OPEN fantasma vs sessão real). */
+const SMOKE_PROBE_NUMBER = "5511999999999";
 
 type EvolutionConfigRow = {
   id: string;
@@ -177,7 +179,7 @@ async function probeReadyInstances(
   limit = MAX_READY_PROBES,
 ): Promise<EvolutionConfigRow[]> {
   const ready: EvolutionConfigRow[] = [];
-  const candidates = prioritizeConnected(configs).slice(0, Math.max(limit, READY_PROBE_CONCURRENCY));
+  const candidates = prioritizeConnected(configs).slice(0, Math.max(limit * 2, READY_PROBE_CONCURRENCY));
 
   const probeOne = async (cfg: EvolutionConfigRow) => {
     const name = String(cfg.instance_name ?? "").trim();
@@ -191,7 +193,13 @@ async function probeReadyInstances(
       CONNECTION_STATE_TIMEOUT_MS,
       "batchSync",
     );
-    if (cs.live === true) ready.push(cfg);
+    if (cs.live !== true) return;
+    // OPEN fantasma: connectionState=open mas whatsappNumbers fecha a sessão.
+    // Smoke-test com 1 número antes de marcar como ready.
+    const smoke = await validateOnInstance(apiUrl, apiKey, name, [SMOKE_PROBE_NUMBER], false);
+    if (smoke.ok && !smoke.connectionClosed && !smoke.fetchFailed && !smoke.technicalError) {
+      ready.push(cfg);
+    }
   };
 
   for (let i = 0; i < candidates.length; i += READY_PROBE_CONCURRENCY) {
@@ -349,7 +357,12 @@ serve(async (req) => {
         CONNECTION_STATE_TIMEOUT_MS,
         "batchSync",
       );
-      if (cs.live === true) readyInstances.push(preferredCfg);
+      if (cs.live === true) {
+        const smoke = await validateOnInstance(apiUrl, apiKey, name, [SMOKE_PROBE_NUMBER], false);
+        if (smoke.ok && !smoke.connectionClosed && !smoke.fetchFailed && !smoke.technicalError) {
+          readyInstances.push(preferredCfg);
+        }
+      }
     }
   }
 
