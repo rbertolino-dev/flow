@@ -84,9 +84,13 @@ export async function validateContactsForSelectedInstances(
   const rotatorPool = buildValidationRotatorPool(instanceIds, instancesList);
   const instanceIdToName = buildInstanceIdToName(instanceIds, instancesList);
 
+  // Envia só o pool conectado à edge — se mandar os 52 (incl. offline), retries
+  // após falha do preferred caíam em chips close e geravam o aviso falso.
+  const edgeInstanceIds = rotatorPool.length > 0 ? rotatorPool : instanceIds;
+
   const edge = await validateBroadcastWhatsappBatched(
     organizationId,
-    instanceIds,
+    edgeInstanceIds,
     numbers,
     useLatamValidator,
     {

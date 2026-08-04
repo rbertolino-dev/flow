@@ -31,8 +31,8 @@ function resolveFunctionsBaseUrl(): string {
 /** Máx. números por chamada à edge (2 lotes Evolution × 50; cabe no timeout ~60s). */
 export const BROADCAST_WHATSAPP_VALIDATION_BATCH_SIZE = 100;
 
-/** Máx. chips no rodízio de validação (opção 2 — não usa todos os 28 de uma vez). */
-export const BROADCAST_VALIDATION_ROTATOR_MAX = 6;
+/** Máx. chips no rodízio de validação (chips conectados — evita cair em offline). */
+export const BROADCAST_VALIDATION_ROTATOR_MAX = 12;
 
 /** Pausa entre lotes quando há rodízio de chips (reduz pico na Evolution). */
 export const BROADCAST_VALIDATION_INTER_BATCH_DELAY_MS = 1200;
@@ -149,8 +149,8 @@ export async function validateBroadcastWhatsappViaEdge(
 }
 
 /**
- * Pool de chips para rodízio na validação (opção 2).
- * Respeita a ordem da seleção; ignora chips explicitamente desconectados no DB.
+ * Pool de chips para rodízio na validação.
+ * Prioriza is_connected=true; ignora desconectados explícitos.
  */
 export function buildValidationRotatorPool(
   instanceIds: string[],
@@ -160,30 +160,32 @@ export function buildValidationRotatorPool(
   const pool: string[] = [];
   const seen = new Set<string>();
 
-  for (const rawId of instanceIds) {
-    const id = String(rawId).trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
+  const pushIf = (id: string, requireConnected: boolean | null) => {
+    if (!id || seen.has(id)) return;
     const inst = instancesList.find((i) => String(i.id) === id);
-    if (inst?.is_connected === false) continue;
+    if (inst?.is_connected === false) return;
+    if (requireConnected === true && inst?.is_connected !== true) return;
+    seen.add(id);
     pool.push(id);
+  };
+
+  // 1) Conectados na ordem da seleção
+  for (const rawId of instanceIds) {
     if (pool.length >= maxChips) break;
+    pushIf(String(rawId).trim(), true);
+  }
+
+  // 2) Restante sem flag false (desconhecido), se ainda faltar
+  if (pool.length < maxChips) {
+    for (const rawId of instanceIds) {
+      if (pool.length >= maxChips) break;
+      pushIf(String(rawId).trim(), null);
+    }
   }
 
   if (pool.length === 0) {
-    const connectedFallback = instanceIds
-      .map((id) => String(id).trim())
-      .filter(Boolean)
-      .filter((id) => {
-        const inst = instancesList.find((i) => String(i.id) === id);
-        return inst?.is_connected === true;
-      });
-    if (connectedFallback.length > 0) {
-      pool.push(...connectedFallback.slice(0, maxChips));
-    } else {
-      const fallback = instanceIds.map((id) => String(id).trim()).find(Boolean);
-      if (fallback) pool.push(fallback);
-    }
+    const fallback = instanceIds.map((id) => String(id).trim()).find(Boolean);
+    if (fallback) pool.push(fallback);
   }
 
   return pool;

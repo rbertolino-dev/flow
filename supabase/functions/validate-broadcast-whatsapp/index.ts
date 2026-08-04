@@ -12,9 +12,11 @@ const corsHeaders = {
 };
 
 /** Limite de instâncias verificadas em paralelo (evita 28× sequencial antes do timeout). */
-const READY_PROBE_CONCURRENCY = 6;
-/** Máx. chips tentados em whatsappNumbers quando nenhum está pronto (evita 504 do gateway). */
-const MAX_VALIDATE_ATTEMPTS = 4;
+const READY_PROBE_CONCURRENCY = 8;
+/** Máx. chips com connectionState OPEN a sondar (prioridade: is_connected no CRM). */
+const MAX_READY_PROBES = 16;
+/** Máx. chips tentados em whatsappNumbers (evita 504 do gateway). */
+const MAX_VALIDATE_ATTEMPTS = 10;
 /** Tempo máximo total da função (ms) — gateway Supabase ~60s. */
 const FUNCTION_DEADLINE_MS = 48000;
 /** Timeout por chamada à Evolution na validação (ms). */
@@ -162,10 +164,20 @@ async function validateOnInstance(
   };
 }
 
+/** Preferir chips marcados conectados no CRM — evita gastar tentativas em offline. */
+function prioritizeConnected(configs: EvolutionConfigRow[]): EvolutionConfigRow[] {
+  const on = configs.filter((c) => c.is_connected === true);
+  const unknown = configs.filter((c) => c.is_connected !== true && c.is_connected !== false);
+  const off = configs.filter((c) => c.is_connected === false);
+  return [...on, ...unknown, ...off];
+}
+
 async function probeReadyInstances(
   configs: EvolutionConfigRow[],
+  limit = MAX_READY_PROBES,
 ): Promise<EvolutionConfigRow[]> {
   const ready: EvolutionConfigRow[] = [];
+  const candidates = prioritizeConnected(configs).slice(0, Math.max(limit, READY_PROBE_CONCURRENCY));
 
   const probeOne = async (cfg: EvolutionConfigRow) => {
     const name = String(cfg.instance_name ?? "").trim();
@@ -182,12 +194,13 @@ async function probeReadyInstances(
     if (cs.live === true) ready.push(cfg);
   };
 
-  for (let i = 0; i < configs.length; i += READY_PROBE_CONCURRENCY) {
-    const slice = configs.slice(i, i + READY_PROBE_CONCURRENCY);
+  for (let i = 0; i < candidates.length; i += READY_PROBE_CONCURRENCY) {
+    if (ready.length >= limit) break;
+    const slice = candidates.slice(i, i + READY_PROBE_CONCURRENCY);
     await Promise.all(slice.map((cfg) => probeOne(cfg)));
   }
 
-  return ready;
+  return ready.slice(0, limit);
 }
 
 function buildTryOrder(
@@ -195,19 +208,23 @@ function buildTryOrder(
   readyInstances: EvolutionConfigRow[],
   preferredCfg: EvolutionConfigRow | null,
 ): EvolutionConfigRow[] {
-  const rest = configs.filter((c) => c.id !== preferredCfg?.id);
+  const readyIds = new Set(readyInstances.map((c) => c.id));
   const readyRest = readyInstances.filter((c) => c.id !== preferredCfg?.id);
-  const notReadyRest = rest.filter((c) => !readyRest.some((o) => o.id === c.id));
+  const notReady = prioritizeConnected(
+    configs.filter((c) => c.id !== preferredCfg?.id && !readyIds.has(c.id)),
+  );
 
+  // Só tenta offline depois de esgotar chips OPEN — evita o erro
+  // "OPEN no painel (Joana), mas não validou" quando os retries caem em close.
   if (preferredCfg) {
-    const prefReady = readyInstances.some((c) => c.id === preferredCfg.id);
+    const prefReady = readyIds.has(preferredCfg.id);
     if (prefReady) {
-      return [preferredCfg, ...readyRest, ...notReadyRest];
+      return [preferredCfg, ...readyRest, ...notReady];
     }
-    return [...readyRest, preferredCfg, ...notReadyRest];
+    return [...readyRest, preferredCfg, ...notReady];
   }
 
-  return [...readyInstances, ...configs.filter((c) => !readyInstances.some((o) => o.id === c.id))];
+  return [...readyInstances, ...notReady];
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -306,14 +323,19 @@ serve(async (req) => {
     });
   }
 
-  const configList = configs as EvolutionConfigRow[];
+  const configList = prioritizeConnected(configs as EvolutionConfigRow[]);
 
   const preferredCfg =
     preferredInstanceId && configList.find((c) => c.id === preferredInstanceId)
       ? configList.find((c) => c.id === preferredInstanceId)!
       : null;
 
+  // Sempre sondar vários chips OPEN (não só o preferred). Antes, se o preferred
+  // parecia OPEN e whatsappNumbers falhava, os retries caiam em chips close.
   let readyInstances: EvolutionConfigRow[] = [];
+  const othersForProbe = preferredCfg
+    ? configList.filter((c) => c.id !== preferredCfg.id)
+    : configList;
 
   if (preferredCfg) {
     const name = String(preferredCfg.instance_name ?? "").trim();
@@ -329,16 +351,28 @@ serve(async (req) => {
       );
       if (cs.live === true) readyInstances.push(preferredCfg);
     }
-    const others = configList.filter((c) => c.id !== preferredCfg.id);
-    if (others.length > 0 && readyInstances.length === 0) {
-      const moreReady = await probeReadyInstances(others.slice(0, READY_PROBE_CONCURRENCY));
-      readyInstances = [...readyInstances, ...moreReady];
+  }
+
+  if (othersForProbe.length > 0 && !pastDeadline()) {
+    const moreReady = await probeReadyInstances(
+      othersForProbe,
+      MAX_READY_PROBES - readyInstances.length,
+    );
+    const seen = new Set(readyInstances.map((c) => c.id));
+    for (const cfg of moreReady) {
+      if (!seen.has(cfg.id)) {
+        readyInstances.push(cfg);
+        seen.add(cfg.id);
+      }
     }
-  } else {
-    readyInstances = await probeReadyInstances(configList.slice(0, READY_PROBE_CONCURRENCY));
   }
 
   const tryOrder = buildTryOrder(configList, readyInstances, preferredCfg);
+  const readyIdSet = new Set(readyInstances.map((c) => c.id));
+  const maxAttempts = Math.min(
+    MAX_VALIDATE_ATTEMPTS,
+    Math.max(4, readyInstances.length > 0 ? readyInstances.length + 2 : 4),
+  );
 
   let usedInstance: string | null = null;
   let usedInstanceId: string | null = null;
@@ -347,14 +381,22 @@ serve(async (req) => {
   let validateAttempts = 0;
   let hadFetchFailure = false;
   let hadTechnicalError = false;
+  let readyAttempts = 0;
 
   for (const cfg of tryOrder) {
-    if (validateAttempts >= MAX_VALIDATE_ATTEMPTS || pastDeadline()) break;
+    if (validateAttempts >= maxAttempts || pastDeadline()) break;
 
     const name = String(cfg.instance_name ?? "").trim();
     if (!name || !cfg.api_url || !cfg.api_key) continue;
 
+    const isReady = readyIdSet.has(cfg.id);
+    // Com chips OPEN disponíveis, não gastar tentativas em offline.
+    if (!isReady && readyInstances.length > 0 && readyAttempts < readyInstances.length) {
+      continue;
+    }
+
     validateAttempts += 1;
+    if (isReady) readyAttempts += 1;
 
     const attempt = await validateOnInstance(
       cfg.api_url,
@@ -386,16 +428,30 @@ serve(async (req) => {
 
   if (!usedInstance && readyInstances.length > 0) {
     const names = readyInstances.map((c) => c.instance_name).filter(Boolean).slice(0, 5).join(", ");
-    return new Response(
-      JSON.stringify({
+    if (hadTechnicalError) {
+      const host = (() => {
+        try {
+          const u = String(readyInstances[0]?.api_url ?? "");
+          return new URL(u.startsWith("http") ? u : `https://${u}`).hostname;
+        } catch {
+          return "Evolution";
+        }
+      })();
+      return jsonResponse({
         ok: false,
         error:
-          `As instâncias estão OPEN no painel (${names}${readyInstances.length > 5 ? "…" : ""}), mas a Evolution não validou os números (sessão fechada ou whatsappNumbers indisponível). Reconecte um chip e tente de novo.`,
+          `Evolution API (${host}): banco de dados indisponível no servidor. Os chips (${names}${readyInstances.length > 5 ? "…" : ""}) aparecem conectados, mas validação WhatsApp e envio estão bloqueados até o Postgres da Evolution voltar. Contacte o administrador do servidor Evolution.`,
         validatedNumbers: [] as string[],
         rejectedNumbers: numbers,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+      });
+    }
+    return jsonResponse({
+      ok: false,
+      error:
+        `As instâncias estão OPEN no painel (${names}${readyInstances.length > 5 ? "…" : ""}), mas a Evolution não validou os números (sessão fechada ou whatsappNumbers indisponível). Reconecte um chip e tente de novo.`,
+      validatedNumbers: [] as string[],
+      rejectedNumbers: numbers,
+    });
   }
 
   if (!usedInstance) {
