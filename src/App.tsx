@@ -20,7 +20,7 @@ import NotFound from "./pages/NotFound";
 const Users = lazy(() => import("./pages/Users"));
 const Settings = lazy(() => import("./pages/Settings"));
 const BroadcastCampaigns = lazy(() => import("./pages/BroadcastCampaigns"));
-const BroadcastCampaigns2 = lazy(() => import("./pages/BroadcastCampaigns2"));
+const BroadcastCampaigns2 = lazy(() => import("./pages/BroadcastCampaignsHub"));
 const PeriodicWorkflows = lazy(() => import("./pages/PeriodicWorkflows"));
 const AuthLogs = lazy(() => import("./pages/AuthLogs"));
 const Diagnostics = lazy(() => import("./pages/Diagnostics"));

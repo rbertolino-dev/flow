@@ -24,6 +24,7 @@ import { ptBR } from "date-fns/locale";
 import { WhatsAppNav } from "@/components/whatsapp/WhatsAppNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
+import { BroadcastProviderSwitcher } from "@/components/crm/BroadcastProviderSwitcher";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
@@ -2833,6 +2834,12 @@ export default function BroadcastCampaigns2() {
       <CRMLayout activeView="broadcast-2" onViewChange={handleViewChange}>
         <div className="h-full overflow-y-auto">
           <div className="p-4 md:p-6 pb-20 md:pb-6">
+          <BroadcastProviderSwitcher
+            provider="evolution"
+            onChange={(provider) => {
+              if (provider === "waha") navigate("/broadcast-2?provider=waha");
+            }}
+          />
           {/* Alertas de instâncias desconectadas (refetch sem reload ao reconectar) */}
           <InstanceDisconnectionAlerts
             instances={instances as EvolutionConfig[]}

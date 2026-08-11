@@ -53,6 +53,18 @@ verify_jwt = false
 [functions.sync-evolution-connection-batch]
 verify_jwt = false
 
+[functions.process-broadcast-queue-waha]
+verify_jwt = false
+
+[functions.validate-broadcast-whatsapp-waha]
+verify_jwt = true
+
+[functions.sync-waha-connection-batch]
+verify_jwt = true
+
+[functions.waha-webhook]
+verify_jwt = false
+
 [functions.process-scheduled-messages]
 verify_jwt = false
 
