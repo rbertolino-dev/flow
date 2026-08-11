@@ -6,12 +6,16 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  MessageSquareText,
   Pause,
   Play,
   Plus,
   RadioTower,
   RefreshCw,
+  Save,
   Send,
+  TestTube2,
+  Trash2,
   XCircle,
 } from "lucide-react";
 
@@ -76,6 +80,32 @@ type ParsedContact = {
   name: string;
 };
 
+type WahaTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  custom_message: string;
+  sending_method: SendingMethod;
+  min_delay_seconds: number;
+  max_delay_seconds: number;
+};
+
+type WahaValidationItem = {
+  phone: string;
+  exists: boolean;
+  chatId: string;
+  error?: string;
+};
+
+type WahaValidation = {
+  results: WahaValidationItem[];
+  valid: number;
+  invalid: number;
+  total: number;
+  formatted: number;
+  formattingInvalid: number;
+};
+
 const db = supabase as any;
 
 function normalizePhone(phone: string): string {
@@ -126,14 +156,20 @@ export default function BroadcastCampaignsWaha() {
   const { activeOrgId } = useActiveOrganization();
   const [sessions, setSessions] = useState<WahaSession[]>([]);
   const [campaigns, setCampaigns] = useState<WahaCampaign[]>([]);
+  const [templates, setTemplates] = useState<WahaTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [validatingContacts, setValidatingContacts] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
+  const [validationResult, setValidationResult] = useState<WahaValidation | null>(null);
   const [form, setForm] = useState({
     name: "",
     message: "",
     contacts: "",
+    templateId: "",
     method: "single" as SendingMethod,
     sessionIds: [] as string[],
     minDelay: 30,
@@ -150,11 +186,12 @@ export default function BroadcastCampaignsWaha() {
     if (!activeOrgId) {
       setSessions([]);
       setCampaigns([]);
+      setTemplates([]);
       setLoading(false);
       return;
     }
     try {
-      const [sessionsResult, campaignsResult] = await Promise.all([
+      const [sessionsResult, campaignsResult, templatesResult] = await Promise.all([
         db
           .from("waha_config")
           .select("id,session_name,display_name,phone_number,engine,status,is_connected,last_synced_at")
@@ -166,11 +203,18 @@ export default function BroadcastCampaignsWaha() {
           .eq("organization_id", activeOrgId)
           .order("created_at", { ascending: false })
           .limit(100),
+        db
+          .from("broadcast_templates_waha")
+          .select("*")
+          .eq("organization_id", activeOrgId)
+          .order("name"),
       ]);
       if (sessionsResult.error) throw sessionsResult.error;
       if (campaignsResult.error) throw campaignsResult.error;
+      if (templatesResult.error) throw templatesResult.error;
       setSessions((sessionsResult.data || []) as WahaSession[]);
       setCampaigns((campaignsResult.data || []) as WahaCampaign[]);
+      setTemplates((templatesResult.data || []) as WahaTemplate[]);
     } catch (error) {
       console.error("Erro ao carregar disparador WAHA:", error);
       toast({
@@ -193,6 +237,14 @@ export default function BroadcastCampaignsWaha() {
     () => sessions.filter((session) => session.is_connected && session.status === "WORKING"),
     [sessions],
   );
+
+  const patchForm = (
+    patch: Partial<typeof form>,
+    invalidateValidation = true,
+  ) => {
+    setForm((current) => ({ ...current, ...patch }));
+    if (invalidateValidation) setValidationResult(null);
+  };
 
   const syncSessions = async () => {
     if (!activeOrgId) return;
@@ -233,6 +285,7 @@ export default function BroadcastCampaignsWaha() {
           : nextIds,
       };
     });
+    setValidationResult(null);
   };
 
   const resetForm = () => {
@@ -240,12 +293,204 @@ export default function BroadcastCampaignsWaha() {
       name: "",
       message: "",
       contacts: "",
+      templateId: "",
       method: "single",
       sessionIds: [],
       minDelay: 30,
       maxDelay: 60,
     });
+    setValidationResult(null);
+    setSimulationDialogOpen(false);
   };
+
+  const validateContacts = async (): Promise<WahaValidation | null> => {
+    if (!activeOrgId) return null;
+    const rawTotal = form.contacts.split(/\r?\n/).filter((line) => line.trim()).length;
+    const contacts = parseContacts(form.contacts);
+    if (contacts.length === 0) {
+      toast({
+        title: "Nenhum telefone com formato válido",
+        description: "Use uma linha por contato: Nome;5511999999999",
+        variant: "destructive",
+      });
+      return null;
+    }
+    if (form.sessionIds.length === 0) {
+      toast({ title: "Selecione uma sessão WAHA", variant: "destructive" });
+      return null;
+    }
+    if (form.method === "single" && form.sessionIds.length !== 1) {
+      toast({ title: "Envio único exige exatamente uma sessão", variant: "destructive" });
+      return null;
+    }
+    if (form.method === "rotate" && form.sessionIds.length < 2) {
+      toast({ title: "Rotação exige pelo menos duas sessões", variant: "destructive" });
+      return null;
+    }
+
+    setValidatingContacts(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "validate-broadcast-whatsapp-waha",
+        {
+          body: {
+            organizationId: activeOrgId,
+            sessionIds: form.sessionIds,
+            phones: contacts.map((contact) => contact.phone),
+          },
+        },
+      );
+      if (error) throw error;
+      const results = (data?.results || []) as WahaValidationItem[];
+      const summary: WahaValidation = {
+        results,
+        valid: results.filter((item) => item.exists).length,
+        invalid: results.filter((item) => !item.exists).length,
+        total: rawTotal,
+        formatted: contacts.length,
+        formattingInvalid: Math.max(0, rawTotal - contacts.length),
+      };
+      setValidationResult(summary);
+      toast({
+        title: "Validação WhatsApp concluída",
+        description: `${summary.valid} válido(s), ${summary.invalid} sem WhatsApp e ${summary.formattingInvalid} com formato inválido.`,
+        variant: summary.valid > 0 ? "default" : "destructive",
+      });
+      return summary;
+    } catch (error) {
+      console.error("Erro ao validar contatos WAHA:", error);
+      setValidationResult(null);
+      toast({
+        title: "Falha ao validar WhatsApp",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setValidatingContacts(false);
+    }
+  };
+
+  const applyTemplate = (templateId: string) => {
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+    patchForm({
+      templateId: template.id,
+      name: template.name,
+      message: template.custom_message,
+      method: template.sending_method,
+      minDelay: template.min_delay_seconds,
+      maxDelay: template.max_delay_seconds,
+      sessionIds: template.sending_method === "single"
+        ? form.sessionIds.slice(0, 1)
+        : form.sessionIds,
+    });
+    toast({
+      title: "Template WAHA carregado",
+      description: `Revise contatos e sessões antes de validar.`,
+    });
+  };
+
+  const saveCurrentAsTemplate = async () => {
+    if (!activeOrgId || !form.name.trim() || !form.message.trim()) {
+      toast({
+        title: "Informe nome e mensagem para salvar o template",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingTemplate(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw userError ?? new Error("Usuário não autenticado");
+      const { error } = await db.from("broadcast_templates_waha").upsert({
+        organization_id: activeOrgId,
+        user_id: user.id,
+        name: form.name.trim(),
+        custom_message: form.message.trim(),
+        sending_method: form.method,
+        min_delay_seconds: form.minDelay,
+        max_delay_seconds: form.maxDelay,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "organization_id,name" });
+      if (error) throw error;
+      await fetchData();
+      toast({ title: "Template WAHA salvo" });
+    } catch (error) {
+      console.error("Erro ao salvar template WAHA:", error);
+      toast({
+        title: "Erro ao salvar template",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    try {
+      const { error } = await db
+        .from("broadcast_templates_waha")
+        .delete()
+        .eq("id", templateId)
+        .eq("organization_id", activeOrgId);
+      if (error) throw error;
+      if (form.templateId === templateId) patchForm({ templateId: "" });
+      await fetchData();
+      toast({ title: "Template WAHA excluído" });
+    } catch (error) {
+      console.error("Erro ao excluir template WAHA:", error);
+      toast({ title: "Erro ao excluir template", variant: "destructive" });
+    }
+  };
+
+  const simulation = useMemo(() => {
+    if (!validationResult) return null;
+    const contacts = parseContacts(form.contacts);
+    const validPhones = new Set(
+      validationResult.results.filter((item) => item.exists).map((item) => normalizePhone(item.phone)),
+    );
+    const validContacts = contacts.filter((contact) => validPhones.has(contact.phone));
+    const distribution = new Map<string, number>();
+    form.sessionIds.forEach((sessionId) => distribution.set(sessionId, 0));
+    if (form.method === "separate") {
+      form.sessionIds.forEach((sessionId) => distribution.set(sessionId, validContacts.length));
+    } else {
+      validContacts.forEach((_, index) => {
+        const sessionId = form.method === "rotate"
+          ? form.sessionIds[index % form.sessionIds.length]
+          : form.sessionIds[0];
+        if (sessionId) distribution.set(sessionId, (distribution.get(sessionId) ?? 0) + 1);
+      });
+    }
+    const averageDelay = (form.minDelay + form.maxDelay) / 2;
+    const largestSessionQueue = Math.max(0, ...distribution.values());
+    const estimatedSeconds = largestSessionQueue * averageDelay;
+    return {
+      validContacts,
+      queueCount: form.method === "separate"
+        ? validContacts.length * form.sessionIds.length
+        : validContacts.length,
+      estimatedSeconds,
+      distribution: [...distribution.entries()].map(([sessionId, count]) => ({
+        session: sessions.find((item) => item.id === sessionId),
+        count,
+      })),
+      preview: validContacts[0]
+        ? personalizeMessage(form.message, validContacts[0])
+        : form.message,
+    };
+  }, [
+    form.contacts,
+    form.maxDelay,
+    form.message,
+    form.method,
+    form.minDelay,
+    form.sessionIds,
+    sessions,
+    validationResult,
+  ]);
 
   const createCampaign = async () => {
     if (!activeOrgId) return;
@@ -291,17 +536,10 @@ export default function BroadcastCampaignsWaha() {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw userError ?? new Error("Usuário não autenticado");
 
-      const { data: validation, error: validationError } =
-        await supabase.functions.invoke("validate-broadcast-whatsapp-waha", {
-          body: {
-            organizationId: activeOrgId,
-            sessionIds: form.sessionIds,
-            phones: contacts.map((contact) => contact.phone),
-          },
-        });
-      if (validationError) throw validationError;
+      const validation = validationResult ?? await validateContacts();
+      if (!validation) throw new Error("Valide os contatos antes de criar a campanha");
       const validByPhone = new Map<string, string>();
-      (validation?.results || []).forEach(
+      validation.results.forEach(
         (item: { phone: string; exists: boolean; chatId: string }) => {
           if (item.exists) validByPhone.set(normalizePhone(item.phone), item.chatId);
         },
@@ -572,6 +810,59 @@ export default function BroadcastCampaignsWaha() {
               </CardContent>
             </Card>
 
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <MessageSquareText className="h-5 w-5" />
+                  Templates WAHA
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {templates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum template WAHA salvo. Abra uma nova campanha, preencha a mensagem
+                    e clique em “Salvar como template”.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {templates.map((template) => (
+                      <div key={template.id} className="rounded-md border p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <strong>{template.name}</strong>
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                              {template.custom_message}
+                            </p>
+                          </div>
+                          <Badge variant="outline">{template.sending_method}</Badge>
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              applyTemplate(template.id);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            Usar template
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Excluir template ${template.name}`}
+                            onClick={() => void deleteTemplate(template.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="space-y-3">
               {loading ? (
                 <div className="flex items-center justify-center p-10">
@@ -661,13 +952,37 @@ export default function BroadcastCampaignsWaha() {
             </DialogHeader>
 
             <div className="space-y-4 py-2">
+              {templates.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="waha-template">Template WAHA (opcional)</Label>
+                  <Select
+                    value={form.templateId || "none"}
+                    onValueChange={(value) => {
+                      if (value === "none") patchForm({ templateId: "" });
+                      else applyTemplate(value);
+                    }}
+                  >
+                    <SelectTrigger id="waha-template">
+                      <SelectValue placeholder="Selecione um template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem template</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="waha-name">Nome da campanha</Label>
                 <Input
                   id="waha-name"
                   value={form.name}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, name: event.target.value }))
+                    patchForm({ name: event.target.value }, false)
                   }
                 />
               </div>
@@ -676,13 +991,12 @@ export default function BroadcastCampaignsWaha() {
                 <Select
                   value={form.method}
                   onValueChange={(method: SendingMethod) =>
-                    setForm((current) => ({
-                      ...current,
+                    patchForm({
                       method,
                       sessionIds: method === "single"
-                        ? current.sessionIds.slice(0, 1)
-                        : current.sessionIds,
-                    }))
+                        ? form.sessionIds.slice(0, 1)
+                        : form.sessionIds,
+                    })
                   }
                 >
                   <SelectTrigger id="waha-method">
@@ -726,10 +1040,9 @@ export default function BroadcastCampaignsWaha() {
                     min={5}
                     value={form.minDelay}
                     onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
+                      patchForm({
                         minDelay: Number(event.target.value),
-                      }))
+                      })
                     }
                   />
                 </div>
@@ -741,10 +1054,9 @@ export default function BroadcastCampaignsWaha() {
                     min={5}
                     value={form.maxDelay}
                     onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
+                      patchForm({
                         maxDelay: Number(event.target.value),
-                      }))
+                      })
                     }
                   />
                 </div>
@@ -757,7 +1069,7 @@ export default function BroadcastCampaignsWaha() {
                   placeholder="Olá, {nome}! ..."
                   value={form.message}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, message: event.target.value }))
+                    patchForm({ message: event.target.value })
                   }
                 />
               </div>
@@ -769,24 +1081,199 @@ export default function BroadcastCampaignsWaha() {
                   placeholder={"João;5511999999999\nMaria;5511888888888"}
                   value={form.contacts}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, contacts: event.target.value }))
+                    patchForm({ contacts: event.target.value })
                   }
                 />
                 <p className="text-xs text-muted-foreground">
                   Até 500 números por campanha. Duplicados são removidos automaticamente.
                 </p>
               </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={validatingContacts || saving || form.sessionIds.length === 0}
+                  onClick={() => void validateContacts()}
+                >
+                  {validatingContacts
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  Checar e validar WhatsApp
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!validationResult || validationResult.valid === 0}
+                  onClick={() => setSimulationDialogOpen(true)}
+                >
+                  <TestTube2 className="mr-2 h-4 w-4" />
+                  Simular envio
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={savingTemplate || !form.name.trim() || !form.message.trim()}
+                  onClick={() => void saveCurrentAsTemplate()}
+                >
+                  {savingTemplate
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Save className="mr-2 h-4 w-4" />}
+                  Salvar como template
+                </Button>
+              </div>
+
+              {validatingContacts && (
+                <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Validando números diretamente na sessão WAHA…
+                  </div>
+                </div>
+              )}
+
+              {validationResult && !validatingContacts && (
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
+                    <div className="rounded bg-muted p-2">
+                      <strong className="block text-base">{validationResult.total}</strong>
+                      Informados
+                    </div>
+                    <div className="rounded bg-muted p-2">
+                      <strong className="block text-base">{validationResult.formatted}</strong>
+                      Formato válido
+                    </div>
+                    <div className="rounded bg-green-50 p-2 text-green-700">
+                      <strong className="block text-base">{validationResult.valid}</strong>
+                      Com WhatsApp
+                    </div>
+                    <div className="rounded bg-red-50 p-2 text-red-700">
+                      <strong className="block text-base">
+                        {validationResult.invalid + validationResult.formattingInvalid}
+                      </strong>
+                      Inválidos
+                    </div>
+                  </div>
+                  {validationResult.results.some((item) => !item.exists) && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium">Números sem WhatsApp:</p>
+                      <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto">
+                        {validationResult.results
+                          .filter((item) => !item.exists)
+                          .map((item) => (
+                            <Badge key={item.phone} variant="destructive">
+                              {item.phone}
+                            </Badge>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Fechar
               </Button>
-              <Button disabled={saving} onClick={() => void createCampaign()}>
+              <Button
+                disabled={saving || validatingContacts || !validationResult?.valid}
+                onClick={() => void createCampaign()}
+              >
                 {saving
                   ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   : <Send className="mr-2 h-4 w-4" />}
-                Validar e criar
+                Criar campanha
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={simulationDialogOpen} onOpenChange={setSimulationDialogOpen}>
+          <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Simulação do envio WAHA</DialogTitle>
+              <DialogDescription>
+                Esta simulação não envia mensagens nem grava a campanha.
+              </DialogDescription>
+            </DialogHeader>
+            {simulation && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <strong className="block text-xl">{validationResult?.total ?? 0}</strong>
+                      <span className="text-xs text-muted-foreground">Informados</span>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <strong className="block text-xl text-green-600">
+                        {simulation.validContacts.length}
+                      </strong>
+                      <span className="text-xs text-muted-foreground">Com WhatsApp</span>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <strong className="block text-xl">{simulation.queueCount}</strong>
+                      <span className="text-xs text-muted-foreground">Mensagens na fila</span>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <strong className="block text-xl">
+                        {Math.max(1, Math.ceil(simulation.estimatedSeconds / 60))} min
+                      </strong>
+                      <span className="text-xs text-muted-foreground">Estimativa</span>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <p className="mb-2 text-sm font-medium">Distribuição por sessão</p>
+                  <div className="space-y-2">
+                    {simulation.distribution.map((item) => (
+                      <div
+                        key={item.session?.id ?? "unknown"}
+                        className="flex items-center justify-between rounded bg-muted px-3 py-2 text-sm"
+                      >
+                        <span>{item.session?.display_name || item.session?.session_name || "Sessão"}</span>
+                        <Badge variant="outline">{item.count} mensagem(ns)</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {form.method === "separate" && (
+                  <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    No método separado, cada sessão enviará para toda a lista. Por isso o
+                    volume total é multiplicado pelo número de sessões.
+                  </div>
+                )}
+
+                <div className="rounded-md border p-3">
+                  <p className="mb-2 text-sm font-medium">Prévia personalizada</p>
+                  <div className="whitespace-pre-wrap rounded bg-green-50 p-3 text-sm">
+                    {simulation.preview}
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSimulationDialogOpen(false)}
+              >
+                Voltar e ajustar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setSimulationDialogOpen(false)}
+              >
+                Simulação aprovada
               </Button>
             </DialogFooter>
           </DialogContent>
