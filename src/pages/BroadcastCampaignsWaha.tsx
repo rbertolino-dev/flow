@@ -78,6 +78,7 @@ type WahaCampaign = {
 type ParsedContact = {
   phone: string;
   name: string;
+  empresa: string;
 };
 
 type WahaTemplate = {
@@ -86,9 +87,6 @@ type WahaTemplate = {
   description: string | null;
   custom_message: string;
   message_variations: string[];
-  sending_method: SendingMethod;
-  min_delay_seconds: number;
-  max_delay_seconds: number;
 };
 
 type WahaValidationItem = {
@@ -119,24 +117,66 @@ function normalizePhone(phone: string): string {
 
 function parseContacts(value: string): ParsedContact[] {
   const deduped = new Map<string, ParsedContact>();
-  value.split(/\r?\n/).forEach((line) => {
+  const lines = value.split(/\r?\n/).filter((line) => line.trim());
+  const firstParts = (lines[0] || "")
+    .split(/[;,|\t]/)
+    .map((part) => part.trim().toLowerCase());
+  const hasHeader = firstParts.some((part) =>
+    ["telefone", "phone", "celular", "whatsapp", "numero", "número"].includes(part)
+  );
+  const header = hasHeader ? firstParts : [];
+
+  lines.slice(hasHeader ? 1 : 0).forEach((line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
     const parts = trimmed.split(/[;,|\t]/).map((part) => part.trim());
-    const phoneCandidate = parts.find((part) => part.replace(/\D/g, "").length >= 10);
+    const phoneHeaderIndex = header.findIndex((part) =>
+      ["telefone", "phone", "celular", "whatsapp", "numero", "número"].includes(part)
+    );
+    const phoneCandidate = phoneHeaderIndex >= 0
+      ? parts[phoneHeaderIndex]
+      : parts.find((part) => part.replace(/\D/g, "").length >= 10);
     if (!phoneCandidate) return;
     const phone = normalizePhone(phoneCandidate);
     if (!phone) return;
-    const name = parts.find((part) => part !== phoneCandidate) ?? "";
-    if (!deduped.has(phone)) deduped.set(phone, { phone, name });
+    const nonPhoneParts = parts.filter((_, index) =>
+      phoneHeaderIndex >= 0 ? index !== phoneHeaderIndex : parts[index] !== phoneCandidate
+    );
+    const nameHeaderIndex = header.findIndex((part) =>
+      ["nome", "name", "cliente", "contato"].includes(part)
+    );
+    const companyHeaderIndex = header.findIndex((part) =>
+      [
+        "empresa",
+        "company",
+        "companhia",
+        "nome_empresa",
+        "nome da empresa",
+        "razão social",
+        "razao social",
+      ].includes(part)
+    );
+    const name = nameHeaderIndex >= 0 ? parts[nameHeaderIndex] || "" : nonPhoneParts[0] || "";
+    const empresa = companyHeaderIndex >= 0
+      ? parts[companyHeaderIndex] || ""
+      : nonPhoneParts[1] || "";
+    if (!deduped.has(phone)) deduped.set(phone, { phone, name, empresa });
   });
   return [...deduped.values()];
 }
 
 function personalizeMessage(message: string, contact: ParsedContact): string {
-  return message
-    .replace(/\{\{?nome\}?\}/gi, contact.name)
-    .replace(/\{\{?telefone\}?\}/gi, contact.phone);
+  const replacements: Record<string, string> = {
+    nome: contact.name,
+    name: contact.name,
+    empresa: contact.empresa,
+    nome_empresa: contact.empresa,
+    telefone: contact.phone,
+    phone: contact.phone,
+  };
+  return message.replace(/\{\{?(\w+)\}?\}/gi, (_, key: string) =>
+    replacements[key.toLowerCase()] ?? ""
+  );
 }
 
 function randomDelay(min: number, max: number): number {
@@ -183,9 +223,6 @@ export default function BroadcastCampaignsWaha() {
     description: "",
     message: "",
     messageVariations: [] as string[],
-    method: "single" as SendingMethod,
-    minDelay: 30,
-    maxDelay: 60,
   });
   const messagesToUse = useMemo(() => {
     const variations = form.messageVariations
@@ -408,12 +445,6 @@ export default function BroadcastCampaignsWaha() {
       templateId: template.id,
       message: variations.length > 0 ? "" : template.custom_message,
       messageVariations: variations,
-      method: template.sending_method,
-      minDelay: template.min_delay_seconds,
-      maxDelay: template.max_delay_seconds,
-      sessionIds: template.sending_method === "single"
-        ? form.sessionIds.slice(0, 1)
-        : form.sessionIds,
     });
     toast({
       title: "Template WAHA carregado",
@@ -427,9 +458,20 @@ export default function BroadcastCampaignsWaha() {
       description: "",
       message: "",
       messageVariations: [],
-      method: "single",
-      minDelay: 30,
-      maxDelay: 60,
+    });
+  };
+
+  const appendTemplateTag = (tag: "{nome}" | "{empresa}") => {
+    setTemplateForm((current) => ({
+      ...current,
+      message: `${current.message}${current.message ? " " : ""}${tag}`,
+    }));
+  };
+
+  const appendCampaignTag = (tag: "{nome}" | "{empresa}") => {
+    patchForm({
+      message: `${form.message}${form.message ? " " : ""}${tag}`,
+      templateId: "",
     });
   };
 
@@ -445,14 +487,6 @@ export default function BroadcastCampaignsWaha() {
       });
       return;
     }
-    if (
-      templateForm.minDelay < 5 ||
-      templateForm.maxDelay < templateForm.minDelay ||
-      templateForm.maxDelay > 3600
-    ) {
-      toast({ title: "Intervalo do template inválido", variant: "destructive" });
-      return;
-    }
     setSavingTemplate(true);
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -466,9 +500,6 @@ export default function BroadcastCampaignsWaha() {
         message_variations: templateForm.messageVariations
           .map((message) => message.trim())
           .filter(Boolean),
-        sending_method: templateForm.method,
-        min_delay_seconds: templateForm.minDelay,
-        max_delay_seconds: templateForm.maxDelay,
         updated_at: new Date().toISOString(),
       }, { onConflict: "organization_id,name" });
       if (error) throw error;
@@ -610,6 +641,41 @@ export default function BroadcastCampaignsWaha() {
       const validContacts = contacts.filter((contact) => validByPhone.has(contact.phone));
       if (validContacts.length === 0) {
         throw new Error("Nenhum contato possui WhatsApp válido");
+      }
+      const requiredTags = new Set(
+        messagesToUse.flatMap((message) =>
+          [...message.matchAll(/\{\{?(\w+)\}?\}/gi)].map((match) =>
+            match[1].toLowerCase()
+          )
+        ),
+      );
+      const supportedTags = new Set([
+        "nome",
+        "name",
+        "empresa",
+        "nome_empresa",
+        "telefone",
+        "phone",
+      ]);
+      const unsupportedTags = [...requiredTags].filter((tag) => !supportedTags.has(tag));
+      if (unsupportedTags.length > 0) {
+        throw new Error(`Tags não suportadas: ${unsupportedTags.join(", ")}`);
+      }
+      const missingName = validContacts.filter((contact) => !contact.name.trim()).length;
+      if (
+        missingName > 0 &&
+        (requiredTags.has("nome") || requiredTags.has("name"))
+      ) {
+        throw new Error(`${missingName} contato(s) sem nome para preencher a tag {nome}`);
+      }
+      const missingCompany = validContacts.filter((contact) => !contact.empresa.trim()).length;
+      if (
+        missingCompany > 0 &&
+        (requiredTags.has("empresa") || requiredTags.has("nome_empresa"))
+      ) {
+        throw new Error(
+          `${missingCompany} contato(s) sem empresa para preencher a tag {empresa}`,
+        );
       }
 
       const queueCount = form.method === "separate"
@@ -913,16 +979,18 @@ export default function BroadcastCampaignsWaha() {
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <strong>{template.name}</strong>
+                            {template.description && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {template.description}
+                              </p>
+                            )}
                             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                               {template.message_variations?.[0] || template.custom_message}
                             </p>
                           </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <Badge variant="outline">{template.sending_method}</Badge>
-                            <Badge variant="secondary">
-                              {template.message_variations?.length || 1} variação(ões)
-                            </Badge>
-                          </div>
+                          <Badge variant="secondary">
+                            {template.message_variations?.length || 1} variação(ões)
+                          </Badge>
                         </div>
                         <div className="mt-3 flex gap-2">
                           <Button
@@ -1041,7 +1109,8 @@ export default function BroadcastCampaignsWaha() {
             <DialogHeader>
               <DialogTitle>Novo template WAHA</DialogTitle>
               <DialogDescription>
-                Cadastre a mensagem uma vez e selecione este template ao criar campanhas.
+                O template contém somente mensagens e variações. Método, sessões e
+                intervalos são definidos separadamente em cada campanha.
               </DialogDescription>
             </DialogHeader>
 
@@ -1072,61 +1141,32 @@ export default function BroadcastCampaignsWaha() {
                   }
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="waha-template-method">Método padrão de envio</Label>
-                <Select
-                  value={templateForm.method}
-                  onValueChange={(method: SendingMethod) =>
-                    setTemplateForm((current) => ({ ...current, method }))
-                  }
-                >
-                  <SelectTrigger id="waha-template-method">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="single">Único — uma sessão</SelectItem>
-                    <SelectItem value="rotate">Rotacionado — alterna sessões</SelectItem>
-                    <SelectItem value="separate">Separado — toda lista por sessão</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="waha-template-min-delay">Intervalo mínimo</Label>
-                  <Input
-                    id="waha-template-min-delay"
-                    type="number"
-                    min={5}
-                    value={templateForm.minDelay}
-                    onChange={(event) =>
-                      setTemplateForm((current) => ({
-                        ...current,
-                        minDelay: Number(event.target.value),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="waha-template-max-delay">Intervalo máximo</Label>
-                  <Input
-                    id="waha-template-max-delay"
-                    type="number"
-                    min={5}
-                    value={templateForm.maxDelay}
-                    onChange={(event) =>
-                      setTemplateForm((current) => ({
-                        ...current,
-                        maxDelay: Number(event.target.value),
-                      }))
-                    }
-                  />
-                </div>
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                Configurações de envio não fazem parte do template. Elas serão escolhidas
+                somente ao criar a campanha WAHA.
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor="waha-template-message">Mensagem do template</Label>
-                  {templateForm.messageVariations.length === 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => appendTemplateTag("{nome}")}
+                    >
+                      Inserir {"{nome}"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => appendTemplateTag("{empresa}")}
+                    >
+                      Inserir {"{empresa}"}
+                    </Button>
+                    {templateForm.messageVariations.length === 0 && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1143,7 +1183,8 @@ export default function BroadcastCampaignsWaha() {
                       <Plus className="mr-2 h-4 w-4" />
                       Adicionar variações
                     </Button>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {templateForm.messageVariations.length === 0 ? (
@@ -1165,12 +1206,23 @@ export default function BroadcastCampaignsWaha() {
                       {templateForm.messageVariations.length} variação(ões) cadastrada(s).
                     </p>
                     {templateForm.messageVariations.map((message, index) => (
-                      <div key={`${index}-${message}`} className="flex gap-2">
-                        <div className="flex-1 rounded-md border bg-muted/50 p-3">
-                          <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      <div key={index} className="flex gap-2">
+                        <div className="flex-1 space-y-1">
+                          <Label htmlFor={`waha-template-variation-${index}`}>
                             Variação {index + 1}
-                          </p>
-                          <p className="whitespace-pre-wrap text-sm">{message}</p>
+                          </Label>
+                          <Textarea
+                            id={`waha-template-variation-${index}`}
+                            rows={3}
+                            value={message}
+                            onChange={(event) =>
+                              setTemplateForm((current) => {
+                                const variations = [...current.messageVariations];
+                                variations[index] = event.target.value;
+                                return { ...current, messageVariations: variations };
+                              })
+                            }
+                          />
                         </div>
                         <Button
                           type="button"
@@ -1239,6 +1291,10 @@ export default function BroadcastCampaignsWaha() {
                     </div>
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  Tags disponíveis: {"{nome}"} e {"{empresa}"}. Os dados serão lidos
+                  da lista de contatos da campanha.
+                </p>
               </div>
             </div>
 
@@ -1413,9 +1469,26 @@ export default function BroadcastCampaignsWaha() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor="waha-message">Mensagem personalizada</Label>
-                  {form.messageVariations.length === 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => appendCampaignTag("{nome}")}
+                    >
+                      Inserir {"{nome}"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => appendCampaignTag("{empresa}")}
+                    >
+                      Inserir {"{empresa}"}
+                    </Button>
+                    {form.messageVariations.length === 0 && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1432,7 +1505,8 @@ export default function BroadcastCampaignsWaha() {
                       <Plus className="mr-2 h-4 w-4" />
                       Adicionar variações
                     </Button>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {form.messageVariations.length === 0 ? (
@@ -1452,7 +1526,7 @@ export default function BroadcastCampaignsWaha() {
                       elas sequencialmente, como no Disparador 2 Evolution.
                     </p>
                     {form.messageVariations.map((message, index) => (
-                      <div key={`${index}-${message}`} className="flex gap-2">
+                      <div key={index} className="flex gap-2">
                         <div className="flex-1 rounded-md border bg-muted/50 p-3">
                           <p className="mb-1 text-xs font-medium text-muted-foreground">
                             Variação {index + 1}
@@ -1522,7 +1596,7 @@ export default function BroadcastCampaignsWaha() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Variáveis disponíveis: {"{nome}"} e {"{telefone}"}.
+                  Tags disponíveis: {"{nome}"} e {"{empresa}"}.
                 </p>
               </div>
               <div className="space-y-2">
@@ -1530,14 +1604,17 @@ export default function BroadcastCampaignsWaha() {
                 <Textarea
                   id="waha-contacts"
                   rows={7}
-                  placeholder={"João;5511999999999\nMaria;5511888888888"}
+                  placeholder={
+                    "Nome;Empresa;Telefone\nJoão;Empresa ABC;5511999999999\nMaria;Empresa XYZ;5511888888888"
+                  }
                   value={form.contacts}
                   onChange={(event) =>
                     patchForm({ contacts: event.target.value })
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Até 500 números por campanha. Duplicados são removidos automaticamente.
+                  Use as colunas Nome;Empresa;Telefone para preencher as tags. Até 500
+                  números; duplicados são removidos automaticamente.
                 </p>
               </div>
 

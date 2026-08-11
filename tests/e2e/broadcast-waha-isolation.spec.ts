@@ -31,16 +31,25 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await human.humanNavigate("/broadcast-2?provider=waha");
     await human.humanClick(page.getByRole("button", { name: "Novo template WAHA" }));
     await expect(page.getByRole("heading", { name: "Novo template WAHA" })).toBeVisible();
+    await expect(page.locator("#waha-template-method")).toHaveCount(0);
+    await expect(page.locator("#waha-template-min-delay")).toHaveCount(0);
+    await expect(page.locator("#waha-template-max-delay")).toHaveCount(0);
 
     await human.humanType("#waha-template-name", templateName);
-    await human.humanType("#waha-template-message", "Olá {nome}, primeira.");
+    await human.humanType("#waha-template-message", "Olá {nome}, falamos da");
     const templateDialog = page.getByRole("dialog").filter({
       has: page.getByRole("heading", { name: "Novo template WAHA" }),
     });
     await human.humanClick(
+      templateDialog.getByRole("button", { name: "Inserir {empresa}" }),
+    );
+    await human.humanClick(
       templateDialog.getByRole("button", { name: "Adicionar variações" }),
     );
-    await human.humanType("#waha-template-message", "Oi {nome}, segunda.");
+    await human.humanType(
+      "#waha-template-message",
+      "Oi {nome}, esta mensagem é da {empresa}.",
+    );
     await human.humanClick(
       templateDialog.getByRole("button", { name: "Adicionar variação", exact: true }),
     );
@@ -52,12 +61,15 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await expect(page.getByText(templateName, { exact: true })).toBeVisible();
     await human.humanClick(page.getByRole("button", { name: "Nova campanha WAHA" }));
     await expect(page.locator("#waha-name")).toHaveValue("");
+    await human.humanClick(page.locator("#waha-method"));
+    await human.humanClick(page.getByRole("option", { name: /Separado/ }));
     await human.humanClick(page.locator("#waha-template"));
     await human.humanClick(
       page.getByRole("option", { name: new RegExp(templateName) }),
     );
     await expect(page.getByText("2 variação(ões).")).toBeVisible();
     await expect(page.locator("#waha-name")).toHaveValue("");
+    await expect(page.locator("#waha-method")).toContainText("Separado");
 
     await human.humanClick(page.getByRole("button", { name: "Fechar" }));
     await human.humanClick(
@@ -82,12 +94,21 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await human.humanClick(page.getByRole("button", { name: "Nova campanha WAHA" }));
     await human.humanType("#waha-name", "Simulação E2E WAHA");
     await human.humanClick(page.locator('[role="checkbox"]').first());
-    await human.humanType("#waha-message", "Olá, {nome}! Teste de simulação.");
+    await human.humanType(
+      "#waha-message",
+      "Olá, {nome} da {empresa}! Teste de simulação.",
+    );
     await human.humanClick(page.getByRole("button", { name: "Adicionar variações" }));
-    await human.humanType("#waha-message", "Oi, {nome}! Segunda variação.");
+    await human.humanType(
+      "#waha-message",
+      "Oi, {nome} da {empresa}! Segunda variação.",
+    );
     await human.humanClick(page.getByRole("button", { name: "Adicionar variação", exact: true }));
     await expect(page.getByText("2 variação(ões).")).toBeVisible();
-    await human.humanType("#waha-contacts", `Contato teste;${phone}`);
+    await human.humanType(
+      "#waha-contacts",
+      `Nome;Empresa;Telefone\nContato teste;Empresa E2E;${phone}`,
+    );
 
     await human.hesitate(400, 800);
     await human.humanClick(page.getByRole("button", { name: "Checar e validar WhatsApp" }));
@@ -104,5 +125,6 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     });
     await expect(simulationDialog.getByText("Variação 1")).toBeVisible();
     await expect(simulationDialog.getByText("Variação 2")).toBeVisible();
+    await expect(simulationDialog.getByText(/Empresa E2E/).first()).toBeVisible();
   });
 });
