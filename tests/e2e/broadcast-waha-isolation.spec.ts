@@ -21,6 +21,51 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await expect(page.getByText("Sincronizar status com Evolution")).toBeVisible();
   });
 
+  test("cria template antes da campanha e permite selecioná-lo", async ({ page }) => {
+    test.setTimeout(90_000);
+    test.skip(!hasE2ECredentials(), "Sem credenciais E2E");
+    const human = new HumanBehavior(page);
+    const templateName = `Template WAHA E2E ${Date.now()}`;
+
+    await loginAsTestUser(page);
+    await human.humanNavigate("/broadcast-2?provider=waha");
+    await human.humanClick(page.getByRole("button", { name: "Novo template WAHA" }));
+    await expect(page.getByRole("heading", { name: "Novo template WAHA" })).toBeVisible();
+
+    await human.humanType("#waha-template-name", templateName);
+    await human.humanType("#waha-template-message", "Olá {nome}, primeira.");
+    const templateDialog = page.getByRole("dialog").filter({
+      has: page.getByRole("heading", { name: "Novo template WAHA" }),
+    });
+    await human.humanClick(
+      templateDialog.getByRole("button", { name: "Adicionar variações" }),
+    );
+    await human.humanType("#waha-template-message", "Oi {nome}, segunda.");
+    await human.humanClick(
+      templateDialog.getByRole("button", { name: "Adicionar variação", exact: true }),
+    );
+    await human.hesitate(400, 800);
+    await human.humanClick(
+      templateDialog.getByRole("button", { name: "Salvar template WAHA" }),
+    );
+
+    await expect(page.getByText(templateName, { exact: true })).toBeVisible();
+    await human.humanClick(page.getByRole("button", { name: "Nova campanha WAHA" }));
+    await expect(page.locator("#waha-name")).toHaveValue("");
+    await human.humanClick(page.locator("#waha-template"));
+    await human.humanClick(
+      page.getByRole("option", { name: new RegExp(templateName) }),
+    );
+    await expect(page.getByText("2 variação(ões).")).toBeVisible();
+    await expect(page.locator("#waha-name")).toHaveValue("");
+
+    await human.humanClick(page.getByRole("button", { name: "Fechar" }));
+    await human.humanClick(
+      page.getByRole("button", { name: `Excluir template ${templateName}` }),
+    );
+    await expect(page.getByText(templateName, { exact: true })).toHaveCount(0);
+  });
+
   test("valida WhatsApp e simula sem criar campanha", async ({ page }) => {
     test.setTimeout(90_000);
     test.skip(!hasE2ECredentials(), "Sem credenciais E2E");

@@ -164,6 +164,7 @@ export default function BroadcastCampaignsWaha() {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [validatingContacts, setValidatingContacts] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [simulationDialogOpen, setSimulationDialogOpen] = useState(false);
   const [validationResult, setValidationResult] = useState<WahaValidation | null>(null);
   const [form, setForm] = useState({
@@ -177,6 +178,15 @@ export default function BroadcastCampaignsWaha() {
     minDelay: 30,
     maxDelay: 60,
   });
+  const [templateForm, setTemplateForm] = useState({
+    name: "",
+    description: "",
+    message: "",
+    messageVariations: [] as string[],
+    method: "single" as SendingMethod,
+    minDelay: 30,
+    maxDelay: 60,
+  });
   const messagesToUse = useMemo(() => {
     const variations = form.messageVariations
       .map((message) => message.trim())
@@ -184,6 +194,13 @@ export default function BroadcastCampaignsWaha() {
     if (variations.length > 0) return variations;
     return form.message.trim() ? [form.message.trim()] : [];
   }, [form.message, form.messageVariations]);
+  const templateMessagesToUse = useMemo(() => {
+    const variations = templateForm.messageVariations
+      .map((message) => message.trim())
+      .filter(Boolean);
+    if (variations.length > 0) return variations;
+    return templateForm.message.trim() ? [templateForm.message.trim()] : [];
+  }, [templateForm.message, templateForm.messageVariations]);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "kanban" || view === "calls") navigate("/");
@@ -389,7 +406,6 @@ export default function BroadcastCampaignsWaha() {
       : [];
     patchForm({
       templateId: template.id,
-      name: template.name,
       message: variations.length > 0 ? "" : template.custom_message,
       messageVariations: variations,
       method: template.sending_method,
@@ -405,12 +421,36 @@ export default function BroadcastCampaignsWaha() {
     });
   };
 
-  const saveCurrentAsTemplate = async () => {
-    if (!activeOrgId || !form.name.trim() || messagesToUse.length === 0) {
+  const resetTemplateForm = () => {
+    setTemplateForm({
+      name: "",
+      description: "",
+      message: "",
+      messageVariations: [],
+      method: "single",
+      minDelay: 30,
+      maxDelay: 60,
+    });
+  };
+
+  const saveTemplate = async () => {
+    if (
+      !activeOrgId ||
+      !templateForm.name.trim() ||
+      templateMessagesToUse.length === 0
+    ) {
       toast({
         title: "Informe nome e pelo menos uma mensagem para salvar o template",
         variant: "destructive",
       });
+      return;
+    }
+    if (
+      templateForm.minDelay < 5 ||
+      templateForm.maxDelay < templateForm.minDelay ||
+      templateForm.maxDelay > 3600
+    ) {
+      toast({ title: "Intervalo do template inválido", variant: "destructive" });
       return;
     }
     setSavingTemplate(true);
@@ -420,18 +460,21 @@ export default function BroadcastCampaignsWaha() {
       const { error } = await db.from("broadcast_templates_waha").upsert({
         organization_id: activeOrgId,
         user_id: user.id,
-        name: form.name.trim(),
-        custom_message: form.message.trim() || messagesToUse[0],
-        message_variations: form.messageVariations
+        name: templateForm.name.trim(),
+        description: templateForm.description.trim() || null,
+        custom_message: templateForm.message.trim() || templateMessagesToUse[0],
+        message_variations: templateForm.messageVariations
           .map((message) => message.trim())
           .filter(Boolean),
-        sending_method: form.method,
-        min_delay_seconds: form.minDelay,
-        max_delay_seconds: form.maxDelay,
+        sending_method: templateForm.method,
+        min_delay_seconds: templateForm.minDelay,
+        max_delay_seconds: templateForm.maxDelay,
         updated_at: new Date().toISOString(),
       }, { onConflict: "organization_id,name" });
       if (error) throw error;
       await fetchData();
+      setTemplateDialogOpen(false);
+      resetTemplateForm();
       toast({ title: "Template WAHA salvo" });
     } catch (error) {
       console.error("Erro ao salvar template WAHA:", error);
@@ -836,17 +879,32 @@ export default function BroadcastCampaignsWaha() {
             </Card>
 
             <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <MessageSquareText className="h-5 w-5" />
-                  Templates WAHA
-                </CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <MessageSquareText className="h-5 w-5" />
+                    Templates WAHA
+                  </CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Cadastre mensagens e variações antes de criar uma campanha.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    resetTemplateForm();
+                    setTemplateDialogOpen(true);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo template WAHA
+                </Button>
               </CardHeader>
               <CardContent>
                 {templates.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum template WAHA salvo. Abra uma nova campanha, preencha a mensagem
-                    e clique em “Salvar como template”.
+                    Nenhum template WAHA salvo. Clique em “Novo template WAHA” para
+                    cadastrar o primeiro.
                   </p>
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -972,6 +1030,245 @@ export default function BroadcastCampaignsWaha() {
           </div>
         </div>
 
+        <Dialog
+          open={templateDialogOpen}
+          onOpenChange={(open) => {
+            setTemplateDialogOpen(open);
+            if (!open && !savingTemplate) resetTemplateForm();
+          }}
+        >
+          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Novo template WAHA</DialogTitle>
+              <DialogDescription>
+                Cadastre a mensagem uma vez e selecione este template ao criar campanhas.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="waha-template-name">Nome do template</Label>
+                <Input
+                  id="waha-template-name"
+                  value={templateForm.name}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waha-template-description">Descrição (opcional)</Label>
+                <Input
+                  id="waha-template-description"
+                  value={templateForm.description}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waha-template-method">Método padrão de envio</Label>
+                <Select
+                  value={templateForm.method}
+                  onValueChange={(method: SendingMethod) =>
+                    setTemplateForm((current) => ({ ...current, method }))
+                  }
+                >
+                  <SelectTrigger id="waha-template-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">Único — uma sessão</SelectItem>
+                    <SelectItem value="rotate">Rotacionado — alterna sessões</SelectItem>
+                    <SelectItem value="separate">Separado — toda lista por sessão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="waha-template-min-delay">Intervalo mínimo</Label>
+                  <Input
+                    id="waha-template-min-delay"
+                    type="number"
+                    min={5}
+                    value={templateForm.minDelay}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        minDelay: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waha-template-max-delay">Intervalo máximo</Label>
+                  <Input
+                    id="waha-template-max-delay"
+                    type="number"
+                    min={5}
+                    value={templateForm.maxDelay}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        maxDelay: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="waha-template-message">Mensagem do template</Label>
+                  {templateForm.messageVariations.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!templateForm.message.trim()}
+                      onClick={() =>
+                        setTemplateForm((current) => ({
+                          ...current,
+                          messageVariations: [current.message.trim()],
+                          message: "",
+                        }))
+                      }
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar variações
+                    </Button>
+                  )}
+                </div>
+
+                {templateForm.messageVariations.length === 0 ? (
+                  <Textarea
+                    id="waha-template-message"
+                    rows={5}
+                    placeholder="Use {nome} e {telefone} para personalizar."
+                    value={templateForm.message}
+                    onChange={(event) =>
+                      setTemplateForm((current) => ({
+                        ...current,
+                        message: event.target.value,
+                      }))
+                    }
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      {templateForm.messageVariations.length} variação(ões) cadastrada(s).
+                    </p>
+                    {templateForm.messageVariations.map((message, index) => (
+                      <div key={`${index}-${message}`} className="flex gap-2">
+                        <div className="flex-1 rounded-md border bg-muted/50 p-3">
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">
+                            Variação {index + 1}
+                          </p>
+                          <p className="whitespace-pre-wrap text-sm">{message}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remover variação ${index + 1} do template`}
+                          onClick={() =>
+                            setTemplateForm((current) => ({
+                              ...current,
+                              messageVariations: current.messageVariations.filter(
+                                (_, variationIndex) => variationIndex !== index,
+                              ),
+                            }))
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Textarea
+                      id="waha-template-message"
+                      rows={3}
+                      placeholder="Adicionar nova variação..."
+                      value={templateForm.message}
+                      onChange={(event) =>
+                        setTemplateForm((current) => ({
+                          ...current,
+                          message: event.target.value,
+                        }))
+                      }
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!templateForm.message.trim()}
+                        onClick={() =>
+                          setTemplateForm((current) => ({
+                            ...current,
+                            messageVariations: [
+                              ...current.messageVariations,
+                              current.message.trim(),
+                            ],
+                            message: "",
+                          }))
+                        }
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adicionar variação
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setTemplateForm((current) => ({
+                            ...current,
+                            messageVariations: [],
+                            message: current.messageVariations[0] || "",
+                          }))
+                        }
+                      >
+                        Voltar para mensagem única
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={savingTemplate}
+                onClick={() => setTemplateDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  savingTemplate ||
+                  !templateForm.name.trim() ||
+                  templateMessagesToUse.length === 0
+                }
+                onClick={() => void saveTemplate()}
+              >
+                {savingTemplate
+                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  : <Save className="mr-2 h-4 w-4" />}
+                Salvar template WAHA
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
@@ -982,30 +1279,54 @@ export default function BroadcastCampaignsWaha() {
             </DialogHeader>
 
             <div className="space-y-4 py-2">
-              {templates.length > 0 && (
-                <div className="space-y-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="waha-template">Template WAHA (opcional)</Label>
-                  <Select
-                    value={form.templateId || "none"}
-                    onValueChange={(value) => {
-                      if (value === "none") patchForm({ templateId: "" });
-                      else applyTemplate(value);
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0"
+                    onClick={() => {
+                      resetTemplateForm();
+                      setTemplateDialogOpen(true);
                     }}
                   >
-                    <SelectTrigger id="waha-template">
-                      <SelectValue placeholder="Selecione um template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem template</SelectItem>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    Criar novo template
+                  </Button>
                 </div>
-              )}
+                <Select
+                  value={form.templateId || "none"}
+                  onValueChange={(value) => {
+                    if (value === "none") {
+                      patchForm({
+                        templateId: "",
+                        message: "",
+                        messageVariations: [],
+                      });
+                    } else {
+                      applyTemplate(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger id="waha-template">
+                    <SelectValue placeholder="Selecione um template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem template — escrever manualmente</SelectItem>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name} · {template.message_variations?.length || 1} mensagem(ns)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {templates.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    Nenhum template cadastrado. Crie um antes ou escreva a mensagem manualmente.
+                  </p>
+                )}
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="waha-name">Nome da campanha</Label>
                 <Input
@@ -1240,17 +1561,6 @@ export default function BroadcastCampaignsWaha() {
                 >
                   <TestTube2 className="mr-2 h-4 w-4" />
                   Simular envio
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={savingTemplate || !form.name.trim() || messagesToUse.length === 0}
-                  onClick={() => void saveCurrentAsTemplate()}
-                >
-                  {savingTemplate
-                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    : <Save className="mr-2 h-4 w-4" />}
-                  Salvar como template
                 </Button>
               </div>
 
