@@ -85,6 +85,7 @@ type WahaTemplate = {
   name: string;
   description: string | null;
   custom_message: string;
+  message_variations: string[];
   sending_method: SendingMethod;
   min_delay_seconds: number;
   max_delay_seconds: number;
@@ -168,6 +169,7 @@ export default function BroadcastCampaignsWaha() {
   const [form, setForm] = useState({
     name: "",
     message: "",
+    messageVariations: [] as string[],
     contacts: "",
     templateId: "",
     method: "single" as SendingMethod,
@@ -175,6 +177,13 @@ export default function BroadcastCampaignsWaha() {
     minDelay: 30,
     maxDelay: 60,
   });
+  const messagesToUse = useMemo(() => {
+    const variations = form.messageVariations
+      .map((message) => message.trim())
+      .filter(Boolean);
+    if (variations.length > 0) return variations;
+    return form.message.trim() ? [form.message.trim()] : [];
+  }, [form.message, form.messageVariations]);
 
   const handleViewChange = (view: CRMView) => {
     if (view === "kanban" || view === "calls") navigate("/");
@@ -292,6 +301,7 @@ export default function BroadcastCampaignsWaha() {
     setForm({
       name: "",
       message: "",
+      messageVariations: [],
       contacts: "",
       templateId: "",
       method: "single",
@@ -374,10 +384,14 @@ export default function BroadcastCampaignsWaha() {
   const applyTemplate = (templateId: string) => {
     const template = templates.find((item) => item.id === templateId);
     if (!template) return;
+    const variations = Array.isArray(template.message_variations)
+      ? template.message_variations.map((message) => message.trim()).filter(Boolean)
+      : [];
     patchForm({
       templateId: template.id,
       name: template.name,
-      message: template.custom_message,
+      message: variations.length > 0 ? "" : template.custom_message,
+      messageVariations: variations,
       method: template.sending_method,
       minDelay: template.min_delay_seconds,
       maxDelay: template.max_delay_seconds,
@@ -387,14 +401,14 @@ export default function BroadcastCampaignsWaha() {
     });
     toast({
       title: "Template WAHA carregado",
-      description: `Revise contatos e sessões antes de validar.`,
+      description: `${variations.length || 1} mensagem(ns) carregada(s). Revise contatos e sessões.`,
     });
   };
 
   const saveCurrentAsTemplate = async () => {
-    if (!activeOrgId || !form.name.trim() || !form.message.trim()) {
+    if (!activeOrgId || !form.name.trim() || messagesToUse.length === 0) {
       toast({
-        title: "Informe nome e mensagem para salvar o template",
+        title: "Informe nome e pelo menos uma mensagem para salvar o template",
         variant: "destructive",
       });
       return;
@@ -407,7 +421,10 @@ export default function BroadcastCampaignsWaha() {
         organization_id: activeOrgId,
         user_id: user.id,
         name: form.name.trim(),
-        custom_message: form.message.trim(),
+        custom_message: form.message.trim() || messagesToUse[0],
+        message_variations: form.messageVariations
+          .map((message) => message.trim())
+          .filter(Boolean),
         sending_method: form.method,
         min_delay_seconds: form.minDelay,
         max_delay_seconds: form.maxDelay,
@@ -477,17 +494,20 @@ export default function BroadcastCampaignsWaha() {
         session: sessions.find((item) => item.id === sessionId),
         count,
       })),
-      preview: validContacts[0]
-        ? personalizeMessage(form.message, validContacts[0])
-        : form.message,
+      previews: messagesToUse.map((message, index) => ({
+        index,
+        message: validContacts[0]
+          ? personalizeMessage(message, validContacts[0])
+          : message,
+      })),
     };
   }, [
     form.contacts,
     form.maxDelay,
-    form.message,
     form.method,
     form.minDelay,
     form.sessionIds,
+    messagesToUse,
     sessions,
     validationResult,
   ]);
@@ -495,9 +515,9 @@ export default function BroadcastCampaignsWaha() {
   const createCampaign = async () => {
     if (!activeOrgId) return;
     const contacts = parseContacts(form.contacts);
-    if (!form.name.trim() || !form.message.trim()) {
+    if (!form.name.trim() || messagesToUse.length === 0) {
       toast({
-        title: "Preencha nome e mensagem",
+        title: "Preencha o nome e adicione pelo menos uma mensagem",
         variant: "destructive",
       });
       return;
@@ -558,7 +578,10 @@ export default function BroadcastCampaignsWaha() {
           organization_id: activeOrgId,
           user_id: user.id,
           name: form.name.trim(),
-          custom_message: form.message.trim(),
+          custom_message: form.message.trim() || messagesToUse[0],
+          message_variations: form.messageVariations
+            .map((message) => message.trim())
+            .filter(Boolean),
           sending_method: form.method,
           session_id: form.sessionIds[0],
           session_ids: form.sessionIds,
@@ -574,7 +597,8 @@ export default function BroadcastCampaignsWaha() {
       const queueRows: Record<string, unknown>[] = [];
       if (form.method === "separate") {
         form.sessionIds.forEach((sessionId) => {
-          validContacts.forEach((contact) => {
+          validContacts.forEach((contact, index) => {
+            const selectedMessage = messagesToUse[index % messagesToUse.length];
             queueRows.push({
               campaign_id: campaign.id,
               organization_id: activeOrgId,
@@ -582,13 +606,14 @@ export default function BroadcastCampaignsWaha() {
               phone: contact.phone,
               chat_id: validByPhone.get(contact.phone),
               name: contact.name || null,
-              personalized_message: personalizeMessage(form.message, contact),
+              personalized_message: personalizeMessage(selectedMessage, contact),
               status: "pending",
             });
           });
         });
       } else {
         validContacts.forEach((contact, index) => {
+          const selectedMessage = messagesToUse[index % messagesToUse.length];
           const sessionId = form.method === "rotate"
             ? form.sessionIds[index % form.sessionIds.length]
             : form.sessionIds[0];
@@ -599,7 +624,7 @@ export default function BroadcastCampaignsWaha() {
             phone: contact.phone,
             chat_id: validByPhone.get(contact.phone),
             name: contact.name || null,
-            personalized_message: personalizeMessage(form.message, contact),
+            personalized_message: personalizeMessage(selectedMessage, contact),
             status: "pending",
           });
         });
@@ -831,10 +856,15 @@ export default function BroadcastCampaignsWaha() {
                           <div>
                             <strong>{template.name}</strong>
                             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                              {template.custom_message}
+                              {template.message_variations?.[0] || template.custom_message}
                             </p>
                           </div>
-                          <Badge variant="outline">{template.sending_method}</Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant="outline">{template.sending_method}</Badge>
+                            <Badge variant="secondary">
+                              {template.message_variations?.length || 1} variação(ões)
+                            </Badge>
+                          </div>
                         </div>
                         <div className="mt-3 flex gap-2">
                           <Button
@@ -1061,17 +1091,118 @@ export default function BroadcastCampaignsWaha() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="waha-message">Mensagem</Label>
-                <Textarea
-                  id="waha-message"
-                  rows={5}
-                  placeholder="Olá, {nome}! ..."
-                  value={form.message}
-                  onChange={(event) =>
-                    patchForm({ message: event.target.value })
-                  }
-                />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="waha-message">Mensagem personalizada</Label>
+                  {form.messageVariations.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!form.message.trim()}
+                      onClick={() =>
+                        patchForm({
+                          messageVariations: [form.message.trim()],
+                          message: "",
+                          templateId: "",
+                        })
+                      }
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar variações
+                    </Button>
+                  )}
+                </div>
+
+                {form.messageVariations.length === 0 ? (
+                  <Textarea
+                    id="waha-message"
+                    rows={5}
+                    placeholder="Use {nome} para personalizar. Ex: Olá {nome}, tudo bem?"
+                    value={form.message}
+                    onChange={(event) =>
+                      patchForm({ message: event.target.value, templateId: "" })
+                    }
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      {form.messageVariations.length} variação(ões). A fila alternará entre
+                      elas sequencialmente, como no Disparador 2 Evolution.
+                    </p>
+                    {form.messageVariations.map((message, index) => (
+                      <div key={`${index}-${message}`} className="flex gap-2">
+                        <div className="flex-1 rounded-md border bg-muted/50 p-3">
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">
+                            Variação {index + 1}
+                          </p>
+                          <p className="whitespace-pre-wrap text-sm">{message}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remover variação ${index + 1}`}
+                          onClick={() =>
+                            patchForm({
+                              messageVariations: form.messageVariations.filter(
+                                (_, variationIndex) => variationIndex !== index,
+                              ),
+                              templateId: "",
+                            })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Textarea
+                      id="waha-message"
+                      rows={3}
+                      placeholder="Adicionar nova variação de mensagem..."
+                      value={form.message}
+                      onChange={(event) => patchForm({ message: event.target.value })}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!form.message.trim()}
+                        onClick={() =>
+                          patchForm({
+                            messageVariations: [
+                              ...form.messageVariations,
+                              form.message.trim(),
+                            ],
+                            message: "",
+                            templateId: "",
+                          })
+                        }
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adicionar variação
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          patchForm({
+                            messageVariations: [],
+                            message: form.messageVariations[0] || "",
+                            templateId: "",
+                          })
+                        }
+                      >
+                        Voltar para mensagem única
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Variáveis disponíveis: {"{nome}"} e {"{telefone}"}.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="waha-contacts">Contatos</Label>
@@ -1113,7 +1244,7 @@ export default function BroadcastCampaignsWaha() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={savingTemplate || !form.name.trim() || !form.message.trim()}
+                  disabled={savingTemplate || !form.name.trim() || messagesToUse.length === 0}
                   onClick={() => void saveCurrentAsTemplate()}
                 >
                   {savingTemplate
@@ -1254,9 +1385,21 @@ export default function BroadcastCampaignsWaha() {
                 )}
 
                 <div className="rounded-md border p-3">
-                  <p className="mb-2 text-sm font-medium">Prévia personalizada</p>
-                  <div className="whitespace-pre-wrap rounded bg-green-50 p-3 text-sm">
-                    {simulation.preview}
+                  <p className="mb-2 text-sm font-medium">
+                    Prévia das variações personalizadas
+                  </p>
+                  <div className="space-y-2">
+                    {simulation.previews.map((preview) => (
+                      <div
+                        key={preview.index}
+                        className="whitespace-pre-wrap rounded bg-green-50 p-3 text-sm"
+                      >
+                        <span className="mb-1 block text-xs font-medium text-green-800">
+                          Variação {preview.index + 1}
+                        </span>
+                        {preview.message}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

@@ -22,6 +22,7 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
   });
 
   test("valida WhatsApp e simula sem criar campanha", async ({ page }) => {
+    test.setTimeout(90_000);
     test.skip(!hasE2ECredentials(), "Sem credenciais E2E");
     const human = new HumanBehavior(page);
 
@@ -37,6 +38,10 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await human.humanType("#waha-name", "Simulação E2E WAHA");
     await human.humanClick(page.locator('[role="checkbox"]').first());
     await human.humanType("#waha-message", "Olá, {nome}! Teste de simulação.");
+    await human.humanClick(page.getByRole("button", { name: "Adicionar variações" }));
+    await human.humanType("#waha-message", "Oi, {nome}! Segunda variação.");
+    await human.humanClick(page.getByRole("button", { name: "Adicionar variação", exact: true }));
+    await expect(page.getByText("2 variação(ões).")).toBeVisible();
     await human.humanType("#waha-contacts", `Contato teste;${phone}`);
 
     await human.hesitate(400, 800);
@@ -48,5 +53,11 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await expect(page.getByRole("heading", { name: "Simulação do envio WAHA" })).toBeVisible();
     await expect(page.getByText("Esta simulação não envia mensagens nem grava a campanha.")).toBeVisible();
     await expect(page.getByText("Distribuição por sessão")).toBeVisible();
+    await expect(page.getByText("Prévia das variações personalizadas")).toBeVisible();
+    const simulationDialog = page.getByRole("dialog").filter({
+      has: page.getByRole("heading", { name: "Simulação do envio WAHA" }),
+    });
+    await expect(simulationDialog.getByText("Variação 1")).toBeVisible();
+    await expect(simulationDialog.getByText("Variação 2")).toBeVisible();
   });
 });
