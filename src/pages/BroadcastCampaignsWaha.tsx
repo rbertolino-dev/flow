@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { format, startOfDay, startOfMonth, startOfWeek } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
+  BarChart3,
   CheckCircle2,
   Clock,
   Edit,
@@ -100,6 +103,29 @@ type WahaTemplate = {
 
 const BUCKET_ID = "whatsapp-workflow-media";
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+type StatsPeriod = "day" | "week" | "month";
+
+function getWahaStatsRange(period: StatsPeriod) {
+  const now = new Date();
+  const from =
+    period === "day"
+      ? startOfDay(now)
+      : period === "week"
+        ? startOfWeek(now, { weekStartsOn: 1 })
+        : startOfMonth(now);
+  return { from, to: now };
+}
+
+function formatWahaStatsRange(period: StatsPeriod, from: Date, to: Date) {
+  if (period === "day") {
+    return format(from, "dd/MM/yyyy", { locale: ptBR });
+  }
+  if (period === "week") {
+    return `${format(from, "dd/MM", { locale: ptBR })} – ${format(to, "dd/MM/yyyy", { locale: ptBR })}`;
+  }
+  return format(from, "MMMM 'de' yyyy", { locale: ptBR });
+}
 
 function WahaImageField({
   inputId,
@@ -346,6 +372,9 @@ export default function BroadcastCampaignsWaha() {
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
   const [logsSessionFilter, setLogsSessionFilter] = useState("all");
   const [logsSortOrder, setLogsSortOrder] = useState<"asc" | "desc">("asc");
+  const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>("day");
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [dispatchStats, setDispatchStats] = useState({ sent: 0, failed: 0 });
   const messagesToUse = useMemo(() => {
     const variations = form.messageVariations
       .map((message) => message.trim())
@@ -412,16 +441,67 @@ export default function BroadcastCampaignsWaha() {
     }
   }, [activeOrgId, toast]);
 
+  const fetchDispatchStats = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!activeOrgId) {
+      setDispatchStats({ sent: 0, failed: 0 });
+      setStatsLoading(false);
+      return;
+    }
+    if (!opts?.silent) setStatsLoading(true);
+    const { from, to } = getWahaStatsRange(statsPeriod);
+    const fromIso = from.toISOString();
+    const toIso = to.toISOString();
+    try {
+      const [sentResult, failedResult] = await Promise.all([
+        db
+          .from("broadcast_queue_waha")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", activeOrgId)
+          .eq("status", "sent")
+          .gte("sent_at", fromIso)
+          .lte("sent_at", toIso),
+        db
+          .from("broadcast_queue_waha")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", activeOrgId)
+          .eq("status", "failed")
+          .gte("failed_at", fromIso)
+          .lte("failed_at", toIso),
+      ]);
+      if (sentResult.error) throw sentResult.error;
+      if (failedResult.error) throw failedResult.error;
+      setDispatchStats({
+        sent: sentResult.count ?? 0,
+        failed: failedResult.count ?? 0,
+      });
+    } catch (error) {
+      console.error("Erro ao carregar totais de disparo WAHA:", error);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [activeOrgId, statsPeriod]);
+
   useEffect(() => {
     void fetchData();
     const interval = window.setInterval(() => void fetchData(), 15000);
     return () => window.clearInterval(interval);
   }, [fetchData]);
 
+  useEffect(() => {
+    void fetchDispatchStats();
+    const interval = window.setInterval(() => void fetchDispatchStats({ silent: true }), 15000);
+    return () => window.clearInterval(interval);
+  }, [fetchDispatchStats]);
+
   const connectedSessions = useMemo(
     () => sessions.filter((session) => session.is_connected && session.status === "WORKING"),
     [sessions],
   );
+  const statsRange = useMemo(() => getWahaStatsRange(statsPeriod), [statsPeriod]);
+  const statsTotal = dispatchStats.sent + dispatchStats.failed;
+  const statsSuccessRate = statsTotal > 0
+    ? Math.round((dispatchStats.sent / statsTotal) * 100)
+    : 0;
 
   const patchForm = (
     patch: Partial<typeof form>,
@@ -1212,6 +1292,67 @@ export default function BroadcastCampaignsWaha() {
                 </Button>
               </div>
             </div>
+
+            <Card className="mb-6" data-testid="waha-dispatch-stats">
+              <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <BarChart3 className="h-5 w-5" />
+                    Disparos no período
+                  </CardTitle>
+                  <p className="mt-1 text-sm capitalize text-muted-foreground">
+                    {formatWahaStatsRange(statsPeriod, statsRange.from, statsRange.to)}
+                  </p>
+                </div>
+                <div className="flex gap-2" role="group" aria-label="Período dos disparos">
+                  {([
+                    { id: "day", label: "Dia" },
+                    { id: "week", label: "Semana" },
+                    { id: "month", label: "Mês" },
+                  ] as const).map((option) => (
+                    <Button
+                      key={option.id}
+                      type="button"
+                      size="sm"
+                      variant={statsPeriod === option.id ? "default" : "outline"}
+                      aria-pressed={statsPeriod === option.id}
+                      onClick={() => setStatsPeriod(option.id)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-sm text-muted-foreground">Realizados</p>
+                    <p className="mt-1 text-3xl font-bold text-emerald-600">
+                      {statsLoading
+                        ? "…"
+                        : dispatchStats.sent.toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-sm text-muted-foreground">Falharam</p>
+                    <p className="mt-1 text-3xl font-bold text-destructive">
+                      {statsLoading
+                        ? "…"
+                        : dispatchStats.failed.toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-sm text-muted-foreground">Taxa de sucesso</p>
+                    <p className="mt-1 text-3xl font-bold">
+                      {statsLoading ? "…" : `${statsSuccessRate}%`}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {statsTotal.toLocaleString("pt-BR")} tentativa(s) no período
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             <Card className="mb-6">
               <CardHeader>

@@ -11,6 +11,18 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await loginAsTestUser(page);
     await human.humanNavigate("/broadcast-2?provider=waha");
     await expect(page.getByRole("heading", { name: "Disparador WAHA" })).toBeVisible();
+    await expect(page.getByTestId("waha-dispatch-stats")).toBeVisible();
+    await expect(page.getByText("Disparos no período")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Dia" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Semana" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mês" })).toBeVisible();
+    await expect(page.getByText("Realizados")).toBeVisible();
+    await expect(page.getByText("Falharam")).toBeVisible();
+    await human.hesitate(300, 600);
+    await human.humanClick(page.getByRole("button", { name: "Semana" }));
+    await expect(page.getByRole("button", { name: "Semana" })).toHaveAttribute("aria-pressed", "true");
+    await human.humanClick(page.getByRole("button", { name: "Mês" }));
+    await expect(page.getByRole("button", { name: "Mês" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("button", { name: "Criar campanha Evolution" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Criar campanha WAHA" })).toBeVisible();
     await expect(page.getByText("Sincronizar status com Evolution")).toHaveCount(0);
