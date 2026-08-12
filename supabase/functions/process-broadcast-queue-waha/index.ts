@@ -44,7 +44,7 @@ serve(async (req) => {
         chat_id,
         personalized_message,
         send_attempts,
-        campaign:broadcast_campaigns_waha!campaign_id(id,status),
+        campaign:broadcast_campaigns_waha!campaign_id(id,status,image_url),
         session:waha_config!session_id(id,session_name,is_connected,status)
       `)
       .eq("status", "scheduled")
@@ -118,11 +118,21 @@ serve(async (req) => {
 
         const chatId = item.chat_id || fallbackWahaChatId(item.phone);
         if (!chatId) throw new Error("Telefone inválido");
-        const response = await client.sendText({
-          session: session.session_name,
-          chatId,
-          text: item.personalized_message,
-        });
+        const imageUrl = typeof campaign.image_url === "string"
+          ? campaign.image_url.trim()
+          : "";
+        const response = imageUrl
+          ? await client.sendImage({
+            session: session.session_name,
+            chatId,
+            fileUrl: imageUrl,
+            caption: item.personalized_message,
+          })
+          : await client.sendText({
+            session: session.session_name,
+            chatId,
+            text: item.personalized_message,
+          });
         const messageId = response.id ?? response.key?.id ?? null;
 
         const { error: sentError } = await admin

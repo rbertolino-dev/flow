@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  FileText,
+  Image as ImageIcon,
   Loader2,
   MessageSquareText,
   Pause,
@@ -13,9 +15,11 @@ import {
   RadioTower,
   RefreshCw,
   Save,
+  Search,
   Send,
   TestTube2,
   Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -36,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -47,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { validateImageFile } from "@/lib/broadcastValidators";
 
 type SendingMethod = "single" | "rotate" | "separate";
 
@@ -73,6 +79,7 @@ type WahaCampaign = {
   min_delay_seconds: number;
   max_delay_seconds: number;
   created_at: string;
+  image_url?: string | null;
 };
 
 type ParsedContact = {
@@ -87,7 +94,76 @@ type WahaTemplate = {
   description: string | null;
   custom_message: string;
   message_variations: string[];
+  image_url?: string | null;
 };
+
+const BUCKET_ID = "whatsapp-workflow-media";
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+function WahaImageField({
+  inputId,
+  preview,
+  uploading,
+  disabled,
+  onSelect,
+  onRemove,
+}: {
+  inputId: string;
+  preview: string | null;
+  uploading: boolean;
+  disabled?: boolean;
+  onSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={inputId}>Imagem / logo (opcional)</Label>
+      {preview ? (
+        <div className="relative">
+          <img
+            src={preview}
+            alt="Preview da logo da campanha"
+            className="h-48 w-full rounded-lg border object-cover"
+          />
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            className="absolute right-2 top-2"
+            onClick={onRemove}
+            disabled={disabled || uploading}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-lg border-2 border-dashed p-6 text-center">
+          <ImageIcon className="mx-auto mb-2 h-12 w-12 text-muted-foreground" />
+          <Label htmlFor={inputId} className="cursor-pointer">
+            <span className="text-sm text-muted-foreground">
+              Clique para fazer upload de uma imagem
+            </span>
+            <Input
+              id={inputId}
+              type="file"
+              accept={ALLOWED_IMAGE_TYPES.join(",")}
+              onChange={onSelect}
+              className="hidden"
+              disabled={disabled || uploading}
+            />
+          </Label>
+          <p className="mt-2 text-xs text-muted-foreground">
+            JPEG, PNG ou WEBP (máx. 5MB). A logo será enviada junto com a mensagem,
+            como nas campanhas Evolution.
+          </p>
+        </div>
+      )}
+      {uploading && (
+        <p className="text-sm text-muted-foreground">Fazendo upload...</p>
+      )}
+    </div>
+  );
+}
 
 type WahaValidationItem = {
   phone: string;
@@ -95,6 +171,36 @@ type WahaValidationItem = {
   chatId: string;
   error?: string;
 };
+
+type WahaQueueLog = {
+  id: string;
+  campaign_id: string;
+  session_id: string;
+  phone: string;
+  name: string | null;
+  personalized_message: string;
+  status: string;
+  scheduled_for: string | null;
+  sent_at: string | null;
+  failed_at: string | null;
+  error_message: string | null;
+  failure_code: string | null;
+  send_attempts: number;
+  created_at: string;
+  session?: {
+    id: string;
+    session_name: string;
+    display_name: string | null;
+  } | null;
+};
+
+function queueLogStatusLabel(status: string): string {
+  if (status === "sent") return "Enviado";
+  if (status === "failed") return "Falhou";
+  if (status === "scheduled") return "Agendado";
+  if (status === "cancelled") return "Cancelado";
+  return "Pendente";
+}
 
 type WahaValidation = {
   results: WahaValidationItem[];
@@ -217,13 +323,26 @@ export default function BroadcastCampaignsWaha() {
     sessionIds: [] as string[],
     minDelay: 30,
     maxDelay: 60,
+    imageUrl: "" as string,
   });
   const [templateForm, setTemplateForm] = useState({
     name: "",
     description: "",
     message: "",
     messageVariations: [] as string[],
+    imageUrl: "" as string,
   });
+  const [campaignImagePreview, setCampaignImagePreview] = useState<string | null>(null);
+  const [templateImagePreview, setTemplateImagePreview] = useState<string | null>(null);
+  const [uploadingCampaignImage, setUploadingCampaignImage] = useState(false);
+  const [uploadingTemplateImage, setUploadingTemplateImage] = useState(false);
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsCampaignName, setLogsCampaignName] = useState("");
+  const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<WahaQueueLog[]>([]);
+  const [logsSearchQuery, setLogsSearchQuery] = useState("");
+  const [logsSessionFilter, setLogsSessionFilter] = useState("all");
+  const [logsSortOrder, setLogsSortOrder] = useState<"asc" | "desc">("asc");
   const messagesToUse = useMemo(() => {
     const variations = form.messageVariations
       .map((message) => message.trim())
@@ -309,6 +428,93 @@ export default function BroadcastCampaignsWaha() {
     if (invalidateValidation) setValidationResult(null);
   };
 
+  const uploadWahaImage = async (
+    file: File,
+    folder: "broadcast-waha-campaigns" | "broadcast-waha-templates",
+  ): Promise<string | null> => {
+    if (!activeOrgId) {
+      toast({ title: "Organização não encontrada", variant: "destructive" });
+      return null;
+    }
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      toast({
+        title: "Arquivo inválido",
+        description: validation.error || "Arquivo não é válido",
+        variant: "destructive",
+      });
+      return null;
+    }
+    const fileExt = file.name.split(".").pop();
+    const filePath = `${activeOrgId}/${folder}/${crypto.randomUUID()}-${Date.now()}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET_ID)
+      .upload(filePath, file, { upsert: false, cacheControl: "86400" });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from(BUCKET_ID).getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  const handleCampaignImageSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const localPreview = URL.createObjectURL(file);
+    setCampaignImagePreview(localPreview);
+    setUploadingCampaignImage(true);
+    try {
+      const publicUrl = await uploadWahaImage(file, "broadcast-waha-campaigns");
+      if (!publicUrl) {
+        setCampaignImagePreview(null);
+        return;
+      }
+      patchForm({ imageUrl: publicUrl }, false);
+      setCampaignImagePreview(publicUrl);
+      toast({ title: "Upload concluído", description: "Imagem carregada com sucesso" });
+    } catch (error) {
+      setCampaignImagePreview(null);
+      patchForm({ imageUrl: "" }, false);
+      toast({
+        title: "Erro no upload",
+        description: error instanceof Error ? error.message : "Falha ao fazer upload",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingCampaignImage(false);
+    }
+  };
+
+  const handleTemplateImageSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const localPreview = URL.createObjectURL(file);
+    setTemplateImagePreview(localPreview);
+    setUploadingTemplateImage(true);
+    try {
+      const publicUrl = await uploadWahaImage(file, "broadcast-waha-templates");
+      if (!publicUrl) {
+        setTemplateImagePreview(null);
+        return;
+      }
+      setTemplateForm((current) => ({ ...current, imageUrl: publicUrl }));
+      setTemplateImagePreview(publicUrl);
+      toast({ title: "Upload concluído", description: "Imagem carregada com sucesso" });
+    } catch (error) {
+      setTemplateImagePreview(null);
+      setTemplateForm((current) => ({ ...current, imageUrl: "" }));
+      toast({
+        title: "Erro no upload",
+        description: error instanceof Error ? error.message : "Falha ao fazer upload",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingTemplateImage(false);
+    }
+  };
+
   const syncSessions = async () => {
     if (!activeOrgId) return;
     setSyncing(true);
@@ -362,7 +568,9 @@ export default function BroadcastCampaignsWaha() {
       sessionIds: [],
       minDelay: 30,
       maxDelay: 60,
+      imageUrl: "",
     });
+    setCampaignImagePreview(null);
     setValidationResult(null);
     setSimulationDialogOpen(false);
   };
@@ -445,7 +653,9 @@ export default function BroadcastCampaignsWaha() {
       templateId: template.id,
       message: variations.length > 0 ? "" : template.custom_message,
       messageVariations: variations,
+      imageUrl: template.image_url || "",
     });
+    setCampaignImagePreview(template.image_url || null);
     toast({
       title: "Template WAHA carregado",
       description: `${variations.length || 1} mensagem(ns) carregada(s). Revise contatos e sessões.`,
@@ -458,7 +668,9 @@ export default function BroadcastCampaignsWaha() {
       description: "",
       message: "",
       messageVariations: [],
+      imageUrl: "",
     });
+    setTemplateImagePreview(null);
   };
 
   const appendTemplateTag = (tag: "{nome}" | "{empresa}") => {
@@ -500,6 +712,7 @@ export default function BroadcastCampaignsWaha() {
         message_variations: templateForm.messageVariations
           .map((message) => message.trim())
           .filter(Boolean),
+        image_url: templateForm.imageUrl.trim() || null,
         updated_at: new Date().toISOString(),
       }, { onConflict: "organization_id,name" });
       if (error) throw error;
@@ -698,6 +911,7 @@ export default function BroadcastCampaignsWaha() {
           max_delay_seconds: form.maxDelay,
           total_contacts: queueCount,
           status: "draft",
+          image_url: form.imageUrl.trim() || null,
         })
         .select("id")
         .single();
@@ -866,6 +1080,54 @@ export default function BroadcastCampaignsWaha() {
     }
   };
 
+  const handleViewLogs = async (campaign: WahaCampaign) => {
+    setLogsLoading(true);
+    setLogsCampaignName(campaign.name);
+    setLogsSearchQuery("");
+    setLogsSessionFilter("all");
+    setLogsSortOrder("asc");
+    try {
+      const { data, error } = await db
+        .from("broadcast_queue_waha")
+        .select(`
+          id,
+          campaign_id,
+          session_id,
+          phone,
+          name,
+          personalized_message,
+          status,
+          scheduled_for,
+          sent_at,
+          failed_at,
+          error_message,
+          failure_code,
+          send_attempts,
+          created_at,
+          session:waha_config!session_id(id, session_name, display_name)
+        `)
+        .eq("campaign_id", campaign.id)
+        .eq("organization_id", activeOrgId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = ((data || []) as WahaQueueLog[]).map((row) => ({
+        ...row,
+        session: Array.isArray(row.session) ? row.session[0] : row.session,
+      }));
+      setSelectedCampaignLogs(rows);
+      setLogsDialogOpen(true);
+    } catch (error) {
+      console.error("Erro ao buscar logs WAHA:", error);
+      toast({
+        title: "Erro ao buscar logs",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
   return (
     <AuthGuard>
       <CRMLayout activeView="broadcast-2" onViewChange={handleViewChange}>
@@ -976,6 +1238,13 @@ export default function BroadcastCampaignsWaha() {
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                     {templates.map((template) => (
                       <div key={template.id} className="rounded-md border p-3">
+                        {template.image_url && (
+                          <img
+                            src={template.image_url}
+                            alt={`Logo do template ${template.name}`}
+                            className="mb-3 h-24 w-full rounded-md border object-cover"
+                          />
+                        )}
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <strong>{template.name}</strong>
@@ -992,6 +1261,11 @@ export default function BroadcastCampaignsWaha() {
                             {template.message_variations?.length || 1} variação(ões)
                           </Badge>
                         </div>
+                        {template.image_url && (
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            Com logo
+                          </Badge>
+                        )}
                         <div className="mt-3 flex gap-2">
                           <Button
                             size="sm"
@@ -1033,19 +1307,31 @@ export default function BroadcastCampaignsWaha() {
               ) : campaigns.map((campaign) => (
                 <Card key={campaign.id}>
                   <CardContent className="p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="font-semibold">{campaign.name}</h2>
-                          {statusBadge(campaign.status)}
-                          <Badge variant="outline">{campaign.sending_method}</Badge>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 gap-3">
+                        {campaign.image_url && (
+                          <img
+                            src={campaign.image_url}
+                            alt={`Logo da campanha ${campaign.name}`}
+                            className="h-16 w-16 shrink-0 rounded-md border object-cover"
+                          />
+                        )}
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="font-semibold">{campaign.name}</h2>
+                            {statusBadge(campaign.status)}
+                            <Badge variant="outline">{campaign.sending_method}</Badge>
+                            {campaign.image_url && (
+                              <Badge variant="outline">Com logo</Badge>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Total {campaign.total_contacts} · Enviadas {campaign.sent_count} ·
+                            Falhas {campaign.failed_count}
+                          </p>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Total {campaign.total_contacts} · Enviadas {campaign.sent_count} ·
-                          Falhas {campaign.failed_count}
-                        </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {(campaign.status === "draft" || campaign.status === "paused") && (
                           <Button
                             size="sm"
@@ -1075,6 +1361,17 @@ export default function BroadcastCampaignsWaha() {
                             Cancelar
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleViewLogs(campaign)}
+                          disabled={logsLoading}
+                        >
+                          {logsLoading
+                            ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            : <FileText className="mr-2 h-4 w-4" />}
+                          Logs
+                        </Button>
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
@@ -1296,6 +1593,17 @@ export default function BroadcastCampaignsWaha() {
                   da lista de contatos da campanha.
                 </p>
               </div>
+              <WahaImageField
+                inputId="waha-template-image"
+                preview={templateImagePreview}
+                uploading={uploadingTemplateImage}
+                disabled={savingTemplate}
+                onSelect={(event) => void handleTemplateImageSelect(event)}
+                onRemove={() => {
+                  setTemplateForm((current) => ({ ...current, imageUrl: "" }));
+                  setTemplateImagePreview(null);
+                }}
+              />
             </div>
 
             <DialogFooter>
@@ -1359,7 +1667,9 @@ export default function BroadcastCampaignsWaha() {
                         templateId: "",
                         message: "",
                         messageVariations: [],
+                        imageUrl: "",
                       });
+                      setCampaignImagePreview(null);
                     } else {
                       applyTemplate(value);
                     }
@@ -1373,6 +1683,7 @@ export default function BroadcastCampaignsWaha() {
                     {templates.map((template) => (
                       <SelectItem key={template.id} value={template.id}>
                         {template.name} · {template.message_variations?.length || 1} mensagem(ns)
+                        {template.image_url ? " · com logo" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1599,6 +1910,17 @@ export default function BroadcastCampaignsWaha() {
                   Tags disponíveis: {"{nome}"} e {"{empresa}"}.
                 </p>
               </div>
+              <WahaImageField
+                inputId="waha-campaign-image"
+                preview={campaignImagePreview}
+                uploading={uploadingCampaignImage}
+                disabled={saving}
+                onSelect={(event) => void handleCampaignImageSelect(event)}
+                onRemove={() => {
+                  patchForm({ imageUrl: "" }, false);
+                  setCampaignImagePreview(null);
+                }}
+              />
               <div className="space-y-2">
                 <Label htmlFor="waha-contacts">Contatos</Label>
                 <Textarea
@@ -1775,6 +2097,13 @@ export default function BroadcastCampaignsWaha() {
                   <p className="mb-2 text-sm font-medium">
                     Prévia das variações personalizadas
                   </p>
+                  {form.imageUrl && (
+                    <img
+                      src={form.imageUrl}
+                      alt="Preview da logo que será enviada"
+                      className="mb-3 h-40 w-full rounded-md border object-cover"
+                    />
+                  )}
                   <div className="space-y-2">
                     {simulation.previews.map((preview) => (
                       <div
@@ -1806,6 +2135,277 @@ export default function BroadcastCampaignsWaha() {
                 Simulação aprovada
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={logsDialogOpen}
+          onOpenChange={(open) => {
+            setLogsDialogOpen(open);
+            if (!open) {
+              setSelectedCampaignLogs([]);
+              setLogsSearchQuery("");
+              setLogsSessionFilter("all");
+              setLogsCampaignName("");
+            }
+          }}
+        >
+          <DialogContent className="max-h-[80vh] max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Logs de Disparo</DialogTitle>
+              <DialogDescription>
+                Histórico detalhado de todos os disparos
+                {logsCampaignName ? ` da campanha "${logsCampaignName}"` : " desta campanha"}
+              </DialogDescription>
+            </DialogHeader>
+            {(() => {
+              const totals = {
+                inserted: selectedCampaignLogs.length,
+                sent: selectedCampaignLogs.filter((log) => log.status === "sent").length,
+                failed: selectedCampaignLogs.filter((log) => log.status === "failed").length,
+                pending: selectedCampaignLogs.filter((log) => log.status === "pending").length,
+                scheduled: selectedCampaignLogs.filter((log) => log.status === "scheduled").length,
+                cancelled: selectedCampaignLogs.filter((log) => log.status === "cancelled").length,
+              };
+              const sessionOptions = [
+                ...new Map(
+                  selectedCampaignLogs
+                    .map((log) => log.session)
+                    .filter((session): session is NonNullable<WahaQueueLog["session"]> => !!session)
+                    .map((session) => [session.id, session]),
+                ).values(),
+              ];
+              const filteredLogs = selectedCampaignLogs
+                .filter((log) => {
+                  const matchesPhone = !logsSearchQuery
+                    || log.phone.includes(logsSearchQuery.replace(/\D/g, ""));
+                  const logSessionId = log.session_id || log.session?.id;
+                  const matchesSession = logsSessionFilter === "all"
+                    || logSessionId === logsSessionFilter;
+                  return matchesPhone && matchesSession;
+                })
+                .sort((a, b) => {
+                  const dateA = a.scheduled_for
+                    ? new Date(a.scheduled_for).getTime()
+                    : new Date(a.created_at).getTime();
+                  const dateB = b.scheduled_for
+                    ? new Date(b.scheduled_for).getTime()
+                    : new Date(b.created_at).getTime();
+                  return logsSortOrder === "asc" ? dateA - dateB : dateB - dateA;
+                });
+              const campaign = campaigns.find((item) => item.id === selectedCampaignLogs[0]?.campaign_id);
+              const minDelay = campaign?.min_delay_seconds ?? 30;
+              const maxDelay = campaign?.max_delay_seconds ?? 60;
+              const avgDelay = (minDelay + maxDelay) / 2;
+              const sortedByTime = [...filteredLogs].sort((a, b) => {
+                const dateA = a.scheduled_for
+                  ? new Date(a.scheduled_for).getTime()
+                  : new Date(a.created_at).getTime();
+                const dateB = b.scheduled_for
+                  ? new Date(b.scheduled_for).getTime()
+                  : new Date(b.created_at).getTime();
+                return dateA - dateB;
+              });
+              const startTime = sortedByTime[0]?.scheduled_for
+                ? new Date(sortedByTime[0].scheduled_for)
+                : sortedByTime[0]
+                  ? new Date(sortedByTime[0].created_at)
+                  : null;
+              const estimatedDuration = filteredLogs.length * avgDelay * 1000;
+              const endTime = startTime
+                ? new Date(startTime.getTime() + estimatedDuration)
+                : null;
+
+              return (
+                <>
+                  <div className="mb-2 grid grid-cols-2 gap-3 rounded-md border bg-muted/40 p-3 text-sm sm:grid-cols-4">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Total na fila</div>
+                      <div className="font-semibold">{totals.inserted.toLocaleString("pt-BR")}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Enviados / Falhas</div>
+                      <div className="font-semibold">
+                        {totals.sent.toLocaleString("pt-BR")} / {totals.failed.toLocaleString("pt-BR")}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Pend. / Agend.</div>
+                      <div className="font-semibold">
+                        {totals.pending.toLocaleString("pt-BR")} / {totals.scheduled.toLocaleString("pt-BR")}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Cancelados</div>
+                      <div className="font-semibold">{totals.cancelled.toLocaleString("pt-BR")}</div>
+                    </div>
+                  </div>
+                  <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar por número de telefone..."
+                        value={logsSearchQuery}
+                        onChange={(event) => setLogsSearchQuery(event.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <div>
+                      <Label>Filtrar por sessão</Label>
+                      <Select value={logsSessionFilter} onValueChange={setLogsSessionFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Todas as sessões" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as sessões</SelectItem>
+                          {sessionOptions.map((session) => (
+                            <SelectItem key={session.id} value={session.id}>
+                              {session.display_name || session.session_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Ordenar por horário</Label>
+                      <Select
+                        value={logsSortOrder}
+                        onValueChange={(value) => setLogsSortOrder(value as "asc" | "desc")}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="asc">Mais antigas primeiro</SelectItem>
+                          <SelectItem value="desc">Mais recentes primeiro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <ScrollArea className="h-[500px] pr-4">
+                    <div className="space-y-3">
+                      {startTime && endTime && filteredLogs.length > 0 && (
+                        <div className="mb-4 space-y-2 rounded-lg bg-muted p-4">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Clock className="h-4 w-4" />
+                            <span className="font-medium">Estimativa de horário:</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Início:</span>
+                              <span className="ml-2 font-medium">
+                                {startTime.toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Fim estimado:</span>
+                              <span className="ml-2 font-medium">
+                                {endTime.toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Duração estimada: {Math.round(estimatedDuration / 1000 / 60)} minutos
+                            ({filteredLogs.length} mensagens × {avgDelay}s de delay médio)
+                          </div>
+                        </div>
+                      )}
+                      {filteredLogs.map((log) => (
+                        <Card
+                          key={log.id}
+                          className={log.status === "failed" ? "border-destructive" : ""}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {log.status === "sent" && (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  )}
+                                  {log.status === "failed" && (
+                                    <XCircle className="h-4 w-4 text-destructive" />
+                                  )}
+                                  {log.status === "scheduled" && (
+                                    <Clock className="h-4 w-4 text-amber-500" />
+                                  )}
+                                  {log.status === "pending" && (
+                                    <Loader2 className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                  <span className="font-medium">{log.phone}</span>
+                                  {log.name && (
+                                    <span className="text-muted-foreground">({log.name})</span>
+                                  )}
+                                  {log.session && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {log.session.display_name || log.session.session_name}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {log.status === "scheduled" && log.scheduled_for && (
+                                    <span>
+                                      Agendado para: {new Date(log.scheduled_for).toLocaleString("pt-BR")}
+                                    </span>
+                                  )}
+                                  {log.status === "sent" && log.sent_at && (
+                                    <span>
+                                      Enviado em: {new Date(log.sent_at).toLocaleString("pt-BR")}
+                                    </span>
+                                  )}
+                                  {log.status === "failed" && log.failed_at && (
+                                    <span>
+                                      Falhou em: {new Date(log.failed_at).toLocaleString("pt-BR")}
+                                    </span>
+                                  )}
+                                  {log.status === "pending" && (
+                                    <span>Aguardando processamento</span>
+                                  )}
+                                  {log.status === "cancelled" && (
+                                    <span>Cancelado</span>
+                                  )}
+                                </div>
+                                {log.personalized_message && (
+                                  <p className="line-clamp-2 text-sm text-muted-foreground">
+                                    {log.personalized_message}
+                                  </p>
+                                )}
+                                {log.error_message && (
+                                  <div className="mt-2 rounded-md bg-destructive/10 p-3">
+                                    <p className="mb-1 text-sm font-medium text-destructive">Erro:</p>
+                                    <p className="whitespace-pre-wrap font-mono text-sm text-destructive/90">
+                                      {log.error_message}
+                                      {log.failure_code ? ` (${log.failure_code})` : ""}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              <Badge
+                                variant={
+                                  log.status === "sent" ? "default"
+                                  : log.status === "failed" ? "destructive"
+                                  : log.status === "scheduled" ? "secondary"
+                                  : "outline"
+                                }
+                              >
+                                {queueLogStatusLabel(log.status)}
+                              </Badge>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      {filteredLogs.length === 0 && (
+                        <div className="py-8 text-center text-muted-foreground">
+                          {logsSearchQuery
+                            ? "Nenhum log encontrado para este número"
+                            : "Nenhum log encontrado"}
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </CRMLayout>

@@ -135,6 +135,43 @@ export class WahaClient {
       body: JSON.stringify(input),
     }, 30000);
   }
+
+  async sendImage(input: {
+    session: string;
+    chatId: string;
+    fileUrl: string;
+    caption?: string;
+  }): Promise<{ id?: string; key?: { id?: string }; [key: string]: unknown }> {
+    const { mimetype, filename } = guessWahaImageMeta(input.fileUrl);
+    return this.request("/api/sendImage", {
+      method: "POST",
+      body: JSON.stringify({
+        session: input.session,
+        chatId: input.chatId,
+        caption: input.caption || "",
+        file: {
+          url: input.fileUrl,
+          mimetype,
+          filename,
+        },
+      }),
+    }, 45000);
+  }
+}
+
+export function guessWahaImageMeta(url: string): {
+  mimetype: string;
+  filename: string;
+} {
+  const clean = url.split("?")[0] || url;
+  const filename = decodeURIComponent(clean.split("/").pop() || "campaign-image.jpg");
+  const ext = filename.split(".").pop()?.toLowerCase();
+  const mimetype =
+    ext === "png" ? "image/png"
+    : ext === "webp" ? "image/webp"
+    : ext === "gif" ? "image/gif"
+    : "image/jpeg";
+  return { mimetype, filename };
 }
 
 export function classifyWahaError(error: unknown): {

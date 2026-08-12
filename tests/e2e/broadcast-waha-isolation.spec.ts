@@ -127,4 +127,28 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await expect(simulationDialog.getByText("Variação 2")).toBeVisible();
     await expect(simulationDialog.getByText(/Empresa E2E/).first()).toBeVisible();
   });
+
+  test("abre histórico de envio da campanha WAHA como no Evolution", async ({ page }) => {
+    test.setTimeout(90_000);
+    test.skip(!hasE2ECredentials(), "Sem credenciais E2E");
+    const human = new HumanBehavior(page);
+
+    await loginAsTestUser(page);
+    await human.humanNavigate("/broadcast-2?provider=waha");
+    await expect(page.getByRole("heading", { name: "Disparador WAHA" })).toBeVisible();
+
+    const logsButton = page.getByRole("button", { name: "Logs" }).first();
+    test.skip(
+      (await logsButton.count()) === 0,
+      "Nenhuma campanha WAHA disponível para abrir o histórico",
+    );
+
+    await human.hesitate(400, 800);
+    await human.humanClick(logsButton);
+    await expect(page.getByRole("heading", { name: "Logs de Disparo" })).toBeVisible();
+    await expect(page.getByText(/Histórico detalhado de todos os disparos/)).toBeVisible();
+    await expect(page.getByText("Total na fila")).toBeVisible();
+    await expect(page.getByPlaceholder("Buscar por número de telefone...")).toBeVisible();
+    await expect(page.getByText("Filtrar por sessão")).toBeVisible();
+  });
 });
