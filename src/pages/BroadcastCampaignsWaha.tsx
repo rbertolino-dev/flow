@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Edit,
   FileText,
   Image as ImageIcon,
   Loader2,
@@ -337,6 +338,8 @@ export default function BroadcastCampaignsWaha() {
   const [uploadingCampaignImage, setUploadingCampaignImage] = useState(false);
   const [uploadingTemplateImage, setUploadingTemplateImage] = useState(false);
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [editingCampaignName, setEditingCampaignName] = useState("");
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsCampaignName, setLogsCampaignName] = useState("");
   const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<WahaQueueLog[]>([]);
@@ -1080,6 +1083,43 @@ export default function BroadcastCampaignsWaha() {
     }
   };
 
+  const cancelNameEdit = () => {
+    setEditingCampaignId(null);
+    setEditingCampaignName("");
+  };
+
+  const handleSaveCampaignName = async (campaignId: string) => {
+    const name = editingCampaignName.trim();
+    if (!name) {
+      toast({ title: "Informe um nome para a campanha", variant: "destructive" });
+      return;
+    }
+    try {
+      const { error } = await db
+        .from("broadcast_campaigns_waha")
+        .update({ name })
+        .eq("id", campaignId)
+        .eq("organization_id", activeOrgId);
+      if (error) throw error;
+      cancelNameEdit();
+      if (logsCampaignName && selectedCampaignLogs[0]?.campaign_id === campaignId) {
+        setLogsCampaignName(name);
+      }
+      await fetchData();
+      toast({
+        title: "Nome atualizado",
+        description: "O nome da campanha WAHA foi alterado.",
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar nome da campanha WAHA:", error);
+      toast({
+        title: "Erro ao atualizar nome",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleViewLogs = async (campaign: WahaCampaign) => {
     setLogsLoading(true);
     setLogsCampaignName(campaign.name);
@@ -1318,7 +1358,53 @@ export default function BroadcastCampaignsWaha() {
                         )}
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="font-semibold">{campaign.name}</h2>
+                            {editingCampaignId === campaign.id ? (
+                              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                                <Input
+                                  value={editingCampaignName}
+                                  onChange={(event) => setEditingCampaignName(event.target.value)}
+                                  className="max-w-[280px]"
+                                  placeholder="Nome da campanha"
+                                  aria-label="Novo nome da campanha WAHA"
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") void handleSaveCampaignName(campaign.id);
+                                    if (event.key === "Escape") cancelNameEdit();
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  aria-label="Salvar nome da campanha"
+                                  onClick={() => void handleSaveCampaignName(campaign.id)}
+                                >
+                                  Salvar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  aria-label="Cancelar edição do nome"
+                                  onClick={cancelNameEdit}
+                                >
+                                  Cancelar
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <h2 className="font-semibold">{campaign.name}</h2>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  title="Editar nome"
+                                  aria-label={`Editar nome da campanha ${campaign.name}`}
+                                  onClick={() => {
+                                    setEditingCampaignId(campaign.id);
+                                    setEditingCampaignName(campaign.name);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                             {statusBadge(campaign.status)}
                             <Badge variant="outline">{campaign.sending_method}</Badge>
                             {campaign.image_url && (

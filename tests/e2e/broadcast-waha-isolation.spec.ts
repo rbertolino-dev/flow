@@ -151,4 +151,30 @@ test.describe("Disparador WAHA isolado @human-behavior", () => {
     await expect(page.getByPlaceholder("Buscar por número de telefone...")).toBeVisible();
     await expect(page.getByText("Filtrar por sessão")).toBeVisible();
   });
+
+  test("permite editar o nome da campanha WAHA depois de criada", async ({ page }) => {
+    test.setTimeout(90_000);
+    test.skip(!hasE2ECredentials(), "Sem credenciais E2E");
+    const human = new HumanBehavior(page);
+
+    await loginAsTestUser(page);
+    await human.humanNavigate("/broadcast-2?provider=waha");
+    await expect(page.getByRole("heading", { name: "Disparador WAHA" })).toBeVisible();
+
+    const editButton = page.getByRole("button", { name: /Editar nome da campanha/ }).first();
+    test.skip(
+      (await editButton.count()) === 0,
+      "Nenhuma campanha WAHA disponível para editar o nome",
+    );
+
+    await human.hesitate(400, 800);
+    await human.humanClick(editButton);
+    const nameInput = page.getByLabel("Novo nome da campanha WAHA");
+    await expect(nameInput).toBeVisible();
+    await expect(nameInput).not.toHaveValue("");
+    await expect(page.getByRole("button", { name: "Salvar nome da campanha" })).toBeVisible();
+    await human.humanClick(page.getByRole("button", { name: "Cancelar edição do nome" }));
+    await expect(nameInput).toHaveCount(0);
+    await expect(editButton).toBeVisible();
+  });
 });
