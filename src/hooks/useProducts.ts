@@ -4,6 +4,17 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { Product, ProductFormData } from "@/types/product";
 import { useToast } from "@/hooks/use-toast";
 
+async function getAccessTokenWithRetry(attempts = 3): Promise<string | null> {
+  for (let i = 0; i < attempts; i++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) return session.access_token;
+    if (i < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (i + 1)));
+    }
+  }
+  return null;
+}
+
 export function useProducts() {
   const { activeOrgId } = useActiveOrganization();
   const [products, setProducts] = useState<Product[]>([]);
@@ -24,17 +35,17 @@ export function useProducts() {
 
     try {
       setLoading(true);
-      
-      // Obter token de autenticação
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("Usuário não autenticado");
+
+      const accessToken = await getAccessTokenWithRetry();
+      if (!accessToken) {
+        // Sessão ainda a hidratar: não alarmar o utilizador autenticado no CRM
+        return;
       }
 
       // Chamar Edge Function - passar organization_id ativa para garantir isolamento por organização
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const headers: Record<string, string> = {
-        "Authorization": `Bearer ${session.access_token}`,
+        "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       };
       if (activeOrgId) {
