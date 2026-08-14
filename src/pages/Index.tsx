@@ -80,17 +80,23 @@ const Index = () => {
   const { configs, refetch: refetchEvolutionConfigs } = useEvolutionConfigs();
   const { toast } = useToast();
   
-  // Health check: com muitas instâncias (ex.: IClass ~42) gera flips no DB — usar sync em lote no Disparador
+  // Health check e auto-sync só depois do funil pintar — não competir com a 1ª carga
+  const funnelReady = !orgLoading && !leadsLoading;
   useInstanceHealthCheck({
     instances: configs || [],
-    enabled: (configs?.length ?? 0) > 0 && (configs?.length ?? 0) <= 15,
+    enabled:
+      funnelReady &&
+      (configs?.length ?? 0) > 0 &&
+      (configs?.length ?? 0) <= 15,
     intervalMs: 45000,
     stableIntervalMs: 120000,
     onAfterStatusPersist: refetchEvolutionConfigs,
   });
-  
-  // Sincronização automática a cada 5 minutos
-  const { lastSync, nextSync, isSyncing } = useAutoSync({ intervalMinutes: 5, enabled: true });
+
+  const { lastSync, nextSync, isSyncing } = useAutoSync({
+    intervalMinutes: 5,
+    enabled: funnelReady,
+  });
 
   // Ativar sistema de gatilhos de fluxos
   useFlowTriggers();
@@ -571,12 +577,14 @@ const Index = () => {
 
       {/* Removido: messages-center agora é uma página separada em /messages-center */}
       
-      <CreateLeadDialog
-        open={createLeadOpen}
-        onOpenChange={setCreateLeadOpen}
-        onLeadCreated={refetchLeads}
-        stages={stages}
-      />
+      {createLeadOpen && (
+        <CreateLeadDialog
+          open={createLeadOpen}
+          onOpenChange={setCreateLeadOpen}
+          onLeadCreated={refetchLeads}
+          stages={stages}
+        />
+      )}
       <ImportLeadsDialog
         open={importLeadsOpen}
         onOpenChange={setImportLeadsOpen}

@@ -725,15 +725,17 @@ export default function CRM() {
           }}
         />
 
-        <CreateLeadDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          onLeadCreated={() => {
-            refetchLeads();
-            setCreateDialogOpen(false);
-          }}
-          stages={stages}
-        />
+        {createDialogOpen && (
+          <CreateLeadDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            onLeadCreated={() => {
+              refetchLeads();
+              setCreateDialogOpen(false);
+            }}
+            stages={stages}
+          />
+        )}
 
         <ImportLeadsDialog
           open={importLeadsOpen}

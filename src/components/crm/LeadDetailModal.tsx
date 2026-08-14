@@ -90,7 +90,7 @@ export function LeadDetailModal({ lead, open, onClose, onUpdated, initialShowMes
   const { deleteLead, updateLeadStatus } = useLeads();
   const { configs, loading: configsLoading, refetch: refetchConfigs, refreshStatuses } = useEvolutionConfigs();
   const { stages: pipelineStages, loading: pipelineStagesLoading } = usePipelineStages();
-  const { getActiveProducts, refetch: refetchProducts } = useProducts();
+  const { getActiveProducts, refetch: refetchProducts } = useProducts({ enabled: open });
   const activeProducts = getActiveProducts();
   const { templates, applyTemplate } = useMessageTemplates();
   const { lists, saveList, refetch: refetchLists } = useWorkflowLists();

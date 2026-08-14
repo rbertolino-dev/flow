@@ -15,23 +15,30 @@ async function getAccessTokenWithRetry(attempts = 3): Promise<string | null> {
   return null;
 }
 
-export function useProducts() {
+export function useProducts(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const { activeOrgId } = useActiveOrganization();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     if (activeOrgId) {
-      fetchProducts();
+      void fetchProducts();
     } else {
       setProducts([]);
       setLoading(false);
     }
-  }, [activeOrgId]);
+    // fetchProducts é estável o suficiente para o ciclo de org; evita re-fetch em cascata
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrgId, enabled]);
 
   const fetchProducts = async () => {
-    if (!activeOrgId) return;
+    if (!activeOrgId || !enabled) return;
 
     try {
       setLoading(true);

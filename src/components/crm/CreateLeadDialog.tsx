@@ -28,7 +28,7 @@ interface CreateLeadDialogProps {
 
 export function CreateLeadDialog({ open, onOpenChange, onLeadCreated, stages }: CreateLeadDialogProps) {
   const { toast } = useToast();
-  const { getActiveProducts, refetch: refetchProducts } = useProducts();
+  const { getActiveProducts, refetch: refetchProducts } = useProducts({ enabled: open });
   const { tags, refetch: refetchTags, addTagToLead } = useTags();
   const { configs } = useEvolutionConfigs();
   const [loading, setLoading] = useState(false);
