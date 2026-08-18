@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs, EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Archive, Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User, Wifi, AlertTriangle, Globe } from "lucide-react";
+import { Plus, Loader2, Archive, Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User, Wifi, AlertTriangle, Globe, ListPlus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
+import { EvolutionBulkCreateDialog } from "@/components/crm/EvolutionBulkCreateDialog";
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
 import { ArchivedLeadsPanel } from "@/components/crm/ArchivedLeadsPanel";
 import { WhatsAppNumberValidator } from "@/components/crm/WhatsAppNumberValidator";
@@ -82,6 +83,7 @@ export default function Settings() {
   // const hasFacebookAccess = useIntegrationAccess('facebook');
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<EvolutionConfig | null>(null);
   const [reconnectingInstance, setReconnectingInstance] = useState<EvolutionConfig | null>(null);
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<Set<string>>(new Set());
@@ -429,20 +431,33 @@ export default function Settings() {
                         Nova Instância WhatsApp
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm mt-1">
-                        Configure uma nova conexão com o WhatsApp para começar a usar o sistema
+                        Crie uma conexão ou várias de uma vez para acelerar a configuração
                       </CardDescription>
                     </div>
-                    <Button 
-                      onClick={() => {
-                        setEditingConfig(null);
-                        setDialogOpen(true);
-                      }} 
-                      size="default" 
-                      className="w-full sm:w-auto bg-primary hover:bg-primary/90"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Criar Nova Instância
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <Button 
+                        onClick={() => {
+                          setEditingConfig(null);
+                          setDialogOpen(true);
+                        }} 
+                        size="default" 
+                        className="w-full sm:w-auto bg-primary hover:bg-primary/90"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Criar Nova Instância
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="default"
+                        className="w-full sm:w-auto"
+                        onClick={() => setBulkCreateOpen(true)}
+                        data-testid="bulk-create-instances"
+                      >
+                        <ListPlus className="h-4 w-4 mr-2" />
+                        Criar em lote
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
               </Card>
@@ -845,6 +860,14 @@ export default function Settings() {
           }
           return success;
         }}
+        onRefetch={refetch}
+      />
+
+      <EvolutionBulkCreateDialog
+        open={bulkCreateOpen}
+        onOpenChange={setBulkCreateOpen}
+        existingNames={configs.map((c) => c.instance_name)}
+        onSave={async (data) => createConfig(data, { silent: true })}
         onRefetch={refetch}
       />
 

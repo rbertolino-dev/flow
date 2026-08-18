@@ -105,7 +105,7 @@ export function useEvolutionConfigs() {
     proxy_protocol?: string;
     proxy_username?: string;
     proxy_password?: string;
-  }) => {
+  }, options?: { silent?: boolean }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -190,20 +190,24 @@ export function useEvolutionConfigs() {
         }
       }
 
-      toast({
-        title: "✅ Instância criada",
-        description: "Nova instância Evolution API foi adicionada.",
-      });
+      if (!options?.silent) {
+        toast({
+          title: "✅ Instância criada",
+          description: "Nova instância Evolution API foi adicionada.",
+        });
+      }
 
       await fetchConfigs();
       return true;
     } catch (error: any) {
       console.error('❌ Erro completo ao criar:', error);
-      toast({
-        title: "❌ Erro ao criar instância",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (!options?.silent) {
+        toast({
+          title: "❌ Erro ao criar instância",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
       return false;
     }
   };
