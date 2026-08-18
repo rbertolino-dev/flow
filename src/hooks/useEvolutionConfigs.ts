@@ -273,14 +273,27 @@ export function useEvolutionConfigs() {
   };
 
   const deleteConfig = async (id: string) => {
+    return deleteConfigs([id]);
+  };
+
+  const deleteConfigs = async (ids: string[]) => {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (uniqueIds.length === 0) return false;
+
     try {
       // Atualização otimista: remover da lista imediatamente
-      setConfigs(prevConfigs => prevConfigs.filter(c => c.id !== id));
+      setConfigs(prevConfigs => prevConfigs.filter(c => !uniqueIds.includes(c.id)));
 
-      const { error } = await (supabase as any)
+      let query = (supabase as any)
         .from('evolution_config')
         .delete()
-        .eq('id', id);
+        .in('id', uniqueIds);
+
+      if (activeOrgId) {
+        query = query.eq('organization_id', activeOrgId);
+      }
+
+      const { error } = await query;
 
       if (error) {
         // Se houver erro, reverter a remoção otimista
@@ -289,8 +302,10 @@ export function useEvolutionConfigs() {
       }
 
       toast({
-        title: "✅ Instância removida",
-        description: "A instância foi removida com sucesso desta organização.",
+        title: uniqueIds.length === 1 ? "✅ Instância removida" : `✅ ${uniqueIds.length} instâncias removidas`,
+        description: uniqueIds.length === 1
+          ? "A instância foi removida com sucesso desta organização."
+          : "As instâncias selecionadas foram removidas com sucesso desta organização.",
       });
 
       // Revalidar para garantir sincronização
@@ -298,7 +313,7 @@ export function useEvolutionConfigs() {
       return true;
     } catch (error: any) {
       toast({
-        title: "❌ Erro ao remover instância",
+        title: uniqueIds.length === 1 ? "❌ Erro ao remover instância" : "❌ Erro ao remover instâncias",
         description: error.message,
         variant: "destructive",
       });
@@ -598,6 +613,7 @@ export function useEvolutionConfigs() {
     createConfig,
     updateConfig,
     deleteConfig,
+    deleteConfigs,
     toggleWebhook,
     configureWebhook,
     testConnection,

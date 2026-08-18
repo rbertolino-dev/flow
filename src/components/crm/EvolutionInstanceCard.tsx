@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Pencil, Trash2, TestTube2, Webhook, CheckCircle, XCircle, ChevronDown, ChevronUp, RefreshCw, Key, Wifi } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EvolutionInstanceDetails } from "./EvolutionInstanceDetails";
@@ -12,6 +13,7 @@ import { extractConnectionState, evolutionApiUrlForFetch } from "@/lib/evolution
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { ReconnectInstanceDialog } from "./ReconnectInstanceDialog";
+import { cn } from "@/lib/utils";
 
 interface EvolutionInstanceCardProps {
   config: EvolutionConfig;
@@ -21,6 +23,8 @@ interface EvolutionInstanceCardProps {
   onTest: (config: EvolutionConfig) => void;
   onConfigureWebhook: (config: EvolutionConfig) => void;
   onRefresh?: () => void;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 export function EvolutionInstanceCard({
@@ -31,6 +35,8 @@ export function EvolutionInstanceCard({
   onTest,
   onConfigureWebhook,
   onRefresh,
+  selected = false,
+  onToggleSelect,
 }: EvolutionInstanceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -294,9 +300,20 @@ export function EvolutionInstanceCard({
 
   return (
     <div className="space-y-0">
-    <Card>
+    <Card className={cn(selected && "ring-2 ring-primary border-primary")}>
       <CardHeader className="pb-2 sm:pb-3">
         <div className="flex items-start justify-between gap-2">
+          {onToggleSelect && (
+            <div className="pt-1 flex-shrink-0">
+              <Checkbox
+                checked={selected}
+                onCheckedChange={() => onToggleSelect()}
+                aria-label={`Selecionar instância ${config.instance_name}`}
+                data-testid={`select-instance-${config.id}`}
+                className="h-5 w-5"
+              />
+            </div>
+          )}
           <div className="space-y-1 flex-1 min-w-0">
             <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
               <span className="truncate">{config.instance_name}</span>

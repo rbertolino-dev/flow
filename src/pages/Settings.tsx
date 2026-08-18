@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs, EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, Archive, Tag as TagIcon, Layers, Pencil, Trash2, MessageSquare, UserCog, User, Wifi, AlertTriangle, Globe } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
@@ -61,7 +62,8 @@ export default function Settings() {
     loading, 
     createConfig, 
     updateConfig, 
-    deleteConfig, 
+    deleteConfig,
+    deleteConfigs,
     toggleWebhook,
     configureWebhook,
     testConnection,
@@ -82,6 +84,9 @@ export default function Settings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<EvolutionConfig | null>(null);
   const [reconnectingInstance, setReconnectingInstance] = useState<EvolutionConfig | null>(null);
+  const [selectedInstanceIds, setSelectedInstanceIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const hasRefreshedStatuses = useRef(false);
 
   // Ao abrir a aba Integrações com instâncias, sincronizar status da Evolution API com o banco (corrige exibição quando instâncias estão conectadas na Evolution mas is_connected estava desatualizado)
@@ -120,7 +125,71 @@ export default function Settings() {
 
   const handleDelete = async (id: string) => {
     if (confirm("Tem certeza que deseja remover esta instância?")) {
-      await deleteConfig(id);
+      const success = await deleteConfig(id);
+      if (success) {
+        setSelectedInstanceIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    }
+  };
+
+  const disconnectedConfigs = useMemo(
+    () => configs.filter((c) => !c.is_connected),
+    [configs]
+  );
+
+  const selectedCount = selectedInstanceIds.size;
+  const allSelected = configs.length > 0 && selectedCount === configs.length;
+  const someSelected = selectedCount > 0 && selectedCount < configs.length;
+  const selectedConfigs = useMemo(
+    () => configs.filter((c) => selectedInstanceIds.has(c.id)),
+    [configs, selectedInstanceIds]
+  );
+
+  useEffect(() => {
+    const validIds = new Set(configs.map((c) => c.id));
+    setSelectedInstanceIds((prev) => {
+      const next = new Set([...prev].filter((id) => validIds.has(id)));
+      if (next.size === prev.size) return prev;
+      return next;
+    });
+  }, [configs]);
+
+  const toggleInstanceSelection = useCallback((id: string) => {
+    setSelectedInstanceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAll = useCallback((checked: boolean | "indeterminate") => {
+    if (checked === true) {
+      setSelectedInstanceIds(new Set(configs.map((c) => c.id)));
+      return;
+    }
+    setSelectedInstanceIds(new Set());
+  }, [configs]);
+
+  const handleSelectDisconnected = useCallback(() => {
+    setSelectedInstanceIds(new Set(disconnectedConfigs.map((c) => c.id)));
+  }, [disconnectedConfigs]);
+
+  const handleBulkDelete = async () => {
+    if (selectedCount === 0) return;
+    setBulkDeleting(true);
+    try {
+      const success = await deleteConfigs(Array.from(selectedInstanceIds));
+      if (success) {
+        setSelectedInstanceIds(new Set());
+        setBulkDeleteOpen(false);
+      }
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -383,7 +452,7 @@ export default function Settings() {
               <WhatsAppNumberValidator configs={configs} />
 
               {/* Seção de Instâncias Desconectadas */}
-              {configs.filter(c => !c.is_connected).length > 0 && (
+              {disconnectedConfigs.length > 0 && (
                 <Card className="border-destructive/50 bg-destructive/5">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive">
@@ -391,24 +460,29 @@ export default function Settings() {
                       Instâncias Desconectadas
                     </CardTitle>
                     <CardDescription>
-                      {configs.filter(c => !c.is_connected).length} instância(s) desconectada(s). 
+                      {disconnectedConfigs.length} instância(s) desconectada(s). 
                       Reconecte para continuar usando o WhatsApp.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {configs
-                        .filter(c => !c.is_connected)
-                        .map((config) => (
+                      {disconnectedConfigs.map((config) => (
                           <div
                             key={config.id}
-                            className="flex items-center justify-between p-3 border border-destructive/20 rounded-lg bg-background"
+                            className="flex items-center justify-between p-3 border border-destructive/20 rounded-lg bg-background gap-2"
                           >
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{config.instance_name}</p>
-                              {config.phone_number && (
-                                <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
-                              )}
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <Checkbox
+                                checked={selectedInstanceIds.has(config.id)}
+                                onCheckedChange={() => toggleInstanceSelection(config.id)}
+                                aria-label={`Selecionar instância ${config.instance_name}`}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{config.instance_name}</p>
+                                {config.phone_number && (
+                                  <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
+                                )}
+                              </div>
                             </div>
                             <Button
                               variant="default"
@@ -431,7 +505,7 @@ export default function Settings() {
                 <div>
                   <CardTitle className="text-lg sm:text-xl">Instâncias WhatsApp</CardTitle>
                   <CardDescription className="text-xs sm:text-sm mt-1">
-                    Gerencie suas conexões com o WhatsApp
+                    Gerencie suas conexões com o WhatsApp. Selecione várias para excluir de uma vez.
                   </CardDescription>
                 </div>
               </CardHeader>
@@ -444,6 +518,50 @@ export default function Settings() {
                   </Alert>
                 ) : (
                   <div className="space-y-4">
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border bg-muted/40"
+                      data-testid="instance-bulk-toolbar"
+                    >
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Checkbox
+                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                          onCheckedChange={handleToggleSelectAll}
+                          aria-label="Selecionar todas as instâncias"
+                          data-testid="select-all-instances"
+                        />
+                        <span className="text-sm font-medium">Selecionar todas</span>
+                        {selectedCount > 0 && (
+                          <Badge variant="secondary">
+                            {selectedCount} selecionada{selectedCount === 1 ? "" : "s"}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        {disconnectedConfigs.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSelectDisconnected}
+                            className="w-full sm:w-auto"
+                          >
+                            Selecionar desconectadas
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={selectedCount === 0 || bulkDeleting}
+                          onClick={() => setBulkDeleteOpen(true)}
+                          className="w-full sm:w-auto"
+                          data-testid="bulk-delete-instances"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir selecionadas
+                        </Button>
+                      </div>
+                    </div>
                     <EvolutionStatusScanner configs={configs} persistToDb onAfterPersist={refetch} />
                     <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
                       {configs.map((config) => (
@@ -456,6 +574,8 @@ export default function Settings() {
                           onTest={testConnection}
                           onConfigureWebhook={configureWebhook}
                           onRefresh={refetch}
+                          selected={selectedInstanceIds.has(config.id)}
+                          onToggleSelect={() => toggleInstanceSelection(config.id)}
                         />
                       ))}
                     </div>
@@ -771,6 +891,62 @@ export default function Settings() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteStage}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => {
+          if (!bulkDeleting) setBulkDeleteOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Excluir {selectedCount} instância{selectedCount === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Esta ação não pode ser desfeita. As instâncias serão removidas permanentemente desta organização.
+                </p>
+                {selectedConfigs.length > 0 && (
+                  <ul className="max-h-40 overflow-y-auto rounded-md border bg-muted/50 p-2 text-foreground space-y-1">
+                    {selectedConfigs.slice(0, 12).map((config) => (
+                      <li key={config.id} className="truncate text-xs sm:text-sm">
+                        • {config.instance_name}
+                      </li>
+                    ))}
+                    {selectedConfigs.length > 12 && (
+                      <li className="text-xs text-muted-foreground">
+                        + {selectedConfigs.length - 12} outra(s)
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkDelete();
+              }}
+              disabled={bulkDeleting || selectedCount === 0}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                `Excluir ${selectedCount} instância${selectedCount === 1 ? "" : "s"}`
+              )}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
