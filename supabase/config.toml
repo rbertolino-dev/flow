@@ -53,6 +53,9 @@ verify_jwt = false
 [functions.sync-evolution-connection-batch]
 verify_jwt = false
 
+[functions.sync-organization-evolution-instances]
+verify_jwt = false
+
 [functions.process-broadcast-queue-waha]
 verify_jwt = false
 

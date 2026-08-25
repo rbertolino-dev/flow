@@ -37,6 +37,10 @@ import {
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisconnectionReportDialog";
+import { SyncEvolutionProvidersButton } from "@/components/crm/SyncEvolutionProvidersButton";
+import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
+import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
+import { urlsMatchEvolution, evolutionProviderLabel } from "@/lib/evolutionProvider";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import type { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
@@ -562,6 +566,7 @@ function delaysFromSource(minRaw: unknown, maxRaw: unknown): { minDelay: number;
 export default function BroadcastCampaigns2() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
+  const { providers } = useOrganizationEvolutionProviders();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -2847,6 +2852,13 @@ export default function BroadcastCampaigns2() {
             onReconnected={fetchInstances}
           />
           <div className="flex justify-end gap-2 mb-2 flex-wrap">
+            <SyncEvolutionProvidersButton
+              organizationId={activeOrgId}
+              onDone={async () => {
+                await fetchInstances();
+              }}
+              className="h-9"
+            />
             <Button
               type="button"
               variant="outline"
@@ -3071,9 +3083,10 @@ export default function BroadcastCampaigns2() {
                             className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5"
                           >
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <AlertTriangle className="h-4 w-4 text-destructive" />
                                 <p className="font-medium">{instance.instance_name}</p>
+                                <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
                                 <Badge variant="destructive" className="ml-2">
                                   Desconectado
                                 </Badge>
@@ -3320,6 +3333,7 @@ export default function BroadcastCampaigns2() {
                         {instancesSortedAlphabetically.map((instance) => (
                           <SelectItem key={instance.id} value={instance.id}>
                             {instance.instance_name}
+                            {` · ${evolutionProviderLabel(instance.api_url, providers)}`}
                             {instance.is_connected === false ? " — desconectada" : ""}
                           </SelectItem>
                         ))}
@@ -3377,6 +3391,37 @@ export default function BroadcastCampaigns2() {
 
                     <div className="space-y-2">
                       <Label>Selecione as Instâncias *</Label>
+                      {providers.length > 1 && (
+                        <div className="flex flex-wrap gap-2">
+                          {providers.map((provider) => {
+                            const ids = instancesSortedAlphabetically
+                              .filter((inst) =>
+                                urlsMatchEvolution(inst.api_url, provider.api_url) ||
+                                inst.evolution_provider_id === provider.provider_id
+                              )
+                              .map((inst) => inst.id);
+                            if (ids.length === 0) return null;
+                            return (
+                              <Button
+                                key={provider.provider_id}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  setNewCampaign((prev) => ({
+                                    ...prev,
+                                    instanceIds: Array.from(new Set([...prev.instanceIds, ...ids])),
+                                    selectedGroupId: "",
+                                  }));
+                                }}
+                              >
+                                Marcar todas · {provider.provider_name} ({ids.length})
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 p-3 border rounded-lg bg-muted/5 max-h-56 sm:max-h-72 overflow-y-auto">
                         {instancesSortedAlphabetically.map((instance) => (
                           <label
@@ -3391,19 +3436,20 @@ export default function BroadcastCampaigns2() {
                                   setNewCampaign({
                                     ...newCampaign,
                                     instanceIds: [...newCampaign.instanceIds, instance.id],
-                                    selectedGroupId: "", // Limpar grupo se selecionar manualmente
+                                    selectedGroupId: "",
                                   });
                                 } else {
                                   setNewCampaign({
                                     ...newCampaign,
                                     instanceIds: newCampaign.instanceIds.filter(id => id !== instance.id),
-                                    selectedGroupId: "", // Limpar grupo se desmarcar
+                                    selectedGroupId: "",
                                   });
                                 }
                               }}
                               className="h-4 w-4 shrink-0"
                             />
                             <span className="text-sm truncate min-w-0">{instance.instance_name}</span>
+                            <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
                             {syncingEvolutionStatus ? (
                               <span className="flex items-center gap-1 shrink-0 text-muted-foreground" title="Conferindo status na Evolution">
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

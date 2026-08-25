@@ -9,6 +9,10 @@ import { EvolutionInstanceCard } from "@/components/crm/EvolutionInstanceCard";
 import { EvolutionInstanceDialog } from "@/components/crm/EvolutionInstanceDialog";
 import { EvolutionBulkCreateDialog } from "@/components/crm/EvolutionBulkCreateDialog";
 import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner";
+import { SyncEvolutionProvidersButton } from "@/components/crm/SyncEvolutionProvidersButton";
+import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
+import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
+import { evolutionProviderLabel, urlsMatchEvolution } from "@/lib/evolutionProvider";
 import { ArchivedLeadsPanel } from "@/components/crm/ArchivedLeadsPanel";
 import { WhatsAppNumberValidator } from "@/components/crm/WhatsAppNumberValidator";
 import { EvolutionApiDiagnostics } from "@/components/crm/EvolutionApiDiagnostics";
@@ -29,6 +33,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { MessageTemplateManager } from "@/components/crm/MessageTemplateManager";
@@ -75,6 +86,8 @@ export default function Settings() {
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
   const { tags, createTag, updateTag, deleteTag } = useTags();
   const { toast } = useToast();
+  const { providers, organizationId } = useOrganizationEvolutionProviders();
+  const [providerFilter, setProviderFilter] = useState("all");
 
   // Verificar acesso às integrações para controlar visibilidade das tabs
   const hasEvolutionAccess = useIntegrationAccess('evolution');
@@ -142,6 +155,28 @@ export default function Settings() {
     () => configs.filter((c) => !c.is_connected),
     [configs]
   );
+
+  const visibleConfigs = useMemo(() => {
+    if (providerFilter === "all") return configs;
+    const selected = providers.find((p) => p.provider_id === providerFilter);
+    if (!selected) return configs;
+    return configs.filter(
+      (c) =>
+        c.evolution_provider_id === selected.provider_id ||
+        urlsMatchEvolution(c.api_url, selected.api_url),
+    );
+  }, [configs, providerFilter, providers]);
+
+  const configsByProvider = useMemo(() => {
+    const map = new Map<string, EvolutionConfig[]>();
+    for (const config of visibleConfigs) {
+      const label = evolutionProviderLabel(config.api_url, providers);
+      const list = map.get(label) ?? [];
+      list.push(config);
+      map.set(label, list);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+  }, [visibleConfigs, providers]);
 
   const selectedCount = selectedInstanceIds.size;
   const allSelected = configs.length > 0 && selectedCount === configs.length;
@@ -431,10 +466,17 @@ export default function Settings() {
                         Nova Instância WhatsApp
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm mt-1">
-                        Crie uma conexão ou várias de uma vez para acelerar a configuração
+                        Crie uma conexão, várias de uma vez, ou sincronize as Evos habilitadas para esta organização
                       </CardDescription>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <SyncEvolutionProvidersButton
+                        organizationId={organizationId}
+                        onDone={async () => {
+                          await refetch();
+                        }}
+                        className="w-full sm:w-auto"
+                      />
                       <Button 
                         onClick={() => {
                           setEditingConfig(null);
@@ -493,7 +535,10 @@ export default function Settings() {
                                 aria-label={`Selecionar instância ${config.instance_name}`}
                               />
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">{config.instance_name}</p>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <p className="font-medium text-sm truncate">{config.instance_name}</p>
+                                  <EvolutionProviderBadge apiUrl={config.api_url} providers={providers} />
+                                </div>
                                 {config.phone_number && (
                                   <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
                                 )}
@@ -577,23 +622,51 @@ export default function Settings() {
                         </Button>
                       </div>
                     </div>
-                    <EvolutionStatusScanner configs={configs} persistToDb onAfterPersist={refetch} />
-                    <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
-                      {configs.map((config) => (
-                        <EvolutionInstanceCard
-                          key={config.id}
-                          config={config}
-                          onEdit={handleEdit}
-                          onDelete={handleDelete}
-                          onToggleWebhook={toggleWebhook}
-                          onTest={testConnection}
-                          onConfigureWebhook={configureWebhook}
-                          onRefresh={refetch}
-                          selected={selectedInstanceIds.has(config.id)}
-                          onToggleSelect={() => toggleInstanceSelection(config.id)}
-                        />
-                      ))}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border bg-muted/40">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-sm font-medium">Filtrar por Evo</span>
+                        <Select value={providerFilter} onValueChange={setProviderFilter}>
+                          <SelectTrigger className="w-[220px] h-9" data-testid="filter-evolution-provider">
+                            <SelectValue placeholder="Todas as Evos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todas as Evos</SelectItem>
+                            {providers.map((provider) => (
+                              <SelectItem key={provider.provider_id} value={provider.provider_id}>
+                                {provider.provider_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+                    <EvolutionStatusScanner configs={visibleConfigs} persistToDb onAfterPersist={refetch} />
+                    {configsByProvider.map(([label, items]) => (
+                      <div key={label} className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <EvolutionProviderBadge apiUrl={items[0]?.api_url} providers={providers} providerName={label} />
+                          <span className="text-sm text-muted-foreground">
+                            {items.length} instância{items.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
+                          {items.map((config) => (
+                            <EvolutionInstanceCard
+                              key={config.id}
+                              config={config}
+                              onEdit={handleEdit}
+                              onDelete={handleDelete}
+                              onToggleWebhook={toggleWebhook}
+                              onTest={testConnection}
+                              onConfigureWebhook={configureWebhook}
+                              onRefresh={refetch}
+                              selected={selectedInstanceIds.has(config.id)}
+                              onToggleSelect={() => toggleInstanceSelection(config.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

@@ -26,6 +26,8 @@ import { SegmentManagerDialog } from "./SegmentManagerDialog";
 import { EditDispatchLimitsDialog } from "./EditDispatchLimitsDialog";
 import { AddReserveAgentDialog } from "./AddReserveAgentDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
+import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
 
 interface Instance {
   id: string;
@@ -63,6 +65,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
   const [addReserveDialogOpen, setAddReserveDialogOpen] = useState(false);
   const [addReserveInstance, setAddReserveInstance] = useState<Instance | null>(null);
   const { toast } = useToast();
+  const { providers } = useOrganizationEvolutionProviders();
   const checkingRef = useRef<Set<string>>(new Set());
   const lastKnownRealtimeStatusRef = useRef<Record<string, boolean | null>>({});
   const lastRealtimeToastAtRef = useRef<Record<string, number>>({});
@@ -1108,6 +1111,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                         <span className="font-medium text-sm truncate">
                           {instance.instance_name}
                         </span>
+                        <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
                       </div>
                       <Badge variant="default" className="bg-green-600 hover:bg-green-700">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -1148,6 +1152,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                           <span className="font-medium text-sm truncate">
                             {instance.instance_name}
                           </span>
+                          <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="destructive">
@@ -1232,7 +1237,10 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                                 }`} />
                               </TableCell>
                               <TableCell className="font-medium">
-                                {titularName}
+                                <div className="flex items-center gap-2">
+                                  <span>{titularName}</span>
+                                  <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
+                                </div>
                               </TableCell>
                               <TableCell className="text-muted-foreground">
                                 {reserveName}

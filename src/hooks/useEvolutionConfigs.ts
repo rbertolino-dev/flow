@@ -24,6 +24,7 @@ export interface EvolutionConfig {
   proxy_protocol?: string | null;
   proxy_username?: string | null;
   proxy_password?: string | null;
+  evolution_provider_id?: string | null;
 }
 
 export function useEvolutionConfigs() {
@@ -153,6 +154,14 @@ export function useEvolutionConfigs() {
         instance_name: cleanedInstanceName,
         webhook_enabled: true,
       };
+      try {
+        const { data: providerId } = await (supabase as any).rpc("match_evolution_provider_id", {
+          p_url: normalizedUrl,
+        });
+        if (providerId) insertPayload.evolution_provider_id = providerId;
+      } catch {
+        // Coluna/função pode ainda não existir em ambientes sem a migration.
+      }
       if (configData.proxy_host?.trim()) insertPayload.proxy_host = configData.proxy_host.trim();
       if (configData.proxy_port?.trim()) insertPayload.proxy_port = configData.proxy_port.trim();
       if (configData.proxy_protocol?.trim()) insertPayload.proxy_protocol = configData.proxy_protocol.trim();

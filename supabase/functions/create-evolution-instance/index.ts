@@ -342,6 +342,12 @@ serve(async (req) => {
       webhook_enabled: true,
       webhook_secret: webhookSecret,
     };
+    try {
+      const { data: providerId } = await supabase.rpc('match_evolution_provider_id', { p_url: normalizedUrl });
+      if (providerId) insertData.evolution_provider_id = providerId;
+    } catch (matchErr) {
+      console.log('[CREATE-EVOLUTION-INSTANCE] match_evolution_provider_id indisponível:', matchErr);
+    }
     if (proxyHost?.trim()) insertData.proxy_host = proxyHost.trim();
     if (proxyPort?.trim()) insertData.proxy_port = proxyPort.trim();
     if (proxyProtocol?.trim()) insertData.proxy_protocol = proxyProtocol.trim();

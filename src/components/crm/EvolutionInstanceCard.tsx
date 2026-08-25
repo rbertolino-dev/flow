@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId } from "@/lib/organizationUtils";
 import { ReconnectInstanceDialog } from "./ReconnectInstanceDialog";
 import { cn } from "@/lib/utils";
+import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
+import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
 
 interface EvolutionInstanceCardProps {
   config: EvolutionConfig;
@@ -45,6 +47,7 @@ export function EvolutionInstanceCard({
   const [hasProvider, setHasProvider] = useState(false);
   const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const { toast } = useToast();
+  const { providers } = useOrganizationEvolutionProviders();
 
   useEffect(() => {
     checkHasProvider();
@@ -317,26 +320,23 @@ export function EvolutionInstanceCard({
           <div className="space-y-1 flex-1 min-w-0">
             <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
               <span className="truncate">{config.instance_name}</span>
-              {displayStatus ? (
-                <Badge variant="default" className="gap-1 w-fit">
-                  <CheckCircle className="h-3 w-3" />
-                  Conectado
-                </Badge>
-              ) : (
-                <Badge variant="destructive" className="gap-1 w-fit">
-                  <XCircle className="h-3 w-3" />
-                  Desconectado
-                </Badge>
-              )}
+              <div className="flex items-center gap-1 flex-wrap">
+                <EvolutionProviderBadge apiUrl={config.api_url} providers={providers} />
+                {displayStatus ? (
+                  <Badge variant="default" className="gap-1 w-fit">
+                    <CheckCircle className="h-3 w-3" />
+                    Conectado
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="gap-1 w-fit">
+                    <XCircle className="h-3 w-3" />
+                    Desconectado
+                  </Badge>
+                )}
+              </div>
             </CardTitle>
-            {/* Esconder URL quando há provider configurado pelo super admin */}
             {!hasProvider && (
               <p className="text-xs sm:text-sm text-muted-foreground truncate">{config.api_url}</p>
-            )}
-            {hasProvider && (
-              <p className="text-xs sm:text-sm text-muted-foreground italic">
-                Provider gerenciado pela administração
-              </p>
             )}
             {config.phone_number && (
               <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
