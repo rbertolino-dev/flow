@@ -321,7 +321,7 @@ export function EvolutionInstanceCard({
             <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
               <span className="truncate">{config.instance_name}</span>
               <div className="flex items-center gap-1 flex-wrap">
-                <EvolutionProviderBadge apiUrl={config.api_url} providers={providers} />
+                <EvolutionProviderBadge apiUrl={config.api_url} providers={providers} evolutionProviderId={config.evolution_provider_id} />
                 {displayStatus ? (
                   <Badge variant="default" className="gap-1 w-fit">
                     <CheckCircle className="h-3 w-3" />

@@ -30,7 +30,7 @@ type CrmInstance = {
 
 type RemoteInstance = {
   name: string;
-  connected: boolean;
+  connected: boolean | null;
   phone: string | null;
 };
 
@@ -42,6 +42,7 @@ type ProviderResult = {
   remote_connected: number;
   created: string[];
   updated: string[];
+  disconnected: string[];
   skipped_name_conflict: string[];
   skipped_other_org: Array<{ name: string; organization_id: string }>;
   tagged: number;
@@ -100,7 +101,7 @@ function parseRemoteInstances(data: unknown): RemoteInstance[] {
     const name = String(inst.instanceName ?? inst.name ?? rec.instanceName ?? rec.name ?? "").trim();
     if (!name) continue;
     const rawStatus = inst.connectionStatus ?? inst.status ?? inst.state ?? rec.status ?? rec.state;
-    const connected = connectionStateToBoolean(rawStatus == null ? undefined : String(rawStatus)) === true;
+    const connected = connectionStateToBoolean(rawStatus == null ? undefined : String(rawStatus));
     const owner = inst.ownerJid ?? rec.ownerJid ?? inst.owner ?? rec.owner;
     let phone: string | null = null;
     if (typeof owner === "string" && owner.includes("@")) {
@@ -111,6 +112,35 @@ function parseRemoteInstances(data: unknown): RemoteInstance[] {
     out.push({ name, connected, phone });
   }
   return out;
+}
+
+function belongsToProvider(row: CrmInstance, provider: ProviderRow): boolean {
+  return row.evolution_provider_id === provider.id || urlsMatch(row.api_url, provider.api_url);
+}
+
+async function orgCanCreateInstance(
+  admin: AdminClient,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc("can_create_evolution_instance", {
+    _org_id: organizationId,
+    _user_id: userId,
+  });
+  if (!error && typeof data === "boolean") return data;
+
+  const { data: limits } = await admin
+    .from("organization_limits")
+    .select("max_evolution_instances")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  const max = (limits as { max_evolution_instances?: number | null } | null)?.max_evolution_instances;
+  if (max == null) return true;
+  const { count } = await admin
+    .from("evolution_config")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+  return (count ?? 0) < max;
 }
 
 async function fetchRemoteInstances(apiUrl: string, apiKey: string): Promise<RemoteInstance[]> {
@@ -256,6 +286,7 @@ serve(async (req) => {
   const results: ProviderResult[] = [];
   let createdTotal = 0;
   let updatedTotal = 0;
+  let disconnectedTotal = 0;
   let conflictTotal = 0;
   let otherOrgTotal = 0;
   let skippedLimit = 0;
@@ -269,6 +300,7 @@ serve(async (req) => {
       remote_connected: 0,
       created: [],
       updated: [],
+      disconnected: [],
       skipped_name_conflict: [],
       skipped_other_org: [],
       tagged: 0,
@@ -284,7 +316,7 @@ serve(async (req) => {
     }
 
     result.remote_total = remote.length;
-    const connected = remote.filter((i) => i.connected);
+    const connected = remote.filter((i) => i.connected === true);
     result.remote_connected = connected.length;
 
     for (const inst of connected) {
@@ -292,19 +324,24 @@ serve(async (req) => {
       const existing = crmByName.get(key);
 
       if (existing) {
-        const sameProvider =
-          existing.evolution_provider_id === provider.id ||
-          urlsMatch(existing.api_url, provider.api_url);
-
-        if (!sameProvider) {
+        if (!belongsToProvider(existing, provider)) {
           result.skipped_name_conflict.push(inst.name);
           conflictTotal += 1;
           continue;
         }
 
+        const normalizedUrl = normalizeApiUrl(provider.api_url);
+        const needsVisibleUpdate =
+          existing.evolution_provider_id !== provider.id ||
+          !urlsMatch(existing.api_url, provider.api_url) ||
+          existing.is_connected !== true ||
+          (!!inst.phone && !existing.phone_number);
+
+        if (!needsVisibleUpdate) continue;
+
         const patch: Record<string, unknown> = {
           evolution_provider_id: provider.id,
-          api_url: normalizeApiUrl(provider.api_url),
+          api_url: normalizedUrl,
           api_key: provider.api_key,
           is_connected: true,
         };
@@ -319,8 +356,9 @@ serve(async (req) => {
           result.updated.push(inst.name);
           updatedTotal += 1;
           existing.evolution_provider_id = provider.id;
-          existing.api_url = normalizeApiUrl(provider.api_url);
+          existing.api_url = normalizedUrl;
           existing.is_connected = true;
+          if (inst.phone && !existing.phone_number) existing.phone_number = inst.phone;
         }
         continue;
       }
@@ -343,9 +381,7 @@ serve(async (req) => {
         continue;
       }
 
-      const { data: stillCan } = await admin.rpc("can_create_evolution_instance", {
-        _org_id: organizationId,
-      });
+      const stillCan = await orgCanCreateInstance(admin, organizationId, user.id);
       if (stillCan === false) {
         skippedLimit += 1;
         continue;
@@ -384,6 +420,32 @@ serve(async (req) => {
       createdTotal += 1;
     }
 
+    const closed = remote.filter((i) => i.connected === false);
+    for (const inst of closed) {
+      const existing = crmByName.get(instanceKey(inst.name));
+      if (!existing || !belongsToProvider(existing, provider)) continue;
+      if (existing.is_connected === false && existing.evolution_provider_id === provider.id) continue;
+
+      const wasConnected = existing.is_connected !== false;
+      const { error } = await admin
+        .from("evolution_config")
+        .update({
+          evolution_provider_id: provider.id,
+          api_url: normalizeApiUrl(provider.api_url),
+          is_connected: false,
+        })
+        .eq("id", existing.id);
+      if (!error) {
+        existing.evolution_provider_id = provider.id;
+        existing.api_url = normalizeApiUrl(provider.api_url);
+        existing.is_connected = false;
+        if (wasConnected) {
+          result.disconnected.push(inst.name);
+          disconnectedTotal += 1;
+        }
+      }
+    }
+
     results.push(result);
   }
 
@@ -393,6 +455,7 @@ serve(async (req) => {
     tagged,
     created: createdTotal,
     updated: updatedTotal,
+    disconnected: disconnectedTotal,
     skipped_name_conflict: conflictTotal,
     skipped_other_org: otherOrgTotal,
     skipped_limit: skippedLimit,

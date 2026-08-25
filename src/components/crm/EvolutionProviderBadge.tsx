@@ -10,6 +10,7 @@ interface EvolutionProviderBadgeProps {
   apiUrl?: string | null;
   providers: EvolutionProviderInfo[];
   providerName?: string | null;
+  evolutionProviderId?: string | null;
   className?: string;
 }
 
@@ -17,9 +18,10 @@ export function EvolutionProviderBadge({
   apiUrl,
   providers,
   providerName,
+  evolutionProviderId,
   className,
 }: EvolutionProviderBadgeProps) {
-  const label = evolutionProviderLabel(apiUrl, providers, providerName);
+  const label = evolutionProviderLabel(apiUrl, providers, providerName, evolutionProviderId);
   if (!label) return null;
 
   return (

@@ -39,4 +39,15 @@ test.describe("@unit tag de provider Evolution", () => {
       evolutionProviderLabel("https://evo30.atendimentoagilize.com", providers),
     ).toBe("evo 30");
   });
+
+  test("label prefere o evolution_provider_id gravado", () => {
+    expect(
+      evolutionProviderLabel(
+        "https://api.ordemservico.com",
+        providers,
+        null,
+        "p30",
+      ),
+    ).toBe("evo 30");
+  });
 });

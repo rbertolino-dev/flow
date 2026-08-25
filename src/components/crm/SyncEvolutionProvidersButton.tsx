@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,11 @@ import {
   syncOrganizationEvolutionInstances,
 } from "@/lib/syncOrganizationEvolutionInstances";
 import { invalidateEvolutionProvidersCache } from "@/hooks/useOrganizationEvolutionProviders";
+import {
+  getAutoSyncOrganizationEvolutionTimestamp,
+  markAutoSyncedOrganizationEvolutionInstances,
+  subscribeEvolutionOrgInstancesSync,
+} from "@/lib/autoSyncOrganizationEvolutionInstances";
 
 interface SyncEvolutionProvidersButtonProps {
   organizationId?: string | null;
@@ -23,6 +28,15 @@ export function SyncEvolutionProvidersButton({
 }: SyncEvolutionProvidersButtonProps) {
   const { toast } = useToast();
   const [syncing, setSyncing] = useState(false);
+  const [syncedAt, setSyncedAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    const read = () => {
+      setSyncedAt(organizationId ? getAutoSyncOrganizationEvolutionTimestamp(organizationId) : null);
+    };
+    read();
+    return subscribeEvolutionOrgInstancesSync(read);
+  }, [organizationId]);
 
   const handleSync = async () => {
     if (!organizationId) {
@@ -44,6 +58,7 @@ export function SyncEvolutionProvidersButton({
         });
         return;
       }
+      markAutoSyncedOrganizationEvolutionInstances(organizationId);
       toast({
         title: "Evos sincronizadas",
         description: describeEvolutionSyncResult(result),
@@ -62,16 +77,23 @@ export function SyncEvolutionProvidersButton({
   };
 
   return (
-    <Button
-      type="button"
-      variant={variant}
-      onClick={() => void handleSync()}
-      disabled={syncing || !organizationId}
-      className={className}
-      data-testid="sync-evolution-providers"
-    >
-      <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-      {syncing ? "Sincronizando Evos…" : "Sincronizar instâncias das Evos"}
-    </Button>
+    <div className="flex flex-col items-stretch sm:items-end gap-1">
+      <Button
+        type="button"
+        variant={variant}
+        onClick={() => void handleSync()}
+        disabled={syncing || !organizationId}
+        className={className}
+        data-testid="sync-evolution-providers"
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+        {syncing ? "Sincronizando Evos…" : "Sincronizar instâncias das Evos"}
+      </Button>
+      {syncedAt ? (
+        <span className="text-[10px] text-muted-foreground px-1">
+          Última sync nesta sessão
+        </span>
+      ) : null}
+    </div>
   );
 }

@@ -40,6 +40,7 @@ import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisc
 import { SyncEvolutionProvidersButton } from "@/components/crm/SyncEvolutionProvidersButton";
 import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
 import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
+import { useAutoSyncOrganizationEvolutionInstances } from "@/hooks/useAutoSyncOrganizationEvolutionInstances";
 import { urlsMatchEvolution, evolutionProviderLabel } from "@/lib/evolutionProvider";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
@@ -1091,19 +1092,14 @@ export default function BroadcastCampaigns2() {
     }
   }, [activeOrgId, fetchCampaigns, fetchInstances, fetchMessageTemplates, fetchCampaignTemplates, fetchActiveTimeWindow, fetchInstanceGroups]);
 
-  const evolutionSyncAttemptedOrgRef = useRef<string | null>(null);
-  useEffect(() => {
-    evolutionSyncAttemptedOrgRef.current = null;
-  }, [activeOrgId]);
+  useAutoSyncOrganizationEvolutionInstances({
+    organizationId: activeOrgId,
+    enabled: !!activeOrgId,
+    onDone: () => fetchInstances(),
+  });
 
-  // Sync ao abrir (1x por org): pequena = só offline no DB; grande = batch fetchInstances completo
-  useEffect(() => {
-    if (!activeOrgId || instances.length === 0) return;
-    if (evolutionSyncAttemptedOrgRef.current === activeOrgId) return;
-    evolutionSyncAttemptedOrgRef.current = activeOrgId;
-    const large = isLargeInstanceOrg(instances.length);
-    void syncEvolutionStatusForOrg(false, { syncAll: !large });
-  }, [activeOrgId, instances.length, syncEvolutionStatusForOrg]);
+  // Abertura: o auto-sync de instâncias (1 fetchInstances por Evo) cobre a 1ª visita da sessão.
+  // O batch pesado de status fica no botão manual e no intervalo de orgs grandes.
 
   // Orgs grandes: sync periódico em lote (sem health check por chip)
   useEffect(() => {
@@ -3086,7 +3082,7 @@ export default function BroadcastCampaigns2() {
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <AlertTriangle className="h-4 w-4 text-destructive" />
                                 <p className="font-medium">{instance.instance_name}</p>
-                                <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
+                                <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} evolutionProviderId={instance.evolution_provider_id} />
                                 <Badge variant="destructive" className="ml-2">
                                   Desconectado
                                 </Badge>
@@ -3333,7 +3329,7 @@ export default function BroadcastCampaigns2() {
                         {instancesSortedAlphabetically.map((instance) => (
                           <SelectItem key={instance.id} value={instance.id}>
                             {instance.instance_name}
-                            {` · ${evolutionProviderLabel(instance.api_url, providers)}`}
+                            {` · ${evolutionProviderLabel(instance.api_url, providers, null, instance.evolution_provider_id)}`}
                             {instance.is_connected === false ? " — desconectada" : ""}
                           </SelectItem>
                         ))}
@@ -3449,7 +3445,7 @@ export default function BroadcastCampaigns2() {
                               className="h-4 w-4 shrink-0"
                             />
                             <span className="text-sm truncate min-w-0">{instance.instance_name}</span>
-                            <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
+                            <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} evolutionProviderId={instance.evolution_provider_id} />
                             {syncingEvolutionStatus ? (
                               <span className="flex items-center gap-1 shrink-0 text-muted-foreground" title="Conferindo status na Evolution">
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

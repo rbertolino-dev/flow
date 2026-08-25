@@ -35,6 +35,7 @@ interface Instance {
   api_url: string;
   api_key: string | null;
   is_connected: boolean | null;
+  evolution_provider_id?: string | null;
   reserve_agent_name?: string | null;
   guideline?: string | null;
   daily_dispatch_limit?: number | null;
@@ -1111,7 +1112,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                         <span className="font-medium text-sm truncate">
                           {instance.instance_name}
                         </span>
-                        <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
+                        <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} evolutionProviderId={instance.evolution_provider_id} />
                       </div>
                       <Badge variant="default" className="bg-green-600 hover:bg-green-700">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -1152,7 +1153,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                           <span className="font-medium text-sm truncate">
                             {instance.instance_name}
                           </span>
-                          <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
+                          <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} evolutionProviderId={instance.evolution_provider_id} />
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="destructive">
@@ -1239,7 +1240,7 @@ export const InstanceStatusPanel = memo(function InstanceStatusPanel({ instances
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
                                   <span>{titularName}</span>
-                                  <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} />
+                                  <EvolutionProviderBadge apiUrl={instance.api_url} providers={providers} evolutionProviderId={instance.evolution_provider_id} />
                                 </div>
                               </TableCell>
                               <TableCell className="text-muted-foreground">

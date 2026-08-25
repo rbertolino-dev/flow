@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useEvolutionConfigs, EvolutionConfig } from "@/hooks/useEvolutionConfigs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { EvolutionStatusScanner } from "@/components/crm/EvolutionStatusScanner"
 import { SyncEvolutionProvidersButton } from "@/components/crm/SyncEvolutionProvidersButton";
 import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
 import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
+import { useAutoSyncOrganizationEvolutionInstances } from "@/hooks/useAutoSyncOrganizationEvolutionInstances";
 import { evolutionProviderLabel, urlsMatchEvolution } from "@/lib/evolutionProvider";
 import { ArchivedLeadsPanel } from "@/components/crm/ArchivedLeadsPanel";
 import { WhatsAppNumberValidator } from "@/components/crm/WhatsAppNumberValidator";
@@ -80,7 +81,6 @@ export default function Settings() {
     configureWebhook,
     testConnection,
     refetch,
-    refreshStatuses,
   } = useEvolutionConfigs();
   
   const { stages, createStage, updateStage, deleteStage, cleanDuplicateStages, countLeadsInStage } = usePipelineStages();
@@ -102,15 +102,12 @@ export default function Settings() {
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const hasRefreshedStatuses = useRef(false);
 
-  // Ao abrir a aba Integrações com instâncias, sincronizar status da Evolution API com o banco (corrige exibição quando instâncias estão conectadas na Evolution mas is_connected estava desatualizado)
-  useEffect(() => {
-    if (!hasEvolutionAccess || activeTab !== "integrations" || loading || configs.length === 0) return;
-    if (hasRefreshedStatuses.current) return;
-    hasRefreshedStatuses.current = true;
-    refreshStatuses().catch(() => {});
-  }, [activeTab, hasEvolutionAccess, loading, configs.length, refreshStatuses]);
+  useAutoSyncOrganizationEvolutionInstances({
+    organizationId,
+    enabled: hasEvolutionAccess && activeTab === "evolution",
+    onDone: () => refetch(),
+  });
 
   // Stage management
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
@@ -170,7 +167,7 @@ export default function Settings() {
   const configsByProvider = useMemo(() => {
     const map = new Map<string, EvolutionConfig[]>();
     for (const config of visibleConfigs) {
-      const label = evolutionProviderLabel(config.api_url, providers);
+      const label = evolutionProviderLabel(config.api_url, providers, null, config.evolution_provider_id);
       const list = map.get(label) ?? [];
       list.push(config);
       map.set(label, list);
@@ -537,7 +534,7 @@ export default function Settings() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <p className="font-medium text-sm truncate">{config.instance_name}</p>
-                                  <EvolutionProviderBadge apiUrl={config.api_url} providers={providers} />
+                                  <EvolutionProviderBadge apiUrl={config.api_url} providers={providers} evolutionProviderId={config.evolution_provider_id} />
                                 </div>
                                 {config.phone_number && (
                                   <p className="text-xs text-muted-foreground">Tel: {config.phone_number}</p>
@@ -644,7 +641,7 @@ export default function Settings() {
                     {configsByProvider.map(([label, items]) => (
                       <div key={label} className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <EvolutionProviderBadge apiUrl={items[0]?.api_url} providers={providers} providerName={label} />
+                          <EvolutionProviderBadge apiUrl={items[0]?.api_url} providers={providers} providerName={label} evolutionProviderId={items[0]?.evolution_provider_id} />
                           <span className="text-sm text-muted-foreground">
                             {items.length} instância{items.length === 1 ? "" : "s"}
                           </span>

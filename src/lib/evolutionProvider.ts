@@ -15,7 +15,12 @@ export function urlsMatchEvolution(a?: string | null, b?: string | null): boolea
 export function matchEvolutionProvider(
   apiUrl: string | null | undefined,
   providers: EvolutionProviderInfo[],
+  evolutionProviderId?: string | null,
 ): EvolutionProviderInfo | null {
+  if (evolutionProviderId) {
+    const byId = providers.find((p) => p.provider_id === evolutionProviderId);
+    if (byId) return byId;
+  }
   if (!apiUrl) return null;
   return providers.find((p) => urlsMatchEvolution(p.api_url, apiUrl)) ?? null;
 }
@@ -38,9 +43,10 @@ export function evolutionProviderLabel(
   apiUrl: string | null | undefined,
   providers: EvolutionProviderInfo[],
   storedName?: string | null,
+  evolutionProviderId?: string | null,
 ): string {
   if (storedName?.trim()) return storedName.trim();
-  const match = matchEvolutionProvider(apiUrl, providers);
+  const match = matchEvolutionProvider(apiUrl, providers, evolutionProviderId);
   if (match) return match.provider_name;
   return fallbackEvolutionLabel(apiUrl);
 }

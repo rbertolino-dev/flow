@@ -37,6 +37,7 @@ export type SyncOrgEvolutionProviderResult = {
   remote_connected: number;
   created: string[];
   updated: string[];
+  disconnected: string[];
   skipped_name_conflict: string[];
   skipped_other_org: Array<{ name: string; organization_id: string }>;
   tagged: number;
@@ -49,6 +50,7 @@ export type SyncOrgEvolutionInstancesResult = {
   tagged?: number;
   created?: number;
   updated?: number;
+  disconnected?: number;
   skipped_name_conflict?: number;
   skipped_other_org?: number;
   skipped_limit?: number;
@@ -115,6 +117,7 @@ export function describeEvolutionSyncResult(result: SyncOrgEvolutionInstancesRes
   const parts: string[] = [];
   if ((result.created ?? 0) > 0) parts.push(`${result.created} criada(s)`);
   if ((result.updated ?? 0) > 0) parts.push(`${result.updated} atualizada(s)`);
+  if ((result.disconnected ?? 0) > 0) parts.push(`${result.disconnected} desconectada(s)`);
   if ((result.tagged ?? 0) > 0) parts.push(`${result.tagged} etiquetada(s)`);
   if ((result.skipped_name_conflict ?? 0) > 0) {
     parts.push(`${result.skipped_name_conflict} com nome já usado em outra Evo`);
