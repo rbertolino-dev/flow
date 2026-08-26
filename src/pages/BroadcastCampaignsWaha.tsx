@@ -62,6 +62,7 @@ import {
   validateImageFile,
   validateWahaSendInterval,
 } from "@/lib/broadcastValidators";
+import { nextMinuteStart, scheduleWahaQueue } from "@/lib/wahaBroadcastSchedule";
 
 type SendingMethod = "single" | "rotate" | "separate";
 
@@ -88,6 +89,8 @@ type WahaCampaign = {
   min_delay_seconds: number;
   max_delay_seconds: number;
   created_at: string;
+  started_at?: string | null;
+  scheduled_start_at?: string | null;
   image_url?: string | null;
 };
 
@@ -315,10 +318,6 @@ function personalizeMessage(message: string, contact: ParsedContact): string {
   return message.replace(/\{\{?(\w+)\}?\}/gi, (_, key: string) =>
     replacements[key.toLowerCase()] ?? ""
   );
-}
-
-function randomDelay(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function statusBadge(status: string) {
@@ -858,13 +857,15 @@ export default function BroadcastCampaignsWaha() {
     }
     const averageDelay = (form.minDelay + form.maxDelay) / 2;
     const largestSessionQueue = Math.max(0, ...distribution.values());
-    const estimatedSeconds = largestSessionQueue * averageDelay;
+    const estimatedSeconds = Math.max(0, largestSessionQueue - 1) * averageDelay;
+    const firstSendAt = nextMinuteStart();
     return {
       validContacts,
       queueCount: form.method === "separate"
         ? validContacts.length * form.sessionIds.length
         : validContacts.length,
       estimatedSeconds,
+      firstSendAt,
       distribution: [...distribution.entries()].map(([sessionId, count]) => ({
         session: sessions.find((item) => item.id === sessionId),
         count,
@@ -1050,12 +1051,27 @@ export default function BroadcastCampaignsWaha() {
       }
 
       const invalidCount = contacts.length - validContacts.length;
-      toast({
-        title: "Campanha WAHA criada",
-        description: `${validContacts.length} contato(s) válido(s)${
-          invalidCount ? `; ${invalidCount} inválido(s) removido(s)` : ""
-        }. Revise e clique em iniciar.`,
-      });
+      try {
+        const started = await startCampaign(
+          {
+            id: campaign.id,
+            min_delay_seconds: form.minDelay,
+            max_delay_seconds: form.maxDelay,
+          },
+          { silent: true },
+        );
+        toast({
+          title: "Campanha WAHA criada e iniciada",
+          description: `${validContacts.length} contato(s) válido(s)${
+            invalidCount ? `; ${invalidCount} inválido(s) removido(s)` : ""
+          }. Primeiro envio às ${format(started.startAt, "HH:mm", { locale: ptBR })}. O intervalo vale entre os envios seguintes.`,
+        });
+      } catch {
+        toast({
+          title: "Campanha WAHA criada",
+          description: `${validContacts.length} contato(s) na fila. Clique em Iniciar para o primeiro envio no próximo minuto.`,
+        });
+      }
       setDialogOpen(false);
       resetForm();
       await fetchData();
@@ -1071,8 +1087,12 @@ export default function BroadcastCampaignsWaha() {
     }
   };
 
-  const startCampaign = async (campaign: WahaCampaign) => {
+  const startCampaign = async (
+    campaign: Pick<WahaCampaign, "id" | "min_delay_seconds" | "max_delay_seconds">,
+    options?: { silent?: boolean },
+  ): Promise<{ startAt: Date; queued: number }> => {
     try {
+      const startAt = nextMinuteStart();
       const { data: queue, error: queueError } = await db
         .from("broadcast_queue_waha")
         .select("id,session_id")
@@ -1082,48 +1102,72 @@ export default function BroadcastCampaignsWaha() {
       if (queueError) throw queueError;
       if (!queue?.length) throw new Error("A campanha não possui itens pendentes");
 
-      const cursorBySession = new Map<string, number>();
-      const now = Date.now();
-      const updates = queue.map((item: { id: string; session_id: string }) => {
-        const previous = cursorBySession.get(item.session_id) ?? now;
-        const scheduled = previous + randomDelay(
-          campaign.min_delay_seconds,
-          campaign.max_delay_seconds,
-        ) * 1000;
-        cursorBySession.set(item.session_id, scheduled);
-        return db
-          .from("broadcast_queue_waha")
-          .update({
-            status: "scheduled",
-            scheduled_for: new Date(scheduled).toISOString(),
-            processing_lock_until: null,
-          })
-          .eq("id", item.id)
-          .eq("status", "pending");
+      const scheduled = scheduleWahaQueue({
+        items: queue as { id: string; session_id: string }[],
+        minDelaySeconds: campaign.min_delay_seconds,
+        maxDelaySeconds: campaign.max_delay_seconds,
+        startAt,
       });
-      for (let index = 0; index < updates.length; index += 25) {
-        const results = await Promise.all(updates.slice(index, index + 25));
+
+      for (let index = 0; index < scheduled.length; index += 25) {
+        const chunk = scheduled.slice(index, index + 25);
+        const results = await Promise.all(
+          chunk.map((row) =>
+            db
+              .from("broadcast_queue_waha")
+              .update({
+                status: "scheduled",
+                scheduled_for: row.scheduled_for.toISOString(),
+                processing_lock_until: null,
+              })
+              .eq("id", row.id)
+              .eq("status", "pending"),
+          ),
+        );
         const failed = results.find((result) => result.error);
         if (failed?.error) throw failed.error;
       }
-      const { error: campaignError } = await db
+
+      const runningUpdate: Record<string, unknown> = {
+        status: "running",
+        started_at: new Date().toISOString(),
+        scheduled_start_at: startAt.toISOString(),
+        completed_at: null,
+      };
+      let { error: campaignError } = await db
         .from("broadcast_campaigns_waha")
-        .update({
-          status: "running",
-          started_at: new Date().toISOString(),
-          completed_at: null,
-        })
+        .update(runningUpdate)
         .eq("id", campaign.id);
+      if (
+        campaignError &&
+        /scheduled_start_at|column .* does not exist/i.test(campaignError.message)
+      ) {
+        delete runningUpdate.scheduled_start_at;
+        const retry = await db
+          .from("broadcast_campaigns_waha")
+          .update(runningUpdate)
+          .eq("id", campaign.id);
+        campaignError = retry.error;
+      }
       if (campaignError) throw campaignError;
       await fetchData();
-      toast({ title: "Campanha WAHA iniciada" });
+      if (!options?.silent) {
+        toast({
+          title: "Campanha WAHA iniciada",
+          description: `Primeiro envio às ${format(startAt, "HH:mm", { locale: ptBR })}. O intervalo vale entre os envios seguintes.`,
+        });
+      }
+      return { startAt, queued: scheduled.length };
     } catch (error) {
       console.error("Erro ao iniciar campanha WAHA:", error);
-      toast({
-        title: "Falha ao iniciar campanha",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-        variant: "destructive",
-      });
+      if (!options?.silent) {
+        toast({
+          title: "Falha ao iniciar campanha",
+          description: error instanceof Error ? error.message : "Erro desconhecido",
+          variant: "destructive",
+        });
+      }
+      throw error;
     }
   };
 
@@ -1561,6 +1605,9 @@ export default function BroadcastCampaignsWaha() {
                           <p className="mt-1 text-sm text-muted-foreground">
                             Total {campaign.total_contacts} · Enviadas {campaign.sent_count} ·
                             Falhas {campaign.failed_count}
+                            {campaign.scheduled_start_at
+                              ? ` · 1º envio ${format(new Date(campaign.scheduled_start_at), "HH:mm", { locale: ptBR })}`
+                              : ""}
                           </p>
                         </div>
                       </div>
@@ -1568,7 +1615,7 @@ export default function BroadcastCampaignsWaha() {
                         {(campaign.status === "draft" || campaign.status === "paused") && (
                           <Button
                             size="sm"
-                            onClick={() => void startCampaign(campaign)}
+                            onClick={() => void startCampaign(campaign).catch(() => undefined)}
                           >
                             <Play className="mr-2 h-4 w-4" />
                             Iniciar
@@ -1871,7 +1918,8 @@ export default function BroadcastCampaignsWaha() {
             <DialogHeader>
               <DialogTitle>Nova campanha WAHA</DialogTitle>
               <DialogDescription>
-                Os contatos serão validados pela WAHA antes de entrar na fila isolada.
+                Os contatos serão validados pela WAHA. Ao criar, a campanha inicia
+                no próximo minuto; o intervalo vale entre os envios, não na espera do primeiro.
               </DialogDescription>
             </DialogHeader>
 
@@ -2017,9 +2065,9 @@ export default function BroadcastCampaignsWaha() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground -mt-1">
-                Intervalo sorteado entre mínimo e máximo a cada envio. Valores
-                lentos (ex.: 3000–4000 s) são válidos. Mínimo {MIN_WAHA_DELAY_SEC} s;
-                máximo {MAX_WAHA_DELAY_SEC} s (24 h).
+                O primeiro envio sai no próximo minuto. O intervalo (mín.–máx.) é o
+                tempo entre uma mensagem e a seguinte. Valores lentos (ex.: 3000–4000 s)
+                são válidos. Mínimo {MIN_WAHA_DELAY_SEC} s; máximo {MAX_WAHA_DELAY_SEC} s (24 h).
               </p>
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2265,7 +2313,7 @@ export default function BroadcastCampaignsWaha() {
                 {saving
                   ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   : <Send className="mr-2 h-4 w-4" />}
-                Criar campanha
+                Criar e iniciar
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2305,9 +2353,11 @@ export default function BroadcastCampaignsWaha() {
                   <Card>
                     <CardContent className="p-3 text-center">
                       <strong className="block text-xl">
-                        {Math.max(1, Math.ceil(simulation.estimatedSeconds / 60))} min
+                        {Math.max(0, Math.ceil(simulation.estimatedSeconds / 60)) || "< 1"} min
                       </strong>
-                      <span className="text-xs text-muted-foreground">Estimativa</span>
+                      <span className="text-xs text-muted-foreground">
+                        Após o 1º envio ({format(simulation.firstSendAt, "HH:mm", { locale: ptBR })})
+                      </span>
                     </CardContent>
                   </Card>
                 </div>
