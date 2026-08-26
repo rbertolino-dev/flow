@@ -56,7 +56,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { validateImageFile } from "@/lib/broadcastValidators";
+import {
+  MAX_WAHA_DELAY_SEC,
+  MIN_WAHA_DELAY_SEC,
+  validateImageFile,
+  validateWahaSendInterval,
+} from "@/lib/broadcastValidators";
 
 type SendingMethod = "single" | "rotate" | "separate";
 
@@ -912,12 +917,13 @@ export default function BroadcastCampaignsWaha() {
       toast({ title: "Rotação exige pelo menos duas sessões", variant: "destructive" });
       return;
     }
-    if (
-      form.minDelay < 5 ||
-      form.maxDelay < form.minDelay ||
-      form.maxDelay > 3600
-    ) {
-      toast({ title: "Intervalo de envio inválido", variant: "destructive" });
+    const delayValidation = validateWahaSendInterval(form.minDelay, form.maxDelay);
+    if (!delayValidation.valid) {
+      toast({
+        title: "Intervalo de envio inválido",
+        description: delayValidation.error,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -1982,13 +1988,15 @@ export default function BroadcastCampaignsWaha() {
                   <Input
                     id="waha-min-delay"
                     type="number"
-                    min={5}
+                    min={MIN_WAHA_DELAY_SEC}
+                    max={MAX_WAHA_DELAY_SEC}
                     value={form.minDelay}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const parsed = parseInt(event.target.value, 10);
                       patchForm({
-                        minDelay: Number(event.target.value),
-                      })
-                    }
+                        minDelay: Number.isNaN(parsed) ? form.minDelay : parsed,
+                      });
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1996,16 +2004,23 @@ export default function BroadcastCampaignsWaha() {
                   <Input
                     id="waha-max-delay"
                     type="number"
-                    min={5}
+                    min={MIN_WAHA_DELAY_SEC}
+                    max={MAX_WAHA_DELAY_SEC}
                     value={form.maxDelay}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const parsed = parseInt(event.target.value, 10);
                       patchForm({
-                        maxDelay: Number(event.target.value),
-                      })
-                    }
+                        maxDelay: Number.isNaN(parsed) ? form.maxDelay : parsed,
+                      });
+                    }}
                   />
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Intervalo sorteado entre mínimo e máximo a cada envio. Valores
+                lentos (ex.: 3000–4000 s) são válidos. Mínimo {MIN_WAHA_DELAY_SEC} s;
+                máximo {MAX_WAHA_DELAY_SEC} s (24 h).
+              </p>
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor="waha-message">Mensagem personalizada</Label>

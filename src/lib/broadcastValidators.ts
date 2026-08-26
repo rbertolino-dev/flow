@@ -235,3 +235,47 @@ export function validateEvolutionAPIResponse(response: Response, data: any): Val
     details: { data },
   };
 }
+
+/** Mínimo seguro do Disparador WAHA (segundos). */
+export const MIN_WAHA_DELAY_SEC = 5;
+/** Teto alinhado ao Disparador 2 Evolution: 24 horas. */
+export const MAX_WAHA_DELAY_SEC = 86400;
+
+/**
+ * Valida intervalo mínimo/máximo de envio da campanha WAHA.
+ * Intervalos lentos (ex.: 3000–4000 s) são válidos; o teto anterior de 1 h rejeitava esse uso.
+ */
+export function validateWahaSendInterval(
+  minDelay: unknown,
+  maxDelay: unknown,
+): ValidationResult {
+  const min = Math.floor(Number(minDelay));
+  const max = Math.floor(Number(maxDelay));
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return {
+      valid: false,
+      error: `Use números inteiros de pelo menos ${MIN_WAHA_DELAY_SEC} segundos.`,
+    };
+  }
+  if (min < MIN_WAHA_DELAY_SEC) {
+    return {
+      valid: false,
+      error: `O intervalo mínimo deve ser de pelo menos ${MIN_WAHA_DELAY_SEC} segundos.`,
+    };
+  }
+  if (max < min) {
+    return {
+      valid: false,
+      error: "O intervalo máximo não pode ser menor que o mínimo.",
+    };
+  }
+  if (min > MAX_WAHA_DELAY_SEC || max > MAX_WAHA_DELAY_SEC) {
+    return {
+      valid: false,
+      error: `O intervalo máximo permitido é ${MAX_WAHA_DELAY_SEC} segundos (24 horas).`,
+    };
+  }
+
+  return { valid: true, details: { min, max } };
+}
