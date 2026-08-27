@@ -4270,7 +4270,7 @@ export default function BroadcastCampaigns2() {
                       {editingDraftId ? "Salvando..." : "Criando..."}
                     </>
                   ) : (
-                    editingDraftId ? "Salvar e iniciar" : "Salvar e iniciar"
+                    editingDraftId ? "Salvar e iniciar" : "Criar e iniciar"
                   )}
                 </Button>
               </DialogFooter>
