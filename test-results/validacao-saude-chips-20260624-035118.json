@@ -1,0 +1,853 @@
+{
+  "gerado_em": "2026-06-24T03:51:18.896381+00:00",
+  "org": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+  "total": 10,
+  "saudaveis": 0,
+  "prontos_disparo": 8,
+  "proxies_compartilhados": {
+    "92.113.235.127:5187": [
+      "Ana Beatriz2",
+      "Ana Clara"
+    ],
+    "190.106.183.188:5233": [
+      "Fatima",
+      "sofia2"
+    ]
+  },
+  "chips": [
+    {
+      "instance_name": "Aline Souza",
+      "instance_id": "236fbda0-ba88-4466-bcc2-2b9bd07db933",
+      "phone_number": null,
+      "owner_jid": "5521936183158@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        700,
+        774,
+        697
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T16:36:37.848Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 3,
+      "reconnects_30d": 3,
+      "send_failures_7d": 6,
+      "recent_disconnects": [
+        "2026-06-18T16:37:03"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "206.195.140.57",
+          "latency_ms": 1085,
+          "geo": {
+            "ok": true,
+            "ip": "206.195.140.57",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "206.195.140.57",
+          "latency_ms": 1051,
+          "geo": {
+            "ok": true,
+            "ip": "206.195.140.57",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "206.195.140.57",
+          "latency_ms": 1051,
+          "geo": {
+            "ok": true,
+            "ip": "206.195.140.57",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "206.195.140.57",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1062,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 6"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "Ana Beatriz2",
+      "instance_id": "39bd82d7-c4c2-4dc3-9caf-e412f592651f",
+      "phone_number": null,
+      "owner_jid": "5521936183124@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        698,
+        690,
+        812
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T23:27:34.690Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 2,
+      "disconnects_30d": 3,
+      "reconnects_30d": 4,
+      "send_failures_7d": 6,
+      "recent_disconnects": [
+        "2026-06-18T15:11:09"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1050,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1071,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1074,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "92.113.235.127",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1065,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 6"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "Fatima",
+      "instance_id": "753f525c-7aa8-4baf-8a25-91b6e280fdb5",
+      "phone_number": null,
+      "owner_jid": "5521994530507@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        709,
+        699,
+        694
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T03:15:58.845Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 1,
+      "reconnects_30d": 1,
+      "send_failures_7d": 8,
+      "recent_disconnects": [
+        "2026-06-18T03:15:59"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "190.106.183.188",
+          "latency_ms": 1083,
+          "geo": {
+            "ok": true,
+            "ip": "190.106.183.188",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "190.106.183.188",
+          "latency_ms": 1081,
+          "geo": {
+            "ok": true,
+            "ip": "190.106.183.188",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "190.106.183.188",
+          "latency_ms": 1132,
+          "geo": {
+            "ok": true,
+            "ip": "190.106.183.188",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "190.106.183.188",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1099,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 8"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "Paula Silva",
+      "instance_id": "b489525a-4e1b-4260-8481-05c9d9e4cc3f",
+      "phone_number": null,
+      "owner_jid": "5521936183178@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        685,
+        688,
+        695
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-17T13:09:41.588Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 2,
+      "reconnects_30d": 2,
+      "send_failures_7d": 6,
+      "recent_disconnects": [
+        "2026-06-17T13:30:04"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "206.195.140.82",
+          "latency_ms": 1056,
+          "geo": {
+            "ok": true,
+            "ip": "206.195.140.82",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "206.195.140.82",
+          "latency_ms": 1345,
+          "geo": {
+            "ok": true,
+            "ip": "206.195.140.82",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "206.195.140.82",
+          "latency_ms": 1058,
+          "geo": {
+            "ok": true,
+            "ip": "206.195.140.82",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "206.195.140.82",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1153,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 6"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "maria alices",
+      "instance_id": "cfa8c563-2633-4b1c-b287-15860e7320df",
+      "phone_number": null,
+      "owner_jid": "5521936183140@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        706,
+        703,
+        694
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T02:55:21.705Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 2,
+      "reconnects_30d": 2,
+      "send_failures_7d": 8,
+      "recent_disconnects": [
+        "2026-06-17T17:49:08"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "45.38.88.203",
+          "latency_ms": 1048,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.203",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.203",
+          "latency_ms": 1058,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.203",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.203",
+          "latency_ms": 1117,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.203",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "45.38.88.203",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1074,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 8"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "sofia2",
+      "instance_id": "13ac815d-7a72-4637-b761-98285e89538c",
+      "phone_number": null,
+      "owner_jid": "5521968443291@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        692,
+        686,
+        690
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-17T13:09:26.045Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 1,
+      "reconnects_30d": 2,
+      "send_failures_7d": 5,
+      "recent_disconnects": [
+        "2026-06-17T13:09:26"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "190.106.183.188",
+          "latency_ms": 1081,
+          "geo": {
+            "ok": true,
+            "ip": "190.106.183.188",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "190.106.183.188",
+          "latency_ms": 1067,
+          "geo": {
+            "ok": true,
+            "ip": "190.106.183.188",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "190.106.183.188",
+          "latency_ms": 1063,
+          "geo": {
+            "ok": true,
+            "ip": "190.106.183.188",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "190.106.183.188",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1070,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 5"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "Ana Iclass",
+      "instance_id": "7787b1a3-7f35-424b-9e4c-6689863612d7",
+      "phone_number": null,
+      "owner_jid": "5521973201309@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        767,
+        735,
+        694
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "85.198.32.179",
+        "port": "5529",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T23:29:01.194Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 2,
+      "reconnects_30d": 3,
+      "send_failures_7d": 21,
+      "recent_disconnects": [
+        "2026-06-17T15:49:03"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "85.198.32.179",
+          "latency_ms": 1121,
+          "geo": {
+            "ok": true,
+            "ip": "85.198.32.179",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "85.198.32.179",
+          "latency_ms": 1090,
+          "geo": {
+            "ok": true,
+            "ip": "85.198.32.179",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "85.198.32.179",
+          "latency_ms": 1073,
+          "geo": {
+            "ok": true,
+            "ip": "85.198.32.179",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "85.198.32.179",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1095,
+      "proxy_ip_stable": true,
+      "score": 70,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 21"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "flavia",
+      "instance_id": "c2459b31-02a8-47d4-9934-503a2ff675de",
+      "phone_number": null,
+      "owner_jid": "5521966461521@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        697,
+        703,
+        701
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T12:18:49.360Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 1,
+      "reconnects_30d": 1,
+      "send_failures_7d": 12,
+      "recent_disconnects": [
+        "2026-06-17T17:17:24"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "45.38.88.14",
+          "latency_ms": 1072,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.14",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.14",
+          "latency_ms": 1080,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.14",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.14",
+          "latency_ms": 1137,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.14",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "45.38.88.14",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1096,
+      "proxy_ip_stable": true,
+      "score": 70,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 12"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "Ana Clara",
+      "instance_id": "ce86a17c-a10a-4979-af87-54a2b149638a",
+      "phone_number": null,
+      "owner_jid": "5521936183103@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        699,
+        702,
+        690
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-19T01:09:10.521Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 2,
+      "reconnects_7d": 2,
+      "disconnects_30d": 3,
+      "reconnects_30d": 3,
+      "send_failures_7d": 18,
+      "recent_disconnects": [
+        "2026-06-17T18:01:17",
+        "2026-06-18T23:40:06"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1073,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1142,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1048,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "92.113.235.127",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1088,
+      "proxy_ip_stable": true,
+      "score": 60,
+      "veredito": "INSTÁVEL",
+      "alertas": [
+        "Quedas em 7d: 2",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 18"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Silvia",
+      "instance_id": "88679772-682c-4590-9baf-01248c2404e0",
+      "phone_number": null,
+      "owner_jid": "5521966470571@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        691,
+        777,
+        698
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "85.198.32.108",
+        "port": "5458",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T23:32:13.563Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 2,
+      "reconnects_7d": 2,
+      "disconnects_30d": 2,
+      "reconnects_30d": 3,
+      "send_failures_7d": 16,
+      "recent_disconnects": [
+        "2026-06-17T18:03:03",
+        "2026-06-17T18:44:06"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "85.198.32.108",
+          "latency_ms": 1488,
+          "geo": {
+            "ok": true,
+            "ip": "85.198.32.108",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "85.198.32.108",
+          "latency_ms": 1109,
+          "geo": {
+            "ok": true,
+            "ip": "85.198.32.108",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "85.198.32.108",
+          "latency_ms": 1128,
+          "geo": {
+            "ok": true,
+            "ip": "85.198.32.108",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "85.198.32.108",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1242,
+      "proxy_ip_stable": true,
+      "score": 60,
+      "veredito": "INSTÁVEL",
+      "alertas": [
+        "Quedas em 7d: 2",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 16"
+      ],
+      "pronto_disparo": false
+    }
+  ]
+}

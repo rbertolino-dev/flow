@@ -145,7 +145,7 @@ export async function findInstancesExplicitlyOffline(
     if (result.edgeError || result.proxyError || !result.evolutionOk) return;
 
     const live = extractConnectionState(result.body);
-    if (live === false) {
+    if (live !== true) {
       out.push({
         id,
         name: String(inst.instance_name ?? "Instância"),

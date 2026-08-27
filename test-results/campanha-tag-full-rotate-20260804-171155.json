@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-08-04T17:11:56.336335+00:00",
+  "organization_id": "1a6ab607-837b-48b4-a9b5-ec19187b3331",
+  "template_id": "885198da-2e13-4d9e-81b1-55f5dc52953d",
+  "template_name": "Tag",
+  "variations_count": 10,
+  "pool_size": 26,
+  "pool_names": [
+    "Bruna Alvez",
+    "Bruna Ferreira",
+    "Bruna Lima",
+    "Bruna Santos",
+    "Bruna Souza",
+    "Camila Alvez",
+    "Camila Lima",
+    "Camila Santos",
+    "Camila Souza",
+    "Joana Alvez",
+    "Joana Ferreira",
+    "Joana Lima",
+    "Joana Santos",
+    "Joana Silva",
+    "Joana Silva",
+    "Maria Alice",
+    "Maria Paula",
+    "Sabrina Guedes",
+    "Sabrina Lurdes",
+    "Sabrina Rodrigues",
+    "Sabrina Viana",
+    "Vitória Alvez",
+    "Vitória Ferreira",
+    "Vitória Lima",
+    "Vitória Santos",
+    "Vitória Souza"
+  ],
+  "contacts_input": 54,
+  "validated": 42,
+  "rejected": 12,
+  "batches": [
+    {
+      "batch": 1,
+      "preferred": "Bruna Alvez",
+      "used": "Bruna Alvez",
+      "ok": true,
+      "error": null,
+      "validated": 14,
+      "rejected": 6
+    },
+    {
+      "batch": 2,
+      "preferred": "Bruna Ferreira",
+      "used": "Bruna Ferreira",
+      "ok": true,
+      "error": null,
+      "validated": 17,
+      "rejected": 3
+    },
+    {
+      "batch": 3,
+      "preferred": "Bruna Lima",
+      "used": "Bruna Lima",
+      "ok": true,
+      "error": null,
+      "validated": 11,
+      "rejected": 3
+    }
+  ],
+  "chips_used_validation": [
+    "Bruna Alvez",
+    "Bruna Ferreira",
+    "Bruna Lima"
+  ],
+  "campaign_id": "8d36873b-b00f-4e20-884c-24e583d542ab",
+  "campaign_name": "Tag - Provedores - 20260804-171155 (auto)",
+  "campaign_status": "draft",
+  "sending_method": "rotate",
+  "queue_count": 42,
+  "errors": [],
+  "note": "DRAFT — não dispara. Inicie no painel se quiser enviar."
+}

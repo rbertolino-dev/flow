@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-07-30T13:51:37.305606+00:00",
+  "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+  "organization_name": "pubdgital",
+  "counts": {
+    "SAUDAVEL": 6
+  },
+  "results": [
+    {
+      "instance": "fernanda_ia",
+      "crm_is_connected": true,
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 117,
+        "preview": "{\"instance\":{\"instanceName\":\"fernanda_ia\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 146,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "francis-agilize",
+      "crm_is_connected": true,
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 118,
+        "preview": "{\"instance\":{\"instanceName\":\"francis-agilize\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 284,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "gisele",
+      "crm_is_connected": true,
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 120,
+        "preview": "{\"instance\":{\"instanceName\":\"gisele\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 175,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "lena",
+      "crm_is_connected": true,
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 95,
+        "preview": "{\"instance\":{\"instanceName\":\"lena\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 269,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Raissa",
+      "crm_is_connected": true,
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 114,
+        "preview": "{\"instance\":{\"instanceName\":\"Raissa\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 293,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Socorro",
+      "crm_is_connected": true,
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 85,
+        "preview": "{\"instance\":{\"instanceName\":\"Socorro\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 150,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    }
+  ],
+  "exit_code": 0
+}

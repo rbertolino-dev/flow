@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IClass — Quedas Evolution 2026-06-17</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #1a1a1a; background: #f6f7f9; }
+    body { margin: 0; padding: 1.5rem; max-width: 1200px; margin-inline: auto; }
+    h1 { font-size: 1.35rem; margin-bottom: .25rem; }
+    .meta { color: #555; margin-bottom: 1.5rem; font-size: .95rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+    .card { background: #fff; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .card strong { display: block; font-size: 1.5rem; }
+    .card span { font-size: .8rem; color: #666; }
+    .chart-box { background: #fff; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; background: #fff; border-radius: 8px; overflow: hidden; }
+    th, td { padding: .5rem .65rem; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f0f2f5; }
+    tr:hover { background: #fafbfc; }
+    .insight { background: #fff8e6; border-left: 4px solid #e6a800; padding: .75rem 1rem; margin: 1rem 0; border-radius: 4px; font-size: .92rem; }
+    .pico { color: #c0392b; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Quedas de instâncias — IClass (2026-06-17)</h1>
+  <p class="meta">
+    Campanha: <strong>2 contato - Refrigeração - Sudeste - 17/06/26</strong> ·
+    Início: <strong>10:09:21 BRT</strong> ·
+    Delay: 1200-1600s
+  </p>
+
+  <div class="cards">
+    <div class="card"><strong>28</strong><span>eventos de queda</span></div>
+    <div class="card"><strong>27</strong><span>chips distintos</span></div>
+    <div class="card"><strong class="pico">9</strong><span>pico 10:09 BRT</span></div>
+    <div class="card"><strong>412</strong><span>envios no dia (ref.)</span></div>
+  </div>
+
+  <div class="insight">
+    <strong>Correlação principal:</strong> 9 chips caíram entre 10:09:03 e 10:09:51 BRT —
+    <em>18 segundos antes</em> do início oficial da campanha (10:09:21), na primeira onda do rodízio (0–1 envio por chip).
+    Depois, quedas espalhadas; chips com <strong>mais envios + failover</strong> (bia 53, Ana Iclass 51…) caíram à tarde.
+  </div>
+
+  <div class="chart-box">
+    <h2>Quedas por intervalo de 5 min (BRT)</h2>
+    <canvas id="histChart" height="100"></canvas>
+  </div>
+
+  <div class="chart-box">
+    <h2>Envios acumulados antes da 1ª queda × horário da queda</h2>
+    <p style="font-size:.85rem;color:#666">Cada ponto = um chip. Eixo X = hora BRT; Y = quantos envios já tinha feito.</p>
+    <canvas id="scatterChart" height="110"></canvas>
+  </div>
+
+  <div class="chart-box">
+    <h2>Tabela — 1ª queda por chip</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Chip</th>
+          <th>1ª queda (BRT)</th>
+          <th>Envios antes</th>
+          <th>Min desde último envio</th>
+          <th>No pool</th>
+        </tr>
+      </thead>
+      <tbody id="tbl"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const DATA = {"day": "2026-06-17", "campanha": "2 contato - Refrigeração - Sudeste - 17/06/26", "campanha_inicio_brt": "10:09:21", "campanha_inicio_min": 609.35, "delay": "1200-1600s", "total_quedas": 28, "chips_unicos": 27, "timeline_labels": ["06:00", "06:05", "06:10", "06:15", "06:20", "06:25", "06:30", "06:35", "06:40", "06:45", "06:50", "06:55", "07:00", "07:05", "07:10", "07:15", "07:20", "07:25", "07:30", "07:35", "07:40", "07:45", "07:50", "07:55", "08:00", "08:05", "08:10", "08:15", "08:20", "08:25", "08:30", "08:35", "08:40", "08:45", "08:50", "08:55", "09:00", "09:05", "09:10", "09:15", "09:20", "09:25", "09:30", "09:35", "09:40", "09:45", "09:50", "09:55", "10:00", "10:05", "10:10", "10:15", "10:20", "10:25", "10:30", "10:35", "10:40", "10:45", "10:50", "10:55", "11:00", "11:05", "11:10", "11:15", "11:20", "11:25", "11:30", "11:35", "11:40", "11:45", "11:50", "11:55", "12:00", "12:05", "12:10", "12:15", "12:20", "12:25", "12:30", "12:35", "12:40", "12:45", "12:50", "12:55", "13:00", "13:05", "13:10", "13:15", "13:20", "13:25", "13:30", "13:35", "13:40", "13:45", "13:50", "13:55", "14:00", "14:05", "14:10", "14:15", "14:20", "14:25", "14:30", "14:35", "14:40", "14:45", "14:50", "14:55", "15:00", "15:05", "15:10", "15:15", "15:20", "15:25", "15:30", "15:35", "15:40", "15:45", "15:50", "15:55", "16:00", "16:05", "16:10", "16:15", "16:20", "16:25", "16:30", "16:35", "16:40", "16:45", "16:50", "16:55", "17:00", "17:05", "17:10", "17:15", "17:20", "17:25", "17:30", "17:35", "17:40", "17:45", "17:50", "17:55", "18:00", "18:05", "18:10", "18:15", "18:20", "18:25", "18:30", "18:35", "18:40", "18:45", "18:50", "18:55"], "quedas_hist": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 1, 5, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "scatter": [{"x": 609.05, "y": 1, "label": "Cecilia", "gap": 0.0}, {"x": 609.15, "y": 1, "label": "Ana Julia", "gap": 0.1}, {"x": 609.15, "y": 1, "label": "Livia", "gap": 0.0}, {"x": 609.42, "y": 0, "label": "Aline Silva", "gap": null}, {"x": 609.43, "y": 1, "label": "sofia2", "gap": 0.0}, {"x": 609.65, "y": 1, "label": "Natalia", "gap": 0.0}, {"x": 609.68, "y": 0, "label": "Aline Santos", "gap": null}, {"x": 609.7, "y": 1, "label": "Sonia", "gap": 0.0}, {"x": 609.85, "y": 1, "label": "Patricia", "gap": 0.0}, {"x": 629.12, "y": 1, "label": "Maria Fernanda", "gap": 0.0}, {"x": 630.07, "y": 1, "label": "Paula Silva", "gap": 20.4}, {"x": 631.0, "y": 1, "label": "Paula Santos", "gap": 21.4}, {"x": 631.05, "y": 1, "label": "Aline Oliveira", "gap": 21.8}, {"x": 631.4, "y": 0, "label": "Clara Souza", "gap": null}, {"x": 632.1, "y": 1, "label": "Aline Alves", "gap": 22.4}, {"x": 635.07, "y": 1, "label": "Paula Souza", "gap": 25.3}, {"x": 636.05, "y": 2, "label": "Paula Oliveira", "gap": 6.0}, {"x": 702.08, "y": 53, "label": "bia", "gap": 0.0}, {"x": 705.02, "y": 8, "label": "Paula Alves", "gap": 0.8}, {"x": 767.12, "y": 5, "label": "Julia", "gap": 0.0}, {"x": 769.05, "y": 51, "label": "Ana Iclass", "gap": 0.0}, {"x": 821.07, "y": 51, "label": "Ana Carolina", "gap": 0.0}, {"x": 857.4, "y": 38, "label": "flavia", "gap": 2.4}, {"x": 889.13, "y": 10, "label": "maria alices", "gap": 0.0}, {"x": 901.28, "y": 45, "label": "Ana Clara", "gap": 0.3}, {"x": 903.05, "y": 9, "label": "Silvia", "gap": 42.0}, {"x": 961.0, "y": 25, "label": "claudia", "gap": 3.0}], "tabela": [{"nome": "Cecilia", "queda_brt": "10:09:03", "queda_min": 609.05, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Ana Julia", "queda_brt": "10:09:09", "queda_min": 609.15, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.1}, {"nome": "Livia", "queda_brt": "10:09:09", "queda_min": 609.15, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Aline Silva", "queda_brt": "10:09:25", "queda_min": 609.42, "no_pool": true, "envios_antes": 0, "min_desde_ultimo_envio": null}, {"nome": "sofia2", "queda_brt": "10:09:26", "queda_min": 609.43, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Natalia", "queda_brt": "10:09:39", "queda_min": 609.65, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Aline Santos", "queda_brt": "10:09:41", "queda_min": 609.68, "no_pool": true, "envios_antes": 0, "min_desde_ultimo_envio": null}, {"nome": "Sonia", "queda_brt": "10:09:42", "queda_min": 609.7, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Patricia", "queda_brt": "10:09:51", "queda_min": 609.85, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Maria Fernanda", "queda_brt": "10:29:07", "queda_min": 629.12, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 0.0}, {"nome": "Paula Silva", "queda_brt": "10:30:04", "queda_min": 630.07, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 20.4}, {"nome": "Paula Santos", "queda_brt": "10:31:00", "queda_min": 631.0, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 21.4}, {"nome": "Aline Oliveira", "queda_brt": "10:31:03", "queda_min": 631.05, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 21.8}, {"nome": "Clara Souza", "queda_brt": "10:31:24", "queda_min": 631.4, "no_pool": true, "envios_antes": 0, "min_desde_ultimo_envio": null}, {"nome": "Aline Alves", "queda_brt": "10:32:06", "queda_min": 632.1, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 22.4}, {"nome": "Paula Souza", "queda_brt": "10:35:04", "queda_min": 635.07, "no_pool": true, "envios_antes": 1, "min_desde_ultimo_envio": 25.3}, {"nome": "Paula Oliveira", "queda_brt": "10:36:03", "queda_min": 636.05, "no_pool": true, "envios_antes": 2, "min_desde_ultimo_envio": 6.0}, {"nome": "bia", "queda_brt": "11:42:05", "queda_min": 702.08, "no_pool": true, "envios_antes": 53, "min_desde_ultimo_envio": 0.0}, {"nome": "Paula Alves", "queda_brt": "11:45:01", "queda_min": 705.02, "no_pool": true, "envios_antes": 8, "min_desde_ultimo_envio": 0.8}, {"nome": "Julia", "queda_brt": "12:47:07", "queda_min": 767.12, "no_pool": true, "envios_antes": 5, "min_desde_ultimo_envio": 0.0}, {"nome": "Ana Iclass", "queda_brt": "12:49:03", "queda_min": 769.05, "no_pool": true, "envios_antes": 51, "min_desde_ultimo_envio": 0.0}, {"nome": "Ana Carolina", "queda_brt": "13:41:04", "queda_min": 821.07, "no_pool": true, "envios_antes": 51, "min_desde_ultimo_envio": 0.0}, {"nome": "flavia", "queda_brt": "14:17:24", "queda_min": 857.4, "no_pool": true, "envios_antes": 38, "min_desde_ultimo_envio": 2.4}, {"nome": "maria alices", "queda_brt": "14:49:08", "queda_min": 889.13, "no_pool": true, "envios_antes": 10, "min_desde_ultimo_envio": 0.0}, {"nome": "Ana Clara", "queda_brt": "15:01:17", "queda_min": 901.28, "no_pool": true, "envios_antes": 45, "min_desde_ultimo_envio": 0.3}, {"nome": "Silvia", "queda_brt": "15:03:03", "queda_min": 903.05, "no_pool": true, "envios_antes": 9, "min_desde_ultimo_envio": 42.0}, {"nome": "claudia", "queda_brt": "16:01:00", "queda_min": 961.0, "no_pool": true, "envios_antes": 25, "min_desde_ultimo_envio": 3.0}], "por_minuto": {"10:09": 9, "10:29": 1, "10:30": 1, "10:31": 3, "10:32": 1, "10:35": 1, "10:36": 1, "11:42": 1, "11:45": 1, "12:47": 1, "12:49": 1, "13:41": 1, "14:17": 1, "14:49": 1, "15:01": 1, "15:03": 1, "15:44": 1, "16:01": 1}, "envios_hora_utc": {"13": 72, "14": 53, "15": 73, "16": 63, "17": 65, "18": 62, "19": 15, "20": 8, "21": 1}};
+
+    const histCtx = document.getElementById('histChart');
+    const campLine = DATA.campanha_inicio_min != null
+      ? DATA.timeline_labels.findIndex((_, i) => 360 + i * 5 >= DATA.campanha_inicio_min)
+      : -1;
+
+    new Chart(histCtx, {
+      type: 'bar',
+      data: {
+        labels: DATA.timeline_labels,
+        datasets: [{
+          label: 'Quedas',
+          data: DATA.quedas_hist,
+          backgroundColor: DATA.quedas_hist.map((v, i) =>
+            i === campLine ? 'rgba(231, 76, 60, 0.85)' : 'rgba(52, 152, 219, 0.65)'
+          ),
+        }],
+      },
+      options: {
+        plugins: {
+          annotation: {},
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => 'BRT ~' + items[0].label,
+            },
+          },
+        },
+        scales: {
+          x: { ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 24 } },
+          y: { beginAtZero: true, ticks: { stepSize: 1 } },
+        },
+      },
+    });
+
+    const scatterCtx = document.getElementById('scatterChart');
+    new Chart(scatterCtx, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Chips',
+          data: DATA.scatter.map(p => ({ x: p.x, y: p.y, label: p.label, gap: p.gap })),
+          backgroundColor: 'rgba(155, 89, 182, 0.75)',
+          pointRadius: 7,
+        }],
+      },
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const p = ctx.raw;
+                const h = Math.floor(p.x / 60);
+                const m = Math.floor(p.x % 60);
+                return `${p.label}: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} BRT, ${p.y} envios, gap último=${p.gap ?? '—'} min`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Horário BRT (minutos desde meia-noite)' },
+            min: 600,
+            max: 980,
+          },
+          y: {
+            title: { display: true, text: 'Envios antes da 1ª queda' },
+            beginAtZero: true,
+          },
+        },
+      },
+    });
+
+    const tbody = document.getElementById('tbl');
+    DATA.tabela.forEach(r => {
+      const tr = document.createElement('tr');
+      const pico = r.queda_brt.startsWith('10:09') ? ' class="pico"' : '';
+      tr.innerHTML = `
+        <td>${r.nome}</td>
+        <td${pico}>${r.queda_brt}</td>
+        <td>${r.envios_antes}</td>
+        <td>${r.min_desde_ultimo_envio ?? '—'}</td>
+        <td>${r.no_pool ? 'sim' : 'não'}</td>`;
+      tbody.appendChild(tr);
+    });
+  </script>
+</body>
+</html>

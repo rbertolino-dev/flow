@@ -1,0 +1,201 @@
+{
+  "exported_at_utc": "20260812-190258",
+  "base": "https://evo30.atendimentoagilize.com",
+  "backup": "/root/kanban-buzz-95241/tmp/backups-evo30-4chips/evo30-4chips-backup-20260812-190258.json",
+  "results": [
+    {
+      "name": "Camila Ferreira",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Camila Ferreira",
+          "url": "https://centralize.ordemservico.com",
+          "accountId": "2",
+          "err": null
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true,
+      "final_state": "connecting",
+      "chatwoot_ok": true
+    },
+    {
+      "name": "Bruna Ferreira",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Bruna Ferreira",
+          "url": "https://centralize.ordemservico.com",
+          "accountId": "2",
+          "err": null
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true,
+      "final_state": "connecting",
+      "chatwoot_ok": true
+    },
+    {
+      "name": "Joana Souza",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Joana Souza",
+          "url": "https://centralize.ordemservico.com",
+          "accountId": "2",
+          "err": null
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true,
+      "final_state": "connecting",
+      "chatwoot_ok": true
+    },
+    {
+      "name": "Sabrina Cesar",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Sabrina Cesar",
+          "url": "https://centralize.ordemservico.com",
+          "accountId": "2",
+          "err": null
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true,
+      "final_state": "connecting",
+      "chatwoot_ok": true
+    }
+  ],
+  "final_check": [
+    {
+      "name": "Joana Souza",
+      "state": "connecting",
+      "qr_ready": true,
+      "chatwoot_http": 200,
+      "chatwoot_enabled": true,
+      "chatwoot_inbox": "Joana Souza",
+      "chatwoot_url": "https://centralize.ordemservico.com",
+      "chatwoot_accountId": "2"
+    },
+    {
+      "name": "Camila Ferreira",
+      "state": "connecting",
+      "qr_ready": true,
+      "chatwoot_http": 200,
+      "chatwoot_enabled": true,
+      "chatwoot_inbox": "Camila Ferreira",
+      "chatwoot_url": "https://centralize.ordemservico.com",
+      "chatwoot_accountId": "2"
+    },
+    {
+      "name": "Bruna Ferreira",
+      "state": "connecting",
+      "qr_ready": true,
+      "chatwoot_http": 200,
+      "chatwoot_enabled": true,
+      "chatwoot_inbox": "Bruna Ferreira",
+      "chatwoot_url": "https://centralize.ordemservico.com",
+      "chatwoot_accountId": "2"
+    },
+    {
+      "name": "Sabrina Cesar",
+      "state": "connecting",
+      "qr_ready": true,
+      "chatwoot_http": 200,
+      "chatwoot_enabled": true,
+      "chatwoot_inbox": "Sabrina Cesar",
+      "chatwoot_url": "https://centralize.ordemservico.com",
+      "chatwoot_accountId": "2"
+    }
+  ]
+}

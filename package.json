@@ -27,6 +27,7 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report",
     "test:e2e:install": "playwright install",
+    "validate:proxy": "python3 scripts/validar-proxy-antes-qr.py",
     "test:oscilacao:iclass": "python3 scripts/teste-oscilacao-status-evolution.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "report:servidor-vs-campanha:iclass": "python3 scripts/relatorio-servidor-vs-campanha-iclass.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",
     "report:mes-desconexoes:iclass": "python3 scripts/relatorio-mes-desconexoes-iclass.py --org 34086d07-9181-43fc-a3e8-6aa28974d68b",

@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-08-14T18:26:07.311Z",
+  "baseURL": "https://agilizeflow.com.br",
+  "timingsMs": {
+    "gotoDomContentLoaded": 67,
+    "headingFunil": 539,
+    "firstCard": 2969,
+    "settle8s": 10992,
+    "openLeadDialog": 680
+  },
+  "cards": {
+    "atFirstPaint": 4,
+    "afterSettle": 4
+  },
+  "requests": {
+    "rest": {
+      "callQueueByLead": 0,
+      "callQueueOther": 5,
+      "leadsListFull": 1,
+      "leadsById": 0,
+      "scheduledMessages": 0,
+      "tags": 10,
+      "activities": 0,
+      "pipelineStages": 8,
+      "assignees": 0,
+      "totalRest": 63
+    },
+    "productsEdgeOnFunnelLoad": 1,
+    "otherEdgeOnFunnelLoad": 1,
+    "evolutionLikeOnFunnelLoad": 7,
+    "productsEdgeOnLeadOpen": 1
+  },
+  "slowestOnFunnelLoad": [],
+  "errors": {
+    "afterFunnelLoad": [],
+    "afterLeadOpen": []
+  }
+}

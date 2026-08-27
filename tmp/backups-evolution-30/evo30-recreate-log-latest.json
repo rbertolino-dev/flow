@@ -1,0 +1,1295 @@
+{
+  "exported_at_utc": "20260729-121612",
+  "total_backup": 61,
+  "recreate_ok": 61,
+  "recreate_fail": 0,
+  "final_count": 61,
+  "missing": [],
+  "extra": [],
+  "chatwoot_enabled_final": 40,
+  "proxy_still_enabled": 0,
+  "qr_ready_count": 61,
+  "results": [
+    {
+      "name": "Maria Alice",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sabrina Rodrigues",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Fátima",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Livia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Silva",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Paula",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Cecilia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Vitória Alvez",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Clara",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Beatriz",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Silva",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Valéria",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sabrina Lurdes",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sabrina Cesar",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sabrina Guedes",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "claudia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Oliveira",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Camila Alvez",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Joana Ferreira",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Silva",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Eduarda",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Natalia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Joana Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Bruna Ferreira",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Joana Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Camila Lima",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Joana Silva",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Clara",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Vitória Lima",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Fernanda",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Joana Alvez",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sônia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sofia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Flavia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Cláudia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Carolina",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Joana Lima",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Alves",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Bruna Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Vitória Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Vitória Ferreira",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Luiza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Bruna Alvez",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Camila Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Oliveira",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Bruna Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Bruna Lima",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Camila Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "666",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Sabrina Viana",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Santos",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Camila Ferreira",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Alves",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Alves",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Vitória Souza",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    },
+    {
+      "name": "Ana julia",
+      "steps": {
+        "create": {
+          "http": 201,
+          "qr_base64": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "enabled": true
+        },
+        "proxy_clear": {
+          "http": 201
+        }
+      },
+      "ok": true,
+      "qr_ready": true
+    }
+  ]
+}

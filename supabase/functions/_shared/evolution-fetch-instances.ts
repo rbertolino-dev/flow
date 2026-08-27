@@ -180,7 +180,7 @@ export async function resolveInstanceLiveStatusForSync(
     apiKey,
     instanceName,
     12000,
-    "batchSync",
+    true,
   );
 
   if (direct.live === true) {

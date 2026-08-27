@@ -1,0 +1,839 @@
+{
+  "summary": {
+    "total": 43,
+    "ok_pronto": 6,
+    "reconectar": 13,
+    "qr_ou_logout": 24,
+    "investigar": 0,
+    "fantasma_crm": 10,
+    "fantasma_fetch": 0
+  },
+  "by_acao": {
+    "QR_OU_LOGOUT": [
+      "Aline Alves",
+      "Aline Oliveira",
+      "Aline Santos",
+      "Aline Silva",
+      "Ana Julia",
+      "Ana Luiza",
+      "Cecilia",
+      "Clara Alves",
+      "Clara Santos",
+      "Clara Silva",
+      "Clara Souza",
+      "claudia",
+      "Joana",
+      "Julia",
+      "Livia",
+      "Maria Clara",
+      "Maria Eduarda",
+      "Maria Fernanda",
+      "Maria Paulas",
+      "Patricia",
+      "Paula Alves",
+      "Paula Oliveira",
+      "Paula Santos",
+      "Paula Souza"
+    ],
+    "RECONECTAR": [
+      "Aline Souza",
+      "Ana Beatriz2",
+      "Ana Clara",
+      "Ana Iclass",
+      "bia",
+      "Fatima",
+      "maria",
+      "Natalia",
+      "Paula Silva",
+      "Silvia",
+      "sofia2",
+      "Sonia",
+      "Vanessa Rodrigues"
+    ],
+    "OK_PRONTO": [
+      "Ana Carolina",
+      "flavia",
+      "Marcella Morais",
+      "maria alices",
+      "Maria Luiza Andrade",
+      "valdete"
+    ],
+    "INVESTIGAR": []
+  },
+  "chips": [
+    {
+      "instance_name": "Aline Alves",
+      "instance_id": "4a8bc01e-5ac1-4a92-ab5b-d9ec4554a802",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Aline Oliveira",
+      "instance_id": "b2ffa930-e2e9-4d03-ad25-eff28290796e",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Aline Santos",
+      "instance_id": "c19c1943-d8b5-474b-b6ce-95ceb9c67a7d",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Aline Silva",
+      "instance_id": "8b920638-95aa-4ed8-b8f3-d00889f3b755",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Aline Souza",
+      "instance_id": "236fbda0-ba88-4466-bcc2-2b9bd07db933",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Ana Beatriz2",
+      "instance_id": "39bd82d7-c4c2-4dc3-9caf-e412f592651f",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Ana Carolina",
+      "instance_id": "a77662cb-b6a1-4bfe-9eba-78a1c49a3a7f",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "open",
+      "polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "OK_PRONTO"
+    },
+    {
+      "instance_name": "Ana Clara",
+      "instance_id": "ce86a17c-a10a-4979-af87-54a2b149638a",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Ana Iclass",
+      "instance_id": "7787b1a3-7f35-424b-9e4c-6689863612d7",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Ana Julia",
+      "instance_id": "3bdcd44e-b5df-4ebb-b7e4-bf7faded6204",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Ana Luiza",
+      "instance_id": "5d603b54-96f7-463c-8b9d-187be54a215b",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "bia",
+      "instance_id": "3c83759c-4c7c-41e3-8f02-4eda61c003d4",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Cecilia",
+      "instance_id": "83f9259a-7964-4554-820e-97fd0babbace",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Clara Alves",
+      "instance_id": "61c3cc07-0346-484d-9935-c7521e59199b",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Clara Santos",
+      "instance_id": "78dcd35b-6e4a-4682-90e6-dfe382b730af",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Clara Silva",
+      "instance_id": "615f8721-3047-4472-8618-75c48d1f0882",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Clara Souza",
+      "instance_id": "acc9a0b8-f0f0-40fc-b575-3bab5640deef",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "claudia",
+      "instance_id": "869ad5f7-7314-40e1-8c2a-e794c168cf28",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Fatima",
+      "instance_id": "753f525c-7aa8-4baf-8a25-91b6e280fdb5",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "flavia",
+      "instance_id": "c2459b31-02a8-47d4-9934-503a2ff675de",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "open",
+      "polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "OK_PRONTO"
+    },
+    {
+      "instance_name": "Joana",
+      "instance_id": "3b42e571-1968-49e8-9660-ba80a29911ed",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Julia",
+      "instance_id": "e3ac168a-f410-430b-831f-775c437b7d7c",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Livia",
+      "instance_id": "45b14b2d-c96f-410a-b149-25f2396a400c",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Marcella Morais",
+      "instance_id": "a36c1f6b-d720-4096-9b61-6afc311cdee6",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "open",
+      "polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "OK_PRONTO"
+    },
+    {
+      "instance_name": "maria",
+      "instance_id": "f24807cc-8c4d-40ca-9749-de86b34ed5f2",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "maria alices",
+      "instance_id": "cfa8c563-2633-4b1c-b287-15860e7320df",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "open",
+      "polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "OK_PRONTO"
+    },
+    {
+      "instance_name": "Maria Clara",
+      "instance_id": "e9f282e0-c53d-4452-a0f5-0802120eb02c",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Maria Eduarda",
+      "instance_id": "ded7d987-5316-4ab0-85f3-55cd827b1ea4",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Maria Fernanda",
+      "instance_id": "65961b5f-9e62-41ef-84c0-5c61df145af8",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Maria Luiza Andrade",
+      "instance_id": "5d8f0635-61c9-4996-af8c-7d19659cf7d9",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "open",
+      "polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "OK_PRONTO"
+    },
+    {
+      "instance_name": "Maria Paulas",
+      "instance_id": "e06e4c85-6d63-4065-bda3-a6f0ca084676",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Natalia",
+      "instance_id": "cc0a3f75-f3f8-4bce-9eca-0053586e807e",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Patricia",
+      "instance_id": "315931e8-e676-45da-9c74-fb31778377b5",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Paula Alves",
+      "instance_id": "cc077872-32c0-40ff-b48c-18c070d0f23b",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Paula Oliveira",
+      "instance_id": "e5878dc3-f6a1-4c1a-9b51-8ab4269810f0",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Paula Santos",
+      "instance_id": "3f68aa2c-8c8f-4108-82df-f9a289fc0221",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Paula Silva",
+      "instance_id": "b489525a-4e1b-4260-8481-05c9d9e4cc3f",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Paula Souza",
+      "instance_id": "b6239a9b-0c39-4414-8276-4644c053f4b3",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "close",
+      "polls": [
+        "close",
+        "close",
+        "close"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "QR_OU_LOGOUT"
+    },
+    {
+      "instance_name": "Silvia",
+      "instance_id": "88679772-682c-4590-9baf-01248c2404e0",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "sofia2",
+      "instance_id": "13ac815d-7a72-4637-b761-98285e89538c",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": true,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "Sonia",
+      "instance_id": "b475458c-bab7-46aa-9ca1-3f0e9fc69382",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    },
+    {
+      "instance_name": "valdete",
+      "instance_id": "23ef5219-d14d-40f4-8ca8-9b6c1c36b40e",
+      "crm_is_connected": true,
+      "fetchInstances": "?",
+      "connectionState": "open",
+      "polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "OK_PRONTO"
+    },
+    {
+      "instance_name": "Vanessa Rodrigues",
+      "instance_id": "274e0fa1-edd6-4aa9-a2e3-eaf8939e20c4",
+      "crm_is_connected": false,
+      "fetchInstances": "?",
+      "connectionState": "connecting",
+      "polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "oscilando": false,
+      "fantasma_crm": false,
+      "fantasma_fetch": false,
+      "proxy": "-:-",
+      "webhook_enabled": true,
+      "acao": "RECONECTAR"
+    }
+  ]
+}
