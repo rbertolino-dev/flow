@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-07-30T18:44:09.965069+00:00",
+  "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+  "email": "pubdigital.net@gmail.com",
+  "instances_open": [
+    {
+      "id": "2fb7fda8-c439-40d3-82c4-42d65be4e953",
+      "name": "francis-agilize",
+      "state": "open"
+    },
+    {
+      "id": "7ed4871b-fbf1-4ff8-af15-0df52f8b83cc",
+      "name": "gisele",
+      "state": "open"
+    },
+    {
+      "id": "9b94c0a0-8077-4cb0-9dd7-e93999118403",
+      "name": "Raissa",
+      "state": "open"
+    }
+  ],
+  "contacts_total": 15,
+  "message_variations": [
+    "Olá {nome}! Tudo bem? Aqui é da equipe. Posso te enviar uma informação rápida?",
+    "Oi {nome}, tudo certo? Passando para compartilhar uma novidade com você.",
+    "{nome}, boa tarde! Temos um recado importante — posso falar um minuto?"
+  ],
+  "sending_method": "rotate",
+  "validation": {
+    "ok": true,
+    "error": null,
+    "usedInstance": "francis-agilize",
+    "validated": 9,
+    "rejected": 6,
+    "validatedNumbers": [
+      "5521936186748",
+      "5511999000002",
+      "5511999000001",
+      "5511999000005",
+      "5511999000003",
+      "5511999000004",
+      "5527936183509",
+      "5521936183963",
+      "5511999000099"
+    ],
+    "rejectedNumbers": [
+      "5511888000001",
+      "5500000000000",
+      "123456",
+      "5511777000001",
+      "5511888000002",
+      "5511912345678"
+    ]
+  },
+  "campaign": {
+    "campaign": {
+      "id": "89b758a0-84ad-4403-8af8-f72e5e468092",
+      "user_id": "4d13ad7d-f643-43ce-892c-571c24640877",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "name": "[AUTO] rotate+tags 20260730-184409",
+      "message_template_id": null,
+      "custom_message": "Olá {nome}! Tudo bem? Aqui é da equipe. Posso te enviar uma informação rápida?",
+      "instance_id": null,
+      "min_delay_seconds": 30,
+      "max_delay_seconds": 60,
+      "status": "draft",
+      "total_contacts": 9,
+      "sent_count": 0,
+      "failed_count": 0,
+      "created_at": "2026-07-30T18:44:09.594713+00:00",
+      "started_at": null,
+      "completed_at": null,
+      "sending_method": "rotate",
+      "scheduled_start_at": null,
+      "image_url": null,
+      "media_type": null,
+      "backup_instance_id": null,
+      "failover_enabled": false,
+      "failover_mode": "auto",
+      "current_active_instance_id": null,
+      "last_failover_at": null,
+      "failover_cooldown_until": null,
+      "primary_failure_count": 0,
+      "last_health_check_at": null,
+      "failover_count": 0,
+      "sending_started_at": null,
+      "instance_ids": [
+        "2fb7fda8-c439-40d3-82c4-42d65be4e953",
+        "7ed4871b-fbf1-4ff8-af15-0df52f8b83cc",
+        "9b94c0a0-8077-4cb0-9dd7-e93999118403"
+      ]
+    },
+    "queue_count": 9,
+    "variations_used": 3,
+    "instances_used": 3
+  },
+  "contacts_text_preview": "Owner francis-agilize, 5527936183509\nOwner gisele, 5521936183963\nOwner Raissa, 5521936186748\nAna Teste, 5511999000001\nBruno Teste, 5511999000002\nCarla Teste, 5511999000003\nDiego Teste, 5511999000004\nElena Teste, 5511999000005\nFabio Teste, 5511888000001\nGisele Teste, 5511888000002\nHugo Teste, 5511777000001\nIris Local, 5511999000099\nJoao Invalido, 5500000000000\nNumero Curto, 123456\nKaren Teste, 5511912345678"
+}

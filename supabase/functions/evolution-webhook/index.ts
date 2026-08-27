@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import {
-  connectionStateToPersistBooleanForBatchSync,
+  connectionStateToPersistBoolean,
   extractStateFromConnectionWebhookPayload,
 } from "../_shared/evolution-connection-parse.ts";
 
@@ -936,8 +936,8 @@ serve(async (req) => {
         );
       }
 
-      // connecting/qr não gravam false — evita oscilação no painel quando Evolution está normal
-      const isNowConnectedRaw = connectionStateToPersistBooleanForBatchSync(stateRaw);
+      // connecting/qr => false no CRM (evita fantasma: Manager open + socket travado)
+      const isNowConnectedRaw = connectionStateToPersistBoolean(stateRaw);
 
       if (!configs) {
         console.warn(

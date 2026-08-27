@@ -1,0 +1,27 @@
+{
+  "org": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+  "date": "2026-06-30",
+  "veredito": "Sem eventos de bloqueio nos logs Evolution na data.",
+  "evolution_container": "evolution_evolution.1.fz14jq28wd0241g2hcgpu41uc",
+  "evolution_summary": {
+    "by_kind": {},
+    "close_by_reason": {},
+    "by_minute_utc": {}
+  },
+  "totais": {
+    "device_removed": 0,
+    "close_401_loggedOut": 0,
+    "close_403_forbidden": 0,
+    "chips_criticos": 0,
+    "envios_ok": 27,
+    "envios_falha": 0
+  },
+  "fila_failure_codes": {},
+  "campanha": {
+    "nome": "Brasil - Tag - Empresa Provedor - 30/06/2026",
+    "status": "completed",
+    "inicio_brt": "10:16:18",
+    "pool_chips": 15
+  },
+  "chips": []
+}

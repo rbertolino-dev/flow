@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sugestões de Correção - Testes E2E</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { background: #fee; padding: 10px; margin: 10px 0; border-left: 4px solid #f00; }
+        .suggestion { background: #efe; padding: 10px; margin: 10px 0; border-left: 4px solid #0f0; }
+        .info { background: #eef; padding: 10px; margin: 10px 0; border-left: 4px solid #00f; }
+        h1 { color: #333; }
+        h2 { color: #666; margin-top: 30px; }
+        code { background: #f5f5f5; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Sugestões de Correção - Testes E2E</h1>
+    <p><strong>Data:</strong> <span id="timestamp"></span></p>
+    
+    <h2>📊 Resumo</h2>
+    <div class="info">
+        <p><strong>Total de Testes:</strong> <span id="total"></span></p>
+        <p><strong>Passou:</strong> <span id="passed"></span></p>
+        <p><strong>Falhou:</strong> <span id="failed"></span></p>
+        <p><strong>Sugestões:</strong> <span id="suggestions-count"></span></p>
+    </div>
+    
+    <h2>❌ Erros Encontrados</h2>
+    <div id="errors"></div>
+    
+    <h2>💡 Sugestões de Correção</h2>
+    <div id="suggestions"></div>
+    
+    <script>
+        fetch('error-analysis.json')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString();
+                document.getElementById('total').textContent = data.totalTests;
+                document.getElementById('passed').textContent = data.passed;
+                document.getElementById('failed').textContent = data.failed;
+                document.getElementById('suggestions-count').textContent = data.suggestions.length;
+                
+                const errorsDiv = document.getElementById('errors');
+                data.errors.forEach(err => {
+                    const div = document.createElement('div');
+                    div.className = 'error';
+                    div.innerHTML = `
+                        <h3>${err.test}</h3>
+                        <p><strong>Arquivo:</strong> ${err.file}</p>
+                        <p><strong>Erro:</strong> <code>${err.error}</code></p>
+                        ${err.screenshot ? `<p><strong>Screenshot:</strong> <a href="../${err.screenshot}">Ver</a></p>` : ''}
+                        ${err.video ? `<p><strong>Vídeo:</strong> <a href="../${err.video}">Ver</a></p>` : ''}
+                    `;
+                    errorsDiv.appendChild(div);
+                });
+                
+                const suggestionsDiv = document.getElementById('suggestions');
+                data.suggestions.forEach(sug => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion';
+                    div.innerHTML = `
+                        <h3>${sug.type}</h3>
+                        <p><strong>Erro:</strong> <code>${sug.error}</code></p>
+                        <p><strong>Sugestão:</strong> ${sug.suggestion}</p>
+                        <p><strong>Correção:</strong> ${sug.fix}</p>
+                    `;
+                    suggestionsDiv.appendChild(div);
+                });
+            });
+    </script>
+</body>
+</html>

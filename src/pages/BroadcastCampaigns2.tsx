@@ -28,7 +28,21 @@ import { BroadcastProviderSwitcher } from "@/components/crm/BroadcastProviderSwi
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { BroadcastCampaignTemplateManager } from "@/components/crm/BroadcastCampaignTemplateManager";
 import { BroadcastExportReport } from "@/components/crm/BroadcastExportReport";
-import { dedupeBroadcastContactsByPhone } from "@/lib/broadcastContactDedupe";
+import {
+  buildEvolutionValidationResultFromQueue,
+  buildPhoneSetFromContacts,
+  buildPhoneSetFromText,
+  canEditDraft,
+  extractMessageVariationsFromQueue,
+  inferSendingMethodFromQueue,
+  loadDraftContactsFromQueue,
+  phonesChanged,
+} from "@/lib/broadcastDraftHelpers";
+import { rebuildDraftQueue } from "@/lib/broadcastDraftPersistence";
+import {
+  buildEvolutionQueueRows,
+  countEvolutionQueueTotal,
+} from "@/lib/broadcastQueueEvolution";
 import {
   aggregateInstanceFallReportFromLogs,
   mapRpcFallReportRow,
@@ -620,6 +634,10 @@ export default function BroadcastCampaigns2() {
   const [sentDateFilter, setSentDateFilter] = useState<Date | undefined>(undefined);
   const [dateFilterType, setDateFilterType] = useState<"created" | "sent">("created");
   const [instanceFilter, setInstanceFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const draftOriginalPhonesRef = useRef<Set<string>>(new Set());
+  const pendingCreateOptionsRef = useRef<{ startAfterSave?: boolean }>({});
   const [validatingContacts, setValidatingContacts] = useState(false);
   /** Após "Remover da seleção" no aviso de desconectadas, revalida no próximo render. */
   const [revalidateAfterDisconnectRemove, setRevalidateAfterDisconnectRemove] = useState(0);
@@ -747,6 +765,8 @@ export default function BroadcastCampaigns2() {
     setValidationResult(null);
     setValidatedContactsList([]);
     setSimulationDialogOpen(false);
+    setEditingDraftId(null);
+    draftOriginalPhonesRef.current = new Set();
   }, []);
 
   useEffect(() => {
@@ -1460,26 +1480,40 @@ export default function BroadcastCampaigns2() {
 
   const doInsertCampaign = async (
     contacts: CreateCampaignContact[],
-    formOverride?: Partial<typeof newCampaign>
-  ) => {
+    formOverride?: Partial<typeof newCampaign>,
+  ): Promise<{ id: string }> => {
     const nc = { ...newCampaign, ...formOverride };
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Usuário não autenticado");
     if (!activeOrgId) throw new Error("Organização não identificada");
 
-    // Mesmo WhatsApp em empresas diferentes virava N envios no rotate.
-    // Deduplica sempre na lista de destinos (no modo separate ainda multiplica por instância).
-    const { contacts: uniqueContacts, removedCount, duplicatePhones } =
-      dedupeBroadcastContactsByPhone(contacts);
+    const { rows, uniqueContacts, removedCount } = buildEvolutionQueueRows({
+      campaignId: "pending",
+      organizationId: activeOrgId,
+      contacts,
+      form: {
+        sendingMethod: nc.sendingMethod,
+        instanceId: nc.instanceId,
+        instanceIds: nc.instanceIds,
+        customMessage: nc.customMessage,
+        messageVariations: nc.messageVariations,
+      },
+    });
+
     if (uniqueContacts.length === 0) {
       throw new Error("Nenhum contato válido após remover telefones duplicados");
     }
     if (removedCount > 0) {
       toast({
         title: "Telefones duplicados removidos",
-        description: `${removedCount} contato(s) repetido(s) foram ignorados (${duplicatePhones.length} número(s) único(s)). Cada WhatsApp recebe a mensagem só uma vez.`,
+        description: `${removedCount} contato(s) repetido(s) foram ignorados. Cada WhatsApp recebe a mensagem só uma vez.`,
       });
     }
+
+    const totalContacts = countEvolutionQueueTotal(uniqueContacts.length, {
+      sendingMethod: nc.sendingMethod,
+      instanceIds: nc.instanceIds,
+    });
 
     const { data: campaign, error: campaignError } = await supabase
       .from("broadcast_campaigns_2")
@@ -1492,70 +1526,20 @@ export default function BroadcastCampaigns2() {
         custom_message: nc.customMessage || null,
         min_delay_seconds: Math.floor(Number(nc.minDelay)),
         max_delay_seconds: Math.floor(Number(nc.maxDelay)),
-        total_contacts: uniqueContacts.length,
+        total_contacts: totalContacts,
         status: "draft",
         sending_method: nc.sendingMethod,
         instance_ids: nc.instanceIds?.length ? nc.instanceIds : null,
       })
-      .select()
+      .select("id")
       .single();
 
     if (campaignError) throw campaignError;
 
-    const messagesToUse = nc.messageVariations.length > 0
-      ? nc.messageVariations
-      : [nc.customMessage];
-
-    let queueItems: any[] = [];
-
-    if (nc.sendingMethod === "separate") {
-      nc.instanceIds.forEach((instanceId: string) => {
-        uniqueContacts.forEach((contact, index) => {
-          const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-          const personalizedMessage = messagesToUse[messageIndex];
-          queueItems.push({
-            campaign_id: campaign.id,
-            organization_id: activeOrgId,
-            instance_id: instanceId,
-            phone: contact.phone,
-            name: contact.name || null,
-            empresa: contact.empresa || null,
-            nome_empresa: contact.nome_empresa || contact.empresa || null,
-            email: contact.email || null,
-            cpf: contact.cpf || null,
-            cnpj: contact.cnpj || null,
-            custom_fields: contact.custom_fields || null,
-            personalized_message: personalizedMessage,
-            status: "pending",
-          });
-        });
-      });
-    } else {
-      const instancesForRotation = nc.sendingMethod === "single"
-        ? [nc.instanceId]
-        : nc.instanceIds;
-      queueItems = uniqueContacts.map((contact, index) => {
-        const messageIndex = messagesToUse.length > 0 ? index % messagesToUse.length : 0;
-        const personalizedMessage = messagesToUse[messageIndex];
-        const instanceIndex = index % instancesForRotation.length;
-        const assignedInstanceId = instancesForRotation[instanceIndex];
-        return {
-          campaign_id: campaign.id,
-          organization_id: activeOrgId,
-          instance_id: assignedInstanceId,
-          phone: contact.phone,
-          name: contact.name || null,
-          empresa: contact.empresa || null,
-          nome_empresa: contact.nome_empresa || contact.empresa || null,
-          email: contact.email || null,
-          cpf: contact.cpf || null,
-          cnpj: contact.cnpj || null,
-          custom_fields: contact.custom_fields || null,
-          personalized_message: personalizedMessage,
-          status: "pending",
-        };
-      });
-    }
+    const queueItems = rows.map((row) => ({
+      ...row,
+      campaign_id: campaign.id,
+    }));
 
     const { error: queueError } = await supabase
       .from("broadcast_queue_2")
@@ -1564,17 +1548,184 @@ export default function BroadcastCampaigns2() {
 
     const instanceCount = nc.sendingMethod === "single" ? 1 : nc.instanceIds.length;
     const instanceLabel = instanceCount === 1 ? "1 instância" : `${instanceCount} instâncias`;
-    const totalMessages = nc.sendingMethod === "separate"
-      ? uniqueContacts.length * instanceCount
-      : uniqueContacts.length;
 
     toast({
-      title: "Campanha criada!",
-      description: `${totalMessages} mensagens agendadas usando ${instanceLabel}`,
+      title: "Pré-campanha salva!",
+      description: `${totalContacts} mensagens na fila usando ${instanceLabel}. Edite ou clique em Iniciar quando estiver pronto.`,
     });
 
     setCreateDialogOpen(false);
     fetchCampaigns();
+    return { id: campaign.id as string };
+  };
+
+  const doUpdateDraftCampaign = async (
+    campaignId: string,
+    contacts: CreateCampaignContact[],
+    formOverride?: Partial<typeof newCampaign>,
+  ): Promise<{ id: string }> => {
+    const nc = { ...newCampaign, ...formOverride };
+    if (!activeOrgId) throw new Error("Organização não identificada");
+
+    const { data: existingCampaign, error: existingError } = await supabase
+      .from("broadcast_campaigns_2")
+      .select("id, status")
+      .eq("id", campaignId)
+      .single();
+    if (existingError) throw existingError;
+
+    const { data: existingQueue, error: queueFetchError } = await supabase
+      .from("broadcast_queue_2")
+      .select("status")
+      .eq("campaign_id", campaignId);
+    if (queueFetchError) throw queueFetchError;
+
+    const editCheck = canEditDraft(
+      existingCampaign,
+      (existingQueue ?? []).map((row) => row.status as string),
+    );
+    if (!editCheck.ok) {
+      throw new Error(editCheck.reason ?? "Não foi possível editar esta campanha.");
+    }
+
+    const { rows, uniqueContacts, removedCount } = buildEvolutionQueueRows({
+      campaignId,
+      organizationId: activeOrgId,
+      contacts,
+      form: {
+        sendingMethod: nc.sendingMethod,
+        instanceId: nc.instanceId,
+        instanceIds: nc.instanceIds,
+        customMessage: nc.customMessage,
+        messageVariations: nc.messageVariations,
+      },
+    });
+
+    if (uniqueContacts.length === 0) {
+      throw new Error("Nenhum contato válido após remover telefones duplicados");
+    }
+    if (removedCount > 0) {
+      toast({
+        title: "Telefones duplicados removidos",
+        description: `${removedCount} contato(s) repetido(s) foram ignorados.`,
+      });
+    }
+
+    const totalContacts = countEvolutionQueueTotal(uniqueContacts.length, {
+      sendingMethod: nc.sendingMethod,
+      instanceIds: nc.instanceIds,
+    });
+
+    const { error: updateError } = await supabase
+      .from("broadcast_campaigns_2")
+      .update({
+        name: nc.name,
+        instance_id: nc.sendingMethod === "single" ? nc.instanceId : null,
+        message_template_id: nc.templateId || null,
+        custom_message: nc.customMessage || null,
+        min_delay_seconds: Math.floor(Number(nc.minDelay)),
+        max_delay_seconds: Math.floor(Number(nc.maxDelay)),
+        total_contacts: totalContacts,
+        sending_method: nc.sendingMethod,
+        instance_ids: nc.instanceIds?.length ? nc.instanceIds : null,
+      })
+      .eq("id", campaignId)
+      .eq("status", "draft");
+    if (updateError) throw updateError;
+
+    await rebuildDraftQueue(supabase, "broadcast_queue_2", campaignId, rows);
+
+    toast({
+      title: "Pré-campanha atualizada!",
+      description: `${totalContacts} mensagens na fila. Clique em Iniciar quando estiver pronto.`,
+    });
+
+    setCreateDialogOpen(false);
+    setEditingDraftId(null);
+    fetchCampaigns();
+    return { id: campaignId };
+  };
+
+  const handleEditDraft = async (campaign: Campaign) => {
+    try {
+      const { data: campaignData, error: campaignError } = await supabase
+        .from("broadcast_campaigns_2")
+        .select("*")
+        .eq("id", campaign.id)
+        .single();
+      if (campaignError) throw campaignError;
+
+      const { data: queueData, error: queueError } = await supabase
+        .from("broadcast_queue_2")
+        .select(
+          "phone, name, personalized_message, instance_id, empresa, nome_empresa, email, cpf, cnpj, custom_fields, status",
+        )
+        .eq("campaign_id", campaign.id)
+        .eq("status", "pending");
+      if (queueError) throw queueError;
+
+      const editCheck = canEditDraft(
+        campaignData,
+        (queueData ?? []).map((row) => row.status as string),
+      );
+      if (!editCheck.ok) {
+        throw new Error(editCheck.reason ?? "Não foi possível editar esta campanha.");
+      }
+
+      const { contacts, pastedText } = loadDraftContactsFromQueue(queueData ?? []);
+      const sendingConfig = inferSendingMethodFromQueue(queueData ?? [], campaignData);
+      const messageVariations = extractMessageVariationsFromQueue(
+        queueData ?? [],
+        campaignData.custom_message,
+      );
+
+      draftOriginalPhonesRef.current = buildPhoneSetFromContacts(contacts);
+      setEditingDraftId(campaign.id);
+      setNewCampaign({
+        name: campaignData.name,
+        instanceId: sendingConfig.method === "single" ? sendingConfig.primaryId : "",
+        instanceIds: sendingConfig.instanceOrSessionIds,
+        selectedGroupId: "",
+        sendingMethod: sendingConfig.method,
+        templateId: campaignData.message_template_id || "",
+        customMessage: campaignData.custom_message || "",
+        messageVariations,
+        ...delaysFromSource(campaignData.min_delay_seconds, campaignData.max_delay_seconds),
+        scheduledStart: undefined,
+        fromTemplate: false,
+        useLatamValidator: false,
+      });
+      setPastedList(pastedText);
+      setImportMode("paste");
+      setValidationResult(buildEvolutionValidationResultFromQueue(contacts.length));
+      setSelectedCampaignTemplate(null);
+      setCreateDialogOpen(true);
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao abrir pré-campanha",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteDraft = async (campaignId: string) => {
+    try {
+      const { error } = await supabase
+        .from("broadcast_campaigns_2")
+        .delete()
+        .eq("id", campaignId)
+        .eq("status", "draft");
+      if (error) throw error;
+      toast({ title: "Rascunho excluído" });
+      fetchCampaigns();
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao excluir rascunho",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
   };
 
   const getDisconnectedSelectedInstances = useCallback((): DisconnectedInstanceInfo[] => {
@@ -1588,7 +1739,10 @@ export default function BroadcastCampaigns2() {
     return getDisconnectedForInstanceIds(ids, instances);
   }, [newCampaign.sendingMethod, newCampaign.instanceId, newCampaign.instanceIds, instances]);
 
-  const tryCreateCampaign = async (contacts: CreateCampaignContact[]) => {
+  const tryCreateCampaign = async (
+    contacts: CreateCampaignContact[],
+    options?: { startAfterSave?: boolean },
+  ) => {
     if (!activeOrgId) {
       throw new Error("Organização não selecionada");
     }
@@ -1620,7 +1774,14 @@ export default function BroadcastCampaigns2() {
       setLoading(false);
       return;
     }
-    await doInsertCampaign(contacts);
+
+    const saved = editingDraftId
+      ? await doUpdateDraftCampaign(editingDraftId, contacts)
+      : await doInsertCampaign(contacts);
+
+    if (options?.startAfterSave && saved?.id) {
+      await handleStartCampaign(saved.id);
+    }
   };
 
   const removeDisconnectedInstancesFromDraftCampaign = async (
@@ -1683,7 +1844,8 @@ export default function BroadcastCampaigns2() {
     return { ok: true, pendingCount };
   };
 
-  const handleCreateCampaign = async () => {
+  const handleCreateCampaign = async (options?: { startAfterSave?: boolean }) => {
+    pendingCreateOptionsRef.current = options ?? {};
     // Verificar se há instâncias selecionadas baseado no método de envio
     const hasInstance = newCampaign.sendingMethod === "single" 
       ? !!newCampaign.instanceId 
@@ -1707,10 +1869,22 @@ export default function BroadcastCampaigns2() {
       return;
     }
 
-    if (!validationResult || validationResult.whatsappValid === 0) {
+    const currentPhoneSet = buildPhoneSetFromText(pastedList, (line) => {
+      const phonePart = line.split(/[,;|\t]/)[0]?.trim() ?? "";
+      const digits = phonePart.replace(/\D/g, "");
+      return digits || null;
+    });
+    const contactsListChanged = editingDraftId
+      ? phonesChanged(draftOriginalPhonesRef.current, currentPhoneSet)
+      : true;
+
+    if (
+      (!validationResult || validationResult.whatsappValid === 0) &&
+      (!editingDraftId || contactsListChanged)
+    ) {
       toast({
         title: "Validação necessária",
-        description: "Por favor, valide os contatos antes de criar a campanha",
+        description: "Por favor, valide os contatos antes de salvar a campanha",
         variant: "destructive",
       });
       return;
@@ -1954,7 +2128,7 @@ export default function BroadcastCampaigns2() {
         return;
       }
 
-      await tryCreateCampaign(contacts);
+      await tryCreateCampaign(contacts, pendingCreateOptionsRef.current);
     } catch (error: any) {
       toast({
         title: "Erro ao criar campanha",
@@ -2802,10 +2976,11 @@ export default function BroadcastCampaigns2() {
       }
       
       const matchesInstance = instanceFilter === "all" || campaign.instance_id === instanceFilter;
+      const matchesStatus = statusFilter === "all" || campaign.status === statusFilter;
       
-      return matchesSearch && matchesDate && matchesInstance;
+      return matchesSearch && matchesDate && matchesInstance && matchesStatus;
     });
-  }, [campaigns, debouncedSearchQuery, dateFilter, sentDateFilter, dateFilterType, instanceFilter]);
+  }, [campaigns, debouncedSearchQuery, dateFilter, sentDateFilter, dateFilterType, instanceFilter, statusFilter]);
 
   /** Instâncias ordenadas A–Z por nome (criar campanha: select único e lista de checkboxes) */
   const instancesSortedAlphabetically = useMemo(() => {
@@ -3128,9 +3303,13 @@ export default function BroadcastCampaigns2() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
               <DialogHeader>
-                <DialogTitle>Criar Campanha de Disparo</DialogTitle>
+                <DialogTitle>
+                  {editingDraftId ? "Editar pré-campanha" : "Criar Campanha de Disparo"}
+                </DialogTitle>
                 <DialogDescription>
-                  Configure sua campanha de envio em massa
+                  {editingDraftId
+                    ? "Alterações afetam apenas itens pendentes. A campanha ainda não enviou mensagens."
+                    : "Configure sua campanha de envio em massa"}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -4068,16 +4247,30 @@ export default function BroadcastCampaigns2() {
                   </Button>
                 )}
                 <Button 
-                  onClick={handleCreateCampaign} 
-                  disabled={loading || validatingContacts || !validationResult || validationResult.whatsappValid === 0}
+                  onClick={() => void handleCreateCampaign({ startAfterSave: false })} 
+                  disabled={loading || validatingContacts || (!validationResult && !editingDraftId) || (validationResult?.whatsappValid === 0 && !editingDraftId)}
+                  variant="outline"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Criando...
+                      Salvando...
                     </>
                   ) : (
-                    "Criar Campanha"
+                    editingDraftId ? "Salvar alterações" : "Salvar rascunho"
+                  )}
+                </Button>
+                <Button 
+                  onClick={() => void handleCreateCampaign({ startAfterSave: true })} 
+                  disabled={loading || validatingContacts || (!validationResult && !editingDraftId) || (validationResult?.whatsappValid === 0 && !editingDraftId)}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editingDraftId ? "Salvando..." : "Criando..."}
+                    </>
+                  ) : (
+                    editingDraftId ? "Salvar e iniciar" : "Salvar e iniciar"
                   )}
                 </Button>
               </DialogFooter>
@@ -4102,6 +4295,23 @@ export default function BroadcastCampaigns2() {
               </div>
             </div>
             
+            <Select
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Todos os status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="draft">Rascunhos</SelectItem>
+                <SelectItem value="running">Em execução</SelectItem>
+                <SelectItem value="paused">Pausadas</SelectItem>
+                <SelectItem value="completed">Concluídas</SelectItem>
+                <SelectItem value="cancelled">Canceladas</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select
               value={instanceFilter}
               onValueChange={setInstanceFilter}
@@ -4179,7 +4389,9 @@ export default function BroadcastCampaigns2() {
             {filteredCampaigns.map((campaign) => (
               <div
                 key={campaign.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border rounded-lg"
+                className={`flex flex-col sm:flex-row sm:items-center gap-4 p-4 border rounded-lg ${
+                  campaign.status === "draft" ? "border-dashed border-primary/40 bg-muted/30" : ""
+                }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
@@ -4244,15 +4456,33 @@ export default function BroadcastCampaigns2() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {campaign.status === "draft" && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleStartCampaign(campaign.id)}
-                    >
-                      <Play className="h-4 w-4 mr-1" />
-                      Iniciar
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleEditDraft(campaign)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Editar pré-campanha
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => void handleDeleteDraft(campaign.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Excluir
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleStartCampaign(campaign.id)}
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        Iniciar
+                      </Button>
+                    </>
                   )}
                   {campaign.status === "running" && (
                     <>

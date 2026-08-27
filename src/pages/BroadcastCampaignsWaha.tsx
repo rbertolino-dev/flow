@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, startOfDay, startOfMonth, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -63,6 +63,21 @@ import {
   validateWahaSendInterval,
 } from "@/lib/broadcastValidators";
 import { nextMinuteStart, scheduleWahaQueue } from "@/lib/wahaBroadcastSchedule";
+import {
+  buildPhoneSetFromContacts,
+  buildPhoneSetFromText,
+  buildWahaValidationFromQueue,
+  canEditDraft,
+  extractMessageVariationsFromQueue,
+  inferSendingMethodFromQueue,
+  loadDraftContactsFromQueue,
+  phonesChanged,
+} from "@/lib/broadcastDraftHelpers";
+import { rebuildDraftQueue } from "@/lib/broadcastDraftPersistence";
+import {
+  buildWahaQueueRows,
+  countWahaQueueTotal,
+} from "@/lib/broadcastQueueWaha";
 
 type SendingMethod = "single" | "rotate" | "separate";
 
@@ -92,6 +107,10 @@ type WahaCampaign = {
   started_at?: string | null;
   scheduled_start_at?: string | null;
   image_url?: string | null;
+  custom_message?: string | null;
+  message_variations?: string[] | null;
+  session_id?: string | null;
+  session_ids?: string[] | null;
 };
 
 type ParsedContact = {
@@ -370,6 +389,9 @@ export default function BroadcastCampaignsWaha() {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [editingCampaignName, setEditingCampaignName] = useState("");
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const draftOriginalPhonesRef = useRef<Set<string>>(new Set());
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsCampaignName, setLogsCampaignName] = useState("");
   const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<WahaQueueLog[]>([]);
@@ -660,6 +682,8 @@ export default function BroadcastCampaignsWaha() {
     setCampaignImagePreview(null);
     setValidationResult(null);
     setSimulationDialogOpen(false);
+    setEditingDraftId(null);
+    draftOriginalPhonesRef.current = new Set();
   };
 
   const validateContacts = async (): Promise<WahaValidation | null> => {
@@ -888,8 +912,9 @@ export default function BroadcastCampaignsWaha() {
     validationResult,
   ]);
 
-  const createCampaign = async () => {
+  const createCampaign = async (options?: { startAfterSave?: boolean }) => {
     if (!activeOrgId) return;
+    const startAfterSave = options?.startAfterSave ?? false;
     const contacts = parseContacts(form.contacts);
     if (!form.name.trim() || messagesToUse.length === 0) {
       toast({
@@ -923,6 +948,27 @@ export default function BroadcastCampaignsWaha() {
       toast({
         title: "Intervalo de envio inválido",
         description: delayValidation.error,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentPhoneSet = buildPhoneSetFromText(form.contacts, (line) => {
+      const phonePart = line.split(/[,;|\t]/)[0]?.trim() ?? "";
+      const digits = phonePart.replace(/\D/g, "");
+      return digits || null;
+    });
+    const contactsListChanged = editingDraftId
+      ? phonesChanged(draftOriginalPhonesRef.current, currentPhoneSet)
+      : true;
+
+    if (
+      (!validationResult || validationResult.valid === 0) &&
+      (!editingDraftId || contactsListChanged)
+    ) {
+      toast({
+        title: "Validação necessária",
+        description: "Valide os contatos antes de salvar a campanha",
         variant: "destructive",
       });
       return;
@@ -981,104 +1027,137 @@ export default function BroadcastCampaignsWaha() {
         );
       }
 
-      const queueCount = form.method === "separate"
-        ? validContacts.length * form.sessionIds.length
-        : validContacts.length;
-      const { data: campaign, error: campaignError } = await db
-        .from("broadcast_campaigns_waha")
-        .insert({
-          organization_id: activeOrgId,
-          user_id: user.id,
-          name: form.name.trim(),
-          custom_message: form.message.trim() || messagesToUse[0],
-          message_variations: form.messageVariations
-            .map((message) => message.trim())
-            .filter(Boolean),
-          sending_method: form.method,
-          session_id: form.sessionIds[0],
-          session_ids: form.sessionIds,
-          min_delay_seconds: form.minDelay,
-          max_delay_seconds: form.maxDelay,
-          total_contacts: queueCount,
-          status: "draft",
-          image_url: form.imageUrl.trim() || null,
-        })
-        .select("id")
-        .single();
-      if (campaignError) throw campaignError;
+      const queueCount = countWahaQueueTotal(validContacts.length, {
+        method: form.method,
+        sessionIds: form.sessionIds,
+      });
 
-      const queueRows: Record<string, unknown>[] = [];
-      if (form.method === "separate") {
-        form.sessionIds.forEach((sessionId) => {
-          validContacts.forEach((contact, index) => {
-            const selectedMessage = messagesToUse[index % messagesToUse.length];
-            queueRows.push({
-              campaign_id: campaign.id,
-              organization_id: activeOrgId,
-              session_id: sessionId,
-              phone: contact.phone,
-              chat_id: validByPhone.get(contact.phone),
-              name: contact.name || null,
-              personalized_message: personalizeMessage(selectedMessage, contact),
-              status: "pending",
-            });
-          });
-        });
-      } else {
-        validContacts.forEach((contact, index) => {
-          const selectedMessage = messagesToUse[index % messagesToUse.length];
-          const sessionId = form.method === "rotate"
-            ? form.sessionIds[index % form.sessionIds.length]
-            : form.sessionIds[0];
-          queueRows.push({
-            campaign_id: campaign.id,
-            organization_id: activeOrgId,
-            session_id: sessionId,
-            phone: contact.phone,
-            chat_id: validByPhone.get(contact.phone),
-            name: contact.name || null,
-            personalized_message: personalizeMessage(selectedMessage, contact),
-            status: "pending",
-          });
-        });
-      }
+      let campaignId = editingDraftId;
 
-      for (let index = 0; index < queueRows.length; index += 200) {
-        const { error: queueError } = await db
+      if (editingDraftId) {
+        const { data: existingCampaign, error: existingError } = await db
+          .from("broadcast_campaigns_waha")
+          .select("id, status")
+          .eq("id", editingDraftId)
+          .single();
+        if (existingError) throw existingError;
+
+        const { data: existingQueue, error: queueFetchError } = await db
           .from("broadcast_queue_waha")
-          .insert(queueRows.slice(index, index + 200));
-        if (queueError) throw queueError;
-      }
+          .select("status")
+          .eq("campaign_id", editingDraftId);
+        if (queueFetchError) throw queueFetchError;
 
-      const invalidCount = contacts.length - validContacts.length;
-      try {
-        const started = await startCampaign(
-          {
-            id: campaign.id,
+        const editCheck = canEditDraft(
+          existingCampaign,
+          (existingQueue ?? []).map((row: { status: string }) => row.status),
+        );
+        if (!editCheck.ok) {
+          throw new Error(editCheck.reason ?? "Não foi possível editar esta campanha.");
+        }
+
+        const { error: updateError } = await db
+          .from("broadcast_campaigns_waha")
+          .update({
+            name: form.name.trim(),
+            custom_message: form.message.trim() || messagesToUse[0],
+            message_variations: form.messageVariations
+              .map((message) => message.trim())
+              .filter(Boolean),
+            sending_method: form.method,
+            session_id: form.sessionIds[0],
+            session_ids: form.sessionIds,
             min_delay_seconds: form.minDelay,
             max_delay_seconds: form.maxDelay,
-          },
-          { silent: true },
-        );
+            total_contacts: queueCount,
+            image_url: form.imageUrl.trim() || null,
+          })
+          .eq("id", editingDraftId)
+          .eq("status", "draft");
+        if (updateError) throw updateError;
+      } else {
+        const { data: campaign, error: campaignError } = await db
+          .from("broadcast_campaigns_waha")
+          .insert({
+            organization_id: activeOrgId,
+            user_id: user.id,
+            name: form.name.trim(),
+            custom_message: form.message.trim() || messagesToUse[0],
+            message_variations: form.messageVariations
+              .map((message) => message.trim())
+              .filter(Boolean),
+            sending_method: form.method,
+            session_id: form.sessionIds[0],
+            session_ids: form.sessionIds,
+            min_delay_seconds: form.minDelay,
+            max_delay_seconds: form.maxDelay,
+            total_contacts: queueCount,
+            status: "draft",
+            image_url: form.imageUrl.trim() || null,
+          })
+          .select("id")
+          .single();
+        if (campaignError) throw campaignError;
+        campaignId = campaign.id as string;
+      }
+
+      if (!campaignId) throw new Error("Campanha não identificada");
+
+      const queueRows = buildWahaQueueRows({
+        campaignId,
+        organizationId: activeOrgId,
+        contacts: validContacts,
+        form: {
+          method: form.method,
+          sessionIds: form.sessionIds,
+          message: form.message,
+          messageVariations: form.messageVariations,
+        },
+        chatIdByPhone: validByPhone,
+      });
+
+      await rebuildDraftQueue(db, "broadcast_queue_waha", campaignId, queueRows);
+
+      const invalidCount = contacts.length - validContacts.length;
+
+      if (startAfterSave) {
+        try {
+          const started = await startCampaign(
+            {
+              id: campaignId,
+              min_delay_seconds: form.minDelay,
+              max_delay_seconds: form.maxDelay,
+            },
+            { silent: true },
+          );
+          toast({
+            title: editingDraftId ? "Pré-campanha atualizada e iniciada" : "Campanha WAHA criada e iniciada",
+            description: `${validContacts.length} contato(s) válido(s)${
+              invalidCount ? `; ${invalidCount} inválido(s) removido(s)` : ""
+            }. Primeiro envio às ${format(started.startAt, "HH:mm", { locale: ptBR })}.`,
+          });
+        } catch {
+          toast({
+            title: editingDraftId ? "Pré-campanha salva" : "Campanha WAHA criada",
+            description: `${validContacts.length} contato(s) na fila. Clique em Iniciar para o primeiro envio no próximo minuto.`,
+          });
+        }
+      } else {
         toast({
-          title: "Campanha WAHA criada e iniciada",
-          description: `${validContacts.length} contato(s) válido(s)${
+          title: editingDraftId ? "Pré-campanha atualizada!" : "Pré-campanha salva!",
+          description: `${validContacts.length} contato(s) válido(s) na fila${
             invalidCount ? `; ${invalidCount} inválido(s) removido(s)` : ""
-          }. Primeiro envio às ${format(started.startAt, "HH:mm", { locale: ptBR })}. O intervalo vale entre os envios seguintes.`,
-        });
-      } catch {
-        toast({
-          title: "Campanha WAHA criada",
-          description: `${validContacts.length} contato(s) na fila. Clique em Iniciar para o primeiro envio no próximo minuto.`,
+          }. Edite ou clique em Iniciar quando estiver pronto.`,
         });
       }
+
       setDialogOpen(false);
       resetForm();
       await fetchData();
     } catch (error) {
       console.error("Erro ao criar campanha WAHA:", error);
       toast({
-        title: "Erro ao criar campanha WAHA",
+        title: editingDraftId ? "Erro ao atualizar pré-campanha" : "Erro ao criar campanha WAHA",
         description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
@@ -1086,6 +1165,92 @@ export default function BroadcastCampaignsWaha() {
       setSaving(false);
     }
   };
+
+  const handleEditDraft = async (campaign: WahaCampaign) => {
+    try {
+      const { data: campaignData, error: campaignError } = await db
+        .from("broadcast_campaigns_waha")
+        .select("*")
+        .eq("id", campaign.id)
+        .single();
+      if (campaignError) throw campaignError;
+
+      const { data: queueData, error: queueError } = await db
+        .from("broadcast_queue_waha")
+        .select("phone, name, personalized_message, session_id, chat_id, status")
+        .eq("campaign_id", campaign.id)
+        .eq("status", "pending");
+      if (queueError) throw queueError;
+
+      const editCheck = canEditDraft(
+        campaignData,
+        (queueData ?? []).map((row: { status: string }) => row.status),
+      );
+      if (!editCheck.ok) {
+        throw new Error(editCheck.reason ?? "Não foi possível editar esta campanha.");
+      }
+
+      const { contacts, pastedText } = loadDraftContactsFromQueue(queueData ?? []);
+      const sendingConfig = inferSendingMethodFromQueue(queueData ?? [], campaignData);
+      const storedVariations = Array.isArray(campaignData.message_variations)
+        ? campaignData.message_variations.map((message: string) => message.trim()).filter(Boolean)
+        : [];
+      const messageVariations = storedVariations.length > 0
+        ? storedVariations
+        : extractMessageVariationsFromQueue(queueData ?? [], campaignData.custom_message);
+
+      draftOriginalPhonesRef.current = buildPhoneSetFromContacts(contacts);
+      setEditingDraftId(campaign.id);
+      setForm({
+        name: campaignData.name,
+        message: campaignData.custom_message || messageVariations[0] || "",
+        messageVariations: messageVariations.length > 1 ? messageVariations : [],
+        contacts: pastedText,
+        templateId: "",
+        method: sendingConfig.method,
+        sessionIds: sendingConfig.instanceOrSessionIds.length > 0
+          ? sendingConfig.instanceOrSessionIds
+          : normalizeInstanceIdList(campaignData.session_ids ?? []),
+        minDelay: campaignData.min_delay_seconds,
+        maxDelay: campaignData.max_delay_seconds,
+        imageUrl: campaignData.image_url || "",
+      });
+      setCampaignImagePreview(campaignData.image_url || null);
+      setValidationResult(buildWahaValidationFromQueue(queueData ?? []));
+      setDialogOpen(true);
+    } catch (error) {
+      toast({
+        title: "Erro ao abrir pré-campanha",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteDraft = async (campaignId: string) => {
+    try {
+      const { error } = await db
+        .from("broadcast_campaigns_waha")
+        .delete()
+        .eq("id", campaignId)
+        .eq("status", "draft");
+      if (error) throw error;
+      toast({ title: "Rascunho excluído" });
+      await fetchData();
+    } catch (error) {
+      toast({
+        title: "Erro ao excluir rascunho",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
+  function normalizeInstanceIdList(raw: unknown): string[] {
+    if (raw == null) return [];
+    if (!Array.isArray(raw)) return [];
+    return raw.map((value) => String(value).trim()).filter(Boolean);
+  }
 
   const startCampaign = async (
     campaign: Pick<WahaCampaign, "id" | "min_delay_seconds" | "max_delay_seconds">,
@@ -1297,6 +1462,12 @@ export default function BroadcastCampaignsWaha() {
       setLogsLoading(false);
     }
   };
+
+  const filteredCampaigns = useMemo(() => {
+    return campaigns.filter((campaign) =>
+      statusFilter === "all" ? true : campaign.status === statusFilter,
+    );
+  }, [campaigns, statusFilter]);
 
   return (
     <AuthGuard>
@@ -1524,19 +1695,40 @@ export default function BroadcastCampaignsWaha() {
               </CardContent>
             </Card>
 
+            <div className="mb-4 flex flex-wrap gap-3">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="draft">Rascunhos</SelectItem>
+                  <SelectItem value="running">Em execução</SelectItem>
+                  <SelectItem value="paused">Pausadas</SelectItem>
+                  <SelectItem value="completed">Concluídas</SelectItem>
+                  <SelectItem value="cancelled">Canceladas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-3">
               {loading ? (
                 <div className="flex items-center justify-center p-10">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              ) : campaigns.length === 0 ? (
+              ) : filteredCampaigns.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center text-muted-foreground">
-                    Nenhuma campanha WAHA criada nesta organização.
+                    {statusFilter === "draft"
+                      ? "Nenhum rascunho WAHA nesta organização."
+                      : "Nenhuma campanha WAHA criada nesta organização."}
                   </CardContent>
                 </Card>
-              ) : campaigns.map((campaign) => (
-                <Card key={campaign.id}>
+              ) : filteredCampaigns.map((campaign) => (
+                <Card
+                  key={campaign.id}
+                  className={campaign.status === "draft" ? "border-dashed border-primary/40 bg-muted/30" : ""}
+                >
                   <CardContent className="p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 flex-1 gap-3">
@@ -1612,7 +1804,34 @@ export default function BroadcastCampaignsWaha() {
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {(campaign.status === "draft" || campaign.status === "paused") && (
+                        {campaign.status === "draft" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void handleEditDraft(campaign)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar pré-campanha
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void handleDeleteDraft(campaign.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => void startCampaign(campaign).catch(() => undefined)}
+                            >
+                              <Play className="mr-2 h-4 w-4" />
+                              Iniciar
+                            </Button>
+                          </>
+                        )}
+                        {campaign.status === "paused" && (
                           <Button
                             size="sm"
                             onClick={() => void startCampaign(campaign).catch(() => undefined)}
@@ -1913,13 +2132,22 @@ export default function BroadcastCampaignsWaha() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) resetForm();
+          }}
+        >
           <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Nova campanha WAHA</DialogTitle>
+              <DialogTitle>
+                {editingDraftId ? "Editar pré-campanha WAHA" : "Nova campanha WAHA"}
+              </DialogTitle>
               <DialogDescription>
-                Os contatos serão validados pela WAHA. Ao criar, a campanha inicia
-                no próximo minuto; o intervalo vale entre os envios, não na espera do primeiro.
+                {editingDraftId
+                  ? "Alterações afetam apenas itens pendentes. A campanha ainda não enviou mensagens."
+                  : "Valide os contatos e salve como rascunho para editar depois, ou inicie o envio imediatamente."}
               </DialogDescription>
             </DialogHeader>
 
@@ -2307,13 +2535,31 @@ export default function BroadcastCampaignsWaha() {
                 Fechar
               </Button>
               <Button
-                disabled={saving || validatingContacts || !validationResult?.valid}
-                onClick={() => void createCampaign()}
+                variant="outline"
+                disabled={
+                  saving ||
+                  validatingContacts ||
+                  (!validationResult?.valid && !editingDraftId)
+                }
+                onClick={() => void createCampaign({ startAfterSave: false })}
+              >
+                {saving
+                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  : <Save className="mr-2 h-4 w-4" />}
+                {editingDraftId ? "Salvar alterações" : "Salvar rascunho"}
+              </Button>
+              <Button
+                disabled={
+                  saving ||
+                  validatingContacts ||
+                  (!validationResult?.valid && !editingDraftId)
+                }
+                onClick={() => void createCampaign({ startAfterSave: true })}
               >
                 {saving
                   ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   : <Send className="mr-2 h-4 w-4" />}
-                Criar e iniciar
+                {editingDraftId ? "Salvar e iniciar" : "Criar e iniciar"}
               </Button>
             </DialogFooter>
           </DialogContent>

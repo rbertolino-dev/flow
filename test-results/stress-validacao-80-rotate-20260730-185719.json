@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-07-30T18:57:19.718034+00:00",
+  "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+  "mode": "rotate",
+  "instances_open": [
+    {
+      "id": "2fb7fda8-c439-40d3-82c4-42d65be4e953",
+      "name": "francis-agilize"
+    },
+    {
+      "id": "7ed4871b-fbf1-4ff8-af15-0df52f8b83cc",
+      "name": "gisele"
+    },
+    {
+      "id": "9b94c0a0-8077-4cb0-9dd7-e93999118403",
+      "name": "Raissa"
+    }
+  ],
+  "numbers_total": 80,
+  "validated": 47,
+  "rejected": 33,
+  "validated_unique": 47,
+  "used_instances": [
+    "francis-agilize"
+  ],
+  "rotate_distribution_if_sent": {
+    "francis-agilize": 16,
+    "gisele": 16,
+    "Raissa": 15
+  },
+  "elapsed_seconds": 3.07,
+  "errors": [],
+  "ok": true
+}

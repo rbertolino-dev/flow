@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Ana Iclass",
+    "before": "connecting",
+    "after": "connecting",
+    "logout": "{\"status\":500,\"error\":\"Internal Server Error\",\"response\":{\"message\":[\"Error: Connection Closed\"]}}",
+    "connect": "{\"count\":0}"
+  },
+  {
+    "name": "Silvia",
+    "before": "connecting",
+    "after": "connecting",
+    "logout": "{\"status\":500,\"error\":\"Internal Server Error\",\"response\":{\"message\":[\"Error: Connection Closed\"]}}",
+    "connect": "{\"count\":0}"
+  },
+  {
+    "name": "bia",
+    "before": "connecting",
+    "after": "connecting",
+    "logout": "{\"status\":500,\"error\":\"Internal Server Error\",\"response\":{\"message\":[\"Error: Connection Closed\"]}}",
+    "connect": "{\"pairingCode\":null,\"code\":\"2@Pa1pRm2K9ungDXKPEdJ+250SwfD3E6bgo5V7oYfWRD5iu9kbQEUEMK1/HIWUPGttHsYtxRMyJsOfEwqEXPDi3SvG6O"
+  },
+  {
+    "name": "sofia2",
+    "before": "connecting",
+    "after": "connecting",
+    "logout": "{\"status\":500,\"error\":\"Internal Server Error\",\"response\":{\"message\":[\"Error: Connection Closed\"]}}",
+    "connect": "{\"count\":0}"
+  },
+  {
+    "name": "Aline Souza",
+    "before": "connecting",
+    "after": "connecting",
+    "logout": "{\"status\":500,\"error\":\"Internal Server Error\",\"response\":{\"message\":[\"Error: Connection Closed\"]}}",
+    "connect": "{\"count\":0}"
+  }
+]

@@ -1,0 +1,745 @@
+{
+  "gerado_em": "2026-07-01T01:34:35.058962+00:00",
+  "org": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+  "total": 10,
+  "saudaveis": 1,
+  "prontos_disparo": 2,
+  "proxies_compartilhados": {
+    "92.113.235.127:5187": [
+      "Ana Clara",
+      "Ana Beatriz2"
+    ],
+    "190.106.183.188:5233": [
+      "Fatima",
+      "sofia2"
+    ]
+  },
+  "chips": [
+    {
+      "instance_name": "maria alices",
+      "instance_id": "cfa8c563-2633-4b1c-b287-15860e7320df",
+      "phone_number": null,
+      "owner_jid": "5521936183140@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        698,
+        695,
+        697
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T02:55:21.705Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 2,
+      "reconnects_30d": 2,
+      "send_failures_7d": 2,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "45.38.88.203",
+          "latency_ms": 1108,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.203",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.203",
+          "latency_ms": 1077,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.203",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.203",
+          "latency_ms": 1071,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.203",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "45.38.88.203",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1085,
+      "proxy_ip_stable": true,
+      "score": 85,
+      "veredito": "SAUDÁVEL",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "flavia",
+      "instance_id": "c2459b31-02a8-47d4-9934-503a2ff675de",
+      "phone_number": null,
+      "owner_jid": "5521966461521@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "open",
+      "stability_polls": [
+        "open",
+        "open",
+        "open"
+      ],
+      "poll_latencies_ms": [
+        698,
+        705,
+        707
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T12:18:49.360Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 1,
+      "reconnects_30d": 1,
+      "send_failures_7d": 3,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "45.38.88.14",
+          "latency_ms": 1054,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.14",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.14",
+          "latency_ms": 1075,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.14",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "45.38.88.14",
+          "latency_ms": 1065,
+          "geo": {
+            "ok": true,
+            "ip": "45.38.88.14",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "45.38.88.14",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1065,
+      "proxy_ip_stable": true,
+      "score": 80,
+      "veredito": "ESTÁVEL COM RESSALVAS",
+      "alertas": [
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 3"
+      ],
+      "pronto_disparo": true
+    },
+    {
+      "instance_name": "Ana Clara",
+      "instance_id": "ce86a17c-a10a-4979-af87-54a2b149638a",
+      "phone_number": null,
+      "owner_jid": "5521936183103@s.whatsapp.net",
+      "db_is_connected": false,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        760,
+        775,
+        691
+      ],
+      "fetchInstances_status": "connecting",
+      "fantasma": false,
+      "db_mismatch": false,
+      "proxy": {
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-30T11:11:40.388Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 0,
+      "disconnects_30d": 3,
+      "reconnects_30d": 2,
+      "send_failures_7d": 8,
+      "recent_disconnects": [
+        "2026-06-30T11:11:40"
+      ],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1097,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1080,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1107,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "92.113.235.127",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1095,
+      "proxy_ip_stable": true,
+      "score": 30,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 8"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Ana Beatriz2",
+      "instance_id": "39bd82d7-c4c2-4dc3-9caf-e412f592651f",
+      "phone_number": null,
+      "owner_jid": "5521936183124@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        705,
+        712,
+        761
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T23:27:34.690Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 3,
+      "reconnects_30d": 3,
+      "send_failures_7d": 10,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1067,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1125,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        },
+        {
+          "ok": true,
+          "ip": "92.113.235.127",
+          "latency_ms": 1063,
+          "geo": {
+            "ok": true,
+            "ip": "92.113.235.127",
+            "country": "Brazil",
+            "city": "São Paulo"
+          }
+        }
+      ],
+      "proxy_ip": "92.113.235.127",
+      "proxy_location": "São Paulo, Brazil",
+      "proxy_latency_avg_ms": 1085,
+      "proxy_ip_stable": true,
+      "score": 10,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Falhas de envio em 7d: 10"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Aline Souza",
+      "instance_id": "236fbda0-ba88-4466-bcc2-2b9bd07db933",
+      "phone_number": null,
+      "owner_jid": "5521936183158@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        722,
+        784,
+        695
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T16:36:37.848Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 2,
+      "reconnects_30d": 2,
+      "send_failures_7d": 9,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": false,
+          "latency_ms": 945,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 471,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 459,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        }
+      ],
+      "proxy_ip": null,
+      "proxy_location": null,
+      "proxy_latency_avg_ms": null,
+      "proxy_ip_stable": false,
+      "score": 0,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Proxy com falha em teste de IP",
+        "Falhas de envio em 7d: 9"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Ana Iclass",
+      "instance_id": "7787b1a3-7f35-424b-9e4c-6689863612d7",
+      "phone_number": null,
+      "owner_jid": "5521973201309@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        704,
+        689,
+        692
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "85.198.32.179",
+        "port": "5529",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T23:29:01.194Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 2,
+      "reconnects_30d": 3,
+      "send_failures_7d": 8,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": false,
+          "latency_ms": 789,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 476,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 476,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        }
+      ],
+      "proxy_ip": null,
+      "proxy_location": null,
+      "proxy_latency_avg_ms": null,
+      "proxy_ip_stable": false,
+      "score": 0,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Proxy com falha em teste de IP",
+        "Falhas de envio em 7d: 8"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Fatima",
+      "instance_id": "753f525c-7aa8-4baf-8a25-91b6e280fdb5",
+      "phone_number": null,
+      "owner_jid": "5521994530507@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        705,
+        697,
+        702
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T03:15:58.845Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 1,
+      "reconnects_7d": 1,
+      "disconnects_30d": 2,
+      "reconnects_30d": 2,
+      "send_failures_7d": 9,
+      "recent_disconnects": [
+        "2026-06-24T09:59:15"
+      ],
+      "proxy_tests": [
+        {
+          "ok": false,
+          "latency_ms": 813,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 473,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 499,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        }
+      ],
+      "proxy_ip": null,
+      "proxy_location": null,
+      "proxy_latency_avg_ms": null,
+      "proxy_ip_stable": false,
+      "score": 0,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Proxy com falha em teste de IP",
+        "Falhas de envio em 7d: 9"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Paula Silva",
+      "instance_id": "b489525a-4e1b-4260-8481-05c9d9e4cc3f",
+      "phone_number": null,
+      "owner_jid": "5521936183178@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        690,
+        699,
+        771
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-17T13:09:41.588Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 2,
+      "reconnects_30d": 2,
+      "send_failures_7d": 11,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": false,
+          "latency_ms": 874,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 501,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 472,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        }
+      ],
+      "proxy_ip": null,
+      "proxy_location": null,
+      "proxy_latency_avg_ms": null,
+      "proxy_ip_stable": false,
+      "score": 0,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Proxy com falha em teste de IP",
+        "Falhas de envio em 7d: 11"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "Silvia",
+      "instance_id": "88679772-682c-4590-9baf-01248c2404e0",
+      "phone_number": null,
+      "owner_jid": "5521966470571@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        693,
+        720,
+        706
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "85.198.32.108",
+        "port": "5458",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-18T23:32:13.563Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 2,
+      "reconnects_30d": 3,
+      "send_failures_7d": 9,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": false,
+          "latency_ms": 790,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 476,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 493,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        }
+      ],
+      "proxy_ip": null,
+      "proxy_location": null,
+      "proxy_latency_avg_ms": null,
+      "proxy_ip_stable": false,
+      "score": 0,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Proxy com falha em teste de IP",
+        "Falhas de envio em 7d: 9"
+      ],
+      "pronto_disparo": false
+    },
+    {
+      "instance_name": "sofia2",
+      "instance_id": "13ac815d-7a72-4637-b761-98285e89538c",
+      "phone_number": null,
+      "owner_jid": "5521968443291@s.whatsapp.net",
+      "db_is_connected": true,
+      "connection_state_final": "connecting",
+      "stability_polls": [
+        "connecting",
+        "connecting",
+        "connecting"
+      ],
+      "poll_latencies_ms": [
+        700,
+        696,
+        707
+      ],
+      "fetchInstances_status": "open",
+      "fantasma": false,
+      "db_mismatch": true,
+      "proxy": {
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http"
+      },
+      "last_disconnection_at": "2026-06-17T13:09:26.045Z",
+      "last_disconnection_code": 401,
+      "last_disconnection_label": "loggedOut — sessão deslogada",
+      "disconnects_7d": 0,
+      "reconnects_7d": 0,
+      "disconnects_30d": 1,
+      "reconnects_30d": 2,
+      "send_failures_7d": 8,
+      "recent_disconnects": [],
+      "proxy_tests": [
+        {
+          "ok": false,
+          "latency_ms": 478,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 468,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        },
+        {
+          "ok": false,
+          "latency_ms": 479,
+          "error": "curl: (56) CONNECT tunnel failed, response 407\n"
+        }
+      ],
+      "proxy_ip": null,
+      "proxy_location": null,
+      "proxy_latency_avg_ms": null,
+      "proxy_ip_stable": false,
+      "score": 0,
+      "veredito": "CRÍTICO",
+      "alertas": [
+        "Não está open agora (connecting)",
+        "CRM is_connected desalinhado com Evolution",
+        "Última queda grave: loggedOut — sessão deslogada",
+        "Proxy com falha em teste de IP",
+        "Falhas de envio em 7d: 8"
+      ],
+      "pronto_disparo": false
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-08-04T16:21:29.701050+00:00",
+  "organization_id": "1a6ab607-837b-48b4-a9b5-ec19187b3331",
+  "organization_name": "pubdigital 2",
+  "pool": [
+    {
+      "id": "6cbe5675-3726-49ab-8289-c6f3b53fddfc",
+      "name": "Bruna Alvez"
+    },
+    {
+      "id": "686b7c69-8936-4c9c-88f9-5dfb1b55b055",
+      "name": "Bruna Ferreira"
+    },
+    {
+      "id": "a3f5be3f-07c7-495f-8150-955e249d32cf",
+      "name": "Bruna Lima"
+    },
+    {
+      "id": "a6a7a06f-fe13-4f85-89c7-88c8c81d3e74",
+      "name": "Bruna Santos"
+    },
+    {
+      "id": "dd7e43c5-3fc4-463b-94cb-32b5fa550003",
+      "name": "Bruna Souza"
+    },
+    {
+      "id": "be04d452-4aa9-42e6-a0e9-a4839cbdb088",
+      "name": "Camila Alvez"
+    },
+    {
+      "id": "7b8c7e2d-4446-4acd-86b6-f17834faac42",
+      "name": "Camila Lima"
+    },
+    {
+      "id": "4aaf7fd1-8149-41ee-a082-fbeb79099552",
+      "name": "Camila Santos"
+    },
+    {
+      "id": "47b19221-33ca-4f8b-a164-6b201e7b3ba8",
+      "name": "Camila Souza"
+    },
+    {
+      "id": "b70d5fd8-9544-4775-be45-5e4c2ac706cb",
+      "name": "Joana Alvez"
+    },
+    {
+      "id": "32492375-dcd3-4933-9e69-373ddad3dfe0",
+      "name": "Joana Ferreira"
+    },
+    {
+      "id": "56bac264-ddc4-4018-be63-0e443990c80c",
+      "name": "Joana Lima"
+    }
+  ],
+  "batches": [
+    {
+      "batch": 1,
+      "preferred": "Bruna Alvez",
+      "used": "Bruna Alvez",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 2,
+      "preferred": "Bruna Ferreira",
+      "used": "Bruna Ferreira",
+      "ok": true,
+      "error": null,
+      "validated": 1,
+      "rejected": 3
+    },
+    {
+      "batch": 3,
+      "preferred": "Bruna Lima",
+      "used": "Bruna Lima",
+      "ok": true,
+      "error": null,
+      "validated": 0,
+      "rejected": 4
+    }
+  ],
+  "chips_used_in_validation": [
+    "Bruna Alvez",
+    "Bruna Ferreira",
+    "Bruna Lima"
+  ],
+  "validated": 5,
+  "rejected": 7,
+  "campaign_id": "1bf68a5c-08aa-4e15-8b66-639966c37a2e",
+  "campaign_name": "[SIM] rotate pubdigital2 20260804-162129",
+  "campaign_status": "draft",
+  "sending_method": "rotate",
+  "queue_count": 5,
+  "note": "Campanha DRAFT — não dispara mensagens reais."
+}

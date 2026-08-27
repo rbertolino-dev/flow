@@ -36,6 +36,7 @@ scripts/.ssh-credentials
 scripts/.github-credentials
 scripts/.e2e-credentials
 scripts/.evolution-ssh-credentials
+scripts/.evolution-ssh-credentials-pubdigital
 scripts/verificar-deploy-process-broadcast-queue.sql
 
 # Scripts de diagnóstico temporários

@@ -1,0 +1,115 @@
+{
+  "campaign_id": "f037f0ee-0b26-46f1-94c4-644c03ddb2d7",
+  "campaign_name": "[FULL26] rotate todas-ativas 20260804-163157",
+  "status": "draft",
+  "sending_method": "rotate",
+  "pool_size": 26,
+  "pool_names": [
+    "Bruna Alvez",
+    "Bruna Ferreira",
+    "Bruna Lima",
+    "Bruna Santos",
+    "Bruna Souza",
+    "Camila Alvez",
+    "Camila Lima",
+    "Camila Santos",
+    "Camila Souza",
+    "Joana Alvez",
+    "Joana Ferreira",
+    "Joana Lima",
+    "Joana Santos",
+    "Joana Silva",
+    "Joana Silva",
+    "Maria Alice",
+    "Maria Paula",
+    "Sabrina Guedes",
+    "Sabrina Lurdes",
+    "Sabrina Rodrigues",
+    "Sabrina Viana",
+    "Vitória Alvez",
+    "Vitória Ferreira",
+    "Vitória Lima",
+    "Vitória Santos",
+    "Vitória Souza"
+  ],
+  "validated": 25,
+  "rejected": 2,
+  "queue_count": 25,
+  "chips_in_queue": 25,
+  "batches": [
+    {
+      "batch": 1,
+      "preferred": "Bruna Alvez",
+      "used": "Bruna Alvez",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 2,
+      "preferred": "Bruna Ferreira",
+      "used": "Bruna Ferreira",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 3,
+      "preferred": "Bruna Lima",
+      "used": "Bruna Lima",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 4,
+      "preferred": "Bruna Santos",
+      "used": "Bruna Santos",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 5,
+      "preferred": "Bruna Souza",
+      "used": "Bruna Souza",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 6,
+      "preferred": "Camila Alvez",
+      "used": "Camila Alvez",
+      "ok": true,
+      "error": null,
+      "validated": 4,
+      "rejected": 0
+    },
+    {
+      "batch": 7,
+      "preferred": "Camila Lima",
+      "used": "Camila Lima",
+      "ok": true,
+      "error": null,
+      "validated": 1,
+      "rejected": 2
+    }
+  ],
+  "chips_used_validation": [
+    "Bruna Alvez",
+    "Bruna Ferreira",
+    "Bruna Lima",
+    "Bruna Santos",
+    "Bruna Souza",
+    "Camila Alvez",
+    "Camila Lima"
+  ],
+  "errors": [],
+  "note": "DRAFT — não dispara. 26 instâncias no rodízio."
+}

@@ -1,0 +1,1313 @@
+{
+  "generated_at": "2026-08-04T15:02:00.332236+00:00",
+  "organization_id": "1a6ab607-837b-48b4-a9b5-ec19187b3331",
+  "organization_name": "pubdigital 2",
+  "counts": {
+    "SAUDAVEL": 26,
+    "INCONCLUSIVO": 22,
+    "SESSAO_FECHADA": 4
+  },
+  "results": [
+    {
+      "instance": "Bruna Alvez",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 169,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Alvez\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 186,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Bruna Ferreira",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 97,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Ferreira\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 166,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Bruna Lima",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 133,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Lima\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 146,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Bruna Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 104,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 167,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Bruna Souza",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 168,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Souza\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 230,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Alvez",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 98,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Alvez\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 160,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Lima",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 108,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Lima\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 226,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 133,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 152,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Souza",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 122,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Souza\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 153,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Alvez",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 102,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Alvez\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 250,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Ferreira",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 114,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Ferreira\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 223,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Lima",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 116,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Lima\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 181,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 109,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 241,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Silva",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 110,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Silva\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 200,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Silva",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 154,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Silva\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 179,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Maria Alice",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 95,
+        "preview": "{\"instance\":{\"instanceName\":\"Maria Alice\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 214,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Maria Paula",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 126,
+        "preview": "{\"instance\":{\"instanceName\":\"Maria Paula\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 163,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Sabrina Guedes",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 116,
+        "preview": "{\"instance\":{\"instanceName\":\"Sabrina Guedes\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 140,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Sabrina Lurdes",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 107,
+        "preview": "{\"instance\":{\"instanceName\":\"Sabrina Lurdes\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 224,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Sabrina Rodrigues",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 105,
+        "preview": "{\"instance\":{\"instanceName\":\"Sabrina Rodrigues\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 260,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Sabrina Viana",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 105,
+        "preview": "{\"instance\":{\"instanceName\":\"Sabrina Viana\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 254,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Vitória Alvez",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 99,
+        "preview": "{\"instance\":{\"instanceName\":\"Vitória Alvez\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 143,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Vitória Ferreira",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 111,
+        "preview": "{\"instance\":{\"instanceName\":\"Vitória Ferreira\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 234,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Vitória Lima",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 102,
+        "preview": "{\"instance\":{\"instanceName\":\"Vitória Lima\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 257,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Vitória Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 108,
+        "preview": "{\"instance\":{\"instanceName\":\"Vitória Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 156,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Vitória Souza",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 117,
+        "preview": "{\"instance\":{\"instanceName\":\"Vitória Souza\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 154,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Aline Alves",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 91,
+        "preview": "{\"instance\":{\"instanceName\":\"Aline Alves\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 131,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Aline Oliveira",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 104,
+        "preview": "{\"instance\":{\"instanceName\":\"Aline Oliveira\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 99,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Aline Santos",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 105,
+        "preview": "{\"instance\":{\"instanceName\":\"Aline Santos\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 111,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Aline Silva",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 109,
+        "preview": "{\"instance\":{\"instanceName\":\"Aline Silva\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 119,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Aline Souza",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 114,
+        "preview": "{\"instance\":{\"instanceName\":\"Aline Souza\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 123,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Ana Beatriz",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 105,
+        "preview": "{\"instance\":{\"instanceName\":\"Ana Beatriz\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 111,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Ana Carolina",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 103,
+        "preview": "{\"instance\":{\"instanceName\":\"Ana Carolina\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 111,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Ana Clara",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 132,
+        "preview": "{\"instance\":{\"instanceName\":\"Ana Clara\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 122,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Ana julia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 124,
+        "preview": "{\"instance\":{\"instanceName\":\"Ana julia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 116,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Camila Ferreira",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 109,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Ferreira\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 117,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": true,
+        "technical_error": false,
+        "preview": "{\"data\":null,\"isBoom\":true,\"isServer\":false,\"output\":{\"statusCode\":428,\"payload\":{\"statusCode\":428,\"error\":\"Precondition Required\",\"message\":\"Connection Closed\"},\"headers\":{}}}"
+      },
+      "verdict": "SESSAO_FECHADA",
+      "explanation": "Sessão realmente fechada (state=close)"
+    },
+    {
+      "instance": "Cecilia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 112,
+        "preview": "{\"instance\":{\"instanceName\":\"Cecilia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 111,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "claudia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 106,
+        "preview": "{\"instance\":{\"instanceName\":\"claudia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 119,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Fátima",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 102,
+        "preview": "{\"instance\":{\"instanceName\":\"Fátima\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 108,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Flavia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 111,
+        "preview": "{\"instance\":{\"instanceName\":\"Flavia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 122,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Joana Souza",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 113,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Souza\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 121,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": true,
+        "technical_error": false,
+        "preview": "{\"data\":null,\"isBoom\":true,\"isServer\":false,\"output\":{\"statusCode\":428,\"payload\":{\"statusCode\":428,\"error\":\"Precondition Required\",\"message\":\"Connection Closed\"},\"headers\":{}}}"
+      },
+      "verdict": "SESSAO_FECHADA",
+      "explanation": "Sessão realmente fechada (state=close)"
+    },
+    {
+      "instance": "Livia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 95,
+        "preview": "{\"instance\":{\"instanceName\":\"Livia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 128,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Maria Eduarda",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 118,
+        "preview": "{\"instance\":{\"instanceName\":\"Maria Eduarda\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 114,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Maria Fernanda",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 102,
+        "preview": "{\"instance\":{\"instanceName\":\"Maria Fernanda\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 121,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": true,
+        "technical_error": false,
+        "preview": "{\"data\":null,\"isBoom\":true,\"isServer\":false,\"output\":{\"statusCode\":428,\"payload\":{\"statusCode\":428,\"error\":\"Precondition Required\",\"message\":\"Connection Closed\"},\"headers\":{}}}"
+      },
+      "verdict": "SESSAO_FECHADA",
+      "explanation": "Sessão realmente fechada (state=close)"
+    },
+    {
+      "instance": "Natalia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 108,
+        "preview": "{\"instance\":{\"instanceName\":\"Natalia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 107,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Paula Alves",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 106,
+        "preview": "{\"instance\":{\"instanceName\":\"Paula Alves\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 126,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Paula Oliveira",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 101,
+        "preview": "{\"instance\":{\"instanceName\":\"Paula Oliveira\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 104,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Paula Silva",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 113,
+        "preview": "{\"instance\":{\"instanceName\":\"Paula Silva\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 106,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Sabrina Cesar",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 95,
+        "preview": "{\"instance\":{\"instanceName\":\"Sabrina Cesar\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 111,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": true,
+        "technical_error": false,
+        "preview": "{\"data\":null,\"isBoom\":true,\"isServer\":false,\"output\":{\"statusCode\":428,\"payload\":{\"statusCode\":428,\"error\":\"Precondition Required\",\"message\":\"Connection Closed\"},\"headers\":{}}}"
+      },
+      "verdict": "SESSAO_FECHADA",
+      "explanation": "Sessão realmente fechada (state=close)"
+    },
+    {
+      "instance": "Sofia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 113,
+        "preview": "{\"instance\":{\"instanceName\":\"Sofia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 137,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Sônia",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 112,
+        "preview": "{\"instance\":{\"instanceName\":\"Sônia\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 109,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    },
+    {
+      "instance": "Valéria",
+      "crm_is_connected": false,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "close",
+        "ms": 108,
+        "preview": "{\"instance\":{\"instanceName\":\"Valéria\",\"state\":\"close\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 400,
+        "ms": 115,
+        "rows": 0,
+        "exists_true": 0,
+        "exists_false": 0,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "{}"
+      },
+      "verdict": "INCONCLUSIVO",
+      "explanation": "state=close http_cs=200 http_wn=400 rows=0"
+    }
+  ],
+  "exit_code": 0
+}

@@ -1,0 +1,114 @@
+{
+  "generated_at": "2026-06-21T21:20:52.817446+00:00",
+  "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+  "evolution_summary": {
+    "total": 53,
+    "open": 19,
+    "close": 31,
+    "connecting": 3
+  },
+  "config": {
+    "open_limit": 2,
+    "delay_seconds": 1.0
+  },
+  "summary": {
+    "pass": 8,
+    "warn": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "scenarios": [
+    {
+      "id": "fetch_instances_parse",
+      "title": "Parser fetchInstances (name + connectionStatus)",
+      "status": "pass",
+      "detail": "http=200 total=53 names=53 open=19",
+      "data": {
+        "http": 200,
+        "total": 53,
+        "parsed_names": 53,
+        "open": 19
+      }
+    },
+    {
+      "id": "crm_name_match",
+      "title": "Nomes CRM batem com open na Evolution",
+      "status": "pass",
+      "detail": "crm=43 matched_open=17 not_in_evo_open=26",
+      "data": {
+        "matched_open": 17,
+        "crm_total": 43,
+        "missing": 26
+      }
+    },
+    {
+      "id": "open_validate_Natalia",
+      "title": "OPEN whatsappNumbers: Natalia",
+      "status": "pass",
+      "detail": "http=200 true=2 false=3 owner_matched=True",
+      "data": {
+        "instance": "Natalia",
+        "connectionState": "open",
+        "exists_true": 2,
+        "exists_false": 3,
+        "owner_matched": true
+      }
+    },
+    {
+      "id": "open_validate_Aline Souza",
+      "title": "OPEN whatsappNumbers: Aline Souza",
+      "status": "pass",
+      "detail": "http=200 true=2 false=3 owner_matched=True",
+      "data": {
+        "instance": "Aline Souza",
+        "connectionState": "open",
+        "exists_true": 2,
+        "exists_false": 3,
+        "owner_matched": true
+      }
+    },
+    {
+      "id": "phone_format",
+      "title": "Formatos de telefone (DDI vs local)",
+      "status": "pass",
+      "detail": "ddi_ok=True local_sem_ddi_false=True http=200",
+      "data": {
+        "by_num": {
+          "5521936186823": true,
+          "+5521936186823": true,
+          "55 21 93618-6823": true,
+          "(21) 93618-6823": false
+        }
+      }
+    },
+    {
+      "id": "all_false_sem_erro",
+      "title": "Somente inválidos → 0 válidos (sem Connection Closed)",
+      "status": "pass",
+      "detail": "http=200 all_exists_false=True count=4",
+      "data": {}
+    },
+    {
+      "id": "close_validate_Sabrina guedes",
+      "title": "CLOSE whatsappNumbers: Sabrina guedes",
+      "status": "pass",
+      "detail": "http=400 connection_closed=True",
+      "data": {
+        "instance": "Sabrina guedes",
+        "list_status": "close",
+        "http": 400
+      }
+    },
+    {
+      "id": "connecting_validate_Livia",
+      "title": "CONNECTING whatsappNumbers: Livia",
+      "status": "pass",
+      "detail": "http=400 connection_closed=True",
+      "data": {
+        "instance": "Livia",
+        "list_status": "connecting",
+        "http": 400
+      }
+    }
+  ]
+}

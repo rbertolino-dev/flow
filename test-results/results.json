@@ -11,7 +11,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 1
+      "actualWorkers": 2
     },
     "preserveOutput": "always",
     "reporter": [
@@ -49,12 +49,14 @@
         "repeatEach": 1,
         "retries": 1,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "chromium",
         "name": "chromium",
         "testDir": "/root/kanban-buzz-95241/tests/e2e",
-        "testIgnore": [],
+        "testIgnore": [
+          "/\\.perf\\.spec\\.ts$/"
+        ],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
@@ -65,12 +67,14 @@
         "repeatEach": 1,
         "retries": 1,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "firefox",
         "name": "firefox",
         "testDir": "/root/kanban-buzz-95241/tests/e2e",
-        "testIgnore": [],
+        "testIgnore": [
+          "/\\.perf\\.spec\\.ts$/"
+        ],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
@@ -81,12 +85,14 @@
         "repeatEach": 1,
         "retries": 1,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "webkit",
         "name": "webkit",
         "testDir": "/root/kanban-buzz-95241/tests/e2e",
-        "testIgnore": [],
+        "testIgnore": [
+          "/\\.perf\\.spec\\.ts$/"
+        ],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
@@ -97,12 +103,14 @@
         "repeatEach": 1,
         "retries": 1,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "Mobile Chrome",
         "name": "Mobile Chrome",
         "testDir": "/root/kanban-buzz-95241/tests/e2e",
-        "testIgnore": [],
+        "testIgnore": [
+          "/\\.perf\\.spec\\.ts$/"
+        ],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
@@ -113,14 +121,34 @@
         "repeatEach": 1,
         "retries": 1,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "Mobile Safari",
         "name": "Mobile Safari",
         "testDir": "/root/kanban-buzz-95241/tests/e2e",
-        "testIgnore": [],
+        "testIgnore": [
+          "/\\.perf\\.spec\\.ts$/"
+        ],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/root/kanban-buzz-95241/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 2
+        },
+        "id": "chromium-unit",
+        "name": "chromium-unit",
+        "testDir": "/root/kanban-buzz-95241/tests/e2e",
+        "testIgnore": [
+          "/\\.perf\\.spec\\.ts$/"
+        ],
+        "testMatch": [
+          "/\\.unit\\.spec\\.ts$/"
         ],
         "timeout": 30000
       }
@@ -142,290 +170,393 @@
   },
   "suites": [
     {
-      "title": "contracts-novo-contrato.spec.ts",
-      "file": "contracts-novo-contrato.spec.ts",
+      "title": "waha-broadcast-schedule.unit.spec.ts",
+      "file": "waha-broadcast-schedule.unit.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Contratos - Botão Novo Contrato",
-          "file": "contracts-novo-contrato.spec.ts",
-          "line": 9,
+          "title": "@unit agendamento WAHA no próximo minuto",
+          "file": "waha-broadcast-schedule.unit.spec.ts",
+          "line": 8,
           "column": 6,
           "specs": [
             {
-              "title": "deve abrir dialog de novo contrato sem erros",
-              "ok": false,
-              "tags": [],
+              "title": "arredonda para o próximo minuto cheio",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
               "tests": [
                 {
                   "timeout": 30000,
                   "annotations": [],
                   "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
                   "results": [
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 18697,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38",
-                        "location": {
-                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                          "column": 38,
-                          "line": 38
-                        },
-                        "snippet": "  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                            "column": 38,
-                            "line": 38
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n\n  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 17,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-18T14:33:56.685Z",
+                      "startTime": "2026-08-26T13:28:36.477Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                        "column": 38,
-                        "line": 38
-                      }
-                    },
-                    {
-                      "workerIndex": 1,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 16271,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\u001b[2m    - waiting for\" http://localhost:8080/contracts\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:8080/contracts\"\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\u001b[2m    - waiting for\" http://localhost:8080/contracts\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:8080/contracts\"\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38",
-                        "location": {
-                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                          "column": 38,
-                          "line": 38
-                        },
-                        "snippet": "  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                            "column": 38,
-                            "line": 38
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /novo contrato/i })\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\u001b[2m    - waiting for\" http://localhost:8080/contracts\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:8080/contracts\"\u001b[22m\n\n\n  36 |     const novoContratoButton = page.getByRole('button', { name: /novo contrato/i });\n  37 |     \n> 38 |     await expect(novoContratoButton).toBeVisible({ timeout: 10000 });\n     |                                      ^\n  39 |     await human.humanClick(novoContratoButton);\n  40 |     await human.randomDelay(1000, 2000);\n  41 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:38:38"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-12-18T14:34:16.820Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-10034--de-novo-contrato-sem-erros-chromium-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                        "column": 38,
-                        "line": 38
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
-              "id": "22be4b3bd4468bdbd167-cb4553c72642d6b70dcd",
-              "file": "contracts-novo-contrato.spec.ts",
-              "line": 20,
+              "id": "d791b593562e8eacad05-7cb7be95d67047941fd3",
+              "file": "waha-broadcast-schedule.unit.spec.ts",
+              "line": 9,
               "column": 3
             },
             {
-              "title": "deve verificar todos os SelectItems no dialog",
-              "ok": false,
-              "tags": [],
+              "title": "no minuto exato avança um minuto",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
               "tests": [
                 {
                   "timeout": 30000,
                   "annotations": [],
                   "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
                   "results": [
                     {
-                      "workerIndex": 2,
+                      "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 20486,
-                      "error": {
-                        "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n",
-                        "stack": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64",
-                        "location": {
-                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                          "column": 64,
-                          "line": 121
-                        },
-                        "snippet": "  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                            "column": 64,
-                            "line": 121
-                          },
-                          "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n\n  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 6,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-18T14:34:34.584Z",
+                      "startTime": "2026-08-26T13:28:36.543Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                        "column": 64,
-                        "line": 121
-                      }
-                    },
-                    {
-                      "workerIndex": 3,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 20486,
-                      "error": {
-                        "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n",
-                        "stack": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64",
-                        "location": {
-                          "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                          "column": 64,
-                          "line": 121
-                        },
-                        "snippet": "  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                            "column": 64,
-                            "line": 121
-                          },
-                          "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /novo contrato/i })\u001b[22m\n\n\n  119 |\n  120 |     // Abrir dialog\n> 121 |     await page.getByRole('button', { name: /novo contrato/i }).click();\n      |                                                                ^\n  122 |     await page.waitForSelector('[role=\"dialog\"]', { timeout: 5000 });\n  123 |     await human.randomDelay(2000, 3000);\n  124 |\n    at /root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts:121:64"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-12-18T14:34:56.499Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/root/kanban-buzz-95241/test-results/artifacts/contracts-novo-contrato-Co-90c56-os-os-SelectItems-no-dialog-chromium-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/root/kanban-buzz-95241/tests/e2e/contracts-novo-contrato.spec.ts",
-                        "column": 64,
-                        "line": 121
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
-              "id": "22be4b3bd4468bdbd167-5222e67bea22052494b7",
-              "file": "contracts-novo-contrato.spec.ts",
-              "line": 106,
+              "id": "d791b593562e8eacad05-adf8f82626b52a70378f",
+              "file": "waha-broadcast-schedule.unit.spec.ts",
+              "line": 15,
+              "column": 3
+            },
+            {
+              "title": "primeiro envio de cada sessão é no início; intervalo só entre os seguintes",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.580Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d791b593562e8eacad05-a23eb2a07111d6b37a16",
+              "file": "waha-broadcast-schedule.unit.spec.ts",
+              "line": 20,
+              "column": 3
+            },
+            {
+              "title": "não aplica o delay no único contato da sessão",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.621Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d791b593562e8eacad05-e510a75f97fcff035e88",
+              "file": "waha-broadcast-schedule.unit.spec.ts",
+              "line": 44,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "waha-send-interval.unit.spec.ts",
+      "file": "waha-send-interval.unit.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "@unit intervalo de envio WAHA",
+          "file": "waha-send-interval.unit.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "aceita intervalo lento 3000–4000 segundos",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 14,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.368Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5ca75732ece88123379a-e6bd1091e1cdd1b4479d",
+              "file": "waha-send-interval.unit.spec.ts",
+              "line": 10,
+              "column": 3
+            },
+            {
+              "title": "aceita o antigo teto de 1 hora",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 5,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.437Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5ca75732ece88123379a-76e818ab5da351f92056",
+              "file": "waha-send-interval.unit.spec.ts",
+              "line": 15,
+              "column": 3
+            },
+            {
+              "title": "aceita o teto de 24 horas alinhado ao Evolution",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 7,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.465Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5ca75732ece88123379a-26c362d3d4b609e2aa69",
+              "file": "waha-send-interval.unit.spec.ts",
+              "line": 19,
+              "column": 3
+            },
+            {
+              "title": "rejeita máximo menor que o mínimo",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 7,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.507Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5ca75732ece88123379a-988cbc77473210aa7e77",
+              "file": "waha-send-interval.unit.spec.ts",
+              "line": 25,
+              "column": 3
+            },
+            {
+              "title": "rejeita abaixo do mínimo de 5 segundos",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 8,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.554Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5ca75732ece88123379a-32be3c73ba42c9260cd0",
+              "file": "waha-send-interval.unit.spec.ts",
+              "line": 31,
+              "column": 3
+            },
+            {
+              "title": "rejeita acima de 24 horas",
+              "ok": true,
+              "tags": [
+                "unit"
+              ],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-unit",
+                  "projectName": "chromium-unit",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 6,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-26T13:28:36.594Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5ca75732ece88123379a-07ef173181f1f177a0d0",
+              "file": "waha-send-interval.unit.spec.ts",
+              "line": 37,
               "column": 3
             }
           ]
@@ -435,11 +566,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-12-18T14:33:53.970Z",
-    "duration": 83485.287,
-    "expected": 0,
+    "startTime": "2026-08-26T13:28:32.460Z",
+    "duration": 4270.793,
+    "expected": 10,
     "skipped": 0,
-    "unexpected": 2,
+    "unexpected": 0,
     "flaky": 0
   }
 }

@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-08-05T18:31:45.459065+00:00",
+  "server": {
+    "host": "65.109.132.220",
+    "label": "evo30 PubDigital",
+    "container_live": "evolution_30_evolution_30.1.qy19j22mlt7t0zjn726k7ac88",
+    "container_dead_in_old_creds": "evolution_30_evolution_30.1.49msojvy2bklyqinyy8cfupf2"
+  },
+  "host_resources": {
+    "ram": "7.6Gi",
+    "swap": "0",
+    "free_at_check": "~140Mi",
+    "oom_kills_recent": [
+      "2026-07-17",
+      "2026-07-21",
+      "2026-07-30",
+      "2026-07-31"
+    ],
+    "note": "Caixa compartilhada com Chatwoot x3, evo10/20/30, n8n, postgres — pressão de memória crônica"
+  },
+  "crm_pubdigital2": {
+    "total": 52,
+    "connected": 12,
+    "disconnected": 40
+  },
+  "evolution_fetchInstances": {
+    "open": 11,
+    "connecting": 4,
+    "close": 46
+  },
+  "health_probe_now": {
+    "SAUDAVEL": 12,
+    "SESSAO_FECHADA": 18,
+    "INCONCLUSIVO": 22
+  },
+  "logs_48h": {
+    "stream_error_503": 85,
+    "stream_error_other": 45,
+    "connection_closed_428": 8,
+    "device_removed": 11,
+    "connectionReplaced_440": 25,
+    "reconnect_banners": 366
+  },
+  "mass_crm_mark_off": {
+    "at": "2026-08-04 18:47 UTC",
+    "count": 13,
+    "names": [
+      "Bruna Ferreira",
+      "Bruna Souza",
+      "Camila Souza",
+      "Joana Alvez",
+      "Joana Ferreira",
+      "Joana Lima",
+      "Sabrina Guedes",
+      "Sabrina Rodrigues",
+      "Sabrina Viana",
+      "Vitória Alvez",
+      "Vitória Ferreira",
+      "Vitória Lima",
+      "Vitória Santos"
+    ]
+  },
+  "root_causes": [
+    "WhatsApp stream:error 503 em massa (serviço WA indisponível/instável) → sessão cai e Baileys reconecta",
+    "device_removed / 401 loggedOut em vários chips (WhatsApp removeu o dispositivo vinculado)",
+    "440 connectionReplaced (sessão substituída — outra conexão/duplicidade), destaque Maria Alice",
+    "Servidor com 7.6GB RAM sem swap e histórico de OOM kill no processo Evolution (MainThread) — derruba sessões em lote",
+    "CRM marcou OFF corretamente após sync/falhas reais (não é falso positivo generalizado agora)"
+  ],
+  "recommendations": [
+    "Subir RAM do host evo30 (mín. 16GB) e habilitar swap, ou separar Chatwoot/n8n de Evolution",
+    "Reconectar (QR) os chips em SESSAO_FECHADA / device_removed",
+    "Evitar abrir a mesma sessão em dois lugares (causa 440)",
+    "Reduzir carga simultânea de disparo/validação em todos os chips",
+    "Limpar pastas/instâncias mortas e alinhar CRM com as ~24–61 sessões reais na Evolution"
+  ]
+}

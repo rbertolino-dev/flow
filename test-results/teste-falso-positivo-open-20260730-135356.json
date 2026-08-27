@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-07-30T13:53:56.096486+00:00",
+  "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+  "organization_name": "pubdgital",
+  "counts": {
+    "SAUDAVEL": 1
+  },
+  "results": [
+    {
+      "instance": "lena",
+      "crm_is_connected": true,
+      "api_url_db": "http://evo20.atendimentoagilize.com",
+      "api_url": "https://evo20.atendimentoagilize.com",
+      "redirect_trap_http": true,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 107,
+        "preview": "{\"instance\":{\"instanceName\":\"lena\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 263,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK | AVISO: api_url no CRM ainda é http:// (308 no POST sem follow) — corrigir para https:// evita falso erro em alguns clientes"
+    }
+  ],
+  "exit_code": 0
+}

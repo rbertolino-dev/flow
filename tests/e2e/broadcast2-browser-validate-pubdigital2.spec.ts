@@ -345,19 +345,38 @@ test.describe("Disparador 2 — validação browser pubdigital 2 @human-behavior
         }
       }
 
-      // Sucesso de validação
+      // Sucesso de validação (vários lotes de 20 → várias edge calls ok)
+      const anyEdgeOk = edgeCalls.some((c) => (c.responseBody as any)?.ok === true);
+      const allBatchesDone =
+        edgeCalls.length >= 2 &&
+        edgeCalls.every((c) => (c.responseBody as any)?.ok === true || Array.isArray((c.responseBody as any)?.validatedNumbers));
       if (
-        (await page.getByText(/contatos válidos|WhatsApp|validação/i).first().isVisible().catch(() => false)) &&
-        edgeCalls.some((c) => (c.responseBody as any)?.ok === true)
+        anyEdgeOk &&
+        ((await page.getByText(/contatos válidos|WhatsApp válido|validação/i).first().isVisible().catch(() => false)) ||
+          allBatchesDone)
       ) {
         sawValidationResult = true;
-        note("validação parece OK (edge ok=true)");
-        break;
+        note(`validação OK (edge ok calls=${edgeCalls.filter((c) => (c.responseBody as any)?.ok).length}/${edgeCalls.length})`);
+        // Aguarda um pouco mais se ainda pode haver lotes
+        if (edgeCalls.length < 3 && Date.now() < deadline - 60_000) {
+          await page.waitForTimeout(3000);
+          if (edgeCalls.some((c) => (c.responseBody as any)?.ok === false && !(c.responseBody as any)?.validatedNumbers?.length)) {
+            /* keep waiting */
+          } else if (edgeCalls.length >= 2) {
+            break;
+          }
+        } else {
+          break;
+        }
       }
 
-      if (edgeCalls.length > 0 && edgeCalls.every((c) => (c.responseBody as any)?.ok === false)) {
-        // espera um pouco mais por retries/lotes
-        if (edgeCalls.length >= 1 && Date.now() > deadline - 30_000) break;
+      if (
+        edgeCalls.length > 0 &&
+        edgeCalls.every((c) => (c.responseBody as any)?.ok === false) &&
+        sawErrorToast &&
+        /OPEN no painel|não validou/i.test(lastErrorText)
+      ) {
+        break;
       }
 
       await page.waitForTimeout(1000);
@@ -387,10 +406,11 @@ test.describe("Disparador 2 — validação browser pubdigital 2 @human-behavior
     note(`relatório: ${reportPath}`);
     note(`edgeCalls=${edgeCalls.length} errorToast=${sawErrorToast} ok=${sawValidationResult}`);
 
-    // Assert diagnóstico (não falha o teste se capturou o erro — queremos o evidência)
-    expect(edgeCalls.length + (sawErrorToast ? 1 : 0)).toBeGreaterThan(0);
+    // Assert: com o fix, esperamos validação OK após remover desconectadas
+    expect(edgeCalls.length).toBeGreaterThan(0);
+    const lastOk = edgeCalls.filter((c) => (c.responseBody as any)?.ok === true);
+    const lastFail = edgeCalls.filter((c) => (c.responseBody as any)?.ok === false);
 
-    // Se a edge foi chamada, loga diferença de instanceIds
     for (const call of edgeCalls) {
       const body = call.requestBody as any;
       console.log(
@@ -402,13 +422,21 @@ test.describe("Disparador 2 — validação browser pubdigital 2 @human-behavior
         body?.numbers?.length,
         "ok=",
         (call.responseBody as any)?.ok,
+        "used=",
+        (call.responseBody as any)?.usedInstance,
         "error=",
         (call.responseBody as any)?.error,
       );
     }
 
-    if (sawErrorToast && /OPEN no painel|não validou/i.test(lastErrorText)) {
-      console.log("REPRODUZIU o erro do navegador (mesmo da imagem).");
+    if (sawErrorToast && /OPEN no painel|não validou/i.test(lastErrorText) && lastOk.length === 0) {
+      console.log("REPRODUZIU o erro do navegador (mesmo da imagem) — regressão.");
+      expect(lastOk.length, "validação deveria ter ok=true após fix").toBeGreaterThan(0);
     }
+
+    expect(
+      lastOk.length > 0 || !sawErrorToast,
+      `Esperava validação OK. lastError=${lastErrorText.slice(0, 200)} fails=${lastFail.length}`,
+    ).toBeTruthy();
   });
 });

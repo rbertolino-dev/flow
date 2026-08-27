@@ -1,0 +1,2408 @@
+{
+  "meta": {
+    "source": "https://evo30.atendimentoagilize.com",
+    "clientName": "evolution_30",
+    "exported_at_utc": "2026-07-29T12:12:30.175646Z",
+    "total_instances": 61,
+    "with_chatwoot": 40,
+    "without_chatwoot": 21,
+    "notes": [
+      "Nomes das instâncias preservados exatamente (campo name / instanceName).",
+      "Configuração Chatwoot completa incluída quando existia.",
+      "Proxy NÃO incluído — todas as entradas ficam enabled=false e campos vazios.",
+      "Sessões WhatsApp (QR/pares) NÃO são transferíveis por este backup; após restore é preciso reconectar."
+    ]
+  },
+  "restore_order": [
+    "Maria Alice",
+    "Sabrina Rodrigues",
+    "Clara Santos",
+    "Fátima",
+    "Livia",
+    "Aline Santos",
+    "Clara Silva",
+    "Maria Paula",
+    "Cecilia",
+    "Vitória Alvez",
+    "Maria Clara",
+    "Ana Beatriz",
+    "Paula Silva",
+    "Valéria",
+    "Sabrina Lurdes",
+    "Sabrina Cesar",
+    "Sabrina Guedes",
+    "claudia",
+    "Clara Souza",
+    "Paula Oliveira",
+    "Camila Alvez",
+    "Joana Ferreira",
+    "Aline Silva",
+    "Maria Eduarda",
+    "Natalia",
+    "Joana Souza",
+    "Bruna Ferreira",
+    "Joana Santos",
+    "Camila Lima",
+    "Joana Silva",
+    "Ana Clara",
+    "Vitória Lima",
+    "Maria Fernanda",
+    "Joana Alvez",
+    "Sônia",
+    "Sofia",
+    "Flavia",
+    "Cláudia",
+    "Ana Carolina",
+    "Joana Lima",
+    "Aline Alves",
+    "Aline Souza",
+    "Bruna Santos",
+    "Vitória Santos",
+    "Vitória Ferreira",
+    "Ana Luiza",
+    "Bruna Alvez",
+    "Camila Souza",
+    "Aline Oliveira",
+    "Bruna Souza",
+    "Bruna Lima",
+    "Camila Santos",
+    "666",
+    "Sabrina Viana",
+    "Paula Souza",
+    "Paula Santos",
+    "Camila Ferreira",
+    "Clara Alves",
+    "Paula Alves",
+    "Vitória Souza",
+    "Ana julia"
+  ],
+  "payloads": [
+    {
+      "instanceName": "Maria Alice",
+      "create": {
+        "instanceName": "Maria Alice",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "F258C82DFF06-4A78-93CC-ED774542733A",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sabrina Rodrigues",
+      "create": {
+        "instanceName": "Sabrina Rodrigues",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "FDBFA17F089B-4A84-8FD4-D423032DD576",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sabrina Rodrigues",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Clara Santos",
+      "create": {
+        "instanceName": "Clara Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "CAF468FEAD3A-4D60-A686-9E6B4B2D1FCB",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Fátima",
+      "create": {
+        "instanceName": "Fátima",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "035DB5EB33EA-470F-8D5C-553E64B30D22",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com/",
+        "nameInbox": "Fátima",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Livia",
+      "create": {
+        "instanceName": "Livia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "192DD018CE21-4A41-9E89-4C23880EBB67",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Livia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Aline Santos",
+      "create": {
+        "instanceName": "Aline Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "529748B7BFF3-43F8-8AF9-F923CEC2B27C",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Clara Silva",
+      "create": {
+        "instanceName": "Clara Silva",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "537E2BE41D44-4F76-9E1C-15F6593449BF",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Maria Paula",
+      "create": {
+        "instanceName": "Maria Paula",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "57CB50FA623C-458F-9447-026EC22134AC",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Cecilia",
+      "create": {
+        "instanceName": "Cecilia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "E7014E3F419D-4973-8104-4D09C3B39DAD",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Cecilia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Vitória Alvez",
+      "create": {
+        "instanceName": "Vitória Alvez",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "06D8E5B8FCC8-42E6-8D2B-62D5BCC7997F",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Vitória Alvez",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Maria Clara",
+      "create": {
+        "instanceName": "Maria Clara",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "FAF95A0DE147-42A0-BBC5-E1838213F94B",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Ana Beatriz",
+      "create": {
+        "instanceName": "Ana Beatriz",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "776515A00B26-4D41-AC8F-3A49534ED519",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Ana Beatriz",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Paula Silva",
+      "create": {
+        "instanceName": "Paula Silva",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "24C21009FF18-4400-990A-6D86FD2E2BD6",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Valéria",
+      "create": {
+        "instanceName": "Valéria",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "DABA2EF4EBF4-4434-8A23-467F20EBB11C",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com/",
+        "nameInbox": "Valéria",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sabrina Lurdes",
+      "create": {
+        "instanceName": "Sabrina Lurdes",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "C49EDD9AE526-4A61-97A3-F44DB80E06F4",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sabrina Lurdes",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sabrina Cesar",
+      "create": {
+        "instanceName": "Sabrina Cesar",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "151BA4AAFE8A-46ED-B7A0-CD8F1EF61755",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sabrina Cesar",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sabrina Guedes",
+      "create": {
+        "instanceName": "Sabrina Guedes",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "EC592037D1FF-40E4-86B5-0E0514952161",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sabrina Guedes",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "claudia",
+      "create": {
+        "instanceName": "claudia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "2665497D9ADF-429A-AD6C-26C1A44492A5",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Clara Souza",
+      "create": {
+        "instanceName": "Clara Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "607F8122DB13-4570-9037-C2D342B9CFD4",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Paula Oliveira",
+      "create": {
+        "instanceName": "Paula Oliveira",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "49F9110FC998-4EF8-8D44-0C7BCBA7E268",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Camila Alvez",
+      "create": {
+        "instanceName": "Camila Alvez",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "CC2167BE406D-40DF-B981-27350B6AA04D",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Camila Alvez",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Joana Ferreira",
+      "create": {
+        "instanceName": "Joana Ferreira",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "D472385AFD57-454F-B5AE-A6DEF94A9710",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Joana Ferreira",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Aline Silva",
+      "create": {
+        "instanceName": "Aline Silva",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "4813110CCB36-4C45-9494-A5B86DE4CC55",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Maria Eduarda",
+      "create": {
+        "instanceName": "Maria Eduarda",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "FE68A92C9B48-4A54-8BD5-42B450A015CD",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Natalia",
+      "create": {
+        "instanceName": "Natalia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "3218CB09DB5B-49B5-B819-D56D17F2692C",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com/",
+        "nameInbox": "Natalia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Joana Souza",
+      "create": {
+        "instanceName": "Joana Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "84D5E1F0BDEC-49CC-AC06-A48E53867E1A",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Joana Souza",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Bruna Ferreira",
+      "create": {
+        "instanceName": "Bruna Ferreira",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "84713D81C066-4DD4-83EB-1DB2A36A9E93",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Bruna Ferreira",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Joana Santos",
+      "create": {
+        "instanceName": "Joana Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "A937060DC484-4183-AF37-C5A57ADB2E12",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Joana Santos",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Camila Lima",
+      "create": {
+        "instanceName": "Camila Lima",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "9F4E26994FDC-4E1D-81E1-87F2844B556C",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Camila Lima",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Joana Silva",
+      "create": {
+        "instanceName": "Joana Silva",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "20EAD1406C43-4B31-9BDF-AAA45D303007",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Joana Silva",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Ana Clara",
+      "create": {
+        "instanceName": "Ana Clara",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "6137ACAC78DD-4FCF-92F3-A46D562540A4",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Ana Clara",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Vitória Lima",
+      "create": {
+        "instanceName": "Vitória Lima",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "6B5918A3F684-4634-90C1-8EFC8E7137B6",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Vitória Lima",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Maria Fernanda",
+      "create": {
+        "instanceName": "Maria Fernanda",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "F978FD140AFD-43F2-8344-886582F73336",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Joana Alvez",
+      "create": {
+        "instanceName": "Joana Alvez",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "4BEF002559EC-4F1C-BD45-F12B392909FC",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Joana Alvez",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sônia",
+      "create": {
+        "instanceName": "Sônia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "7699354E9B97-4958-BBE2-9CE9CFD2BE3A",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sônia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sofia",
+      "create": {
+        "instanceName": "Sofia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "9723810B29CC-4D3F-952F-24E524D886E7",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sofia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Flavia",
+      "create": {
+        "instanceName": "Flavia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "879651DB193B-4F00-8706-1A5D11EDA50B",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com/",
+        "nameInbox": "Flávia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Cláudia",
+      "create": {
+        "instanceName": "Cláudia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "1B13AE783133-491E-AE2D-EEAFD6983030",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Claudia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Ana Carolina",
+      "create": {
+        "instanceName": "Ana Carolina",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "E26767D0D37E-45F0-BB72-081F7541B7F6",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Ana Carolina",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Joana Lima",
+      "create": {
+        "instanceName": "Joana Lima",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "2E70276B3D2C-4E45-8914-5AB7C2FCA2B2",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Joana Lima",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Aline Alves",
+      "create": {
+        "instanceName": "Aline Alves",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "1C41F7DF68D9-4FFD-9423-90D4F1CAC79A",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Aline Souza",
+      "create": {
+        "instanceName": "Aline Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "94EEBC9D57B7-4AF8-8495-27F8F0E0D60F",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Bruna Santos",
+      "create": {
+        "instanceName": "Bruna Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "B022C92BE1DE-43E3-8376-F1837B09C8D8",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Bruna Santos",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Vitória Santos",
+      "create": {
+        "instanceName": "Vitória Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "08B65E246298-418C-BAFA-55A3E020507D",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Vitória Santos",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Vitória Ferreira",
+      "create": {
+        "instanceName": "Vitória Ferreira",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "71F8518E2A24-41E3-BA94-CF8DAC79158E",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Vitória Ferreira",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Ana Luiza",
+      "create": {
+        "instanceName": "Ana Luiza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "B2225D47F855-4507-A02A-5BEF06A9950B",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Ana Luiza",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Bruna Alvez",
+      "create": {
+        "instanceName": "Bruna Alvez",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "4F28DA2F9CD3-45A9-BA38-1054E18EDE06",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Bruna Alvez",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Camila Souza",
+      "create": {
+        "instanceName": "Camila Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "42CC55114474-49F9-BF7A-AE73BC523F23",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Camila Souza",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Aline Oliveira",
+      "create": {
+        "instanceName": "Aline Oliveira",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "09729CDA2B03-4174-90FE-232C874941DD",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Bruna Souza",
+      "create": {
+        "instanceName": "Bruna Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "C88176BB0819-4B7A-A61B-EB71971921C3",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Bruna Souza",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Bruna Lima",
+      "create": {
+        "instanceName": "Bruna Lima",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "9A26EA2D0DE9-4ED0-AE88-1EB2B7810F8A",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Bruna Lima",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Camila Santos",
+      "create": {
+        "instanceName": "Camila Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "146A59F00916-4CB7-8443-D66BF3450F3B",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Camila Santos",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "666",
+      "create": {
+        "instanceName": "666",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "39F46F0A1D34-43B4-95AA-245BE3144000",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Sabrina Viana",
+      "create": {
+        "instanceName": "Sabrina Viana",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "197C9F08E2A1-4D4E-9B10-AA53E46EE9A4",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Sabrina Viana",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Paula Souza",
+      "create": {
+        "instanceName": "Paula Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "688B37037C21-4608-93D3-AADF96D9ECD4",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Paula Santos",
+      "create": {
+        "instanceName": "Paula Santos",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "299788393625-47A2-89C4-210EBB729136",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Camila Ferreira",
+      "create": {
+        "instanceName": "Camila Ferreira",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "BDE2B8BF9530-41B9-9402-7AA403CC942A",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Camila Ferreira",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Clara Alves",
+      "create": {
+        "instanceName": "Clara Alves",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "9A6BCC92E097-459A-B45C-14E2F98F2FB7",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Paula Alves",
+      "create": {
+        "instanceName": "Paula Alves",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "A6A938D1D4AF-4FEE-A139-55F689BA51A8",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": null,
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Vitória Souza",
+      "create": {
+        "instanceName": "Vitória Souza",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "AD841ED80359-4882-AB16-089BB115CD5C",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Vitória Souza",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    },
+    {
+      "instanceName": "Ana julia",
+      "create": {
+        "instanceName": "Ana julia",
+        "integration": "WHATSAPP-BAILEYS",
+        "token": "71AFA356E1AE-4195-9692-3DFF1ED14B04",
+        "qrcode": true
+      },
+      "settings": {
+        "rejectCall": false,
+        "msgCall": "",
+        "groupsIgnore": false,
+        "alwaysOnline": false,
+        "readMessages": false,
+        "readStatus": false,
+        "syncFullHistory": false
+      },
+      "chatwoot": {
+        "enabled": true,
+        "accountId": "2",
+        "token": "WSnQpn3eMywJ3fsDeTGGG22q",
+        "url": "https://centralize.ordemservico.com",
+        "nameInbox": "Ana Julia",
+        "signMsg": false,
+        "signDelimiter": null,
+        "reopenConversation": false,
+        "conversationPending": false,
+        "mergeBrazilContacts": false,
+        "importContacts": false,
+        "importMessages": false,
+        "daysLimitImportMessages": 7,
+        "organization": "IClass Backup",
+        "logo": "",
+        "ignoreJids": []
+      },
+      "proxy": {
+        "enabled": false,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": ""
+      }
+    }
+  ]
+}

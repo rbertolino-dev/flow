@@ -1,0 +1,4193 @@
+{
+  "gerado_em": "2026-06-24T03:12:39.509779+00:00",
+  "org_filtro": null,
+  "total": 63,
+  "ignoradas_url_invalida": 1,
+  "por_status": {
+    "open": 16,
+    "close": 26,
+    "?": 17,
+    "connecting": 4
+  },
+  "por_risco": {
+    "ALTO — open sem proxy (IP servidor direto)": 6,
+    "MÉDIO — sem proxy": 18,
+    "BAIXO — close/offline": 25,
+    "OK — open com proxy BR": 10,
+    "MÉDIO — connecting com proxy": 4
+  },
+  "com_proxy": 39,
+  "sem_proxy": 24,
+  "ip_fora_br": 20,
+  "proxy_falha": 0,
+  "ip_maquina_diagnostico": {
+    "ok": true,
+    "ip": "95.217.2.116",
+    "geo": {
+      "ip": "95.217.2.116",
+      "ok": true,
+      "country": "Finland",
+      "country_code": "FI",
+      "region": "Uusimaa",
+      "city": "Helsinki"
+    }
+  },
+  "por_servidor": {
+    "evo.atendimentoagilize.com": {
+      "total": 3,
+      "open": 2,
+      "com_proxy": 0
+    },
+    "evo20.atendimentoagilize.com": {
+      "total": 16,
+      "open": 0,
+      "com_proxy": 0
+    },
+    "api.ordemservico.com": {
+      "total": 43,
+      "open": 14,
+      "com_proxy": 39
+    },
+    "api-hetzner.atendimentoagilize.com": {
+      "total": 1,
+      "open": 0,
+      "com_proxy": 0
+    }
+  },
+  "instancias": [
+    {
+      "instance_name": "vendas-classic-home",
+      "organization_id": "1e4cb4a1-ecff-4027-b170-35857ea66c37",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://evo.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521966192196@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "ALTO — open sem proxy (IP servidor direto)",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "guilherme-agilize-flow",
+      "organization_id": "20b10048-88c4-4a9e-b72a-ac1c407e95c6",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://evo.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "pubdigital.net@gmail.com",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "555196035470@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "comercial-01",
+      "organization_id": "3219223d-bd10-473f-afb4-68c8b858198c",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "comercial-2",
+      "organization_id": "3219223d-bd10-473f-afb4-68c8b858198c",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "comercial-3",
+      "organization_id": "3219223d-bd10-473f-afb4-68c8b858198c",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "comercial-4",
+      "organization_id": "3219223d-bd10-473f-afb4-68c8b858198c",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Aline Alves",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183179@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.57",
+        "geo": {
+          "ip": "206.195.140.57",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.57:5100"
+      },
+      "ip_conectado": "206.195.140.57",
+      "localizacao_ip": {
+        "ip": "206.195.140.57",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Aline Oliveira",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183169@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.57",
+        "geo": {
+          "ip": "206.195.140.57",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.57:5100"
+      },
+      "ip_conectado": "206.195.140.57",
+      "localizacao_ip": {
+        "ip": "206.195.140.57",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Aline Santos",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183106@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.57",
+        "geo": {
+          "ip": "206.195.140.57",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.57:5100"
+      },
+      "ip_conectado": "206.195.140.57",
+      "localizacao_ip": {
+        "ip": "206.195.140.57",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Aline Silva",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183187@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.57",
+        "geo": {
+          "ip": "206.195.140.57",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.57:5100"
+      },
+      "ip_conectado": "206.195.140.57",
+      "localizacao_ip": {
+        "ip": "206.195.140.57",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Aline Souza",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521936183158@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.57",
+        "port": "5100",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.57",
+        "geo": {
+          "ip": "206.195.140.57",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.57:5100"
+      },
+      "ip_conectado": "206.195.140.57",
+      "localizacao_ip": {
+        "ip": "206.195.140.57",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Ana Beatriz2",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521936183124@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "92.113.235.127",
+        "geo": {
+          "ip": "92.113.235.127",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://92.113.235.127:5187"
+      },
+      "ip_conectado": "92.113.235.127",
+      "localizacao_ip": {
+        "ip": "92.113.235.127",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Ana Carolina",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "connecting",
+      "owner_jid": "5521936183077@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "92.113.235.127",
+        "geo": {
+          "ip": "92.113.235.127",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://92.113.235.127:5187"
+      },
+      "ip_conectado": "92.113.235.127",
+      "localizacao_ip": {
+        "ip": "92.113.235.127",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Ana Clara",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521936183103@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "92.113.235.127",
+        "geo": {
+          "ip": "92.113.235.127",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://92.113.235.127:5187"
+      },
+      "ip_conectado": "92.113.235.127",
+      "localizacao_ip": {
+        "ip": "92.113.235.127",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Ana Iclass",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "joao.correa@iclass.com.br",
+        "has_password": true
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521973201309@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "85.198.32.179",
+        "port": "5529",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "85.198.32.179",
+        "port": "5529",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "85.198.32.179",
+        "geo": {
+          "ip": "85.198.32.179",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://85.198.32.179:5529"
+      },
+      "ip_conectado": "85.198.32.179",
+      "localizacao_ip": {
+        "ip": "85.198.32.179",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Ana Julia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183201@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "92.113.235.127",
+        "geo": {
+          "ip": "92.113.235.127",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://92.113.235.127:5187"
+      },
+      "ip_conectado": "92.113.235.127",
+      "localizacao_ip": {
+        "ip": "92.113.235.127",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Ana Luiza",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183119@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "92.113.235.127",
+        "port": "5187",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "92.113.235.127",
+        "geo": {
+          "ip": "92.113.235.127",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://92.113.235.127:5187"
+      },
+      "ip_conectado": "92.113.235.127",
+      "localizacao_ip": {
+        "ip": "92.113.235.127",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Cecilia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521966415152@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.188",
+        "geo": {
+          "ip": "190.106.183.188",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.188:5233"
+      },
+      "ip_conectado": "190.106.183.188",
+      "localizacao_ip": {
+        "ip": "190.106.183.188",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Clara Alves",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183399@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.29",
+        "geo": {
+          "ip": "190.106.183.29",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.29:5074"
+      },
+      "ip_conectado": "190.106.183.29",
+      "localizacao_ip": {
+        "ip": "190.106.183.29",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Clara Santos",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183399@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.29",
+        "geo": {
+          "ip": "190.106.183.29",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.29:5074"
+      },
+      "ip_conectado": "190.106.183.29",
+      "localizacao_ip": {
+        "ip": "190.106.183.29",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Clara Silva",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183392@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.29",
+        "geo": {
+          "ip": "190.106.183.29",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.29:5074"
+      },
+      "ip_conectado": "190.106.183.29",
+      "localizacao_ip": {
+        "ip": "190.106.183.29",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Clara Souza",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183369@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.29",
+        "port": "5074",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.29",
+        "geo": {
+          "ip": "190.106.183.29",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.29:5074"
+      },
+      "ip_conectado": "190.106.183.29",
+      "localizacao_ip": {
+        "ip": "190.106.183.29",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Fatima",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521994530507@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.188",
+        "geo": {
+          "ip": "190.106.183.188",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.188:5233"
+      },
+      "ip_conectado": "190.106.183.188",
+      "localizacao_ip": {
+        "ip": "190.106.183.188",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Joana",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5511936210276@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.188",
+        "geo": {
+          "ip": "190.106.183.188",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.188:5233"
+      },
+      "ip_conectado": "190.106.183.188",
+      "localizacao_ip": {
+        "ip": "190.106.183.188",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Julia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936181884@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "85.198.32.179",
+        "port": "5529",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "85.198.32.179",
+        "port": "5529",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "85.198.32.179",
+        "geo": {
+          "ip": "85.198.32.179",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://85.198.32.179:5529"
+      },
+      "ip_conectado": "85.198.32.179",
+      "localizacao_ip": {
+        "ip": "85.198.32.179",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Livia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "connecting",
+      "owner_jid": "5521936186839@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.14",
+        "geo": {
+          "ip": "45.38.88.14",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.14:7949"
+      },
+      "ip_conectado": "45.38.88.14",
+      "localizacao_ip": {
+        "ip": "45.38.88.14",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Marcella Morais",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521973787256@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "62.72.8.186",
+      "localizacao_ip": {
+        "ip": "62.72.8.186",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "ALTO — open sem proxy (IP servidor direto)",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Maria Clara",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183131@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.203",
+        "geo": {
+          "ip": "45.38.88.203",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.203:8138"
+      },
+      "ip_conectado": "45.38.88.203",
+      "localizacao_ip": {
+        "ip": "45.38.88.203",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Maria Eduarda",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183142@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.203",
+        "geo": {
+          "ip": "45.38.88.203",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.203:8138"
+      },
+      "ip_conectado": "45.38.88.203",
+      "localizacao_ip": {
+        "ip": "45.38.88.203",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Maria Fernanda",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183147@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.203",
+        "geo": {
+          "ip": "45.38.88.203",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.203:8138"
+      },
+      "ip_conectado": "45.38.88.203",
+      "localizacao_ip": {
+        "ip": "45.38.88.203",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Maria Luiza Andrade",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5511992860786@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "62.72.8.186",
+      "localizacao_ip": {
+        "ip": "62.72.8.186",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "ALTO — open sem proxy (IP servidor direto)",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Maria Paulas",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183146@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.203",
+        "geo": {
+          "ip": "45.38.88.203",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.203:8138"
+      },
+      "ip_conectado": "45.38.88.203",
+      "localizacao_ip": {
+        "ip": "45.38.88.203",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Natalia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "connecting",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521936186823@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.14",
+        "geo": {
+          "ip": "45.38.88.14",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.14:7949"
+      },
+      "ip_conectado": "45.38.88.14",
+      "localizacao_ip": {
+        "ip": "45.38.88.14",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "MÉDIO — connecting com proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Patricia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936181370@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "85.198.32.108",
+        "port": "5458",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "85.198.32.108",
+        "port": "5458",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "85.198.32.108",
+        "geo": {
+          "ip": "85.198.32.108",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://85.198.32.108:5458"
+      },
+      "ip_conectado": "85.198.32.108",
+      "localizacao_ip": {
+        "ip": "85.198.32.108",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Paula Alves",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183179@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.82",
+        "geo": {
+          "ip": "206.195.140.82",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.82:5125"
+      },
+      "ip_conectado": "206.195.140.82",
+      "localizacao_ip": {
+        "ip": "206.195.140.82",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Paula Oliveira",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183214@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.82",
+        "geo": {
+          "ip": "206.195.140.82",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.82:5125"
+      },
+      "ip_conectado": "206.195.140.82",
+      "localizacao_ip": {
+        "ip": "206.195.140.82",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Paula Santos",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183063@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.82",
+        "geo": {
+          "ip": "206.195.140.82",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.82:5125"
+      },
+      "ip_conectado": "206.195.140.82",
+      "localizacao_ip": {
+        "ip": "206.195.140.82",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Paula Silva",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521936183178@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.82",
+        "geo": {
+          "ip": "206.195.140.82",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.82:5125"
+      },
+      "ip_conectado": "206.195.140.82",
+      "localizacao_ip": {
+        "ip": "206.195.140.82",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Paula Souza",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521936183192@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "206.195.140.82",
+        "port": "5125",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "206.195.140.82",
+        "geo": {
+          "ip": "206.195.140.82",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://206.195.140.82:5125"
+      },
+      "ip_conectado": "206.195.140.82",
+      "localizacao_ip": {
+        "ip": "206.195.140.82",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Silvia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "Rubens.Pai@gmail.com",
+        "has_password": true
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521966470571@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "85.198.32.108",
+        "port": "5458",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "85.198.32.108",
+        "port": "5458",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "85.198.32.108",
+        "geo": {
+          "ip": "85.198.32.108",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://85.198.32.108:5458"
+      },
+      "ip_conectado": "85.198.32.108",
+      "localizacao_ip": {
+        "ip": "85.198.32.108",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Sonia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "connecting",
+      "connection_state_http": 200,
+      "fetchInstances_status": "connecting",
+      "owner_jid": "5521936187046@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.14",
+        "geo": {
+          "ip": "45.38.88.14",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.14:7949"
+      },
+      "ip_conectado": "45.38.88.14",
+      "localizacao_ip": {
+        "ip": "45.38.88.14",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "MÉDIO — connecting com proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Vanessa Rodrigues",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521973777652@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "62.72.8.186",
+      "localizacao_ip": {
+        "ip": "62.72.8.186",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "ALTO — open sem proxy (IP servidor direto)",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "bia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "connecting",
+      "connection_state_http": 200,
+      "fetchInstances_status": "connecting",
+      "owner_jid": "5521973404788@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "85.198.32.91",
+        "port": "5441",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "85.198.32.91",
+        "port": "5441",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "85.198.32.91",
+        "geo": {
+          "ip": "85.198.32.91",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://85.198.32.91:5441"
+      },
+      "ip_conectado": "85.198.32.91",
+      "localizacao_ip": {
+        "ip": "85.198.32.91",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "MÉDIO — connecting com proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "claudia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "close",
+      "connection_state_http": 200,
+      "fetchInstances_status": "close",
+      "owner_jid": "5521987817754@s.whatsapp.net",
+      "disconnection_code": 403,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.188",
+        "geo": {
+          "ip": "190.106.183.188",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.188:5233"
+      },
+      "ip_conectado": "190.106.183.188",
+      "localizacao_ip": {
+        "ip": "190.106.183.188",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "BAIXO — close/offline",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "flavia",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521966461521@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.14",
+        "port": "7949",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.14",
+        "geo": {
+          "ip": "45.38.88.14",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.14:7949"
+      },
+      "ip_conectado": "45.38.88.14",
+      "localizacao_ip": {
+        "ip": "45.38.88.14",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "maria",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "connecting",
+      "connection_state_http": 200,
+      "fetchInstances_status": "connecting",
+      "owner_jid": "5521973687754@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "85.198.32.91",
+        "port": "5441",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "85.198.32.91",
+        "port": "5441",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "85.198.32.91",
+        "geo": {
+          "ip": "85.198.32.91",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://85.198.32.91:5441"
+      },
+      "ip_conectado": "85.198.32.91",
+      "localizacao_ip": {
+        "ip": "85.198.32.91",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "MÉDIO — connecting com proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "maria alices",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "guilherme@agilize.com.br",
+        "has_password": true
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521936183140@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "45.38.88.203",
+        "port": "8138",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "45.38.88.203",
+        "geo": {
+          "ip": "45.38.88.203",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://45.38.88.203:8138"
+      },
+      "ip_conectado": "45.38.88.203",
+      "localizacao_ip": {
+        "ip": "45.38.88.203",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "sofia2",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521968443291@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_source": "evolution_api",
+      "proxy_effective": {
+        "enabled": true,
+        "host": "190.106.183.188",
+        "port": "5233",
+        "protocol": "http",
+        "username": "augrlfim",
+        "has_password": true
+      },
+      "proxy_mismatch": "evo_tem_crm_nao",
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": true,
+        "ip": "190.106.183.188",
+        "geo": {
+          "ip": "190.106.183.188",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "proxy_url_masked": "http://190.106.183.188:5233"
+      },
+      "ip_conectado": "190.106.183.188",
+      "localizacao_ip": {
+        "ip": "190.106.183.188",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "risco": "OK — open com proxy BR",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "valdete",
+      "organization_id": "34086d07-9181-43fc-a3e8-6aa28974d68b",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://api.ordemservico.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "5521966461523@s.whatsapp.net",
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "api.ordemservico.com",
+        "resolved_ip": "62.72.8.186",
+        "geo": {
+          "ip": "62.72.8.186",
+          "ok": true,
+          "country": "Brazil",
+          "country_code": "BR",
+          "region": "São Paulo",
+          "city": "São Paulo"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "62.72.8.186",
+      "localizacao_ip": {
+        "ip": "62.72.8.186",
+        "ok": true,
+        "country": "Brazil",
+        "country_code": "BR",
+        "region": "São Paulo",
+        "city": "São Paulo"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "ALTO — open sem proxy (IP servidor direto)",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Romulo Ferreira consultoria",
+      "organization_id": "7a24e1db-2d06-4813-9619-879a79be4382",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "https://evo.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "open",
+      "connection_state_http": 200,
+      "fetchInstances_status": "open",
+      "owner_jid": "557381236483@s.whatsapp.net",
+      "disconnection_code": 401,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "ALTO — open sem proxy (IP servidor direto)",
+      "envio_seguro": true
+    },
+    {
+      "instance_name": "Antonia",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Maria",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Raissa",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Rebeca",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "Socorro",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "anaoficial",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "https://api-hetzner.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "Rubens.Pai@gmail.com",
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 0,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "api-hetzner.atendimentoagilize.com",
+        "resolved_ip": "5.78.110.75",
+        "geo": {
+          "ip": "5.78.110.75",
+          "ok": true,
+          "country": "United States",
+          "country_code": "US",
+          "region": "Oregon",
+          "city": "Hillsboro"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "5.78.110.75",
+      "localizacao_ip": {
+        "ip": "5.78.110.75",
+        "ok": true,
+        "country": "United States",
+        "country_code": "US",
+        "region": "Oregon",
+        "city": "Hillsboro"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "debora-agilize",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "pubdigital.net@gmail.com",
+        "has_password": true
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "fernanda_ia",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "francis-agilize",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "pubdigital.net@gmail.com",
+        "has_password": true
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "gisele",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "lena",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": true,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "nilda",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": null,
+        "has_password": false
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    },
+    {
+      "instance_name": "vivian",
+      "organization_id": "8127ebc7-f911-4dcc-90d0-9d2cd851d469",
+      "phone_number": null,
+      "db_is_connected": false,
+      "api_url": "http://evo20.atendimentoagilize.com",
+      "crm_proxy": {
+        "host": null,
+        "port": null,
+        "protocol": null,
+        "username": "lucas.paixao@iclass.com.br",
+        "has_password": true
+      },
+      "connection_state": "?",
+      "connection_state_http": 301,
+      "fetchInstances_status": "(ausente)",
+      "owner_jid": null,
+      "disconnection_code": null,
+      "evolution_proxy": null,
+      "proxy_source": "nenhum",
+      "proxy_effective": null,
+      "proxy_mismatch": false,
+      "server_evolution": {
+        "host": "evo20.atendimentoagilize.com",
+        "resolved_ip": "65.109.132.220",
+        "geo": {
+          "ip": "65.109.132.220",
+          "ok": true,
+          "country": "Finland",
+          "country_code": "FI",
+          "region": "Uusimaa",
+          "city": "Helsinki"
+        },
+        "nota": "IP do host da Evolution API (sem proxy). Helsinki/Europa = aviso no WhatsApp."
+      },
+      "outbound_ip_test": {
+        "ok": false,
+        "motivo": "sem_proxy_configurado"
+      },
+      "ip_conectado": "65.109.132.220",
+      "localizacao_ip": {
+        "ip": "65.109.132.220",
+        "ok": true,
+        "country": "Finland",
+        "country_code": "FI",
+        "region": "Uusimaa",
+        "city": "Helsinki"
+      },
+      "ip_origem": "servidor_evolution_direto",
+      "risco": "MÉDIO — sem proxy",
+      "envio_seguro": false
+    }
+  ]
+}

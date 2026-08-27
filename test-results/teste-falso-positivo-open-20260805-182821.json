@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-08-05T18:28:21.245266+00:00",
+  "organization_id": "1a6ab607-837b-48b4-a9b5-ec19187b3331",
+  "organization_name": "pubdigital 2",
+  "counts": {
+    "SAUDAVEL": 6
+  },
+  "results": [
+    {
+      "instance": "Bruna Lima",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 263,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Lima\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 278,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Bruna Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 123,
+        "preview": "{\"instance\":{\"instanceName\":\"Bruna Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 176,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Alvez",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 83,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Alvez\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 171,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Lima",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 111,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Lima\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 166,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Camila Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 105,
+        "preview": "{\"instance\":{\"instanceName\":\"Camila Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 173,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    },
+    {
+      "instance": "Joana Santos",
+      "crm_is_connected": true,
+      "api_url_db": "https://evo30.atendimentoagilize.com",
+      "api_url": "https://evo30.atendimentoagilize.com",
+      "redirect_trap_http": false,
+      "connectionState": {
+        "http": 200,
+        "state": "open",
+        "ms": 125,
+        "preview": "{\"instance\":{\"instanceName\":\"Joana Santos\",\"state\":\"open\"}}"
+      },
+      "whatsappNumbers": {
+        "http": 200,
+        "ms": 168,
+        "rows": 3,
+        "exists_true": 0,
+        "exists_false": 3,
+        "connection_closed": false,
+        "technical_error": false,
+        "preview": "[{\"jid\":\"5511999999999@s.whatsapp.net\",\"exists\":false,\"number\":\"5511999999999\"},{\"jid\":\"5500000000000@s.whatsapp.net\",\"exists\":false,\"number\":\"5500000000000\"},{\"jid\":\"123456@s.whatsapp.net\",\"exists\":false,\"number\":\"12345"
+      },
+      "verdict": "SAUDAVEL",
+      "explanation": "OPEN real: connectionState e whatsappNumbers OK"
+    }
+  ],
+  "exit_code": 0
+}

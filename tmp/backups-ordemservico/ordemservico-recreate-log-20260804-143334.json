@@ -1,0 +1,1613 @@
+{
+  "exported_at_utc": "20260804-143334",
+  "todo": 50,
+  "qr_ok": 47,
+  "qr_fail": 3,
+  "final_status": {
+    "connecting": 48,
+    "open": 8
+  },
+  "open_still": [
+    "Ana Carolina",
+    "Ana Julia",
+    "Marcella Morais",
+    "Welligton Souza",
+    "notificacao",
+    "ronovacao",
+    "sofia2",
+    "valdete"
+  ],
+  "open_before": [
+    "Ana Carolina",
+    "Ana Julia",
+    "Marcella Morais",
+    "Welligton Souza",
+    "notificacao",
+    "ronovacao",
+    "sofia2",
+    "valdete"
+  ],
+  "open_untouched": true,
+  "results": [
+    {
+      "name": "fernando grimaldi",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Fernando Grimaldi"
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paula",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Cecilia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Cecilia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Julia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Julia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Silva",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Clara Silva"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Natalia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Nathalia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Alice",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Joana",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Joana"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Alves",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Aline Alves"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Alves",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Paula Alves"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "claudia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "claudia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paulas",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Oliveira",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Paula Oliveira"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Alves",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Clara Alves"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Santos",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Aline Santos"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Silva",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Aline Silva"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Silva",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Paula Silva"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Souza",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Aline Souza"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Souza",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Clara Souza"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "diego",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Valentina"
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "maria",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Maria"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "bia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Bia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Aline Oliveira",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Aline Oliveira"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "maria alices",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Maria Alice"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Iclass",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "ANA"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Silvia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "silvia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Fernanda",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Maria Fernanda"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Santos",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Paula Santos"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Sabrina guedes",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "sabrina dolores",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "",
+      "ok": false,
+      "steps": {
+        "logout": {
+          "http": 404
+        },
+        "delete": {
+          "http": 404,
+          "body": {
+            "status": 404,
+            "error": "Not Found",
+            "response": {
+              "message": [
+                "Cannot DELETE /instance/delete/"
+              ]
+            }
+          }
+        },
+        "create": {
+          "http": 403,
+          "has_qr": false
+        }
+      },
+      "qr_ready": false,
+      "error": "create failed http=403 body={'status': 403, 'error': 'Forbidden', 'response': {'message': ['This name \"\" is already in use.']}}"
+    },
+    {
+      "name": "Maria Paulas",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "MariaPaula"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Patricia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Patricia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Livia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "livia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Clara",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "MariaClara"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Clara Santos",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 200
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Clara Santos"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Maria",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Paula Souza",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Paula Souza"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Fatima",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Fatima"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Paula ",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Alice ",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": null,
+          "skipped": true
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Beatriz2",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Ana Beatriz"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Clara",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Ana Clara"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Ana Luiza",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Ana Luiza"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Maria Eduarda",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Maria Eduarda"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "cecilia barros",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Cecilia Barros"
+        },
+        "webhook": {
+          "http": null,
+          "skipped": true
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Sonia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Sonia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "flavia",
+      "ok": true,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 201,
+          "has_qr": true
+        },
+        "settings": {
+          "http": 201
+        },
+        "chatwoot": {
+          "http": 201,
+          "inbox": "Flavia"
+        },
+        "webhook": {
+          "http": 400
+        },
+        "proxy": {
+          "http": null,
+          "skipped": true
+        }
+      },
+      "qr_ready": true
+    },
+    {
+      "name": "Vanessa Rodrigues",
+      "ok": false,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 403,
+          "has_qr": false
+        }
+      },
+      "qr_ready": false,
+      "error": "create failed http=403 body={'status': 403, 'error': 'Forbidden', 'response': {'message': ['This name \"Vanessa Rodrigues\" is already in use.']}}"
+    },
+    {
+      "name": "Maria Luiza Andrade",
+      "ok": false,
+      "steps": {
+        "logout": {
+          "http": 400
+        },
+        "delete": {
+          "http": 200,
+          "body": "ok"
+        },
+        "create": {
+          "http": 403,
+          "has_qr": false
+        }
+      },
+      "qr_ready": false,
+      "error": "create failed http=403 body={'status': 403, 'error': 'Forbidden', 'response': {'message': ['This name \"Maria Luiza Andrade\" is already in use.']}}"
+    }
+  ]
+}
