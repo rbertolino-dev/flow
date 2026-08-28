@@ -50,14 +50,17 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
     organizationsRef.current = organizations;
   }, [organizations]);
 
-  const fetchUserOrganizations = useCallback(async () => {
+  const fetchUserOrganizations = useCallback(async (options?: { silent?: boolean }) => {
     if (fetchInFlightRef.current) {
       return fetchInFlightRef.current;
     }
 
     const run = async () => {
+      const silent = options?.silent ?? false;
       try {
-        setLoading(true);
+        if (!silent && organizationsRef.current.length === 0) {
+          setLoading(true);
+        }
 
         const {
           data: { session },
@@ -65,7 +68,7 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
         if (!session?.user) {
           setOrganizations([]);
           setActiveOrgId(null);
-          setLoading(false);
+          if (!silent) setLoading(false);
           return;
         }
 
@@ -138,7 +141,7 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
         console.error("Erro ao buscar organizações:", err);
         setActiveOrgId(null);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
 
@@ -162,10 +165,11 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
         setLoading(false);
         return;
       }
-      if (
-        session &&
-        (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")
-      ) {
+      if (session && event === "TOKEN_REFRESHED") {
+        void fetchUserOrganizations({ silent: true });
+        return;
+      }
+      if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
         void fetchUserOrganizations();
       }
     });

@@ -73,6 +73,8 @@ const Index = () => {
   
   const { activeOrgId, loading: orgLoading } = useActiveOrganization();
   const { leads, loading: leadsLoading, updateLeadStatus, refetch: refetchLeads } = useLeads();
+  const showFunnelSkeleton =
+    (leadsLoading && leads.length === 0) || (orgLoading && leads.length === 0);
   const { callQueue, loading: queueLoading, completeCall, rescheduleCall, addCallQueueTag, removeCallQueueTag, assignToUser, updateCallStatus, bulkUpdateStatus, bulkDeleteCalls, deleteCall, refetch: refetchCallQueue } = useCallQueue();
   const { stages } = usePipelineStages();
   const { tags } = useTags();
@@ -490,7 +492,7 @@ const Index = () => {
               )}
               aria-hidden={viewMode !== "kanban"}
             >
-              {leadsLoading || orgLoading ? (
+              {showFunnelSkeleton ? (
                 <KanbanBoardSkeleton />
               ) : (
               <KanbanBoard
