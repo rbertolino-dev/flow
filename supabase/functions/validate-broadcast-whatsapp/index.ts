@@ -31,6 +31,7 @@ type EvolutionConfigRow = {
   api_url: string | null;
   api_key: string | null;
   is_connected: boolean | null;
+  evolution_provider_id?: string | null;
 };
 
 function isConnectionClosedError(status: number, bodyText: string): boolean {
@@ -48,6 +49,60 @@ function normalizePhoneBr(phone: string): string {
   if (digits.startsWith("55")) return digits;
   if (digits.length >= 10 && digits.length <= 11) return `55${digits}`;
   return digits;
+}
+
+function urlsMatchEvolution(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return normalizeApiUrl(a) === normalizeApiUrl(b);
+}
+
+async function getOrganizationAllowedProviderIds(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+): Promise<string[]> {
+  const { data: orgProviders } = await admin
+    .from("organization_evolution_providers")
+    .select("evolution_provider_id")
+    .eq("organization_id", organizationId);
+
+  let providerIds = (orgProviders || []).map(
+    (r: { evolution_provider_id: string }) => r.evolution_provider_id,
+  );
+
+  if (providerIds.length === 0) {
+    const { data: limits } = await admin
+      .from("organization_limits")
+      .select("evolution_provider_id")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (limits?.evolution_provider_id) {
+      providerIds = [limits.evolution_provider_id];
+    }
+  }
+
+  if (providerIds.length === 0) return [];
+
+  const { data: providers } = await admin
+    .from("evolution_providers")
+    .select("id, api_url")
+    .in("id", providerIds)
+    .eq("is_active", true);
+
+  return (providers || []).map((p: { id: string }) => p.id);
+}
+
+function configBelongsToAllowedProviders(
+  cfg: EvolutionConfigRow & { evolution_provider_id?: string | null },
+  allowedProviderIds: string[],
+  allowedProviderUrls: string[],
+): boolean {
+  if (!allowedProviderIds.length) return false;
+  if (cfg.evolution_provider_id && allowedProviderIds.includes(cfg.evolution_provider_id)) {
+    return true;
+  }
+  const apiUrl = String(cfg.api_url ?? "").trim();
+  if (!apiUrl) return false;
+  return allowedProviderUrls.some((url) => urlsMatchEvolution(apiUrl, url));
 }
 
 async function userCanAccessOrganization(
@@ -320,7 +375,7 @@ serve(async (req) => {
 
   const { data: configs, error: cfgErr } = await admin
     .from("evolution_config")
-    .select("id, instance_name, api_url, api_key, is_connected")
+    .select("id, instance_name, api_url, api_key, is_connected, evolution_provider_id")
     .eq("organization_id", organizationId)
     .in("id", instanceIds);
 
@@ -331,7 +386,34 @@ serve(async (req) => {
     });
   }
 
-  const configList = prioritizeConnected(configs as EvolutionConfigRow[]);
+  const allowedProviderIds = await getOrganizationAllowedProviderIds(admin, organizationId);
+  let allowedProviderUrls: string[] = [];
+  if (allowedProviderIds.length > 0) {
+    const { data: providerRows } = await admin
+      .from("evolution_providers")
+      .select("id, api_url")
+      .in("id", allowedProviderIds)
+      .eq("is_active", true);
+    allowedProviderUrls = (providerRows || []).map((p: { api_url: string }) => p.api_url);
+  }
+
+  const allowedConfigs = (configs as EvolutionConfigRow[]).filter((cfg) =>
+    configBelongsToAllowedProviders(cfg, allowedProviderIds, allowedProviderUrls),
+  );
+
+  if (allowedConfigs.length === 0) {
+    return new Response(
+      JSON.stringify({
+        error: "Nenhuma instância pertence aos servidores Evolution habilitados para esta organização.",
+      }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const configList = prioritizeConnected(allowedConfigs);
 
   const preferredCfg =
     preferredInstanceId && configList.find((c) => c.id === preferredInstanceId)

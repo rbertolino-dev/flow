@@ -55,7 +55,7 @@ import { SyncEvolutionProvidersButton } from "@/components/crm/SyncEvolutionProv
 import { EvolutionProviderBadge } from "@/components/crm/EvolutionProviderBadge";
 import { useOrganizationEvolutionProviders } from "@/hooks/useOrganizationEvolutionProviders";
 import { useAutoSyncOrganizationEvolutionInstances } from "@/hooks/useAutoSyncOrganizationEvolutionInstances";
-import { urlsMatchEvolution, evolutionProviderLabel } from "@/lib/evolutionProvider";
+import { urlsMatchEvolution, evolutionProviderLabel, filterInstancesByOrganizationProviders } from "@/lib/evolutionProvider";
 import { InstanceHealthDashboard } from "@/components/crm/InstanceHealthDashboard";
 import { useInstanceHealthCheck } from "@/hooks/useInstanceHealthCheck";
 import type { EvolutionConfig } from "@/hooks/useEvolutionConfigs";
@@ -581,7 +581,7 @@ function delaysFromSource(minRaw: unknown, maxRaw: unknown): { minDelay: number;
 export default function BroadcastCampaigns2() {
   const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
-  const { providers } = useOrganizationEvolutionProviders();
+  const { providers, loading: providersLoading } = useOrganizationEvolutionProviders();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -598,8 +598,17 @@ export default function BroadcastCampaigns2() {
   } | null>(null);
   const [logsInstanceFallReport, setLogsInstanceFallReport] = useState<CampaignInstanceFallRow[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
+  /** Apenas instâncias dos servidores Evolution habilitados no Super Admin para a org. */
+  const allowedInstances = useMemo(() => {
+    if (providersLoading) return [];
+    return filterInstancesByOrganizationProviders(instances, providers);
+  }, [instances, providers, providersLoading]);
+  const hiddenInstancesCount = useMemo(
+    () => Math.max(0, instances.length - allowedInstances.length),
+    [instances.length, allowedInstances.length],
+  );
   /** Exibição e chips do painel: não segue cada flip do DB (30s para marcar desconectado). */
-  const stableInstances = useStableInstanceConnections(instances);
+  const stableInstances = useStableInstanceConnections(allowedInstances);
   const [syncingEvolutionStatus, setSyncingEvolutionStatus] = useState(false);
   const [messageTemplates, setMessageTemplates] = useState<any[]>([]);
   const [reconnectingInstance, setReconnectingInstance] = useState<any | null>(null);
@@ -1123,22 +1132,41 @@ export default function BroadcastCampaigns2() {
 
   // Orgs grandes: sync periódico em lote (sem health check por chip)
   useEffect(() => {
-    if (!activeOrgId || !isLargeInstanceOrg(instances.length)) return;
+    if (!activeOrgId || !isLargeInstanceOrg(allowedInstances.length)) return;
     const intervalId = window.setInterval(() => {
       void syncEvolutionStatusForOrg(false, { syncAll: false });
     }, LARGE_ORG_BATCH_SYNC_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  }, [activeOrgId, instances.length, syncEvolutionStatusForOrg]);
+  }, [activeOrgId, allowedInstances.length, syncEvolutionStatusForOrg]);
 
   // Atualiza is_connected no banco periodicamente (somente evolution_config; zero impacto em fila/campanhas)
   // Com muitos chips, health check via connectionState gera falso "desconectado" — usar só sync em lote (fetchInstances)
   useInstanceHealthCheck({
-    instances: instances as EvolutionConfig[],
-    enabled: !!activeOrgId && instances.length > 0 && instances.length <= 15,
+    instances: allowedInstances as EvolutionConfig[],
+    enabled: !!activeOrgId && allowedInstances.length > 0 && allowedInstances.length <= 15,
     intervalMs: 45000,
     stableIntervalMs: 120000,
     onAfterStatusPersist: fetchInstances,
   });
+
+  // Remove seleções de instâncias que não pertencem às Evos habilitadas no Super Admin
+  useEffect(() => {
+    const allowedIds = new Set(allowedInstances.map((i) => String(i.id)));
+    setNewCampaign((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      if (prev.instanceId && !allowedIds.has(prev.instanceId)) {
+        next.instanceId = "";
+        changed = true;
+      }
+      const filteredIds = prev.instanceIds.filter((id) => allowedIds.has(id));
+      if (filteredIds.length !== prev.instanceIds.length) {
+        next.instanceIds = filteredIds;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [allowedInstances]);
 
   const parseCSV = (text: string): Array<{ phone: string; name?: string }> => {
     const lines = text.split("\n").filter((line) => line.trim());
@@ -1736,8 +1764,8 @@ export default function BroadcastCampaigns2() {
           : []
         : newCampaign.instanceIds;
     const ids = normalizeInstanceIdList(rawIds);
-    return getDisconnectedForInstanceIds(ids, instances);
-  }, [newCampaign.sendingMethod, newCampaign.instanceId, newCampaign.instanceIds, instances]);
+    return getDisconnectedForInstanceIds(ids, allowedInstances);
+  }, [newCampaign.sendingMethod, newCampaign.instanceId, newCampaign.instanceIds, allowedInstances]);
 
   const tryCreateCampaign = async (
     contacts: CreateCampaignContact[],
@@ -3018,10 +3046,19 @@ export default function BroadcastCampaigns2() {
           />
           {/* Alertas de instâncias desconectadas (refetch sem reload ao reconectar) */}
           <InstanceDisconnectionAlerts
-            instances={instances as EvolutionConfig[]}
+            instances={allowedInstances as EvolutionConfig[]}
             enabled={!!activeOrgId}
             onReconnected={fetchInstances}
           />
+          {hiddenInstancesCount > 0 && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+              {hiddenInstancesCount} instância(s) de servidor Evolution não habilitado para esta organização foram ocultadas.
+              {providers.length === 1
+                ? ` Apenas instâncias de «${providers[0]?.provider_name}» aparecem no Disparador.`
+                : " Apenas as Evos liberadas no Super Admin aparecem aqui."}
+              {" "}Ajuste em Configurações → WhatsApp ou no Super Admin.
+            </div>
+          )}
           <div className="flex justify-end gap-2 mb-2 flex-wrap">
             <SyncEvolutionProvidersButton
               organizationId={activeOrgId}
@@ -3526,7 +3563,9 @@ export default function BroadcastCampaigns2() {
                           onValueChange={async (groupId) => {
                             const group = instanceGroups.find((g) => g.id === groupId);
                             if (!group) return;
-                            const ids = normalizeInstanceIdList(group.instance_ids);
+                            const ids = normalizeInstanceIdList(group.instance_ids).filter((id) =>
+                              allowedInstances.some((inst) => inst.id === id),
+                            );
                             setNewCampaign((prev) => ({
                               ...prev,
                               selectedGroupId: group.id,
@@ -4565,7 +4604,7 @@ export default function BroadcastCampaigns2() {
             </TabsContent>
 
             <TabsContent value="export">
-              <BroadcastExportReport instances={instances} />
+              <BroadcastExportReport instances={allowedInstances} />
             </TabsContent>
 
             <TabsContent value="health">
@@ -4578,15 +4617,15 @@ export default function BroadcastCampaigns2() {
                   </p>
                 </div>
                 
-                {instances.length === 0 ? (
+                {allowedInstances.length === 0 ? (
                   <Card>
                     <CardContent className="p-6 text-center text-muted-foreground">
-                      Nenhuma instância configurada. Configure uma instância WhatsApp primeiro.
+                      Nenhuma instância nos servidores Evolution habilitados para esta organização.
                     </CardContent>
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {instances.map((instance) => (
+                    {allowedInstances.map((instance) => (
                       <InstanceHealthDashboard
                         key={instance.id}
                         instanceId={instance.id}

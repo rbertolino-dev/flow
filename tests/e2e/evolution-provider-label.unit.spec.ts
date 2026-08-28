@@ -3,6 +3,8 @@ import {
   evolutionProviderLabel,
   fallbackEvolutionLabel,
   matchEvolutionProvider,
+  instanceBelongsToOrganizationProviders,
+  filterInstancesByOrganizationProviders,
 } from "../../src/lib/evolutionProvider";
 
 test.describe("@unit tag de provider Evolution", () => {
@@ -49,5 +51,27 @@ test.describe("@unit tag de provider Evolution", () => {
         "p30",
       ),
     ).toBe("evo 30");
+  });
+
+  test("filtra instâncias pelos providers habilitados da organização", () => {
+    const instances = [
+      { id: "1", api_url: "https://evo30.atendimentoagilize.com", evolution_provider_id: "p30" },
+      { id: "2", api_url: "https://evo20.atendimentoagilize.com", evolution_provider_id: "other" },
+      { id: "3", api_url: "https://api.ordemservico.com", evolution_provider_id: "pos" },
+    ];
+    const onlyEvo30 = [{ provider_id: "p30", provider_name: "evo 30", api_url: "https://evo30.atendimentoagilize.com" }];
+    expect(filterInstancesByOrganizationProviders(instances, onlyEvo30).map((i) => i.id)).toEqual(["1"]);
+    expect(instanceBelongsToOrganizationProviders(instances[0], onlyEvo30)).toBe(true);
+    expect(instanceBelongsToOrganizationProviders(instances[1], onlyEvo30)).toBe(false);
+  });
+
+  test("casa instância sem evolution_provider_id pela URL normalizada", () => {
+    const onlyOrdem = [{ provider_id: "pos", provider_name: "api.ordemservico", api_url: "https://api.ordemservico.com" }];
+    expect(
+      instanceBelongsToOrganizationProviders(
+        { api_url: "https://api.ordemservico.com/", evolution_provider_id: null },
+        onlyOrdem,
+      ),
+    ).toBe(true);
   });
 });

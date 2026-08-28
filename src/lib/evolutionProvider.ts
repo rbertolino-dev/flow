@@ -25,6 +25,33 @@ export function matchEvolutionProvider(
   return providers.find((p) => urlsMatchEvolution(p.api_url, apiUrl)) ?? null;
 }
 
+type InstanceWithProviderFields = {
+  api_url?: string | null;
+  evolution_provider_id?: string | null;
+};
+
+/** Instância pertence a um dos servidores Evolution habilitados para a organização. */
+export function instanceBelongsToOrganizationProviders(
+  instance: InstanceWithProviderFields,
+  providers: EvolutionProviderInfo[],
+): boolean {
+  if (!providers.length) return false;
+  if (instance.evolution_provider_id) {
+    return providers.some((p) => p.provider_id === instance.evolution_provider_id);
+  }
+  if (!instance.api_url) return false;
+  return providers.some((p) => urlsMatchEvolution(p.api_url, instance.api_url));
+}
+
+/** Mantém apenas instâncias cujo servidor Evolution está habilitado no Super Admin. */
+export function filterInstancesByOrganizationProviders<T extends InstanceWithProviderFields>(
+  instances: T[],
+  providers: EvolutionProviderInfo[],
+): T[] {
+  if (!providers.length) return [];
+  return instances.filter((inst) => instanceBelongsToOrganizationProviders(inst, providers));
+}
+
 /** Rótulo visível quando não há provider cadastrado (hostname da URL). */
 export function fallbackEvolutionLabel(apiUrl: string | null | undefined): string {
   if (!apiUrl) return "Evolution";

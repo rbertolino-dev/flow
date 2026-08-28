@@ -11,6 +11,7 @@ import { Loader2, Save, AlertCircle, Users, Smartphone, Settings, Package, Calen
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { AVAILABLE_FEATURES } from "@/hooks/useOrganizationFeatures";
+import { invalidateEvolutionProvidersCache } from "@/hooks/useOrganizationEvolutionProviders";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -329,6 +330,8 @@ export function OrganizationLimitsPanel({
         title: "Sucesso!",
         description: "Configurações atualizadas com sucesso",
       });
+
+      invalidateEvolutionProvidersCache();
 
       if (onUpdate) {
         onUpdate();
