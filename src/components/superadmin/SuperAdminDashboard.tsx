@@ -56,6 +56,7 @@ export function SuperAdminDashboard() {
 
   useEffect(() => {
     checkPermissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only permission check
   }, []);
 
   const checkPermissions = async () => {
