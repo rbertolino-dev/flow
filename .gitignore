@@ -60,3 +60,7 @@ scripts/ver-logs-*.sh
 !docs/INCIDENTE-*.md
 *.txt
 scripts/diagnosticar-*.sql
+tmp/
+# Exports locais Agilize Total
+*-PRODUTOS.xlsx
+*-PRODUTOS.csv
