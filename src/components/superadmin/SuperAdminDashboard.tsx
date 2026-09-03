@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database, Image } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
@@ -85,11 +85,11 @@ export function SuperAdminDashboard() {
       } else {
         setLoading(false);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error checking permissions:', error);
       toast({
         title: "Erro ao verificar permissões",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
       setLoading(false);
@@ -154,7 +154,7 @@ export function SuperAdminDashboard() {
               email: profileData?.email || '',
               full_name: profileData?.full_name || null,
             },
-            user_roles: (rolesData || []).map((r: any) => ({ role: r.role })),
+            user_roles: (rolesData || []).map((r: { role: string }) => ({ role: r.role })),
           });
         }
 
@@ -176,11 +176,11 @@ export function SuperAdminDashboard() {
 
       console.log(`Carregadas ${orgsWithMembers.length} organizações`);
       setOrganizations(orgsWithMembers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao carregar organizações:', error);
       toast({
         title: "Erro ao carregar organizações",
-        description: error.message || 'Erro desconhecido ao carregar organizações',
+        description: error instanceof Error ? error.message : 'Erro desconhecido ao carregar organizações',
         variant: "destructive",
       });
     } finally {
@@ -333,6 +333,14 @@ export function SuperAdminDashboard() {
               >
                 <GitBranch className="h-4 w-4 mr-2 shrink-0" />
                 <span className="truncate">Versões e Deploy</span>
+              </Button>
+              <Button 
+                onClick={() => navigate('/superadmin/agilize-produtos')} 
+                variant="secondary" 
+                className="w-full justify-start"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Import Agilize Total</span>
               </Button>
               <Button 
                 onClick={() => setShowPlansManagement(!showPlansManagement)} 

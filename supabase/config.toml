@@ -326,3 +326,7 @@ verify_jwt = true
 
 [functions.send-booking-confirmation]
 verify_jwt = false
+
+# ========== Agilize Total - import eprodutos ==========
+[functions.agilize-eprodutos-import]
+verify_jwt = true
