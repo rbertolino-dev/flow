@@ -166,20 +166,70 @@ function countBubbleVisibility(
   };
 }
 
-/** Aceita chaves sem acento / aliases vindos do CSV do Excel */
+function normalizeKey(key: string): string {
+  const fixed = (() => {
+    if (!key || !/[ÃÂ]/.test(key)) return key;
+    try {
+      const bytes = Uint8Array.from(key, (c) => c.charCodeAt(0) & 0xff);
+      const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      if (!decoded || decoded.includes("\uFFFD")) return key;
+      return decoded;
+    } catch {
+      return key;
+    }
+  })();
+  return fixed
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Aceita chaves sem acento / aliases / encoding quebrado do CSV */
 function pickRawField(raw: ProductRow, field: AllowedField): unknown {
-  if (raw[field] !== undefined && raw[field] !== null && raw[field] !== "") {
-    return raw[field];
+  const record = raw as Record<string, unknown>;
+  if (record[field] !== undefined && record[field] !== null && record[field] !== "") {
+    return record[field];
   }
+
   const aliases: Record<string, string[]> = {
-    preço: ["preco", "preÃ§o", "price", "valor"],
-    preço_atacado: ["preco_atacado", "preÃ§o_atacado"],
+    preço: ["preco", "preÃ§o", "price", "valor", "valor_unitario"],
+    preço_atacado: ["preco_atacado", "preÃ§o_atacado", "valor_atacado"],
+    nome: ["name", "produto", "nome_produto"],
+    medida: ["unidade", "und", "un"],
+    origem_produto: ["origem"],
+    categoria_nome: ["categoria"],
+    produto_filho: ["filho"],
+    desativado: ["inativo"],
+    qntd: ["qtd", "qtde", "quantidade", "estoque"],
+    qnt_ideal: ["qtd_ideal", "quantidade_ideal"],
+    qntd_baixa: ["qtd_baixa", "quantidade_baixa"],
+    codigo_produto: ["codigo", "sku", "cod_produto"],
+    codigo_ncm: ["ncm"],
+    codigo_barras: ["ean", "barcode", "barras", "cod_barras"],
+    cod_interno: ["codigo_interno"],
+    custo_unit: ["custo", "custo_unitario"],
+    descricao: ["desc", "description"],
+    descricao_anp: ["desc_anp"],
+    marca: ["brand"],
   };
+
   for (const alt of aliases[field] || []) {
-    const v = (raw as Record<string, unknown>)[alt];
+    const v = record[alt];
     if (v !== undefined && v !== null && v !== "") return v;
   }
-  return raw[field];
+
+  // Fallback: qualquer chave cujo nome normalizado bata com o campo
+  const target = normalizeKey(field);
+  for (const [k, v] of Object.entries(record)) {
+    if (k.startsWith("_")) continue;
+    if (normalizeKey(k) === target && v !== undefined && v !== null && v !== "") {
+      return v;
+    }
+  }
+
+  return record[field];
 }
 
 function sanitizeRow(

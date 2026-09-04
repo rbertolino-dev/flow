@@ -136,24 +136,85 @@ async function invokeAction<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-/** Aliases extras (CSV Excel BR / cabeçalhos sem acento / mojibake) */
+/**
+ * Aliases extras (CSV Excel BR / cabeçalhos sem acento / mojibake residual).
+ * Chaves já passam por normalizeColumnName (sem acento, sem símbolos).
+ */
 const FIELD_ALIASES: Record<string, AgilizeEprodutosField> = {
+  // preço
   preco: "preço",
-  preao: "preço", // preÃ§o → preao se mojibake não for corrigido
-  precoatacado: "preço_atacado",
-  preaoatacado: "preço_atacado",
+  preao: "preço",
   price: "preço",
   valor: "preço",
+  valorunitario: "preço",
+  precounitario: "preço",
+  // preço_atacado
+  precoatacado: "preço_atacado",
+  preaoatacado: "preço_atacado",
+  precoataca: "preço_atacado",
+  valoratacado: "preço_atacado",
+  // nome
+  name: "nome",
+  produto: "nome",
+  nomedoproduto: "nome",
+  // medida
+  unidade: "medida",
+  und: "medida",
+  un: "medida",
+  // origem / categoria
+  origem: "origem_produto",
+  categoria: "categoria_nome",
+  // flags
+  produtofilho: "produto_filho",
+  filho: "produto_filho",
+  inativo: "desativado",
+  ativo: "desativado",
+  // quantidades
+  qtde: "qntd",
+  qtd: "qntd",
+  quantidade: "qntd",
+  estoque: "qntd",
+  qtdideal: "qnt_ideal",
+  quantidadeideal: "qnt_ideal",
+  qtdbaixa: "qntd_baixa",
+  quantidadebaixa: "qntd_baixa",
+  // códigos
+  codigo: "codigo_produto",
+  sku: "codigo_produto",
+  codproduto: "codigo_produto",
+  ncm: "codigo_ncm",
+  ean: "codigo_barras",
+  barcode: "codigo_barras",
+  barras: "codigo_barras",
+  codbarras: "codigo_barras",
+  codigointerno: "cod_interno",
+  // custos / totais
+  custo: "custo_unit",
+  custounitario: "custo_unit",
+  totalcusto: "total_custo",
+  totalvenda: "total_venda",
+  // textos
+  desc: "descricao",
+  description: "descricao",
+  descanp: "descricao_anp",
+  brand: "marca",
 };
 
 export function autoMapColumns(excelHeaders: string[]): ColumnMapping {
   const mapping: ColumnMapping = {};
+  const used = new Set<AgilizeEprodutosField>();
   for (const header of excelHeaders) {
     const norm = normalizeColumnName(header);
     const match =
       AGILIZE_EPRODUTOS_FIELDS.find((f) => normalizeColumnName(f) === norm) ||
       FIELD_ALIASES[norm] ||
       "";
+    // Evita duas colunas Excel apontarem para o mesmo campo (primeira ganha)
+    if (match && used.has(match)) {
+      mapping[header] = "";
+      continue;
+    }
+    if (match) used.add(match);
     mapping[header] = match;
   }
   return mapping;

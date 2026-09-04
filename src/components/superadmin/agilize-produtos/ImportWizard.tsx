@@ -37,6 +37,10 @@ import {
   type AgilizeEprodutosField,
 } from "@/lib/agilizeProdutosFields";
 import {
+  buildFieldConference,
+  scoreHeaderMapping,
+} from "@/lib/agilizeProdutosFieldConference";
+import {
   AlertCircle,
   CheckCircle2,
   Download,
@@ -151,48 +155,45 @@ export function AgilizeProdutosImportWizard() {
     }
   };
 
+  const fieldConference = useMemo(
+    () => buildFieldConference(mapping, excelRows),
+    [mapping, excelRows]
+  );
+
   const handleFile = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
       const isCsv = /\.csv$/i.test(file.name) || file.type.includes("csv");
 
-      // CSV do Excel BR: tentar UTF-8 e, se cabeçalho "preço" vier quebrado, Windows-1252
-      let wb = XLSX.read(buf, {
-        type: "array",
-        ...(isCsv ? { codepage: 65001 } : {}),
-      });
-      let sheet = wb.Sheets[wb.SheetNames[0]];
-      let json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-        defval: "",
-      });
+      const parseSheet = (codepage?: number) => {
+        const wb = XLSX.read(buf, {
+          type: "array",
+          ...(codepage != null ? { codepage } : {}),
+        });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+          defval: "",
+        });
+      };
 
-      if (isCsv && json.length) {
-        const headers = Object.keys(json[0]);
-        const looksMojibake = headers.some((h) => /[ÃÂ]/.test(h));
-        const hasPreco = headers.some(
-          (h) =>
-            h === "preço" ||
-            h.toLowerCase() === "preco" ||
-            /pre[cç]o/i.test(h)
-        );
-        if (looksMojibake || !hasPreco) {
-          const wb1252 = XLSX.read(buf, { type: "array", codepage: 1252 });
-          const sheet1252 = wb1252.Sheets[wb1252.SheetNames[0]];
-          const json1252 = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-            sheet1252,
-            { defval: "" }
+      // CSV: escolhe encoding com melhor cobertura de TODOS os campos Agilize
+      let json = parseSheet(isCsv ? 65001 : undefined);
+      if (isCsv) {
+        const candidates = [json, parseSheet(1252), parseSheet()];
+        let best = json;
+        let bestScore = -Infinity;
+        for (const candidate of candidates) {
+          if (!candidate.length) continue;
+          const score = scoreHeaderMapping(
+            Object.keys(candidate[0]),
+            autoMapColumns
           );
-          if (json1252.length) {
-            const h2 = Object.keys(json1252[0]);
-            if (
-              h2.some((h) => h.includes("preço") || h.toLowerCase() === "preco")
-            ) {
-              wb = wb1252;
-              sheet = sheet1252;
-              json = json1252;
-            }
+          if (score > bestScore) {
+            bestScore = score;
+            best = candidate;
           }
         }
+        json = best;
       }
 
       if (!json.length) {
@@ -207,18 +208,21 @@ export function AgilizeProdutosImportWizard() {
       setFileName(file.name);
       setMappedRows([]);
       resetImport();
-      const precoMapped = Object.values(auto).includes("preço");
+
+      const conference = buildFieldConference(auto, json);
       toast({
-        title: "Arquivo carregado",
-        description: `${json.length} linhas · ${headers.length} colunas${
-          precoMapped ? " · preço mapeado" : " · ⚠ coluna preço NÃO mapeada — confira no próximo passo"
-        }`,
+        title: "Arquivo carregado — conferência de campos",
+        description: `${json.length} linhas · ${conference.mappedCount}/${conference.totalFields} campos mapeados · ${conference.withValueCount} com valor · ${conference.warningCount} aviso(s)`,
+        variant:
+          conference.warningCount > 0 || !Object.values(auto).includes("nome")
+            ? "destructive"
+            : "default",
       });
       if (isCsv) {
         toast({
           title: "Dica: use .xlsx",
           description:
-            "CSV do Excel costuma quebrar a coluna preço (acento). Prefira o template .xlsx.",
+            "CSV do Excel pode quebrar acentos nos cabeçalhos. Prefira o template .xlsx.",
         });
       }
       setStep(3);
@@ -239,6 +243,15 @@ export function AgilizeProdutosImportWizard() {
         variant: "destructive",
       });
       return;
+    }
+    if (fieldConference.warningCount > 0) {
+      const firstWarn = fieldConference.items.find((i) => i.warning);
+      toast({
+        title: `${fieldConference.warningCount} aviso(s) na conferência`,
+        description: firstWarn
+          ? `${firstWarn.label}: ${firstWarn.warning}. Revise o mapeamento ou continue se estiver ok.`
+          : "Revise a tabela de conferência abaixo.",
+      });
     }
     const rows = applyMapping(excelRows, mapping);
     setMappedRows(rows);
@@ -442,10 +455,78 @@ export function AgilizeProdutosImportWizard() {
             <CardTitle>3. Mapear colunas</CardTitle>
             <CardDescription>
               Associe cada coluna do Excel a um campo do Supabase (`eprodutos`). Nome é obrigatório.
+              A conferência abaixo valida todos os campos (mapeamento + amostra de valor).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-md border overflow-auto max-h-[420px]">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="default">
+                Mapeados: {fieldConference.mappedCount}/{fieldConference.totalFields}
+              </Badge>
+              <Badge variant="secondary">
+                Com valor: {fieldConference.withValueCount}
+              </Badge>
+              <Badge variant={fieldConference.warningCount ? "destructive" : "outline"}>
+                Avisos: {fieldConference.warningCount}
+              </Badge>
+            </div>
+
+            <div className="rounded-md border overflow-auto max-h-[280px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Campo Agilize</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Coluna Excel</TableHead>
+                    <TableHead>Amostra</TableHead>
+                    <TableHead>Linhas c/ valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {fieldConference.items.map((item) => (
+                    <TableRow
+                      key={item.field}
+                      className={
+                        item.warning
+                          ? "bg-destructive/5"
+                          : item.mapped && item.rowsWithValue > 0
+                            ? "bg-green-50/50 dark:bg-green-950/20"
+                            : undefined
+                      }
+                    >
+                      <TableCell className="text-sm">
+                        {item.label}{" "}
+                        <span className="font-mono text-xs text-muted-foreground">
+                          ({item.field})
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {!item.mapped ? (
+                          <Badge variant="outline">não mapeado</Badge>
+                        ) : item.warning ? (
+                          <Badge variant="destructive" className="max-w-[220px] whitespace-normal">
+                            {item.warning}
+                          </Badge>
+                        ) : item.rowsWithValue > 0 ? (
+                          <Badge className="bg-green-600 hover:bg-green-600">ok</Badge>
+                        ) : (
+                          <Badge variant="secondary">vazio</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {item.excelColumn ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[160px] truncate" title={item.sampleValue}>
+                        {item.sampleValue || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">{item.rowsWithValue}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="rounded-md border overflow-auto max-h-[320px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -463,7 +544,8 @@ export function AgilizeProdutosImportWizard() {
                           onValueChange={(v) =>
                             setMapping((m) => ({
                               ...m,
-                              [header]: v === "__none__" ? "" : (v as AgilizeEprodutosField),
+                              [header]:
+                                v === "__none__" ? "" : (v as AgilizeEprodutosField),
                             }))
                           }
                         >
