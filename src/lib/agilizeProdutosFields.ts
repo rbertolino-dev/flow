@@ -127,7 +127,11 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
     acceptShortCodes: true,
     description: "Seletor — origem fiscal 0 a 8",
   },
-  categoria_nome: { kind: "text", description: "Texto livre" },
+  categoria_nome: {
+    kind: "text",
+    description:
+      "Nome da categoria (checklist Bubble / categoria_estoque). Precisa existir com o mesmo nome na empresa.",
+  },
   preço: { kind: "number", description: "Número (ex.: 10 ou 10,5)" },
   preço_atacado: { kind: "number", description: "Número" },
   produto_filho: {
@@ -155,7 +159,11 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
   codigo_ncm: { kind: "text", description: "Texto (NCM)" },
   descricao_anp: { kind: "text", description: "Texto livre" },
   descricao: { kind: "text", description: "Texto livre" },
-  marca: { kind: "text", description: "Texto livre" },
+  marca: {
+    kind: "text",
+    description:
+      "Nome da marca (checklist Bubble). Precisa existir com o mesmo nome na empresa.",
+  },
   cod_interno: { kind: "text", description: "Texto / código" },
   codigo_barras: { kind: "text", description: "Texto / EAN" },
 };
@@ -244,7 +252,11 @@ export function resolveBooleanOption(
 }
 
 export const BATCH_SIZE = 25;
-export const BATCH_DELAY_MS = 400;
+/** Pausa entre lotes — reduz 504 por sobrecarga na API Agilize Total */
+export const BATCH_DELAY_MS = 1500;
+/** Retries automáticos quando o proxy devolve 504/502/503 */
+export const BATCH_RETRY_MAX = 3;
+export const BATCH_RETRY_BASE_MS = 2500;
 
 /**
  * Lógica Bubble (o que o usuário vê na lista de produtos):

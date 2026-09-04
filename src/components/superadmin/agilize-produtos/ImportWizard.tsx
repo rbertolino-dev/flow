@@ -611,6 +611,23 @@ export function AgilizeProdutosImportWizard() {
                   <Badge variant="destructive">Inválidos: {dryRunResult.totals.invalid}</Badge>
                   <Badge variant="outline">Avisos: {dryRunResult.totals.warnings}</Badge>
                 </div>
+                {(dryRunResult.warnings?.length ?? 0) > 0 && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="space-y-1">
+                      <div className="font-medium">
+                        Avisos (categoria/marca só aparecem no Bubble se existirem no checklist)
+                      </div>
+                      <ul className="list-disc pl-4 text-sm max-h-40 overflow-auto">
+                        {dryRunResult.warnings.slice(0, 15).map((w, i) => (
+                          <li key={i}>
+                            Linha {w.row}: {w.warning}
+                          </li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {(dryRunResult.totals.hiddenDesativado || dryRunResult.totals.hiddenProdutoFilho) ? (
                   <p className="text-xs text-amber-700">
                     Neste lote: {dryRunResult.totals.hiddenDesativado ?? 0} com desativado=true ·{" "}

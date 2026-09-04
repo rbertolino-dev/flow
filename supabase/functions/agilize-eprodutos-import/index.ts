@@ -97,6 +97,136 @@ async function assertSuperAdmin(
   }
 }
 
+function normalizeLookupName(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+type NamedRef = { id: string; nome: string };
+
+async function loadCategoriaEstoqueMap(
+  empresaId: string
+): Promise<Map<string, NamedRef>> {
+  const map = new Map<string, NamedRef>();
+  const pageSize = 1000;
+  for (let page = 0; page < 10; page++) {
+    const start = page * pageSize;
+    const end = start + pageSize - 1;
+    const res = await agilizeFetch(
+      `categoria_estoque?empresa=eq.${encodeURIComponent(
+        empresaId
+      )}&select=id,nome&order=id.asc`,
+      {
+        headers: { Range: `${start}-${end}`, Prefer: "count=exact" },
+      }
+    );
+    if (!res.ok) break;
+    const rows = (await res.json()) as Array<{ id: number; nome: string }>;
+    if (!rows.length) break;
+    for (const row of rows) {
+      const key = normalizeLookupName(row.nome);
+      if (!key) continue;
+      // primeira ocorrência ganha (nomes duplicados)
+      if (!map.has(key)) {
+        map.set(key, { id: String(row.id), nome: String(row.nome).trim() });
+      }
+    }
+    if (rows.length < pageSize) break;
+  }
+  return map;
+}
+
+async function loadMarcaMaps(empresaId: string): Promise<{
+  byName: Map<string, NamedRef>;
+  byId: Map<string, NamedRef>;
+}> {
+  const byName = new Map<string, NamedRef>();
+  const byId = new Map<string, NamedRef>();
+  const pageSize = 1000;
+  for (let page = 0; page < 10; page++) {
+    const start = page * pageSize;
+    const end = start + pageSize - 1;
+    // Coluna no banco: EMPREESA (typo legado Bubble)
+    const res = await agilizeFetch(
+      `marca?EMPREESA=eq.${encodeURIComponent(
+        empresaId
+      )}&select=id,nome&order=id.asc`,
+      {
+        headers: { Range: `${start}-${end}`, Prefer: "count=exact" },
+      }
+    );
+    if (!res.ok) break;
+    const rows = (await res.json()) as Array<{ id: number; nome: string }>;
+    if (!rows.length) break;
+    for (const row of rows) {
+      const ref = { id: String(row.id), nome: String(row.nome ?? "").trim() };
+      byId.set(ref.id, ref);
+      const key = normalizeLookupName(ref.nome);
+      if (key && !byName.has(key)) byName.set(key, ref);
+    }
+    if (rows.length < pageSize) break;
+  }
+  return { byName, byId };
+}
+
+/**
+ * Bubble mostra categoria/marca pelo ID do checklist (relação),
+ * não só pelo texto *_nome. Resolve nome → id.
+ */
+function enrichBubbleRelations(
+  data: Record<string, unknown>,
+  catMap: Map<string, NamedRef>,
+  marcaByName: Map<string, NamedRef>,
+  marcaById: Map<string, NamedRef>,
+  rowNum: number,
+  warnings: Array<{ row: number; warning: string }>
+) {
+  const catNome = data.categoria_nome;
+  if (catNome != null && String(catNome).trim() !== "") {
+    const key = normalizeLookupName(catNome);
+    const hit = catMap.get(key);
+    if (hit) {
+      data.categoria = hit.id;
+      data.categoria_nome = hit.nome;
+    } else {
+      // Sem ID o seletor do Bubble fica vazio mesmo com categoria_nome preenchido
+      delete data.categoria;
+      warnings.push({
+        row: rowNum,
+        warning: `Categoria "${String(catNome).trim()}" não existe no checklist desta empresa (tabela categoria_estoque). Cadastre no Bubble com o mesmo nome para aparecer no produto.`,
+      });
+    }
+  }
+
+  const marcaVal = data.marca;
+  if (marcaVal != null && String(marcaVal).trim() !== "") {
+    const raw = String(marcaVal).trim();
+    if (/^\d+$/.test(raw) && marcaById.has(raw)) {
+      const hit = marcaById.get(raw)!;
+      data.marca = hit.id;
+      data.marca_nome = hit.nome;
+    } else {
+      const hit = marcaByName.get(normalizeLookupName(raw));
+      if (hit) {
+        data.marca = hit.id;
+        data.marca_nome = hit.nome;
+      } else {
+        // Não gravar texto no campo marca (ID) — Bubble não seleciona
+        delete data.marca;
+        data.marca_nome = raw;
+        warnings.push({
+          row: rowNum,
+          warning: `Marca "${raw}" não existe no checklist desta empresa (tabela marca). Cadastre no Bubble com o mesmo nome para aparecer no produto.`,
+        });
+      }
+    }
+  }
+}
+
 function generateBubbleUniqueId(): string {
   const ts = Date.now();
   const rand = Math.floor(Math.random() * 1e18);
@@ -626,6 +756,21 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
     sanitized.push({ rowNum, data: result.row });
   }
 
+  const catMap = await loadCategoriaEstoqueMap(empresaId);
+  const { byName: marcaByName, byId: marcaById } = await loadMarcaMaps(
+    empresaId
+  );
+  for (const item of sanitized) {
+    enrichBubbleRelations(
+      item.data,
+      catMap,
+      marcaByName,
+      marcaById,
+      item.rowNum,
+      warnings
+    );
+  }
+
   const codigos = sanitized
     .map((s) =>
       s.data.codigo_produto != null ? String(s.data.codigo_produto) : ""
@@ -651,7 +796,8 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
     if (!isBubbleVisible(item.data)) {
       const reasons: string[] = [];
       if (isTruthyFlag(item.data.desativado)) reasons.push("desativado=true");
-      if (isTruthyFlag(item.data.produto_filho)) reasons.push("produto_filho=true");
+      if (isTruthyFlag(item.data.produto_filho))
+        reasons.push("produto_filho=true");
       warnings.push({
         row: item.rowNum,
         warning: `Não aparece na lista do Bubble (${reasons.join(", ")})`,
@@ -750,6 +896,21 @@ async function importBatch(
     prepared.push({ rowNum, data: result.row });
   }
 
+  const catMap = await loadCategoriaEstoqueMap(empresaId);
+  const { byName: marcaByName, byId: marcaById } = await loadMarcaMaps(
+    empresaId
+  );
+  for (const item of prepared) {
+    enrichBubbleRelations(
+      item.data,
+      catMap,
+      marcaByName,
+      marcaById,
+      item.rowNum,
+      []
+    );
+  }
+
   const codigos = prepared
     .map((p) =>
       p.data.codigo_produto != null ? String(p.data.codigo_produto) : ""
@@ -783,40 +944,20 @@ async function importBatch(
 
     if (!res.ok) {
       const errText = await res.text();
-      // Fallback: insert one by one
-      for (const item of toInsert) {
-        const one = await agilizeFetch("eprodutos", {
-          method: "POST",
-          prefer: "return=representation",
-          body: JSON.stringify(item.data),
-        });
-        if (!one.ok) {
-          const t = await one.text();
-          errors.push({
-            row: item.rowNum,
-            error: t.slice(0, 300) || `HTTP ${one.status}`,
-          });
-        } else {
-          const created = await one.json();
-          inserted.push({
-            row: item.rowNum,
-            id: created?.[0]?.id,
-            nome: String(item.data.nome),
-          });
-        }
-      }
-      if (inserted.length === 0 && errors.length === toInsert.length) {
-        throw new Error(`Falha no INSERT: ${errText.slice(0, 400)}`);
-      }
-    } else {
-      const created = await res.json();
-      for (let i = 0; i < toInsert.length; i++) {
-        inserted.push({
-          row: toInsert[i].rowNum,
-          id: created?.[i]?.id,
-          nome: String(toInsert[i].data.nome),
-        });
-      }
+      // NÃO fazer fallback 1-a-1: estoura timeout do nginx (504).
+      // O front faz retry do lote inteiro.
+      throw new Error(
+        `Insert em lote falhou (HTTP ${res.status}): ${errText.slice(0, 400)}`
+      );
+    }
+
+    const created = await res.json();
+    for (let i = 0; i < toInsert.length; i++) {
+      inserted.push({
+        row: toInsert[i].rowNum,
+        id: created?.[i]?.id,
+        nome: String(toInsert[i].data.nome),
+      });
     }
   }
 

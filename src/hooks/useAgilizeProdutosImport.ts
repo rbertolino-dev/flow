@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   AGILIZE_EPRODUTOS_FIELDS,
   BATCH_DELAY_MS,
+  BATCH_RETRY_BASE_MS,
+  BATCH_RETRY_MAX,
   BATCH_SIZE,
   type AgilizeEprodutosField,
 } from "@/lib/agilizeProdutosFields";
@@ -347,50 +349,91 @@ export function useAgilizeProdutosImport() {
           currentBatch: b + 1,
         }));
 
-        try {
-          const result = await invokeAction<{
-            inserted: number;
-            skipped: number;
-            errors: number;
-            details: {
-              errors: Array<{ row: number; error: string }>;
-              skipped: Array<{ row: number; reason: string }>;
-            };
-          }>({
-            action: "import_batch",
-            empresaId,
-            rows: batch,
-            sessionToken,
-          });
+        const isTransientGatewayError = (msg: string) =>
+          /504|502|503|Gateway Time-?out|timed?\s*out|network|Failed to fetch/i.test(
+            msg
+          );
 
-          inserted += result.inserted || 0;
-          skipped += result.skipped || 0;
-          errors += result.errors || 0;
-          processed += batch.length;
+        let batchOk = false;
+        let lastErr = "";
+        for (let attempt = 1; attempt <= BATCH_RETRY_MAX; attempt++) {
+          try {
+            const result = await invokeAction<{
+              inserted: number;
+              skipped: number;
+              errors: number;
+              details: {
+                errors: Array<{ row: number; error: string }>;
+                skipped: Array<{ row: number; reason: string }>;
+              };
+            }>({
+              action: "import_batch",
+              empresaId,
+              rows: batch,
+              sessionToken,
+            });
 
-          const errSample = (result.details?.errors || [])
-            .slice(0, 3)
-            .map((e) => `L${e.row}: ${e.error}`)
-            .join("; ");
+            inserted += result.inserted || 0;
+            skipped += result.skipped || 0;
+            errors += result.errors || 0;
+            processed += batch.length;
 
-          setProgress((p) => ({
-            ...p,
-            currentBatch: b + 1,
-            processed,
-            inserted,
-            skipped,
-            errors,
-            logs: [
-              ...p.logs,
-              {
-                batch: b + 1,
-                message: `Lote ${b + 1}/${totalBatches}: +${result.inserted} ok, ${result.skipped} skip, ${result.errors} erro${errSample ? ` (${errSample})` : ""}`,
-                type: result.errors > 0 ? "error" : result.skipped > 0 ? "skip" : "ok",
-              },
-            ],
-          }));
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : "Erro no lote";
+            const errSample = (result.details?.errors || [])
+              .slice(0, 3)
+              .map((e) => `L${e.row}: ${e.error}`)
+              .join("; ");
+
+            const retryNote =
+              attempt > 1 ? ` (ok após retry ${attempt}/${BATCH_RETRY_MAX})` : "";
+
+            setProgress((p) => ({
+              ...p,
+              currentBatch: b + 1,
+              processed,
+              inserted,
+              skipped,
+              errors,
+              logs: [
+                ...p.logs,
+                {
+                  batch: b + 1,
+                  message: `Lote ${b + 1}/${totalBatches}: +${result.inserted} ok, ${result.skipped} skip, ${result.errors} erro${errSample ? ` (${errSample})` : ""}${retryNote}`,
+                  type:
+                    result.errors > 0
+                      ? "error"
+                      : result.skipped > 0
+                        ? "skip"
+                        : "ok",
+                },
+              ],
+            }));
+            batchOk = true;
+            break;
+          } catch (e) {
+            lastErr = e instanceof Error ? e.message : "Erro no lote";
+            if (
+              attempt < BATCH_RETRY_MAX &&
+              isTransientGatewayError(lastErr)
+            ) {
+              const wait = BATCH_RETRY_BASE_MS * attempt;
+              setProgress((p) => ({
+                ...p,
+                logs: [
+                  ...p.logs,
+                  {
+                    batch: b + 1,
+                    message: `Lote ${b + 1}: timeout/gateway — retry ${attempt}/${BATCH_RETRY_MAX} em ${wait}ms…`,
+                    type: "info",
+                  },
+                ],
+              }));
+              await new Promise((r) => setTimeout(r, wait));
+              continue;
+            }
+          }
+        }
+
+        if (!batchOk) {
           errors += batch.length;
           processed += batch.length;
           setProgress((p) => ({
@@ -399,7 +442,11 @@ export function useAgilizeProdutosImport() {
             errors,
             logs: [
               ...p.logs,
-              { batch: b + 1, message: `Lote ${b + 1} falhou: ${msg}`, type: "error" },
+              {
+                batch: b + 1,
+                message: `Lote ${b + 1} falhou após ${BATCH_RETRY_MAX} tentativas: ${lastErr}`,
+                type: "error",
+              },
             ],
           }));
         }
