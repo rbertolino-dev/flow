@@ -462,9 +462,10 @@ function resolveBooleanStrict(
 }
 
 /** Excel costuma mandar código como número (298 → "298.0"). Normaliza para texto limpo. */
-function normalizeCodigoProduto(val: unknown): string {
+function normalizeCodigoValue(val: unknown): string {
   if (val === undefined || val === null) return "";
   if (typeof val === "number" && Number.isFinite(val)) {
+    // EAN longos: evitar notação científica
     if (Number.isInteger(val) || Math.abs(val % 1) < 1e-9) {
       return String(Math.trunc(val));
     }
@@ -475,6 +476,13 @@ function normalizeCodigoProduto(val: unknown): string {
   // "298.0" / "298.000" vindos do Excel
   if (/^\d+\.0+$/.test(s)) {
     s = s.replace(/\.0+$/, "");
+  }
+  // Notação científica ocasional do Excel ("7.89026919115e+12")
+  if (/^\d+(\.\d+)?e[+-]?\d+$/i.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n) && (Number.isInteger(n) || Math.abs(n % 1) < 1e-9)) {
+      return String(Math.trunc(n));
+    }
   }
   return s;
 }
@@ -518,7 +526,6 @@ function sanitizeRow(
     "descricao",
     "marca",
     "cod_interno",
-    "codigo_barras",
   ];
 
   for (const field of ALLOWED_FIELDS) {
@@ -528,9 +535,9 @@ function sanitizeRow(
     // Células vazias / só espaço no Excel → ignorar (não invalidar)
     if (typeof val === "string" && val.trim() === "") continue;
 
-    if (field === "codigo_produto") {
-      const codigo = normalizeCodigoProduto(val);
-      if (codigo) out.codigo_produto = codigo;
+    if (field === "codigo_produto" || field === "codigo_barras") {
+      const codigo = normalizeCodigoValue(val);
+      if (codigo) out[field] = codigo;
       continue;
     }
 

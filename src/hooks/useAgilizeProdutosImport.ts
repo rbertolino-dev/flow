@@ -239,6 +239,8 @@ const FIELD_ALIASES: Record<string, AgilizeEprodutosField> = {
   barcode: "codigo_barras",
   barras: "codigo_barras",
   codbarras: "codigo_barras",
+  codigodebarras: "codigo_barras",
+  codigobarras: "codigo_barras",
   codigointerno: "cod_interno",
   codinterno: "cod_interno",
   // custos / totais

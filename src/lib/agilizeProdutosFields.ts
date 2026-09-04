@@ -168,7 +168,10 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
       "Nome da marca (checklist Bubble). Precisa existir com o mesmo nome na empresa.",
   },
   cod_interno: { kind: "text", description: "Texto / código" },
-  codigo_barras: { kind: "text", description: "Texto / EAN" },
+  codigo_barras: {
+    kind: "number",
+    description: "Número (EAN / código de barras da planilha Excel)",
+  },
 };
 
 export const AGILIZE_NUMERIC_FIELDS: AgilizeEprodutosField[] = (

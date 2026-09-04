@@ -82,6 +82,7 @@ export async function downloadAgilizeProdutosTemplate(): Promise<void> {
     produto_filho: false,
     desativado: false,
     codigo_produto: 1001,
+    codigo_barras: 7891234567890,
   };
   ws.addRow(header.map((f) => (example[f] !== undefined ? example[f] : "")));
 
