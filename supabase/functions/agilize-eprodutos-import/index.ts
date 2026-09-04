@@ -917,6 +917,28 @@ function buildUpdatePayload(data: Record<string, unknown>): Record<string, unkno
   return out;
 }
 
+/**
+ * PostgREST (PGRST102): em INSERT de array, todas as linhas precisam ter
+ * exatamente as mesmas chaves. Preenche ausentes com null.
+ */
+function alignObjectKeys(
+  rows: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  if (rows.length <= 1) return rows;
+  const keys = new Set<string>();
+  for (const row of rows) {
+    for (const k of Object.keys(row)) keys.add(k);
+  }
+  const ordered = [...keys];
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const k of ordered) {
+      out[k] = row[k] !== undefined ? row[k] : null;
+    }
+    return out;
+  });
+}
+
 async function importBatch(
   empresaId: string,
   rows: ProductRow[],
