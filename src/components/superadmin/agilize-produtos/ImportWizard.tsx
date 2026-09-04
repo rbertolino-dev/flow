@@ -34,12 +34,14 @@ import {
 import {
   AGILIZE_EPRODUTOS_FIELDS,
   AGILIZE_FIELD_LABELS,
+  AGILIZE_FIELD_META,
   type AgilizeEprodutosField,
 } from "@/lib/agilizeProdutosFields";
 import {
   buildFieldConference,
   scoreHeaderMapping,
 } from "@/lib/agilizeProdutosFieldConference";
+import { downloadAgilizeProdutosTemplate } from "@/lib/agilizeProdutosTemplate";
 import {
   AlertCircle,
   CheckCircle2,
@@ -59,17 +61,6 @@ const STEPS = [
   { id: 4, title: "Dry-run" },
   { id: 5, title: "Importar" },
 ] as const;
-
-function downloadTemplate() {
-  const row: Record<string, string | number> = {};
-  for (const f of AGILIZE_EPRODUTOS_FIELDS) {
-    row[f] = f === "nome" ? "Produto Exemplo" : f === "preço" ? 10 : f === "status" ? "Em falta" : "";
-  }
-  const ws = XLSX.utils.json_to_sheet([row]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Produtos");
-  XLSX.writeFile(wb, "template-eprodutos-agilize-total.xlsx");
-}
 
 function downloadReportCsv(
   filename: string,
@@ -110,6 +101,17 @@ export function AgilizeProdutosImportWizard() {
     cancelImport,
     resetImport,
   } = useAgilizeProdutosImport();
+
+  const handleDownloadTemplate = () => {
+    void downloadAgilizeProdutosTemplate().catch((e) => {
+      console.error(e);
+      toast({
+        title: "Erro ao gerar template",
+        description: e instanceof Error ? e.message : "Erro",
+        variant: "destructive",
+      });
+    });
+  };
 
   const [step, setStep] = useState(1);
   const [empresaNome, setEmpresaNome] = useState("");
@@ -412,12 +414,13 @@ export function AgilizeProdutosImportWizard() {
           <CardHeader>
             <CardTitle>2. Upload Excel / CSV</CardTitle>
             <CardDescription>
-              Use o template com as 21 colunas padrão ou qualquer planilha (mapeamento no próximo passo).
+              Baixe o template com seletores (status, origem, booleanos) e a aba Legenda
+              com o tipo de cada campo. Prefira .xlsx (não CSV).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={downloadTemplate}>
+              <Button variant="outline" onClick={handleDownloadTemplate}>
                 <Download className="h-4 w-4 mr-2" />
                 Baixar template
               </Button>
@@ -476,6 +479,7 @@ export function AgilizeProdutosImportWizard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Campo Agilize</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Coluna Excel</TableHead>
                     <TableHead>Amostra</TableHead>
@@ -499,6 +503,11 @@ export function AgilizeProdutosImportWizard() {
                         <span className="font-mono text-xs text-muted-foreground">
                           ({item.field})
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {item.kind}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {!item.mapped ? (
@@ -556,7 +565,7 @@ export function AgilizeProdutosImportWizard() {
                             <SelectItem value="__none__">— Ignorar —</SelectItem>
                             {AGILIZE_EPRODUTOS_FIELDS.map((f) => (
                               <SelectItem key={f} value={f}>
-                                {AGILIZE_FIELD_LABELS[f]} ({f})
+                                {AGILIZE_FIELD_LABELS[f]} ({f}) · {AGILIZE_FIELD_META[f].kind}
                               </SelectItem>
                             ))}
                           </SelectContent>

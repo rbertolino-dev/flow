@@ -124,10 +124,6 @@ function isTruthyFlag(value: unknown): boolean {
   return false;
 }
 
-function parseBoolFlag(val: unknown): boolean {
-  return isTruthyFlag(val);
-}
-
 /** Visível no Bubble: desativado ≠ true E produto_filho ≠ true */
 function isBubbleVisible(row: {
   desativado?: unknown;
@@ -232,6 +228,78 @@ function pickRawField(raw: ProductRow, field: AllowedField): unknown {
   return record[field];
 }
 
+const STATUS_OPTIONS = ["Ideal", "Em falta", "Baixa"] as const;
+const ORIGEM_OPTIONS = [
+  "0 – Nacional;",
+  "1 – Estrangeira (importação direta);",
+  "2 – Estrangeira (adquirida no mercado interno);",
+  "3 – Nacional com mais de 40% de conteúdo estrangeiro;",
+  "4 – Nacional produzida através de processos produtivos básicos;",
+  "5 – Nacional com menos de 40% de conteúdo estrangeiro;",
+  "6 – Estrangeira (importação direta) sem produto nacional similar;",
+  "7 – Estrangeira (adquirida no mercado interno) sem produto nacional similar;",
+  "8 – Nacional, mercadoria ou bem com Conteúdo de Importação superior a 70%;",
+] as const;
+
+function resolveStatus(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return { ok: true, value: null };
+  }
+  const raw = String(value).trim();
+  const hit = STATUS_OPTIONS.find((o) => o.toLowerCase() === raw.toLowerCase());
+  if (hit) return { ok: true, value: hit };
+  return {
+    ok: false,
+    error: `Campo 'status' inválido: "${raw}". Opções: ${STATUS_OPTIONS.join(" | ")}`,
+  };
+}
+
+function resolveOrigem(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return { ok: true, value: null };
+  }
+  const raw = String(value).trim();
+  const exact = ORIGEM_OPTIONS.find((o) => o === raw || o.toLowerCase() === raw.toLowerCase());
+  if (exact) return { ok: true, value: exact };
+  const digit = raw.match(/^([0-8])\b/);
+  if (digit) {
+    const code = digit[1];
+    const byCode = ORIGEM_OPTIONS.find(
+      (o) =>
+        o.startsWith(`${code} `) ||
+        o.startsWith(`${code} –`) ||
+        o.startsWith(`${code} -`)
+    );
+    if (byCode) return { ok: true, value: byCode };
+  }
+  return {
+    ok: false,
+    error: `Campo 'origem_produto' inválido: "${raw}". Use o seletor 0–8 (texto fiscal, não número solto fora da lista).`,
+  };
+}
+
+function resolveBooleanStrict(
+  value: unknown,
+  field: string
+): { ok: true; value: boolean | null } | { ok: false; error: string } {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return { ok: true, value: null };
+  }
+  if (typeof value === "boolean") return { ok: true, value };
+  if (value === 1 || value === 0) return { ok: true, value: value === 1 };
+  const s = String(value).trim().toLowerCase();
+  if (["true", "1", "sim", "yes", "s", "verdadeiro"].includes(s)) {
+    return { ok: true, value: true };
+  }
+  if (["false", "0", "nao", "não", "no", "n", "falso"].includes(s)) {
+    return { ok: true, value: false };
+  }
+  return {
+    ok: false,
+    error: `Campo '${field}' inválido: "${value}". Use true ou false`,
+  };
+}
+
 function sanitizeRow(
   raw: ProductRow,
   empresaId: string
@@ -252,6 +320,7 @@ function sanitizeRow(
     produto_filho: false,
   };
 
+  // origem_produto NÃO é numérico — é select de texto fiscal
   const numericFields: AllowedField[] = [
     "preço",
     "preço_atacado",
@@ -261,7 +330,18 @@ function sanitizeRow(
     "total_custo",
     "total_venda",
     "custo_unit",
-    "origem_produto",
+  ];
+
+  const textFields: AllowedField[] = [
+    "medida",
+    "categoria_nome",
+    "codigo_produto",
+    "codigo_ncm",
+    "descricao_anp",
+    "descricao",
+    "marca",
+    "cod_interno",
+    "codigo_barras",
   ];
 
   for (const field of ALLOWED_FIELDS) {
@@ -270,6 +350,27 @@ function sanitizeRow(
     if (val === undefined || val === null) continue;
     // Células vazias / só espaço no Excel → ignorar (não invalidar)
     if (typeof val === "string" && val.trim() === "") continue;
+
+    if (field === "status") {
+      const r = resolveStatus(val);
+      if (!r.ok) return r;
+      if (r.value != null) out.status = r.value;
+      continue;
+    }
+
+    if (field === "origem_produto") {
+      const r = resolveOrigem(val);
+      if (!r.ok) return r;
+      if (r.value != null) out.origem_produto = r.value;
+      continue;
+    }
+
+    if (field === "produto_filho" || field === "desativado") {
+      const r = resolveBooleanStrict(val, field);
+      if (!r.ok) return r;
+      if (r.value != null) out[field] = r.value;
+      continue;
+    }
 
     if (numericFields.includes(field)) {
       const n = toNumber(val);
@@ -280,8 +381,8 @@ function sanitizeRow(
         };
       }
       out[field] = n;
-    } else if (field === "produto_filho" || field === "desativado") {
-      out[field] = parseBoolFlag(val);
+    } else if (textFields.includes(field)) {
+      out[field] = String(val).trim();
     } else {
       out[field] = String(val).trim();
     }

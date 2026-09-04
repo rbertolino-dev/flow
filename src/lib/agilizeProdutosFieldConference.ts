@@ -1,28 +1,18 @@
 import {
-  AGILIZE_EPRODUTOS_FIELDS,
+  AGILIZE_NUMERIC_FIELDS,
+  AGILIZE_FIELD_META,
   AGILIZE_FIELD_LABELS,
+  AGILIZE_EPRODUTOS_FIELDS,
   type AgilizeEprodutosField,
 } from "@/lib/agilizeProdutosFields";
 import { normalizeColumnName } from "@/utils/normalizeExcelColumn";
 
 type ColumnMapping = Record<string, AgilizeEprodutosField | "">;
 
-/** Campos numéricos (mesma regra do backend) */
-export const AGILIZE_NUMERIC_FIELDS: AgilizeEprodutosField[] = [
-  "preço",
-  "preço_atacado",
-  "qnt_ideal",
-  "qntd",
-  "qntd_baixa",
-  "total_custo",
-  "total_venda",
-  "custo_unit",
-  "origem_produto",
-];
-
 export type FieldConferenceItem = {
   field: AgilizeEprodutosField;
   label: string;
+  kind: string;
   mapped: boolean;
   excelColumn: string | null;
   sampleValue: string;
@@ -54,10 +44,31 @@ function looksLikeNumber(val: unknown): boolean {
   return !Number.isNaN(Number(br));
 }
 
+function looksLikeSelect(
+  field: AgilizeEprodutosField,
+  sample: string
+): string | null {
+  const meta = AGILIZE_FIELD_META[field];
+  if (meta.kind === "boolean") {
+    const s = sample.trim().toLowerCase();
+    if (
+      ["true", "false", "1", "0", "sim", "nao", "não", "yes", "no"].includes(s)
+    ) {
+      return null;
+    }
+    return `Booleano inválido: "${sample}" (use true/false)`;
+  }
+  if (meta.kind !== "select" || !meta.options) return null;
+  const raw = sample.trim();
+  if (meta.options.some((o) => o === raw || o.toLowerCase() === raw.toLowerCase())) {
+    return null;
+  }
+  if (meta.acceptShortCodes && /^[0-8]\b/.test(raw)) return null;
+  return `Fora das opções do seletor: "${raw}"`;
+}
+
 /** Conta quantos campos Agilize foram mapeados a partir dos headers */
-export function countMappedAgilizeFields(
-  mapping: ColumnMapping
-): number {
+export function countMappedAgilizeFields(mapping: ColumnMapping): number {
   const mapped = new Set(
     Object.values(mapping).filter((v): v is AgilizeEprodutosField => !!v)
   );
@@ -66,7 +77,7 @@ export function countMappedAgilizeFields(
 
 /**
  * Conferência completa: para cada campo Agilize, se está mapeado,
- * amostra da 1ª linha com valor e avisos (ex.: numérico com texto).
+ * amostra da 1ª linha com valor e avisos (tipo número/select).
  */
 export function buildFieldConference(
   mapping: ColumnMapping,
@@ -84,6 +95,7 @@ export function buildFieldConference(
   const items: FieldConferenceItem[] = AGILIZE_EPRODUTOS_FIELDS.map((field) => {
     const excelColumn = fieldToExcel.get(field) ?? null;
     const mapped = !!excelColumn;
+    const meta = AGILIZE_FIELD_META[field];
     let sampleValue = "";
     let rowsWithValue = 0;
     let warning: string | null = null;
@@ -96,19 +108,19 @@ export function buildFieldConference(
         if (!sampleValue) sampleValue = String(val);
       }
 
-      // Só alerta se há valor preenchido inválido para campo numérico
-      if (
-        rowsWithValue > 0 &&
-        AGILIZE_NUMERIC_FIELDS.includes(field) &&
-        !looksLikeNumber(sampleValue)
-      ) {
-        warning = `Valor de exemplo não parece número: "${sampleValue}"`;
+      if (rowsWithValue > 0) {
+        if (AGILIZE_NUMERIC_FIELDS.includes(field) && !looksLikeNumber(sampleValue)) {
+          warning = `Valor de exemplo não parece número: "${sampleValue}"`;
+        } else {
+          warning = looksLikeSelect(field, sampleValue);
+        }
       }
     }
 
     return {
       field,
       label: AGILIZE_FIELD_LABELS[field],
+      kind: meta.kind,
       mapped,
       excelColumn,
       sampleValue,
@@ -125,7 +137,7 @@ export function buildFieldConference(
   return {
     items,
     mappedCount,
-    totalFields: AGILIZE_EPRODUTOS_FIELDS.length,
+    totalFields: items.length,
     withValueCount,
     warningCount,
     unmappedFields,
@@ -140,11 +152,11 @@ export function scoreHeaderMapping(
 ): number {
   const mapping = autoMap(headers);
   let score = countMappedAgilizeFields(mapping);
-  // Bônus se nome e preço estão mapeados (campos críticos)
   const values = Object.values(mapping);
   if (values.includes("nome")) score += 5;
   if (values.includes("preço")) score += 3;
-  // Penaliza headers com mojibake visível
+  if (values.includes("status")) score += 2;
+  if (values.includes("origem_produto")) score += 2;
   if (headers.some((h) => /[ÃÂ]/.test(h))) score -= 2;
   return score;
 }
