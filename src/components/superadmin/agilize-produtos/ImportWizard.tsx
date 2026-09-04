@@ -29,12 +29,16 @@ import {
   autoMapColumns,
   useAgilizeProdutosImport,
   type ColumnMapping,
+  type DuplicateMode,
+  type FailedImportItem,
   type MappedProductRow,
 } from "@/hooks/useAgilizeProdutosImport";
 import {
   AGILIZE_EPRODUTOS_FIELDS,
   AGILIZE_FIELD_LABELS,
   AGILIZE_FIELD_META,
+  BATCH_DELAY_MS,
+  BATCH_SIZE,
   type AgilizeEprodutosField,
 } from "@/lib/agilizeProdutosFields";
 import {
@@ -42,6 +46,7 @@ import {
   scoreHeaderMapping,
 } from "@/lib/agilizeProdutosFieldConference";
 import { downloadAgilizeProdutosTemplate } from "@/lib/agilizeProdutosTemplate";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   AlertCircle,
   CheckCircle2,
@@ -50,6 +55,7 @@ import {
   Loader2,
   Pause,
   Play,
+  RefreshCw,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -83,6 +89,27 @@ function downloadReportCsv(
   URL.revokeObjectURL(url);
 }
 
+function downloadFailedProductsXlsx(items: FailedImportItem[]) {
+  if (!items.length) return;
+  const sheetRows = items.map((item) => {
+    const row: Record<string, unknown> = {
+      _motivo_falha: item.reason,
+      _linha_original: item.row,
+      _lote: item.batch,
+    };
+    for (const f of AGILIZE_EPRODUTOS_FIELDS) {
+      if (item.data[f] != null && item.data[f] !== "") {
+        row[f] = item.data[f];
+      }
+    }
+    return row;
+  });
+  const ws = XLSX.utils.json_to_sheet(sheetRows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Falhas");
+  XLSX.writeFile(wb, `produtos-falhas-${Date.now()}.xlsx`);
+}
+
 export function AgilizeProdutosImportWizard() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +127,7 @@ export function AgilizeProdutosImportWizard() {
     resumeImport,
     cancelImport,
     resetImport,
+    setDryRunResult,
   } = useAgilizeProdutosImport();
 
   const handleDownloadTemplate = () => {
@@ -124,6 +152,8 @@ export function AgilizeProdutosImportWizard() {
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [mappedRows, setMappedRows] = useState<MappedProductRow[]>([]);
   const [confirmId, setConfirmId] = useState(false);
+  const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("skip");
+  const [isReimporting, setIsReimporting] = useState(false);
 
   const maxUnlockedStep = useMemo(() => {
     if (!empresaValidated) return 1;
@@ -263,10 +293,14 @@ export function AgilizeProdutosImportWizard() {
 
   const handleDryRun = async () => {
     try {
-      const result = await runDryRun(empresaId.trim(), mappedRows);
+      const result = await runDryRun(empresaId.trim(), mappedRows, duplicateMode);
+      const updatePart =
+        duplicateMode === "overwrite" && (result.totals.willUpdate ?? 0) > 0
+          ? ` · ${result.totals.willUpdate} a sobrescrever`
+          : "";
       toast({
         title: "Dry-run concluído",
-        description: `${result.totals.valid} válidos · ${result.totals.visibleToUser ?? "?"} visíveis no Bubble · ${result.totals.duplicates} duplicados · ${result.totals.invalid} inválidos`,
+        description: `${result.totals.valid} válidos · ${result.totals.visibleToUser ?? "?"} visíveis no Bubble · ${result.totals.duplicates} duplicados${updatePart} · ${result.totals.invalid} inválidos`,
       });
     } catch (e) {
       toast({
@@ -291,7 +325,42 @@ export function AgilizeProdutosImportWizard() {
       return;
     }
     setStep(5);
-    await runImportQueue(empresaId.trim(), mappedRows, dryRunResult.sessionToken);
+    await runImportQueue(
+      empresaId.trim(),
+      mappedRows,
+      dryRunResult.sessionToken,
+      { duplicateMode }
+    );
+  };
+
+  const handleReimportFailed = async () => {
+    const failed = progress.failedProducts;
+    if (!failed.length) {
+      toast({ title: "Nenhum produto com falha", variant: "destructive" });
+      return;
+    }
+    setIsReimporting(true);
+    try {
+      const rows = failed.map((f) => ({ ...f.data }));
+      setMappedRows(rows);
+      const dry = await runDryRun(empresaId.trim(), rows, duplicateMode);
+      setConfirmId(true);
+      toast({
+        title: "Reimportando só as falhas",
+        description: `${rows.length} produtos · dry-run: ${dry.totals.valid} válidos`,
+      });
+      await runImportQueue(empresaId.trim(), rows, dry.sessionToken, {
+        duplicateMode,
+      });
+    } catch (e) {
+      toast({
+        title: "Falha ao reimportar",
+        description: e instanceof Error ? e.message : "Erro",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReimporting(false);
+    }
   };
 
   const progressPct =
@@ -595,6 +664,38 @@ export function AgilizeProdutosImportWizard() {
               {mappedRows.length} linhas mapeadas · empresa{" "}
               <code className="text-xs">{empresaId}</code>
             </div>
+
+            <div className="rounded-md border p-3 space-y-3">
+              <Label className="text-sm font-medium">
+                Se o produto já existir nesta empresa (mesmo codigo_produto)
+              </Label>
+              <RadioGroup
+                value={duplicateMode}
+                onValueChange={(v) => {
+                  setDuplicateMode(v as DuplicateMode);
+                  setDryRunResult(null);
+                  setConfirmId(false);
+                }}
+                className="gap-3"
+              >
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem value="skip" id="dup-skip" className="mt-0.5" />
+                  <Label htmlFor="dup-skip" className="text-sm font-normal cursor-pointer leading-relaxed">
+                    <strong>Ignorar</strong> — não altera o produto existente (pula duplicata)
+                  </Label>
+                </div>
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem value="overwrite" id="dup-overwrite" className="mt-0.5" />
+                  <Label htmlFor="dup-overwrite" className="text-sm font-normal cursor-pointer leading-relaxed">
+                    <strong>Sobrescrever</strong> — atualiza o produto existente com os dados da planilha
+                  </Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                Altere o modo e execute o dry-run de novo antes de importar.
+              </p>
+            </div>
+
             <Button onClick={handleDryRun} disabled={isDryRunning || !mappedRows.length}>
               {isDryRunning && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Executar dry-run
@@ -608,6 +709,11 @@ export function AgilizeProdutosImportWizard() {
                     Visíveis no Bubble (deste lote): {dryRunResult.totals.visibleToUser ?? "—"}
                   </Badge>
                   <Badge variant="secondary">Duplicados: {dryRunResult.totals.duplicates}</Badge>
+                  {(dryRunResult.totals.willUpdate ?? 0) > 0 && (
+                    <Badge className="bg-amber-600 hover:bg-amber-600">
+                      A sobrescrever: {dryRunResult.totals.willUpdate}
+                    </Badge>
+                  )}
                   <Badge variant="destructive">Inválidos: {dryRunResult.totals.invalid}</Badge>
                   <Badge variant="outline">Avisos: {dryRunResult.totals.warnings}</Badge>
                 </div>
@@ -736,8 +842,10 @@ export function AgilizeProdutosImportWizard() {
                   <Label htmlFor="confirmId" className="text-sm leading-relaxed cursor-pointer">
                     Confirmo que o Unique ID{" "}
                     <code className="text-xs break-all">{empresaId}</code>
-                    {empresaNome ? ` (${empresaNome})` : ""} está correto e desejo importar apenas
-                    INSERT (duplicatas serão puladas).
+                    {empresaNome ? ` (${empresaNome})` : ""} está correto e desejo importar
+                    {duplicateMode === "overwrite"
+                      ? " com sobrescrita dos produtos que já existirem (mesmo codigo_produto)."
+                      : " apenas INSERT (duplicatas serão ignoradas)."}
                   </Label>
                 </div>
 
@@ -759,7 +867,8 @@ export function AgilizeProdutosImportWizard() {
           <CardHeader>
             <CardTitle>5. Fila de importação</CardTitle>
             <CardDescription>
-              Lotes de 25 produtos com intervalo de 400ms. Pause/cancele se necessário.
+              Lotes de {BATCH_SIZE} produtos com intervalo de {BATCH_DELAY_MS}ms. Pause/cancele se
+              necessário.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -800,6 +909,11 @@ export function AgilizeProdutosImportWizard() {
               <Progress value={progressPct} />
               <div className="flex flex-wrap gap-2">
                 <Badge>Inseridos: {progress.inserted}</Badge>
+                {(progress.updated ?? 0) > 0 && (
+                  <Badge className="bg-amber-600 hover:bg-amber-600">
+                    Sobrescritos: {progress.updated}
+                  </Badge>
+                )}
                 <Badge variant="secondary">Pulados: {progress.skipped}</Badge>
                 <Badge variant="destructive">Erros: {progress.errors}</Badge>
                 <Badge variant="outline">Status: {progress.status}</Badge>
@@ -828,19 +942,125 @@ export function AgilizeProdutosImportWizard() {
               ))}
             </div>
 
+            {(progress.status === "done" || progress.status === "cancelled") &&
+              (progress.failedProducts?.length ?? 0) > 0 && (
+                <div className="space-y-3 rounded-md border border-destructive/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-destructive">
+                      {progress.failedProducts.length} produto(s) com falha — baixe e/ou reimporte
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          downloadFailedProductsXlsx(progress.failedProducts)
+                        }
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Baixar falhas (.xlsx)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          downloadReportCsv(
+                            "produtos-falhas.csv",
+                            progress.failedProducts.map((f) => ({
+                              linha: f.row,
+                              lote: f.batch,
+                              nome: f.nome,
+                              codigo_produto: f.codigo_produto,
+                              motivo: f.reason,
+                            }))
+                          )
+                        }
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Baixar falhas (.csv)
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleReimportFailed}
+                        disabled={isReimporting || isDryRunning}
+                      >
+                        {(isReimporting || isDryRunning) && (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        )}
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Reimportar só as falhas
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ao reimportar, use o modo{" "}
+                    <strong>
+                      {duplicateMode === "overwrite" ? "Sobrescrever" : "Ignorar"}
+                    </strong>{" "}
+                    (definido no passo 4). Se parte já entrou na 1ª tentativa, escolha
+                    Sobrescrever para atualizar os que já existem.
+                  </p>
+                  <div className="rounded-md border overflow-auto max-h-[220px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Linha</TableHead>
+                          <TableHead>Lote</TableHead>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Motivo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {progress.failedProducts.slice(0, 100).map((f, i) => (
+                          <TableRow key={`${f.row}-${i}`}>
+                            <TableCell>{f.row}</TableCell>
+                            <TableCell>{f.batch}</TableCell>
+                            <TableCell className="max-w-[160px] truncate">
+                              {f.nome || "—"}
+                            </TableCell>
+                            <TableCell>{f.codigo_produto || "—"}</TableCell>
+                            <TableCell className="max-w-[280px] truncate text-xs">
+                              {f.reason}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {progress.failedProducts.length > 100 && (
+                    <p className="text-xs text-muted-foreground">
+                      Mostrando 100 de {progress.failedProducts.length}. Baixe o arquivo para ver
+                      todos.
+                    </p>
+                  )}
+                </div>
+              )}
+
             {progress.status === "done" && (
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Importação finalizada. {progress.inserted} inseridos, {progress.skipped} pulados,{" "}
-                  {progress.errors} erros.
+                  Importação finalizada. {progress.inserted} inseridos
+                  {(progress.updated ?? 0) > 0
+                    ? `, ${progress.updated} sobrescritos`
+                    : ""}
+                  , {progress.skipped} pulados, {progress.errors} erros
+                  {(progress.failedProducts?.length ?? 0) > 0
+                    ? ` (${progress.failedProducts.length} detalhados abaixo).`
+                    : "."}
                 </AlertDescription>
               </Alert>
             )}
             {progress.status === "cancelled" && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Importação cancelada.</AlertDescription>
+                <AlertDescription>
+                  Importação cancelada.
+                  {(progress.failedProducts?.length ?? 0) > 0
+                    ? ` ${progress.failedProducts.length} produtos não processados estão na lista de falhas.`
+                    : ""}
+                </AlertDescription>
               </Alert>
             )}
           </CardContent>

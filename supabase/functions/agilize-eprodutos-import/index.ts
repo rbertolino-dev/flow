@@ -614,29 +614,37 @@ async function verifySessionToken(
   }
 }
 
-async function fetchExistingCodigos(
+async function fetchExistingCodigoIds(
   empresaId: string,
   codigos: string[]
-): Promise<Set<string>> {
-  const existing = new Set<string>();
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
   const unique = [...new Set(codigos.filter(Boolean))];
   const chunkSize = 50;
   for (let i = 0; i < unique.length; i += chunkSize) {
     const chunk = unique.slice(i, i + chunkSize);
     const filter = chunk.map((c) => `"${String(c).replace(/"/g, "")}"`).join(",");
     const res = await agilizeFetch(
-      `eprodutos?select=codigo_produto&empresa=eq.${encodeURIComponent(empresaId)}&codigo_produto=in.(${filter})`,
+      `eprodutos?select=id,codigo_produto&empresa=eq.${encodeURIComponent(empresaId)}&codigo_produto=in.(${filter})`,
       { method: "GET" }
     );
     if (!res.ok) continue;
     const data = await res.json();
     for (const item of data || []) {
-      if (item.codigo_produto != null) {
-        existing.add(String(item.codigo_produto));
+      if (item.codigo_produto != null && item.id != null) {
+        map.set(String(item.codigo_produto), Number(item.id));
       }
     }
   }
-  return existing;
+  return map;
+}
+
+async function fetchExistingCodigos(
+  empresaId: string,
+  codigos: string[]
+): Promise<Set<string>> {
+  const map = await fetchExistingCodigoIds(empresaId, codigos);
+  return new Set(map.keys());
 }
 
 async function countEmpresaVisibility(empresaId: string) {
@@ -730,7 +738,11 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
   };
 }
 
-async function dryRun(empresaId: string, rows: ProductRow[]) {
+async function dryRun(
+  empresaId: string,
+  rows: ProductRow[],
+  duplicateMode: "skip" | "overwrite" = "skip"
+) {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error("Nenhuma linha para validar");
   }
@@ -741,6 +753,7 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
   const valid: Array<{ row: number; data: Record<string, unknown> }> = [];
   const invalid: Array<{ row: number; error: string }> = [];
   const duplicates: Array<{ row: number; codigo_produto: string }> = [];
+  const willUpdate: Array<{ row: number; codigo_produto: string }> = [];
   const warnings: Array<{ row: number; warning: string }> = [];
 
   const sanitized: Array<{ rowNum: number; data: Record<string, unknown> }> =
@@ -778,13 +791,33 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
     .filter(Boolean);
   const existing = await fetchExistingCodigos(empresaId, codigos);
 
+  let insertCount = 0;
   for (const item of sanitized) {
     const codigo =
       item.data.codigo_produto != null
         ? String(item.data.codigo_produto)
         : "";
     if (codigo && existing.has(codigo)) {
-      duplicates.push({ row: item.rowNum, codigo_produto: codigo });
+      if (duplicateMode === "overwrite") {
+        willUpdate.push({ row: item.rowNum, codigo_produto: codigo });
+        warnings.push({
+          row: item.rowNum,
+          warning: `Será SOBRESCRITO (codigo_produto=${codigo})`,
+        });
+        if (!isBubbleVisible(item.data)) {
+          const reasons: string[] = [];
+          if (isTruthyFlag(item.data.desativado)) reasons.push("desativado=true");
+          if (isTruthyFlag(item.data.produto_filho))
+            reasons.push("produto_filho=true");
+          warnings.push({
+            row: item.rowNum,
+            warning: `Não aparece na lista do Bubble (${reasons.join(", ")})`,
+          });
+        }
+        valid.push({ row: item.rowNum, data: item.data });
+      } else {
+        duplicates.push({ row: item.rowNum, codigo_produto: codigo });
+      }
       continue;
     }
     if (!codigo) {
@@ -803,6 +836,7 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
         warning: `Não aparece na lista do Bubble (${reasons.join(", ")})`,
       });
     }
+    insertCount += 1;
     valid.push({ row: item.rowNum, data: item.data });
   }
 
@@ -813,11 +847,13 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
   return {
     ok: true,
     empresaId,
+    duplicateMode,
     totals: {
       total: rows.length,
       valid: valid.length,
       invalid: invalid.length,
       duplicates: duplicates.length,
+      willUpdate: willUpdate.length,
       warnings: warnings.length,
       /** Destes válidos, quantos o usuário verá no Bubble */
       visibleToUser: bubbleImport.visibleToUser,
@@ -828,22 +864,34 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
       "Visível no Bubble = desativado ≠ true E produto_filho ≠ true",
     empresaAtual,
     afterImportEstimate: {
-      total: empresaAtual.total + valid.length,
+      total: empresaAtual.total + insertCount,
       visibleToUser:
         empresaAtual.visibleToUser + bubbleImport.visibleToUser,
     },
     preview: valid.slice(0, 20).map((v) => v.data),
     invalid: invalid.slice(0, 100),
     duplicates: duplicates.slice(0, 100),
+    willUpdate: willUpdate.slice(0, 100),
     warnings: warnings.slice(0, 100),
     sessionToken,
   };
 }
 
+function buildUpdatePayload(data: Record<string, unknown>): Record<string, unknown> {
+  const omit = new Set(["uniqueid", "empresa", "creation_date", "creator", "id"]);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (omit.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 async function importBatch(
   empresaId: string,
   rows: ProductRow[],
-  sessionToken: string
+  sessionToken: string,
+  duplicateMode: "skip" | "overwrite" = "skip"
 ) {
   if (!sessionToken) {
     throw new Error("sessionToken obrigatório — execute dry-run antes");
@@ -881,6 +929,7 @@ async function importBatch(
   }
 
   const inserted: Array<{ row: number; id?: number; nome: string }> = [];
+  const updated: Array<{ row: number; id?: number; nome: string }> = [];
   const skipped: Array<{ row: number; reason: string }> = [];
   const errors: Array<{ row: number; error: string }> = [];
 
@@ -916,20 +965,31 @@ async function importBatch(
       p.data.codigo_produto != null ? String(p.data.codigo_produto) : ""
     )
     .filter(Boolean);
-  const existing = await fetchExistingCodigos(empresaId, codigos);
+  const existingIds = await fetchExistingCodigoIds(empresaId, codigos);
 
   const toInsert: Array<{ rowNum: number; data: Record<string, unknown> }> =
     [];
+  const toUpdate: Array<{
+    rowNum: number;
+    id: number;
+    data: Record<string, unknown>;
+  }> = [];
+
   for (const item of prepared) {
     const codigo =
       item.data.codigo_produto != null
         ? String(item.data.codigo_produto)
         : "";
-    if (codigo && existing.has(codigo)) {
-      skipped.push({
-        row: item.rowNum,
-        reason: `Duplicata codigo_produto=${codigo}`,
-      });
+    const existingId = codigo ? existingIds.get(codigo) : undefined;
+    if (existingId != null) {
+      if (duplicateMode === "overwrite") {
+        toUpdate.push({ rowNum: item.rowNum, id: existingId, data: item.data });
+      } else {
+        skipped.push({
+          row: item.rowNum,
+          reason: `Duplicata codigo_produto=${codigo}`,
+        });
+      }
       continue;
     }
     toInsert.push(item);
@@ -961,13 +1021,43 @@ async function importBatch(
     }
   }
 
+  // Updates em chunks pequenos (paralelo limitado) para evitar 504
+  const UPDATE_CHUNK = 5;
+  for (let i = 0; i < toUpdate.length; i += UPDATE_CHUNK) {
+    const chunk = toUpdate.slice(i, i + UPDATE_CHUNK);
+    await Promise.all(
+      chunk.map(async (item) => {
+        const res = await agilizeFetch(`eprodutos?id=eq.${item.id}`, {
+          method: "PATCH",
+          prefer: "return=representation",
+          body: JSON.stringify(buildUpdatePayload(item.data)),
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          errors.push({
+            row: item.rowNum,
+            error: `Update falhou (HTTP ${res.status}): ${errText.slice(0, 200)}`,
+          });
+          return;
+        }
+        updated.push({
+          row: item.rowNum,
+          id: item.id,
+          nome: String(item.data.nome),
+        });
+      })
+    );
+  }
+
   return {
     ok: true,
     empresaId,
+    duplicateMode,
     inserted: inserted.length,
+    updated: updated.length,
     skipped: skipped.length,
     errors: errors.length,
-    details: { inserted, skipped, errors },
+    details: { inserted, updated, skipped, errors },
   };
 }
 
@@ -1029,6 +1119,8 @@ serve(async (req) => {
     const sessionToken = body?.sessionToken
       ? String(body.sessionToken)
       : "";
+    const duplicateMode =
+      body?.duplicateMode === "overwrite" ? "overwrite" : "skip";
 
     if (action === "validate_empresa") {
       const result = await validateEmpresa(empresaId, empresaNome);
@@ -1039,7 +1131,7 @@ serve(async (req) => {
       if (!empresaId) {
         return jsonResponse({ error: "empresaId obrigatório" }, 400);
       }
-      const result = await dryRun(empresaId, rows);
+      const result = await dryRun(empresaId, rows, duplicateMode);
       return jsonResponse(result);
     }
 
@@ -1047,7 +1139,12 @@ serve(async (req) => {
       if (!empresaId) {
         return jsonResponse({ error: "empresaId obrigatório" }, 400);
       }
-      const result = await importBatch(empresaId, rows, sessionToken);
+      const result = await importBatch(
+        empresaId,
+        rows,
+        sessionToken,
+        duplicateMode
+      );
       return jsonResponse(result);
     }
 

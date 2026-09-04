@@ -40,6 +40,18 @@ export interface ValidateEmpresaResult {
   existsInProducts: boolean;
 }
 
+export type DuplicateMode = "skip" | "overwrite";
+
+export interface FailedImportItem {
+  row: number;
+  nome: string;
+  codigo_produto: string;
+  reason: string;
+  batch: number;
+  /** Linha mapeada completa para reimportar */
+  data: MappedProductRow;
+}
+
 export interface DryRunResult {
   ok: boolean;
   empresaId: string;
@@ -48,6 +60,7 @@ export interface DryRunResult {
     valid: number;
     invalid: number;
     duplicates: number;
+    willUpdate?: number;
     warnings: number;
     visibleToUser?: number;
     hiddenDesativado?: number;
@@ -67,8 +80,11 @@ export interface DryRunResult {
   preview: Record<string, unknown>[];
   invalid: Array<{ row: number; error: string }>;
   duplicates: Array<{ row: number; codigo_produto: string }>;
+  /** Quando duplicateMode=overwrite: linhas que serão atualizadas */
+  willUpdate?: Array<{ row: number; codigo_produto: string }>;
   warnings: Array<{ row: number; warning: string }>;
   sessionToken: string;
+  duplicateMode?: DuplicateMode;
 }
 
 export interface ImportProgress {
@@ -78,9 +94,40 @@ export interface ImportProgress {
   processed: number;
   total: number;
   inserted: number;
+  updated: number;
   skipped: number;
   errors: number;
+  failedProducts: FailedImportItem[];
   logs: Array<{ batch: number; message: string; type: "ok" | "skip" | "error" | "info" }>;
+}
+
+const EMPTY_PROGRESS: ImportProgress = {
+  status: "idle",
+  currentBatch: 0,
+  totalBatches: 0,
+  processed: 0,
+  total: 0,
+  inserted: 0,
+  updated: 0,
+  skipped: 0,
+  errors: 0,
+  failedProducts: [],
+  logs: [],
+};
+
+function toFailedItem(
+  row: MappedProductRow,
+  reason: string,
+  batch: number
+): FailedImportItem {
+  return {
+    row: Number(row._row) || 0,
+    nome: String(row.nome ?? ""),
+    codigo_produto: String(row.codigo_produto ?? ""),
+    reason,
+    batch,
+    data: row,
+  };
 }
 
 async function getAccessTokenWithRetry(attempts = 3): Promise<string | null> {
@@ -241,17 +288,7 @@ export function useAgilizeProdutosImport() {
   const [isDryRunning, setIsDryRunning] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateEmpresaResult | null>(null);
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
-  const [progress, setProgress] = useState<ImportProgress>({
-    status: "idle",
-    currentBatch: 0,
-    totalBatches: 0,
-    processed: 0,
-    total: 0,
-    inserted: 0,
-    skipped: 0,
-    errors: 0,
-    logs: [],
-  });
+  const [progress, setProgress] = useState<ImportProgress>(EMPTY_PROGRESS);
 
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
@@ -271,20 +308,28 @@ export function useAgilizeProdutosImport() {
     }
   }, []);
 
-  const runDryRun = useCallback(async (empresaId: string, rows: MappedProductRow[]) => {
-    setIsDryRunning(true);
-    try {
-      const result = await invokeAction<DryRunResult>({
-        action: "dry_run",
-        empresaId,
-        rows,
-      });
-      setDryRunResult(result);
-      return result;
-    } finally {
-      setIsDryRunning(false);
-    }
-  }, []);
+  const runDryRun = useCallback(
+    async (
+      empresaId: string,
+      rows: MappedProductRow[],
+      duplicateMode: DuplicateMode = "skip"
+    ) => {
+      setIsDryRunning(true);
+      try {
+        const result = await invokeAction<DryRunResult>({
+          action: "dry_run",
+          empresaId,
+          rows,
+          duplicateMode,
+        });
+        setDryRunResult(result);
+        return result;
+      } finally {
+        setIsDryRunning(false);
+      }
+    },
+    []
+  );
 
   const pauseImport = useCallback(() => {
     pauseRef.current = true;
@@ -302,41 +347,64 @@ export function useAgilizeProdutosImport() {
   }, []);
 
   const runImportQueue = useCallback(
-    async (empresaId: string, rows: MappedProductRow[], sessionToken: string) => {
-      // Prefer valid rows only: filter those that dry-run would accept
-      // Client sends all mapped rows; server re-checks duplicates
+    async (
+      empresaId: string,
+      rows: MappedProductRow[],
+      sessionToken: string,
+      options?: { duplicateMode?: DuplicateMode }
+    ) => {
+      const duplicateMode = options?.duplicateMode ?? "skip";
       pauseRef.current = false;
       cancelRef.current = false;
 
       const totalBatches = Math.max(1, Math.ceil(rows.length / BATCH_SIZE));
       setProgress({
+        ...EMPTY_PROGRESS,
         status: "running",
-        currentBatch: 0,
         totalBatches,
-        processed: 0,
         total: rows.length,
-        inserted: 0,
-        skipped: 0,
-        errors: 0,
-        logs: [{ batch: 0, message: `Iniciando importação de ${rows.length} linhas`, type: "info" }],
+        logs: [
+          {
+            batch: 0,
+            message: `Iniciando importação de ${rows.length} linhas (modo: ${
+              duplicateMode === "overwrite" ? "sobrescrever" : "ignorar duplicatas"
+            })`,
+            type: "info",
+          },
+        ],
       });
 
       let inserted = 0;
+      let updated = 0;
       let skipped = 0;
       let errors = 0;
       let processed = 0;
+      const failedProducts: FailedImportItem[] = [];
 
       for (let b = 0; b < totalBatches; b++) {
         while (pauseRef.current && !cancelRef.current) {
           await new Promise((r) => setTimeout(r, 200));
         }
         if (cancelRef.current) {
+          const remaining = rows.slice(b * BATCH_SIZE);
+          for (const row of remaining) {
+            failedProducts.push(
+              toFailedItem(row, "Importação cancelada — não processado", b + 1)
+            );
+          }
+          errors += remaining.length;
           setProgress((p) => ({
             ...p,
             status: "cancelled",
+            errors,
+            failedProducts: [...failedProducts],
             logs: [
               ...p.logs,
-              { batch: b + 1, message: "Importação cancelada pelo usuário", type: "error" },
+              {
+                batch: b + 1,
+                message: `Importação cancelada. ${remaining.length} produtos restantes listados em falhas.`,
+                type: "error",
+              },
             ],
           }));
           return;
@@ -360,6 +428,7 @@ export function useAgilizeProdutosImport() {
           try {
             const result = await invokeAction<{
               inserted: number;
+              updated?: number;
               skipped: number;
               errors: number;
               details: {
@@ -371,33 +440,55 @@ export function useAgilizeProdutosImport() {
               empresaId,
               rows: batch,
               sessionToken,
+              duplicateMode,
             });
 
             inserted += result.inserted || 0;
+            updated += result.updated || 0;
             skipped += result.skipped || 0;
             errors += result.errors || 0;
             processed += batch.length;
 
-            const errSample = (result.details?.errors || [])
+            const rowErrors = result.details?.errors || [];
+            for (const err of rowErrors) {
+              const match = batch.find((r) => Number(r._row) === err.row);
+              if (match) {
+                failedProducts.push(toFailedItem(match, err.error, b + 1));
+              } else {
+                failedProducts.push({
+                  row: err.row,
+                  nome: "",
+                  codigo_produto: "",
+                  reason: err.error,
+                  batch: b + 1,
+                  data: { _row: err.row },
+                });
+              }
+            }
+
+            const errSample = rowErrors
               .slice(0, 3)
               .map((e) => `L${e.row}: ${e.error}`)
               .join("; ");
-
             const retryNote =
               attempt > 1 ? ` (ok após retry ${attempt}/${BATCH_RETRY_MAX})` : "";
+            const updPart =
+              (result.updated || 0) > 0 ? `, +${result.updated} update` : "";
 
             setProgress((p) => ({
               ...p,
               currentBatch: b + 1,
               processed,
               inserted,
+              updated,
               skipped,
               errors,
+              failedProducts: [...failedProducts],
               logs: [
                 ...p.logs,
                 {
                   batch: b + 1,
-                  message: `Lote ${b + 1}/${totalBatches}: +${result.inserted} ok, ${result.skipped} skip, ${result.errors} erro${errSample ? ` (${errSample})` : ""}${retryNote}`,
+                  message: `Lote ${b + 1}/${totalBatches}: +${result.inserted} ok${updPart}, ${result.skipped} skip, ${result.errors} erro${errSample ? ` (${errSample})` : ""}${retryNote}`,
                   type:
                     result.errors > 0
                       ? "error"
@@ -434,17 +525,22 @@ export function useAgilizeProdutosImport() {
         }
 
         if (!batchOk) {
+          const reason = `Lote falhou: ${lastErr}`.slice(0, 500);
+          for (const row of batch) {
+            failedProducts.push(toFailedItem(row, reason, b + 1));
+          }
           errors += batch.length;
           processed += batch.length;
           setProgress((p) => ({
             ...p,
             processed,
             errors,
+            failedProducts: [...failedProducts],
             logs: [
               ...p.logs,
               {
                 batch: b + 1,
-                message: `Lote ${b + 1} falhou após ${BATCH_RETRY_MAX} tentativas: ${lastErr}`,
+                message: `Lote ${b + 1} falhou após ${BATCH_RETRY_MAX} tentativas (${batch.length} produtos na lista de falhas): ${lastErr.slice(0, 200)}`,
                 type: "error",
               },
             ],
@@ -459,11 +555,12 @@ export function useAgilizeProdutosImport() {
       setProgress((p) => ({
         ...p,
         status: "done",
+        failedProducts: [...failedProducts],
         logs: [
           ...p.logs,
           {
             batch: totalBatches,
-            message: `Concluído: ${inserted} inseridos, ${skipped} pulados, ${errors} erros`,
+            message: `Concluído: ${inserted} inseridos, ${updated} sobrescritos, ${skipped} pulados, ${errors} erros (${failedProducts.length} na lista de falhas)`,
             type: "info",
           },
         ],
@@ -474,17 +571,7 @@ export function useAgilizeProdutosImport() {
 
   const resetImport = useCallback(() => {
     setDryRunResult(null);
-    setProgress({
-      status: "idle",
-      currentBatch: 0,
-      totalBatches: 0,
-      processed: 0,
-      total: 0,
-      inserted: 0,
-      skipped: 0,
-      errors: 0,
-      logs: [],
-    });
+    setProgress(EMPTY_PROGRESS);
   }, []);
 
   return {
