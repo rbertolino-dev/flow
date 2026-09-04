@@ -91,27 +91,35 @@ export const AGILIZE_ORIGEM_OPTIONS = [
 
 export const AGILIZE_BOOLEAN_OPTIONS = ["false", "true"] as const;
 
-/** Medidas comuns (sugestão no template; validação NÃO é rígida — texto livre) */
-export const AGILIZE_MEDIDA_SUGGESTIONS = [
+/**
+ * Medidas fixas do seletor Bubble / eprodutos (somente estas).
+ * Ordem igual ao dropdown da aplicação.
+ */
+export const AGILIZE_MEDIDA_OPTIONS = [
   "Un",
   "Kg",
-  "Pacotes",
-  "Pacote",
-  "Caixas",
-  "Metros",
-  "M2",
+  "Gramas",
   "Litros",
   "ml",
-  "Gramas",
-  "Kit",
+  "Metros",
+  "Latas",
+  "Pacotes",
+  "Caixas",
+  "Scs",
+  "M2",
+  "M3",
   "Fardo",
 ] as const;
+
+/** @deprecated Use AGILIZE_MEDIDA_OPTIONS */
+export const AGILIZE_MEDIDA_SUGGESTIONS = AGILIZE_MEDIDA_OPTIONS;
 
 export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta> = {
   nome: { kind: "text", required: true, description: "Texto obrigatório" },
   medida: {
-    kind: "text",
-    description: "Texto livre (sugestões no seletor do template)",
+    kind: "select",
+    options: AGILIZE_MEDIDA_OPTIONS,
+    description: "Seletor — só as medidas existentes no eprodutos",
   },
   origem_produto: {
     kind: "select",

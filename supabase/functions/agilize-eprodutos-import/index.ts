@@ -229,6 +229,21 @@ function pickRawField(raw: ProductRow, field: AllowedField): unknown {
 }
 
 const STATUS_OPTIONS = ["Ideal", "Em falta", "Baixa"] as const;
+const MEDIDA_OPTIONS = [
+  "Un",
+  "Kg",
+  "Gramas",
+  "Litros",
+  "ml",
+  "Metros",
+  "Latas",
+  "Pacotes",
+  "Caixas",
+  "Scs",
+  "M2",
+  "M3",
+  "Fardo",
+] as const;
 const ORIGEM_OPTIONS = [
   "0 – Nacional;",
   "1 – Estrangeira (importação direta);",
@@ -251,6 +266,22 @@ function resolveStatus(value: unknown): { ok: true; value: string | null } | { o
   return {
     ok: false,
     error: `Campo 'status' inválido: "${raw}". Opções: ${STATUS_OPTIONS.join(" | ")}`,
+  };
+}
+
+function resolveMedida(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return { ok: true, value: null };
+  }
+  const raw = String(value).trim();
+  const hit = MEDIDA_OPTIONS.find((o) => o === raw);
+  if (hit) return { ok: true, value: hit };
+  // Case-insensitive (ex.: "UN" → "Un", "KG" → "Kg") — mantém a forma canônica da lista
+  const ci = MEDIDA_OPTIONS.find((o) => o.toLowerCase() === raw.toLowerCase());
+  if (ci) return { ok: true, value: ci };
+  return {
+    ok: false,
+    error: `Campo 'medida' inválido: "${raw}". Opções: ${MEDIDA_OPTIONS.join(" | ")}`,
   };
 }
 
@@ -333,7 +364,6 @@ function sanitizeRow(
   ];
 
   const textFields: AllowedField[] = [
-    "medida",
     "categoria_nome",
     "codigo_produto",
     "codigo_ncm",
@@ -355,6 +385,13 @@ function sanitizeRow(
       const r = resolveStatus(val);
       if (!r.ok) return r;
       if (r.value != null) out.status = r.value;
+      continue;
+    }
+
+    if (field === "medida") {
+      const r = resolveMedida(val);
+      if (!r.ok) return r;
+      if (r.value != null) out.medida = r.value;
       continue;
     }
 

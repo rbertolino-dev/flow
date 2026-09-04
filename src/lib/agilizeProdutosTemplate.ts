@@ -3,7 +3,7 @@ import {
   AGILIZE_EPRODUTOS_FIELDS,
   AGILIZE_FIELD_LABELS,
   AGILIZE_FIELD_META,
-  AGILIZE_MEDIDA_SUGGESTIONS,
+  AGILIZE_MEDIDA_OPTIONS,
   AGILIZE_ORIGEM_OPTIONS,
   AGILIZE_STATUS_OPTIONS,
   AGILIZE_BOOLEAN_OPTIONS,
@@ -38,7 +38,7 @@ export async function downloadAgilizeProdutosTemplate(): Promise<void> {
   opcoes.getColumn(1).values = ["status", ...AGILIZE_STATUS_OPTIONS];
   opcoes.getColumn(2).values = ["origem_produto", ...AGILIZE_ORIGEM_OPTIONS];
   opcoes.getColumn(3).values = ["boolean", ...AGILIZE_BOOLEAN_OPTIONS];
-  opcoes.getColumn(4).values = ["medida_sugestoes", ...AGILIZE_MEDIDA_SUGGESTIONS];
+  opcoes.getColumn(4).values = ["medida", ...AGILIZE_MEDIDA_OPTIONS];
   opcoes.getColumn(1).width = 14;
   opcoes.getColumn(2).width = 70;
   opcoes.getColumn(3).width = 12;
@@ -121,24 +121,7 @@ export async function downloadAgilizeProdutosTemplate(): Promise<void> {
   addList(origemIdx, `Opcoes!$B$2:$B$${1 + AGILIZE_ORIGEM_OPTIONS.length}`);
   addList(filhoIdx, `Opcoes!$C$2:$C$${1 + AGILIZE_BOOLEAN_OPTIONS.length}`);
   addList(desIdx, `Opcoes!$C$2:$C$${1 + AGILIZE_BOOLEAN_OPTIONS.length}`);
-  // Medida: sugestão (não bloqueia outros textos no Excel se o usuário digitar — list still allows only list unless we use custom)
-  // Excel list validation blocks free text by default; for medida we WANT free text with suggestions.
-  // Use list without strict error? errorStyle: 'warning'
-  if (medidaIdx >= 0) {
-    const letter = colLetter(medidaIdx);
-    ws.dataValidations.add(`${letter}2:${letter}${lastRow}`, {
-      type: "list",
-      allowBlank: true,
-      formulae: [`Opcoes!$D$2:$D$${1 + AGILIZE_MEDIDA_SUGGESTIONS.length}`],
-      showErrorMessage: true,
-      errorStyle: "warning",
-      errorTitle: "Sugestão",
-      error: "Valor fora da lista de sugestões — pode continuar se for uma medida válida.",
-      showInputMessage: true,
-      promptTitle: "Medida",
-      prompt: "Sugestões comuns; outros textos também são aceitos no import",
-    });
-  }
+  addList(medidaIdx, `Opcoes!$D$2:$D$${1 + AGILIZE_MEDIDA_OPTIONS.length}`);
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf as ArrayBuffer], {
