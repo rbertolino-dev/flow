@@ -376,7 +376,7 @@ function sanitizeRow(
 
   for (const field of ALLOWED_FIELDS) {
     if (field === "nome") continue;
-    let val = pickRawField(raw, field);
+    const val = pickRawField(raw, field);
     if (val === undefined || val === null) continue;
     // Células vazias / só espaço no Excel → ignorar (não invalidar)
     if (typeof val === "string" && val.trim() === "") continue;
