@@ -21,6 +21,18 @@ export interface ValidateEmpresaResult {
   empresaNomeInformado: string | null;
   empresaCadastro: { found: boolean; nome?: string };
   productCount: number;
+  /** Quantidade que o usuário vê no Bubble */
+  visibleToUser: number;
+  hiddenDesativado: number;
+  hiddenProdutoFilho: number;
+  bubbleRule?: string;
+  visibility?: {
+    total: number;
+    visibleToUser: number;
+    hiddenDesativado: number;
+    hiddenProdutoFilho: number;
+    hiddenBoth: number;
+  };
   sample: Array<{ id: number; nome: string; codigo_produto?: string; status?: string }>;
   nameWarning: string | null;
   existsInProducts: boolean;
@@ -35,6 +47,20 @@ export interface DryRunResult {
     invalid: number;
     duplicates: number;
     warnings: number;
+    visibleToUser?: number;
+    hiddenDesativado?: number;
+    hiddenProdutoFilho?: number;
+  };
+  bubbleRule?: string;
+  empresaAtual?: {
+    total: number;
+    visibleToUser: number;
+    hiddenDesativado: number;
+    hiddenProdutoFilho: number;
+  };
+  afterImportEstimate?: {
+    total: number;
+    visibleToUser: number;
   };
   preview: Record<string, unknown>[];
   invalid: Array<{ row: number; error: string }>;

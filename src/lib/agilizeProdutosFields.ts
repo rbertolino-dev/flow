@@ -7,6 +7,7 @@ export const AGILIZE_EPRODUTOS_FIELDS = [
   "preço",
   "preço_atacado",
   "produto_filho",
+  "desativado",
   "qnt_ideal",
   "qntd",
   "qntd_baixa",
@@ -33,6 +34,7 @@ export const AGILIZE_FIELD_LABELS: Record<AgilizeEprodutosField, string> = {
   preço: "Preço",
   preço_atacado: "Preço atacado",
   produto_filho: "Produto filho",
+  desativado: "Desativado",
   qnt_ideal: "Qtd ideal",
   qntd: "Quantidade",
   qntd_baixa: "Qtd baixa",
@@ -51,3 +53,65 @@ export const AGILIZE_FIELD_LABELS: Record<AgilizeEprodutosField, string> = {
 
 export const BATCH_SIZE = 25;
 export const BATCH_DELAY_MS = 400;
+
+/**
+ * Lógica Bubble (o que o usuário vê na lista de produtos):
+ * - NÃO mostra se desativado = true
+ * - NÃO mostra se produto_filho = true
+ * - null/false em ambos = visível
+ */
+export function isTruthyFlag(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    return s === "true" || s === "1" || s === "sim" || s === "yes";
+  }
+  return false;
+}
+
+/** Produto visível para o usuário no Bubble */
+export function isBubbleVisibleProduct(row: {
+  desativado?: unknown;
+  produto_filho?: unknown;
+}): boolean {
+  return !isTruthyFlag(row.desativado) && !isTruthyFlag(row.produto_filho);
+}
+
+export type BubbleVisibilityBreakdown = {
+  total: number;
+  visibleToUser: number;
+  hiddenDesativado: number;
+  hiddenProdutoFilho: number;
+  /** Desativado e filho ao mesmo tempo (conta só em desativado na soma) */
+  hiddenBoth: number;
+};
+
+export function countBubbleVisibility(
+  rows: Array<{ desativado?: unknown; produto_filho?: unknown }>
+): BubbleVisibilityBreakdown {
+  let visibleToUser = 0;
+  let hiddenDesativado = 0;
+  let hiddenProdutoFilho = 0;
+  let hiddenBoth = 0;
+  for (const r of rows) {
+    const des = isTruthyFlag(r.desativado);
+    const filho = isTruthyFlag(r.produto_filho);
+    if (des && filho) {
+      hiddenBoth += 1;
+      hiddenDesativado += 1;
+    } else if (des) {
+      hiddenDesativado += 1;
+    } else if (filho) {
+      hiddenProdutoFilho += 1;
+    } else {
+      visibleToUser += 1;
+    }
+  }
+  return {
+    total: rows.length,
+    visibleToUser,
+    hiddenDesativado,
+    hiddenProdutoFilho,
+    hiddenBoth,
+  };
+}

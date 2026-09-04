@@ -138,7 +138,7 @@ export function AgilizeProdutosImportWizard() {
       setEmpresaValidated(true);
       toast({
         title: "Empresa validada",
-        description: `${result.productCount} produtos atuais no Agilize Total`,
+        description: `${result.visibleToUser ?? "?"} visíveis no Bubble · ${result.productCount} no banco`,
       });
       setStep(2);
     } catch (e) {
@@ -205,7 +205,7 @@ export function AgilizeProdutosImportWizard() {
       const result = await runDryRun(empresaId.trim(), mappedRows);
       toast({
         title: "Dry-run concluído",
-        description: `${result.totals.valid} válidos · ${result.totals.duplicates} duplicados · ${result.totals.invalid} inválidos`,
+        description: `${result.totals.valid} válidos · ${result.totals.visibleToUser ?? "?"} visíveis no Bubble · ${result.totals.duplicates} duplicados · ${result.totals.invalid} inválidos`,
       });
     } catch (e) {
       toast({
@@ -307,11 +307,28 @@ export function AgilizeProdutosImportWizard() {
             {validateResult && (
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription className="space-y-1">
+                <AlertDescription className="space-y-2">
                   <div>
-                    ID <code className="text-xs">{validateResult.empresaId}</code> —{" "}
-                    <strong>{validateResult.productCount}</strong> produtos atuais
+                    ID <code className="text-xs">{validateResult.empresaId}</code>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="bg-green-600 hover:bg-green-600">
+                      Usuário vê no Bubble: {validateResult.visibleToUser ?? "—"}
+                    </Badge>
+                    <Badge variant="secondary">
+                      Total no banco: {validateResult.productCount}
+                    </Badge>
+                    <Badge variant="outline">
+                      Desativados: {validateResult.hiddenDesativado ?? 0}
+                    </Badge>
+                    <Badge variant="outline">
+                      Produto filho: {validateResult.hiddenProdutoFilho ?? 0}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {validateResult.bubbleRule ||
+                      "Visível no Bubble = desativado ≠ true E produto_filho ≠ true"}
+                  </p>
                   {validateResult.empresaCadastro.found && (
                     <div>Cadastro: {validateResult.empresaCadastro.nome}</div>
                   )}
@@ -450,10 +467,39 @@ export function AgilizeProdutosImportWizard() {
               <>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="default">Válidos: {dryRunResult.totals.valid}</Badge>
+                  <Badge className="bg-green-600 hover:bg-green-600">
+                    Visíveis no Bubble (deste lote): {dryRunResult.totals.visibleToUser ?? "—"}
+                  </Badge>
                   <Badge variant="secondary">Duplicados: {dryRunResult.totals.duplicates}</Badge>
                   <Badge variant="destructive">Inválidos: {dryRunResult.totals.invalid}</Badge>
                   <Badge variant="outline">Avisos: {dryRunResult.totals.warnings}</Badge>
                 </div>
+                {(dryRunResult.totals.hiddenDesativado || dryRunResult.totals.hiddenProdutoFilho) ? (
+                  <p className="text-xs text-amber-700">
+                    Neste lote: {dryRunResult.totals.hiddenDesativado ?? 0} com desativado=true ·{" "}
+                    {dryRunResult.totals.hiddenProdutoFilho ?? 0} com produto_filho=true (não
+                    aparecem na lista do usuário).
+                  </p>
+                ) : null}
+                {dryRunResult.afterImportEstimate && (
+                  <Alert>
+                    <AlertDescription className="text-sm space-y-1">
+                      <div>
+                        <strong>Estimativa após importar:</strong> usuário verá{" "}
+                        <strong>{dryRunResult.afterImportEstimate.visibleToUser}</strong> no
+                        Bubble (hoje: {dryRunResult.empresaAtual?.visibleToUser ?? "—"}).
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Total no banco estimado: {dryRunResult.afterImportEstimate.total}. Regra:{" "}
+                        {dryRunResult.bubbleRule}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Novos produtos sobem com desativado=false e produto_filho=false por
+                        padrão (aparecem na lista).
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {dryRunResult.preview.length > 0 && (
                   <div className="rounded-md border overflow-auto max-h-[280px]">

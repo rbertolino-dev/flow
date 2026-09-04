@@ -16,6 +16,7 @@ const ALLOWED_FIELDS = [
   "preço",
   "preço_atacado",
   "produto_filho",
+  "desativado",
   "qnt_ideal",
   "qntd",
   "qntd_baixa",
@@ -114,6 +115,57 @@ function toNumber(value: unknown): number | null {
   return Number.isNaN(n2) ? null : n2;
 }
 
+function isTruthyFlag(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    return s === "true" || s === "1" || s === "sim" || s === "yes";
+  }
+  return false;
+}
+
+function parseBoolFlag(val: unknown): boolean {
+  return isTruthyFlag(val);
+}
+
+/** Visível no Bubble: desativado ≠ true E produto_filho ≠ true */
+function isBubbleVisible(row: {
+  desativado?: unknown;
+  produto_filho?: unknown;
+}): boolean {
+  return !isTruthyFlag(row.desativado) && !isTruthyFlag(row.produto_filho);
+}
+
+function countBubbleVisibility(
+  rows: Array<{ desativado?: unknown; produto_filho?: unknown }>
+) {
+  let visibleToUser = 0;
+  let hiddenDesativado = 0;
+  let hiddenProdutoFilho = 0;
+  let hiddenBoth = 0;
+  for (const r of rows) {
+    const des = isTruthyFlag(r.desativado);
+    const filho = isTruthyFlag(r.produto_filho);
+    if (des && filho) {
+      hiddenBoth += 1;
+      hiddenDesativado += 1;
+    } else if (des) {
+      hiddenDesativado += 1;
+    } else if (filho) {
+      hiddenProdutoFilho += 1;
+    } else {
+      visibleToUser += 1;
+    }
+  }
+  return {
+    total: rows.length,
+    visibleToUser,
+    hiddenDesativado,
+    hiddenProdutoFilho,
+    hiddenBoth,
+  };
+}
+
 function sanitizeRow(
   raw: ProductRow,
   empresaId: string
@@ -129,6 +181,9 @@ function sanitizeRow(
     uniqueid: generateBubbleUniqueId(),
     creation_date: new Date().toISOString(),
     creator: "(CRM Import)",
+    // Defaults para aparecer na lista do Bubble (usuário)
+    desativado: false,
+    produto_filho: false,
   };
 
   const numericFields: AllowedField[] = [
@@ -154,9 +209,8 @@ function sanitizeRow(
         return { ok: false, error: `Campo '${field}' inválido: ${val}` };
       }
       out[field] = n;
-    } else if (field === "produto_filho") {
-      const s = String(val).toLowerCase();
-      out[field] = s === "true" || s === "1" || s === "sim" || val === true;
+    } else if (field === "produto_filho" || field === "desativado") {
+      out[field] = parseBoolFlag(val);
     } else {
       out[field] = String(val).trim();
     }
@@ -246,27 +300,40 @@ async function fetchExistingCodigos(
   return existing;
 }
 
+async function countEmpresaVisibility(empresaId: string) {
+  const rows: Array<{ desativado?: unknown; produto_filho?: unknown }> = [];
+  let offset = 0;
+  const page = 1000;
+  while (true) {
+    const res = await agilizeFetch(
+      `eprodutos?select=desativado,produto_filho&empresa=eq.${encodeURIComponent(empresaId)}&limit=${page}&offset=${offset}`,
+      {
+        method: "GET",
+        headers: { Range: `${offset}-${offset + page - 1}` },
+      }
+    );
+    if (!res.ok) break;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < page) break;
+    offset += page;
+    if (offset > 500000) break;
+  }
+  return countBubbleVisibility(rows);
+}
+
 async function validateEmpresa(empresaId: string, empresaNome?: string) {
   if (!empresaId?.trim()) {
     throw new Error("Unique ID da empresa é obrigatório");
   }
   const id = empresaId.trim();
 
-  const countRes = await agilizeFetch(
-    `eprodutos?select=id&empresa=eq.${encodeURIComponent(id)}`,
-    {
-      method: "HEAD",
-      prefer: "count=exact",
-      headers: { Range: "0-0" },
-    }
-  );
-  const contentRange = countRes.headers.get("content-range") || "";
-  const totalMatch = contentRange.match(/\/(\d+|\*)/);
-  const productCount =
-    totalMatch && totalMatch[1] !== "*" ? parseInt(totalMatch[1], 10) : 0;
+  const visibility = await countEmpresaVisibility(id);
+  const productCount = visibility.total;
 
   const sampleRes = await agilizeFetch(
-    `eprodutos?select=id,nome,codigo_produto,status&empresa=eq.${encodeURIComponent(id)}&limit=3&order=id.asc`,
+    `eprodutos?select=id,nome,codigo_produto,status,desativado,produto_filho&empresa=eq.${encodeURIComponent(id)}&limit=3&order=id.asc`,
     { method: "GET" }
   );
   const sample = sampleRes.ok ? await sampleRes.json() : [];
@@ -311,6 +378,13 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     empresaNomeInformado: nameHint,
     empresaCadastro,
     productCount,
+    /** Quantidade que o usuário vê no Bubble */
+    visibleToUser: visibility.visibleToUser,
+    hiddenDesativado: visibility.hiddenDesativado,
+    hiddenProdutoFilho: visibility.hiddenProdutoFilho,
+    visibility,
+    bubbleRule:
+      "Visível no Bubble = desativado ≠ true E produto_filho ≠ true",
     sample,
     nameWarning,
     existsInProducts: productCount > 0 || sample.length > 0,
@@ -365,10 +439,21 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
         warning: "Sem codigo_produto — não será checado como duplicata",
       });
     }
+    if (!isBubbleVisible(item.data)) {
+      const reasons: string[] = [];
+      if (isTruthyFlag(item.data.desativado)) reasons.push("desativado=true");
+      if (isTruthyFlag(item.data.produto_filho)) reasons.push("produto_filho=true");
+      warnings.push({
+        row: item.rowNum,
+        warning: `Não aparece na lista do Bubble (${reasons.join(", ")})`,
+      });
+    }
     valid.push({ row: item.rowNum, data: item.data });
   }
 
   const sessionToken = await createSessionToken(empresaId, rows);
+  const bubbleImport = countBubbleVisibility(valid.map((v) => v.data));
+  const empresaAtual = await countEmpresaVisibility(empresaId);
 
   return {
     ok: true,
@@ -379,6 +464,18 @@ async function dryRun(empresaId: string, rows: ProductRow[]) {
       invalid: invalid.length,
       duplicates: duplicates.length,
       warnings: warnings.length,
+      /** Destes válidos, quantos o usuário verá no Bubble */
+      visibleToUser: bubbleImport.visibleToUser,
+      hiddenDesativado: bubbleImport.hiddenDesativado,
+      hiddenProdutoFilho: bubbleImport.hiddenProdutoFilho,
+    },
+    bubbleRule:
+      "Visível no Bubble = desativado ≠ true E produto_filho ≠ true",
+    empresaAtual,
+    afterImportEstimate: {
+      total: empresaAtual.total + valid.length,
+      visibleToUser:
+        empresaAtual.visibleToUser + bubbleImport.visibleToUser,
     },
     preview: valid.slice(0, 20).map((v) => v.data),
     invalid: invalid.slice(0, 100),
