@@ -331,7 +331,7 @@ function pickRawField(raw: ProductRow, field: AllowedField): unknown {
     qntd: ["qtd", "qtde", "quantidade", "estoque"],
     qnt_ideal: ["qtd_ideal", "quantidade_ideal"],
     qntd_baixa: ["qtd_baixa", "quantidade_baixa"],
-    codigo_produto: ["codigo", "sku", "cod_produto"],
+    codigo_produto: ["codigo", "sku", "cod_produto", "codigo_do_produto", "codigodoproduto"],
     codigo_ncm: ["ncm"],
     codigo_barras: ["ean", "barcode", "barras", "cod_barras"],
     cod_interno: ["codigo_interno"],
@@ -461,6 +461,24 @@ function resolveBooleanStrict(
   };
 }
 
+/** Excel costuma mandar código como número (298 → "298.0"). Normaliza para texto limpo. */
+function normalizeCodigoProduto(val: unknown): string {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "number" && Number.isFinite(val)) {
+    if (Number.isInteger(val) || Math.abs(val % 1) < 1e-9) {
+      return String(Math.trunc(val));
+    }
+    return String(val);
+  }
+  let s = String(val).trim();
+  if (!s) return "";
+  // "298.0" / "298.000" vindos do Excel
+  if (/^\d+\.0+$/.test(s)) {
+    s = s.replace(/\.0+$/, "");
+  }
+  return s;
+}
+
 function sanitizeRow(
   raw: ProductRow,
   empresaId: string
@@ -495,7 +513,6 @@ function sanitizeRow(
 
   const textFields: AllowedField[] = [
     "categoria_nome",
-    "codigo_produto",
     "codigo_ncm",
     "descricao_anp",
     "descricao",
@@ -510,6 +527,12 @@ function sanitizeRow(
     if (val === undefined || val === null) continue;
     // Células vazias / só espaço no Excel → ignorar (não invalidar)
     if (typeof val === "string" && val.trim() === "") continue;
+
+    if (field === "codigo_produto") {
+      const codigo = normalizeCodigoProduto(val);
+      if (codigo) out.codigo_produto = codigo;
+      continue;
+    }
 
     if (field === "status") {
       const r = resolveStatus(val);

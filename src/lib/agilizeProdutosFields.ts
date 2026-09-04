@@ -154,7 +154,10 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
   },
   total_custo: { kind: "number", description: "Número" },
   total_venda: { kind: "number", description: "Número" },
-  codigo_produto: { kind: "text", description: "Texto / código" },
+  codigo_produto: {
+    kind: "number",
+    description: "Número (código do produto na planilha Excel)",
+  },
   custo_unit: { kind: "number", description: "Número" },
   codigo_ncm: { kind: "text", description: "Texto (NCM)" },
   descricao_anp: { kind: "text", description: "Texto livre" },

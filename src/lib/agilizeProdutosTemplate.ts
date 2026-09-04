@@ -81,6 +81,7 @@ export async function downloadAgilizeProdutosTemplate(): Promise<void> {
     status: "Em falta",
     produto_filho: false,
     desativado: false,
+    codigo_produto: 1001,
   };
   ws.addRow(header.map((f) => (example[f] !== undefined ? example[f] : "")));
 
