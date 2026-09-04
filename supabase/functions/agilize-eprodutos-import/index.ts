@@ -537,19 +537,40 @@ serve(async (req) => {
       return jsonResponse({ error: "Authorization obrigatório" }, 401);
     }
 
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!jwt) {
+      return jsonResponse({ error: "Authorization obrigatório" }, 401);
+    }
+
     const supabase = createClient(supabaseUrl, supabaseAnon, {
-      global: { headers: { Authorization: authHeader } },
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
     });
 
+    // Passar o JWT explicitamente — evita falso 401 com proxy/domínio customizado
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser(jwt);
     if (userError || !user) {
-      return jsonResponse({ error: "Não autenticado" }, 401);
+      console.error("getUser failed:", userError?.message);
+      return jsonResponse(
+        {
+          error:
+            "Não autenticado. Faça login novamente e tente validar a empresa.",
+          detail: userError?.message || null,
+        },
+        401
+      );
     }
 
-    await assertSuperAdmin(supabase, user.id);
+    // Preferir service role para checagem de roles (RLS não bloqueia RPC)
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (serviceKey) {
+      const adminClient = createClient(supabaseUrl, serviceKey);
+      await assertSuperAdmin(adminClient, user.id);
+    } else {
+      await assertSuperAdmin(supabase, user.id);
+    }
 
     const body = await req.json();
     const action = body?.action as string;

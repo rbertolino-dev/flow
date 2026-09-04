@@ -55,14 +55,56 @@ export interface ImportProgress {
   logs: Array<{ batch: number; message: string; type: "ok" | "skip" | "error" | "info" }>;
 }
 
-async function invokeAction<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke("agilize-eprodutos-import", {
-    body,
-  });
-  if (error) {
-    throw new Error(error.message || "Falha ao chamar Edge Function");
+async function getAccessTokenWithRetry(attempts = 3): Promise<string | null> {
+  for (let i = 0; i < attempts; i++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) return session.access_token;
+    if (i < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (i + 1)));
+    }
   }
-  if (data?.error) {
+  // Última tentativa: forçar refresh
+  const { data: refreshed } = await supabase.auth.refreshSession();
+  return refreshed.session?.access_token ?? null;
+}
+
+async function invokeAction<T>(body: Record<string, unknown>): Promise<T> {
+  const accessToken = await getAccessTokenWithRetry();
+  if (!accessToken) {
+    throw new Error("Sessão expirada. Faça login novamente e tente de novo.");
+  }
+
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+
+  // Usar fetch explícito (mesmo padrão de useProducts) — functions.invoke
+  // em domínio customizado às vezes envia só a anon key → 401 "Não autenticado".
+  const response = await fetch(`${supabaseUrl}/functions/v1/agilize-eprodutos-import`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: anonKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const raw = await response.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = { error: raw || `HTTP ${response.status}` };
+  }
+
+  if (!response.ok) {
+    const msg =
+      (typeof data.error === "string" && data.error) ||
+      (typeof data.message === "string" && data.message) ||
+      `Erro ${response.status} na Edge Function`;
+    throw new Error(msg);
+  }
+  if (typeof data.error === "string" && data.error) {
     throw new Error(data.error);
   }
   return data as T;
