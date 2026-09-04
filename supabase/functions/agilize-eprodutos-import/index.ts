@@ -200,13 +200,18 @@ function sanitizeRow(
 
   for (const field of ALLOWED_FIELDS) {
     if (field === "nome") continue;
-    const val = raw[field];
-    if (val === undefined || val === null || val === "") continue;
+    let val = raw[field];
+    if (val === undefined || val === null) continue;
+    // Células vazias / só espaço no Excel → ignorar (não invalidar)
+    if (typeof val === "string" && val.trim() === "") continue;
 
     if (numericFields.includes(field)) {
       const n = toNumber(val);
       if (n === null) {
-        return { ok: false, error: `Campo '${field}' inválido: ${val}` };
+        return {
+          ok: false,
+          error: `Campo '${field}' inválido: "${val}" (precisa ser número ou ficar em branco)`,
+        };
       }
       out[field] = n;
     } else if (field === "produto_filho" || field === "desativado") {

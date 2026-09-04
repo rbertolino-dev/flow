@@ -527,7 +527,28 @@ export function AgilizeProdutosImportWizard() {
                 )}
 
                 {(dryRunResult.invalid.length > 0 || dryRunResult.duplicates.length > 0) && (
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
+                    {dryRunResult.invalid.length > 0 && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="space-y-1">
+                          <div className="font-medium">
+                            Por que deu inválido? (dry-run NÃO grava essas linhas)
+                          </div>
+                          <ul className="list-disc pl-4 text-sm">
+                            {dryRunResult.invalid.slice(0, 10).map((x, i) => (
+                              <li key={i}>
+                                Linha {x.row}: {x.error}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-xs mt-1 opacity-90">
+                            Causas mais comuns: coluna <code>nome</code> vazia ou não mapeada;
+                            campo numérico (preço, qntd, origem_produto, etc.) com texto.
+                          </p>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
