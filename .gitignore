@@ -64,3 +64,6 @@ tmp/
 # Exports locais Agilize Total
 *-PRODUTOS.xlsx
 *-PRODUTOS.csv
+
+# Supabase CLI temp
+supabase/.temp/
