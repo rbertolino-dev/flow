@@ -166,6 +166,22 @@ function countBubbleVisibility(
   };
 }
 
+/** Aceita chaves sem acento / aliases vindos do CSV do Excel */
+function pickRawField(raw: ProductRow, field: AllowedField): unknown {
+  if (raw[field] !== undefined && raw[field] !== null && raw[field] !== "") {
+    return raw[field];
+  }
+  const aliases: Record<string, string[]> = {
+    preço: ["preco", "preÃ§o", "price", "valor"],
+    preço_atacado: ["preco_atacado", "preÃ§o_atacado"],
+  };
+  for (const alt of aliases[field] || []) {
+    const v = (raw as Record<string, unknown>)[alt];
+    if (v !== undefined && v !== null && v !== "") return v;
+  }
+  return raw[field];
+}
+
 function sanitizeRow(
   raw: ProductRow,
   empresaId: string
@@ -200,7 +216,7 @@ function sanitizeRow(
 
   for (const field of ALLOWED_FIELDS) {
     if (field === "nome") continue;
-    let val = raw[field];
+    let val = pickRawField(raw, field);
     if (val === undefined || val === null) continue;
     // Células vazias / só espaço no Excel → ignorar (não invalidar)
     if (typeof val === "string" && val.trim() === "") continue;

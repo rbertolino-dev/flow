@@ -136,14 +136,25 @@ async function invokeAction<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+/** Aliases extras (CSV Excel BR / cabeçalhos sem acento / mojibake) */
+const FIELD_ALIASES: Record<string, AgilizeEprodutosField> = {
+  preco: "preço",
+  preao: "preço", // preÃ§o → preao se mojibake não for corrigido
+  precoatacado: "preço_atacado",
+  preaoatacado: "preço_atacado",
+  price: "preço",
+  valor: "preço",
+};
+
 export function autoMapColumns(excelHeaders: string[]): ColumnMapping {
   const mapping: ColumnMapping = {};
   for (const header of excelHeaders) {
     const norm = normalizeColumnName(header);
-    const match = AGILIZE_EPRODUTOS_FIELDS.find(
-      (f) => normalizeColumnName(f) === norm
-    );
-    mapping[header] = match || "";
+    const match =
+      AGILIZE_EPRODUTOS_FIELDS.find((f) => normalizeColumnName(f) === norm) ||
+      FIELD_ALIASES[norm] ||
+      "";
+    mapping[header] = match;
   }
   return mapping;
 }

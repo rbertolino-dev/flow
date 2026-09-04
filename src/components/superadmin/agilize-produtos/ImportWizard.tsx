@@ -154,11 +154,47 @@ export function AgilizeProdutosImportWizard() {
   const handleFile = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      const isCsv = /\.csv$/i.test(file.name) || file.type.includes("csv");
+
+      // CSV do Excel BR: tentar UTF-8 e, se cabeçalho "preço" vier quebrado, Windows-1252
+      let wb = XLSX.read(buf, {
+        type: "array",
+        ...(isCsv ? { codepage: 65001 } : {}),
+      });
+      let sheet = wb.Sheets[wb.SheetNames[0]];
+      let json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         defval: "",
       });
+
+      if (isCsv && json.length) {
+        const headers = Object.keys(json[0]);
+        const looksMojibake = headers.some((h) => /[ÃÂ]/.test(h));
+        const hasPreco = headers.some(
+          (h) =>
+            h === "preço" ||
+            h.toLowerCase() === "preco" ||
+            /pre[cç]o/i.test(h)
+        );
+        if (looksMojibake || !hasPreco) {
+          const wb1252 = XLSX.read(buf, { type: "array", codepage: 1252 });
+          const sheet1252 = wb1252.Sheets[wb1252.SheetNames[0]];
+          const json1252 = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+            sheet1252,
+            { defval: "" }
+          );
+          if (json1252.length) {
+            const h2 = Object.keys(json1252[0]);
+            if (
+              h2.some((h) => h.includes("preço") || h.toLowerCase() === "preco")
+            ) {
+              wb = wb1252;
+              sheet = sheet1252;
+              json = json1252;
+            }
+          }
+        }
+      }
+
       if (!json.length) {
         toast({ title: "Planilha vazia", variant: "destructive" });
         return;
@@ -171,10 +207,20 @@ export function AgilizeProdutosImportWizard() {
       setFileName(file.name);
       setMappedRows([]);
       resetImport();
+      const precoMapped = Object.values(auto).includes("preço");
       toast({
         title: "Arquivo carregado",
-        description: `${json.length} linhas · ${headers.length} colunas`,
+        description: `${json.length} linhas · ${headers.length} colunas${
+          precoMapped ? " · preço mapeado" : " · ⚠ coluna preço NÃO mapeada — confira no próximo passo"
+        }`,
       });
+      if (isCsv) {
+        toast({
+          title: "Dica: use .xlsx",
+          description:
+            "CSV do Excel costuma quebrar a coluna preço (acento). Prefira o template .xlsx.",
+        });
+      }
       setStep(3);
     } catch (e) {
       toast({
