@@ -42,6 +42,53 @@ export interface ValidateEmpresaResult {
 
 export type DuplicateMode = "skip" | "overwrite";
 
+export type CorrectionOptions = {
+  dividePrice: boolean;
+  divideCost: boolean;
+  roundMoney: boolean;
+  migrateBarcode: boolean;
+  clearBarcode: boolean;
+};
+
+export type CorrectionTarget = {
+  row: number;
+  targetId: number;
+  nome: string;
+  matchBy: string;
+  current: {
+    preço: number | null;
+    custo_unit: number | null;
+    codigo_produto: string | null;
+    codigo_barras: string | null;
+  };
+  proposed: {
+    preço: number | null;
+    custo_unit: number | null;
+    codigo_produto: string | null;
+    codigo_barras: string | null;
+  };
+  changes: string[];
+  token: string;
+};
+
+export type CorrectionDryRunResult = {
+  ok: boolean;
+  empresaId: string;
+  options: CorrectionOptions;
+  totals: {
+    spreadsheet: number;
+    productsInCompany: number;
+    ready: number;
+    blocked: number;
+    unchanged: number;
+    priceChanges: number;
+    costChanges: number;
+    barcodeChanges: number;
+  };
+  targets: CorrectionTarget[];
+  blocked: Array<{ row: number; nome: string; reason: string }>;
+};
+
 export interface FailedImportItem {
   row: number;
   nome: string;
@@ -294,6 +341,8 @@ export function useAgilizeProdutosImport() {
   const [isDryRunning, setIsDryRunning] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateEmpresaResult | null>(null);
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
+  const [correctionResult, setCorrectionResult] =
+    useState<CorrectionDryRunResult | null>(null);
   const [progress, setProgress] = useState<ImportProgress>(EMPTY_PROGRESS);
 
   const pauseRef = useRef(false);
@@ -329,6 +378,29 @@ export function useAgilizeProdutosImport() {
           duplicateMode,
         });
         setDryRunResult(result);
+        return result;
+      } finally {
+        setIsDryRunning(false);
+      }
+    },
+    []
+  );
+
+  const runCorrectionDryRun = useCallback(
+    async (
+      empresaId: string,
+      rows: MappedProductRow[],
+      correctionOptions: CorrectionOptions
+    ) => {
+      setIsDryRunning(true);
+      try {
+        const result = await invokeAction<CorrectionDryRunResult>({
+          action: "correction_dry_run",
+          empresaId,
+          rows,
+          correctionOptions,
+        });
+        setCorrectionResult(result);
         return result;
       } finally {
         setIsDryRunning(false);
@@ -575,8 +647,171 @@ export function useAgilizeProdutosImport() {
     []
   );
 
+  const runCorrectionQueue = useCallback(
+    async (empresaId: string, targets: CorrectionTarget[]) => {
+      pauseRef.current = false;
+      cancelRef.current = false;
+      const totalBatches = Math.max(1, Math.ceil(targets.length / BATCH_SIZE));
+      setProgress({
+        ...EMPTY_PROGRESS,
+        status: "running",
+        totalBatches,
+        total: targets.length,
+        logs: [
+          {
+            batch: 0,
+            message: `Iniciando correção segura de ${targets.length} produtos`,
+            type: "info",
+          },
+        ],
+      });
+
+      let updated = 0;
+      let errors = 0;
+      let processed = 0;
+      const failedProducts: FailedImportItem[] = [];
+
+      for (let b = 0; b < totalBatches; b++) {
+        while (pauseRef.current && !cancelRef.current) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        if (cancelRef.current) {
+          const remaining = targets.slice(b * BATCH_SIZE);
+          for (const target of remaining) {
+            failedProducts.push({
+              row: target.row,
+              nome: target.nome,
+              codigo_produto: String(target.proposed.codigo_produto ?? ""),
+              reason: "Correção cancelada — não processado",
+              batch: b + 1,
+              data: { _row: target.row, nome: target.nome },
+            });
+          }
+          setProgress((current) => ({
+            ...current,
+            status: "cancelled",
+            errors: errors + remaining.length,
+            failedProducts,
+          }));
+          return;
+        }
+
+        const batch = targets.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
+        setProgress((current) => ({
+          ...current,
+          currentBatch: b + 1,
+        }));
+
+        let result:
+          | {
+              updated: number;
+              errors: number;
+              details: {
+                errors: Array<{ row: number; error: string }>;
+              };
+            }
+          | undefined;
+        let lastError = "";
+
+        for (let attempt = 1; attempt <= BATCH_RETRY_MAX; attempt++) {
+          try {
+            result = await invokeAction({
+              action: "correction_batch",
+              empresaId,
+              targets: batch.map((target) => ({
+                row: target.row,
+                nome: target.nome,
+                token: target.token,
+              })),
+            });
+            break;
+          } catch (error) {
+            lastError =
+              error instanceof Error ? error.message : "Erro no lote";
+            const transient =
+              /504|502|503|520|522|Gateway|timed?\s*out|network|Failed to fetch/i.test(
+                lastError
+              );
+            if (!transient || attempt === BATCH_RETRY_MAX) break;
+            await new Promise((resolve) =>
+              setTimeout(resolve, BATCH_RETRY_BASE_MS * attempt)
+            );
+          }
+        }
+
+        if (!result) {
+          errors += batch.length;
+          for (const target of batch) {
+            failedProducts.push({
+              row: target.row,
+              nome: target.nome,
+              codigo_produto: String(target.proposed.codigo_produto ?? ""),
+              reason: lastError || "Lote de correção falhou",
+              batch: b + 1,
+              data: { _row: target.row, nome: target.nome },
+            });
+          }
+        } else {
+          updated += result.updated || 0;
+          errors += result.errors || 0;
+          for (const item of result.details?.errors || []) {
+            const target = batch.find((candidate) => candidate.row === item.row);
+            failedProducts.push({
+              row: item.row,
+              nome: target?.nome || "",
+              codigo_produto: String(
+                target?.proposed.codigo_produto ?? ""
+              ),
+              reason: item.error,
+              batch: b + 1,
+              data: { _row: item.row, nome: target?.nome || "" },
+            });
+          }
+        }
+
+        processed += batch.length;
+        setProgress((current) => ({
+          ...current,
+          processed,
+          updated,
+          errors,
+          failedProducts: [...failedProducts],
+          logs: [
+            ...current.logs,
+            {
+              batch: b + 1,
+              message: `Lote ${b + 1}/${totalBatches}: ${result?.updated || 0} corrigidos, ${result?.errors ?? batch.length} erros`,
+              type: (result?.errors || !result) ? "error" : "ok",
+            },
+          ],
+        }));
+
+        if (b < totalBatches - 1) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, BATCH_DELAY_MS)
+          );
+        }
+      }
+
+      setProgress((current) => ({
+        ...current,
+        status: "done",
+        logs: [
+          ...current.logs,
+          {
+            batch: totalBatches,
+            message: `Correção concluída: ${updated} atualizados, ${errors} erros`,
+            type: errors > 0 ? "error" : "info",
+          },
+        ],
+      }));
+    },
+    []
+  );
+
   const resetImport = useCallback(() => {
     setDryRunResult(null);
+    setCorrectionResult(null);
     setProgress(EMPTY_PROGRESS);
   }, []);
 
@@ -585,15 +820,19 @@ export function useAgilizeProdutosImport() {
     isDryRunning,
     validateResult,
     dryRunResult,
+    correctionResult,
     progress,
     validateEmpresa,
     runDryRun,
+    runCorrectionDryRun,
     runImportQueue,
+    runCorrectionQueue,
     pauseImport,
     resumeImport,
     cancelImport,
     resetImport,
     setValidateResult,
     setDryRunResult,
+    setCorrectionResult,
   };
 }

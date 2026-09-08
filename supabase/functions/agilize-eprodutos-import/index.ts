@@ -36,6 +36,23 @@ const ALLOWED_FIELDS = [
 type AllowedField = (typeof ALLOWED_FIELDS)[number];
 type ProductRow = Partial<Record<AllowedField, unknown>> & { _row?: number };
 
+type CorrectionOptions = {
+  dividePrice: boolean;
+  divideCost: boolean;
+  roundMoney: boolean;
+  migrateBarcode: boolean;
+  clearBarcode: boolean;
+};
+
+type ExistingProduct = {
+  id: number;
+  nome: string | null;
+  preço: number | null;
+  custo_unit: number | null;
+  codigo_barras: string | null;
+  codigo_produto: string | null;
+};
+
 const MAX_BATCH = 50;
 const DEFAULT_BATCH = 25;
 const DRY_RUN_TTL_MS = 60 * 60 * 1000;
@@ -939,6 +956,502 @@ function alignObjectKeys(
   });
 }
 
+function parseCorrectionOptions(value: unknown): CorrectionOptions {
+  const input = (value || {}) as Record<string, unknown>;
+  const migrateBarcode = input.migrateBarcode === true;
+  return {
+    dividePrice: input.dividePrice === true,
+    divideCost: input.divideCost === true,
+    roundMoney: input.roundMoney === true,
+    migrateBarcode,
+    clearBarcode: migrateBarcode && input.clearBarcode === true,
+  };
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function isFilled(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
+async function loadEmpresaProducts(
+  empresaId: string
+): Promise<ExistingProduct[]> {
+  const all: ExistingProduct[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; offset < 500000; offset += pageSize) {
+    const res = await agilizeFetch(
+      `eprodutos?select=id,nome,pre%C3%A7o,custo_unit,codigo_barras,codigo_produto&empresa=eq.${encodeURIComponent(
+        empresaId
+      )}&order=id.asc&limit=${pageSize}&offset=${offset}`,
+      { method: "GET" }
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Falha ao carregar produtos da empresa (HTTP ${res.status})`
+      );
+    }
+    const rows = (await res.json()) as ExistingProduct[];
+    all.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return all;
+}
+
+function addToIndex(
+  index: Map<string, ExistingProduct[]>,
+  key: string,
+  product: ExistingProduct
+) {
+  if (!key) return;
+  const current = index.get(key) || [];
+  current.push(product);
+  index.set(key, current);
+}
+
+function uniqueProducts(items: ExistingProduct[]): ExistingProduct[] {
+  return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+async function createCorrectionRowToken(
+  empresaId: string,
+  targetId: number,
+  patch: Record<string, unknown>,
+  expected: Record<string, unknown>
+): Promise<string> {
+  const payload = JSON.stringify({
+    empresaId,
+    targetId,
+    patch,
+    expected,
+    exp: Date.now() + DRY_RUN_TTL_MS,
+  });
+  const { key } = getAgilizeConfig();
+  const sig = await sha256Hex(`${payload}|${key}`);
+  return btoa(JSON.stringify({ payload, sig }));
+}
+
+async function verifyCorrectionRowToken(token: string): Promise<{
+  empresaId: string;
+  targetId: number;
+  patch: Record<string, unknown>;
+  expected: Record<string, unknown>;
+}> {
+  try {
+    const parsed = JSON.parse(atob(token));
+    const payload = String(parsed.payload || "");
+    const { key } = getAgilizeConfig();
+    const expected = await sha256Hex(`${payload}|${key}`);
+    if (parsed.sig !== expected) throw new Error("assinatura inválida");
+    const data = JSON.parse(payload);
+    if (
+      !data.empresaId ||
+      !Number.isFinite(Number(data.targetId)) ||
+      !data.patch ||
+      typeof data.patch !== "object" ||
+      !data.expected ||
+      typeof data.expected !== "object" ||
+      Date.now() > Number(data.exp)
+    ) {
+      throw new Error("conteúdo inválido ou expirado");
+    }
+    return {
+      empresaId: String(data.empresaId),
+      targetId: Number(data.targetId),
+      patch: data.patch as Record<string, unknown>,
+      expected: data.expected as Record<string, unknown>,
+    };
+  } catch {
+    throw new Error(
+      "Autorização da prévia inválida ou expirada. Execute a prévia novamente."
+    );
+  }
+}
+
+async function correctionDryRun(
+  empresaId: string,
+  rows: ProductRow[],
+  options: CorrectionOptions
+) {
+  if (!empresaId) throw new Error("empresaId obrigatório");
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error("Nenhuma linha para corrigir");
+  }
+  if (
+    !options.dividePrice &&
+    !options.divideCost &&
+    !options.roundMoney &&
+    !options.migrateBarcode
+  ) {
+    throw new Error("Selecione ao menos uma correção");
+  }
+
+  const products = await loadEmpresaProducts(empresaId);
+  const byCode = new Map<string, ExistingProduct[]>();
+  const byBarcode = new Map<string, ExistingProduct[]>();
+  const byName = new Map<string, ExistingProduct[]>();
+
+  for (const product of products) {
+    addToIndex(
+      byCode,
+      normalizeCodigoValue(product.codigo_produto),
+      product
+    );
+    addToIndex(
+      byBarcode,
+      normalizeCodigoValue(product.codigo_barras),
+      product
+    );
+    addToIndex(byName, normalizeLookupName(product.nome), product);
+  }
+
+  const resolved: Array<{
+    row: number;
+    source: ProductRow;
+    product: ExistingProduct;
+    matchBy: string;
+  }> = [];
+  const blocked: Array<{ row: number; nome: string; reason: string }> = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const source = rows[i];
+    const rowNum = source._row ?? i + 1;
+    const sourceCode = normalizeCodigoValue(source.codigo_produto);
+    const sourceBarcode = normalizeCodigoValue(source.codigo_barras);
+    const sourceName = normalizeLookupName(source.nome);
+
+    let candidates: ExistingProduct[] = [];
+    let matchBy = "";
+    if (sourceCode) {
+      candidates = byCode.get(sourceCode) || [];
+      matchBy = "codigo_produto";
+    }
+    if (candidates.length === 0 && sourceBarcode) {
+      candidates = uniqueProducts([
+        ...(byBarcode.get(sourceBarcode) || []),
+        ...(byCode.get(sourceBarcode) || []),
+      ]);
+      matchBy = "codigo_barras";
+    }
+    if (candidates.length === 0 && sourceName) {
+      candidates = byName.get(sourceName) || [];
+      matchBy = "nome exato";
+    }
+
+    if (candidates.length === 0) {
+      blocked.push({
+        row: rowNum,
+        nome: String(source.nome || ""),
+        reason: "Produto não encontrado nesta empresa",
+      });
+      continue;
+    }
+    if (candidates.length > 1) {
+      blocked.push({
+        row: rowNum,
+        nome: String(source.nome || ""),
+        reason: `Correspondência ambígua por ${matchBy}: ${candidates.length} produtos`,
+      });
+      continue;
+    }
+    resolved.push({
+      row: rowNum,
+      source,
+      product: candidates[0],
+      matchBy,
+    });
+  }
+
+  const targetCounts = new Map<number, number>();
+  for (const item of resolved) {
+    targetCounts.set(
+      item.product.id,
+      (targetCounts.get(item.product.id) || 0) + 1
+    );
+  }
+
+  const targets: Array<Record<string, unknown>> = [];
+  let priceChanges = 0;
+  let costChanges = 0;
+  let barcodeChanges = 0;
+  let unchanged = 0;
+
+  for (const item of resolved) {
+    if ((targetCounts.get(item.product.id) || 0) > 1) {
+      blocked.push({
+        row: item.row,
+        nome: String(item.source.nome || item.product.nome || ""),
+        reason: "Mais de uma linha da planilha aponta para o mesmo produto",
+      });
+      continue;
+    }
+
+    const patch: Record<string, unknown> = {};
+    const changes: string[] = [];
+    const current = {
+      preço: item.product.preço,
+      custo_unit: item.product.custo_unit,
+      codigo_produto: item.product.codigo_produto,
+      codigo_barras: item.product.codigo_barras,
+    };
+
+    if (
+      (options.dividePrice || options.roundMoney) &&
+      isFilled(item.source.preço)
+    ) {
+      const parsed = toNumber(item.source.preço);
+      if (parsed === null) {
+        blocked.push({
+          row: item.row,
+          nome: String(item.source.nome || item.product.nome || ""),
+          reason: `Preço inválido: "${item.source.preço}"`,
+        });
+        continue;
+      }
+      if (parsed < 0) {
+        blocked.push({
+          row: item.row,
+          nome: String(item.source.nome || item.product.nome || ""),
+          reason: "Preço não pode ser negativo",
+        });
+        continue;
+      }
+      if (parsed > 0) {
+        let next = parsed;
+        if (options.dividePrice) {
+          next = Math.max(next / 100, 0.1);
+        }
+        if (options.roundMoney) next = roundMoney(next);
+        if (Number(item.product.preço) !== next) {
+          patch["preço"] = next;
+          changes.push("preço");
+        }
+      }
+    }
+
+    if (
+      (options.divideCost || options.roundMoney) &&
+      isFilled(item.source.custo_unit)
+    ) {
+      const parsed = toNumber(item.source.custo_unit);
+      if (parsed === null) {
+        blocked.push({
+          row: item.row,
+          nome: String(item.source.nome || item.product.nome || ""),
+          reason: `Custo inválido: "${item.source.custo_unit}"`,
+        });
+        continue;
+      }
+      if (parsed < 0) {
+        blocked.push({
+          row: item.row,
+          nome: String(item.source.nome || item.product.nome || ""),
+          reason: "Custo unitário não pode ser negativo",
+        });
+        continue;
+      }
+      if (parsed > 0) {
+        let next = parsed;
+        if (options.divideCost) {
+          next = Math.max(next / 100, 0.1);
+        }
+        if (options.roundMoney) next = roundMoney(next);
+        if (Number(item.product.custo_unit) !== next) {
+          patch.custo_unit = next;
+          changes.push("custo_unit");
+        }
+      }
+    }
+
+    if (options.migrateBarcode) {
+      const barcode =
+        normalizeCodigoValue(item.source.codigo_barras) ||
+        normalizeCodigoValue(item.product.codigo_barras);
+      if (barcode) {
+        const owners = (byCode.get(barcode) || []).filter(
+          (owner) => owner.id !== item.product.id
+        );
+        if (owners.length > 0) {
+          blocked.push({
+            row: item.row,
+            nome: String(item.source.nome || item.product.nome || ""),
+            reason: `Código ${barcode} já pertence a outro produto desta empresa`,
+          });
+          continue;
+        }
+        if (normalizeCodigoValue(item.product.codigo_produto) !== barcode) {
+          patch.codigo_produto = barcode;
+          changes.push("codigo_produto");
+        }
+        if (options.clearBarcode && item.product.codigo_barras != null) {
+          patch.codigo_barras = null;
+          changes.push("codigo_barras");
+        }
+      }
+    }
+
+    if (changes.length === 0) {
+      unchanged += 1;
+      continue;
+    }
+
+    targets.push({
+      row: item.row,
+      targetId: item.product.id,
+      nome: item.product.nome,
+      matchBy: item.matchBy,
+      current,
+      proposed: { ...current, ...patch },
+      changes,
+      token: await createCorrectionRowToken(
+        empresaId,
+        item.product.id,
+        patch,
+        current
+      ),
+    });
+    if (changes.includes("preço")) priceChanges += 1;
+    if (changes.includes("custo_unit")) costChanges += 1;
+    if (
+      changes.includes("codigo_produto") ||
+      changes.includes("codigo_barras")
+    ) {
+      barcodeChanges += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    empresaId,
+    options,
+    totals: {
+      spreadsheet: rows.length,
+      productsInCompany: products.length,
+      ready: targets.length,
+      blocked: blocked.length,
+      unchanged,
+      priceChanges,
+      costChanges,
+      barcodeChanges,
+    },
+    targets,
+    blocked,
+  };
+}
+
+async function correctionBatch(
+  empresaId: string,
+  targets: Array<{ row?: number; nome?: string; token?: string }>
+) {
+  if (!empresaId) throw new Error("empresaId obrigatório");
+  if (!Array.isArray(targets) || targets.length === 0) {
+    throw new Error("Lote de correção vazio");
+  }
+  if (targets.length > MAX_BATCH) {
+    throw new Error(`Máximo de ${MAX_BATCH} correções por lote`);
+  }
+
+  const updated: Array<{ row: number; id: number; nome: string }> = [];
+  const errors: Array<{ row: number; error: string }> = [];
+  const chunkSize = 5;
+
+  const sameValue = (field: string, left: unknown, right: unknown) => {
+    if (left == null && right == null) return true;
+    if (field === "preço" || field === "custo_unit") {
+      return Number(left) === Number(right);
+    }
+    if (field === "codigo_produto" || field === "codigo_barras") {
+      return normalizeCodigoValue(left) === normalizeCodigoValue(right);
+    }
+    return left === right;
+  };
+
+  for (let i = 0; i < targets.length; i += chunkSize) {
+    const chunk = targets.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(async (target) => {
+        const row = Number(target.row) || 0;
+        try {
+          const authorized = await verifyCorrectionRowToken(
+            String(target.token || "")
+          );
+          if (authorized.empresaId !== empresaId) {
+            throw new Error("Empresa da prévia difere da empresa selecionada");
+          }
+          const currentRes = await agilizeFetch(
+            `eprodutos?id=eq.${authorized.targetId}&empresa=eq.${encodeURIComponent(
+              empresaId
+            )}&select=id,pre%C3%A7o,custo_unit,codigo_produto,codigo_barras`,
+            { method: "GET" }
+          );
+          if (!currentRes.ok) {
+            throw new Error(
+              `Não foi possível reconferir o produto (HTTP ${currentRes.status})`
+            );
+          }
+          const currentRows = await currentRes.json();
+          if (!Array.isArray(currentRows) || currentRows.length !== 1) {
+            throw new Error("Produto não encontrado nesta empresa");
+          }
+          const current = currentRows[0] as Record<string, unknown>;
+          for (const field of Object.keys(authorized.patch)) {
+            if (
+              !sameValue(
+                field,
+                current[field],
+                authorized.expected[field]
+              )
+            ) {
+              throw new Error(
+                `Campo ${field} foi alterado depois da prévia; gere uma nova prévia`
+              );
+            }
+          }
+          const res = await agilizeFetch(
+            `eprodutos?id=eq.${authorized.targetId}&empresa=eq.${encodeURIComponent(
+              empresaId
+            )}`,
+            {
+              method: "PATCH",
+              prefer: "return=representation",
+              body: JSON.stringify(authorized.patch),
+            }
+          );
+          if (!res.ok) {
+            throw new Error(
+              `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`
+            );
+          }
+          const data = await res.json();
+          if (!Array.isArray(data) || data.length !== 1) {
+            throw new Error("Produto não encontrado na empresa no momento da atualização");
+          }
+          updated.push({
+            row,
+            id: authorized.targetId,
+            nome: String(target.nome || data[0]?.nome || ""),
+          });
+        } catch (error) {
+          errors.push({
+            row,
+            error: error instanceof Error ? error.message : "Erro desconhecido",
+          });
+        }
+      })
+    );
+  }
+
+  return {
+    ok: true,
+    empresaId,
+    updated: updated.length,
+    errors: errors.length,
+    details: { updated, errors },
+  };
+}
+
 async function importBatch(
   empresaId: string,
   rows: ProductRow[],
@@ -1048,10 +1561,12 @@ async function importBatch(
   }
 
   if (toInsert.length > 0) {
+    // Alinha chaves do lote — evita PGRST102 "All object keys must match"
+    const payload = alignObjectKeys(toInsert.map((t) => t.data));
     const res = await agilizeFetch("eprodutos", {
       method: "POST",
       prefer: "return=representation",
-      body: JSON.stringify(toInsert.map((t) => t.data)),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -1173,6 +1688,10 @@ serve(async (req) => {
       : "";
     const duplicateMode =
       body?.duplicateMode === "overwrite" ? "overwrite" : "skip";
+    const correctionOptions = parseCorrectionOptions(body?.correctionOptions);
+    const correctionTargets = Array.isArray(body?.targets)
+      ? body.targets
+      : [];
 
     if (action === "validate_empresa") {
       const result = await validateEmpresa(empresaId, empresaNome);
@@ -1200,10 +1719,27 @@ serve(async (req) => {
       return jsonResponse(result);
     }
 
+    if (action === "correction_dry_run") {
+      const result = await correctionDryRun(
+        empresaId,
+        rows,
+        correctionOptions
+      );
+      return jsonResponse(result);
+    }
+
+    if (action === "correction_batch") {
+      const result = await correctionBatch(
+        empresaId,
+        correctionTargets
+      );
+      return jsonResponse(result);
+    }
+
     return jsonResponse(
       {
         error:
-          "action inválida. Use: validate_empresa | dry_run | import_batch",
+          "action inválida. Use: validate_empresa | dry_run | import_batch | correction_dry_run | correction_batch",
       },
       400
     );

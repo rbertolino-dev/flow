@@ -29,6 +29,7 @@ import {
   autoMapColumns,
   useAgilizeProdutosImport,
   type ColumnMapping,
+  type CorrectionOptions,
   type DuplicateMode,
   type FailedImportItem,
   type MappedProductRow,
@@ -67,6 +68,8 @@ const STEPS = [
   { id: 4, title: "Dry-run" },
   { id: 5, title: "Importar" },
 ] as const;
+
+type WorkflowMode = "import" | "correct";
 
 function downloadReportCsv(
   filename: string,
@@ -110,6 +113,14 @@ function downloadFailedProductsXlsx(items: FailedImportItem[]) {
   XLSX.writeFile(wb, `produtos-falhas-${Date.now()}.xlsx`);
 }
 
+function formatMoneyBR(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number(value));
+}
+
 export function AgilizeProdutosImportWizard() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,15 +130,19 @@ export function AgilizeProdutosImportWizard() {
     isDryRunning,
     validateResult,
     dryRunResult,
+    correctionResult,
     progress,
     validateEmpresa,
     runDryRun,
+    runCorrectionDryRun,
     runImportQueue,
+    runCorrectionQueue,
     pauseImport,
     resumeImport,
     cancelImport,
     resetImport,
     setDryRunResult,
+    setCorrectionResult,
   } = useAgilizeProdutosImport();
 
   const handleDownloadTemplate = () => {
@@ -154,15 +169,34 @@ export function AgilizeProdutosImportWizard() {
   const [confirmId, setConfirmId] = useState(false);
   const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("skip");
   const [isReimporting, setIsReimporting] = useState(false);
+  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("import");
+  const [correctionOptions, setCorrectionOptions] = useState<CorrectionOptions>({
+    dividePrice: false,
+    divideCost: false,
+    roundMoney: true,
+    migrateBarcode: false,
+    clearBarcode: false,
+  });
 
   const maxUnlockedStep = useMemo(() => {
     if (!empresaValidated) return 1;
     if (!excelRows.length) return 2;
     const hasNome = Object.values(mapping).includes("nome");
     if (!hasNome) return 3;
-    if (!dryRunResult?.sessionToken) return 4;
+    if (
+      workflowMode === "import"
+        ? !dryRunResult?.sessionToken
+        : !correctionResult
+    ) return 4;
     return 5;
-  }, [empresaValidated, excelRows.length, mapping, dryRunResult]);
+  }, [
+    empresaValidated,
+    excelRows.length,
+    mapping,
+    workflowMode,
+    dryRunResult,
+    correctionResult,
+  ]);
 
   const handleValidateEmpresa = async () => {
     if (!empresaId.trim()) {
@@ -293,6 +327,19 @@ export function AgilizeProdutosImportWizard() {
 
   const handleDryRun = async () => {
     try {
+      if (workflowMode === "correct") {
+        const result = await runCorrectionDryRun(
+          empresaId.trim(),
+          mappedRows,
+          correctionOptions
+        );
+        toast({
+          title: "Prévia de correção concluída",
+          description: `${result.totals.ready} prontos · ${result.totals.blocked} bloqueados · ${result.totals.unchanged} sem alteração`,
+          variant: result.totals.blocked > 0 ? "destructive" : "default",
+        });
+        return;
+      }
       const result = await runDryRun(empresaId.trim(), mappedRows, duplicateMode);
       const updatePart =
         duplicateMode === "overwrite" && (result.totals.willUpdate ?? 0) > 0
@@ -312,6 +359,25 @@ export function AgilizeProdutosImportWizard() {
   };
 
   const handleStartImport = async () => {
+    if (workflowMode === "correct") {
+      if (!correctionResult) {
+        toast({
+          title: "Execute a prévia de correção antes",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!confirmId) {
+        toast({
+          title: "Confirme a empresa e as correções",
+          variant: "destructive",
+        });
+        return;
+      }
+      setStep(5);
+      await runCorrectionQueue(empresaId.trim(), correctionResult.targets);
+      return;
+    }
     if (!dryRunResult?.sessionToken) {
       toast({ title: "Execute o dry-run antes", variant: "destructive" });
       return;
@@ -369,11 +435,52 @@ export function AgilizeProdutosImportWizard() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold">Importar produtos — Agilize Total</h1>
+        <h1 className="text-2xl font-bold">Produtos — Agilize Total</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Wizard seguro: valida empresa, mapeia colunas, dry-run e fila em lotes (sem sobrescrever).
+          Importe produtos novos ou corrija produtos existentes com prévia e fila segura.
         </p>
       </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <RadioGroup
+            value={workflowMode}
+            onValueChange={(value) => {
+              setWorkflowMode(value as WorkflowMode);
+              setConfirmId(false);
+              resetImport();
+              if (step > 3) setStep(3);
+            }}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <Label
+              htmlFor="mode-import"
+              className="flex cursor-pointer items-start gap-3 rounded-md border p-4"
+            >
+              <RadioGroupItem id="mode-import" value="import" />
+              <span>
+                <strong className="block">Importar produtos</strong>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Insere novos e pode ignorar/sobrescrever códigos existentes.
+                </span>
+              </span>
+            </Label>
+            <Label
+              htmlFor="mode-correct"
+              className="flex cursor-pointer items-start gap-3 rounded-md border p-4"
+            >
+              <RadioGroupItem id="mode-correct" value="correct" />
+              <span>
+                <strong className="block">Corrigir produtos existentes</strong>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Usa o ID da empresa informado na página; a planilha não precisa
+                  do ID do produto.
+                </span>
+              </span>
+            </Label>
+          </RadioGroup>
+        </CardContent>
+      </Card>
 
       {/* Stepper */}
       <div className="flex flex-wrap gap-2">
@@ -400,7 +507,8 @@ export function AgilizeProdutosImportWizard() {
           <CardHeader>
             <CardTitle>1. Empresa destino</CardTitle>
             <CardDescription>
-              Informe o nome e o Unique ID da organização no Agilize Total.
+              Informe o nome e o Unique ID da organização no Agilize Total. Esse
+              é o único ID obrigatório no fluxo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -651,7 +759,7 @@ export function AgilizeProdutosImportWizard() {
       )}
 
       {/* Step 4 */}
-      {step === 4 && (
+      {step === 4 && workflowMode === "import" && (
         <Card>
           <CardHeader>
             <CardTitle>4. Dry-run (sem gravar)</CardTitle>
@@ -861,11 +969,237 @@ export function AgilizeProdutosImportWizard() {
         </Card>
       )}
 
+      {step === 4 && workflowMode === "correct" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>4. Prévia da correção (sem gravar)</CardTitle>
+            <CardDescription>
+              A planilha não precisa de ID. O produto é localizado dentro da empresa
+              por código do produto, código de barras ou nome exato. Correspondências
+              ambíguas são bloqueadas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-md border p-4 space-y-3">
+              <Label className="font-medium">Tratamentos intencionais</Label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Label className="flex items-center gap-2 font-normal">
+                  <Checkbox
+                    checked={correctionOptions.dividePrice}
+                    onCheckedChange={(value) => {
+                      setCorrectionResult(null);
+                      setCorrectionOptions((current) => ({
+                        ...current,
+                        dividePrice: value === true,
+                      }));
+                    }}
+                  />
+                  Dividir preço por 100
+                </Label>
+                <Label className="flex items-center gap-2 font-normal">
+                  <Checkbox
+                    checked={correctionOptions.divideCost}
+                    onCheckedChange={(value) => {
+                      setCorrectionResult(null);
+                      setCorrectionOptions((current) => ({
+                        ...current,
+                        divideCost: value === true,
+                      }));
+                    }}
+                  />
+                  Dividir custo unitário por 100
+                </Label>
+                <Label className="flex items-center gap-2 font-normal">
+                  <Checkbox
+                    checked={correctionOptions.roundMoney}
+                    onCheckedChange={(value) => {
+                      setCorrectionResult(null);
+                      setCorrectionOptions((current) => ({
+                        ...current,
+                        roundMoney: value === true,
+                      }));
+                    }}
+                  />
+                  Arredondar valores para 2 casas
+                </Label>
+                <Label className="flex items-center gap-2 font-normal">
+                  <Checkbox
+                    checked={correctionOptions.migrateBarcode}
+                    onCheckedChange={(value) => {
+                      setCorrectionResult(null);
+                      setCorrectionOptions((current) => ({
+                        ...current,
+                        migrateBarcode: value === true,
+                        clearBarcode:
+                          value === true ? current.clearBarcode : false,
+                      }));
+                    }}
+                  />
+                  Copiar código de barras para código do produto
+                </Label>
+                <Label className="flex items-center gap-2 font-normal">
+                  <Checkbox
+                    disabled={!correctionOptions.migrateBarcode}
+                    checked={correctionOptions.clearBarcode}
+                    onCheckedChange={(value) => {
+                      setCorrectionResult(null);
+                      setCorrectionOptions((current) => ({
+                        ...current,
+                        clearBarcode: value === true,
+                      }));
+                    }}
+                  />
+                  Limpar código de barras após copiar
+                </Label>
+              </div>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Se a planilha já contém <strong>15,00</strong>, não marque dividir
+                  por 100. Essa opção transformaria o valor em 0,15.
+                </AlertDescription>
+              </Alert>
+            </div>
+
+            <Button
+              onClick={handleDryRun}
+              disabled={isDryRunning || !mappedRows.length}
+            >
+              {isDryRunning && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Gerar prévia antes/depois
+            </Button>
+
+            {correctionResult && (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <Badge>Prontos: {correctionResult.totals.ready}</Badge>
+                  <Badge variant="destructive">
+                    Bloqueados: {correctionResult.totals.blocked}
+                  </Badge>
+                  <Badge variant="secondary">
+                    Sem alteração: {correctionResult.totals.unchanged}
+                  </Badge>
+                  <Badge variant="outline">
+                    Preços: {correctionResult.totals.priceChanges}
+                  </Badge>
+                  <Badge variant="outline">
+                    Custos: {correctionResult.totals.costChanges}
+                  </Badge>
+                  <Badge variant="outline">
+                    Códigos: {correctionResult.totals.barcodeChanges}
+                  </Badge>
+                </div>
+
+                {correctionResult.targets.length > 0 && (
+                  <div className="rounded-md border overflow-auto max-h-[420px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produto</TableHead>
+                          <TableHead>Localizado por</TableHead>
+                          <TableHead>Preço antes</TableHead>
+                          <TableHead>Preço depois</TableHead>
+                          <TableHead>Custo antes</TableHead>
+                          <TableHead>Custo depois</TableHead>
+                          <TableHead>Código antes</TableHead>
+                          <TableHead>Código depois</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {correctionResult.targets.slice(0, 100).map((target) => (
+                          <TableRow key={`${target.targetId}-${target.row}`}>
+                            <TableCell>{target.nome}</TableCell>
+                            <TableCell>{target.matchBy}</TableCell>
+                            <TableCell>{formatMoneyBR(target.current.preço)}</TableCell>
+                            <TableCell>{formatMoneyBR(target.proposed.preço)}</TableCell>
+                            <TableCell>{formatMoneyBR(target.current.custo_unit)}</TableCell>
+                            <TableCell>{formatMoneyBR(target.proposed.custo_unit)}</TableCell>
+                            <TableCell>
+                              {target.current.codigo_produto || "—"}
+                            </TableCell>
+                            <TableCell>
+                              {target.proposed.codigo_produto || "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {correctionResult.blocked.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="space-y-2">
+                      <div className="font-medium">
+                        Linhas bloqueadas — não serão alteradas
+                      </div>
+                      <ul className="list-disc pl-4 max-h-40 overflow-auto">
+                        {correctionResult.blocked.slice(0, 30).map((item, index) => (
+                          <li key={`${item.row}-${index}`}>
+                            Linha {item.row} ({item.nome || "sem nome"}): {item.reason}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          downloadReportCsv(
+                            "correcao-produtos-bloqueados.csv",
+                            correctionResult.blocked.map((item) => ({
+                              linha: item.row,
+                              nome: item.nome,
+                              motivo: item.reason,
+                            }))
+                          )
+                        }
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Baixar bloqueados
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex items-start gap-2 rounded-md border p-3">
+                  <Checkbox
+                    id="confirmCorrection"
+                    checked={confirmId}
+                    onCheckedChange={(value) => setConfirmId(value === true)}
+                  />
+                  <Label
+                    htmlFor="confirmCorrection"
+                    className="text-sm leading-relaxed cursor-pointer"
+                  >
+                    Confirmo a empresa{" "}
+                    <code className="text-xs break-all">{empresaId}</code> e a
+                    atualização somente dos {correctionResult.totals.ready} produtos
+                    exibidos na prévia.
+                  </Label>
+                </div>
+
+                <Button
+                  onClick={handleStartImport}
+                  disabled={!confirmId || correctionResult.totals.ready === 0}
+                >
+                  Confirmar e atualizar produtos
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Step 5 */}
       {step === 5 && (
         <Card>
           <CardHeader>
-            <CardTitle>5. Fila de importação</CardTitle>
+            <CardTitle>
+              5. Fila de {workflowMode === "correct" ? "correção" : "importação"}
+            </CardTitle>
             <CardDescription>
               Lotes de {BATCH_SIZE} produtos com intervalo de {BATCH_DELAY_MS}ms. Pause/cancele se
               necessário.
@@ -908,13 +1242,18 @@ export function AgilizeProdutosImportWizard() {
               </div>
               <Progress value={progressPct} />
               <div className="flex flex-wrap gap-2">
-                <Badge>Inseridos: {progress.inserted}</Badge>
+                {workflowMode === "import" && (
+                  <Badge>Inseridos: {progress.inserted}</Badge>
+                )}
                 {(progress.updated ?? 0) > 0 && (
                   <Badge className="bg-amber-600 hover:bg-amber-600">
-                    Sobrescritos: {progress.updated}
+                    {workflowMode === "correct" ? "Corrigidos" : "Sobrescritos"}:{" "}
+                    {progress.updated}
                   </Badge>
                 )}
-                <Badge variant="secondary">Pulados: {progress.skipped}</Badge>
+                {workflowMode === "import" && (
+                  <Badge variant="secondary">Pulados: {progress.skipped}</Badge>
+                )}
                 <Badge variant="destructive">Erros: {progress.errors}</Badge>
                 <Badge variant="outline">Status: {progress.status}</Badge>
               </div>
@@ -1041,11 +1380,14 @@ export function AgilizeProdutosImportWizard() {
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Importação finalizada. {progress.inserted} inseridos
-                  {(progress.updated ?? 0) > 0
-                    ? `, ${progress.updated} sobrescritos`
-                    : ""}
-                  , {progress.skipped} pulados, {progress.errors} erros
+                  {workflowMode === "correct"
+                    ? `Correção finalizada. ${progress.updated} corrigidos`
+                    : `Importação finalizada. ${progress.inserted} inseridos${
+                        progress.updated > 0
+                          ? `, ${progress.updated} sobrescritos`
+                          : ""
+                      }, ${progress.skipped} pulados`}
+                  , {progress.errors} erros
                   {(progress.failedProducts?.length ?? 0) > 0
                     ? ` (${progress.failedProducts.length} detalhados abaixo).`
                     : "."}
