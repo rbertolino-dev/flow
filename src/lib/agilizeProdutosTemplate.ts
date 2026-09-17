@@ -77,6 +77,7 @@ export async function downloadAgilizeProdutosTemplate(): Promise<void> {
     nome: "Produto Exemplo",
     medida: "Un",
     origem_produto: AGILIZE_ORIGEM_OPTIONS[0],
+    categoria_nome: "Geral",
     preço: 10,
     status: "Em falta",
     produto_filho: false,

@@ -30,7 +30,7 @@ export const AGILIZE_FIELD_LABELS: Record<AgilizeEprodutosField, string> = {
   nome: "Nome",
   medida: "Medida",
   origem_produto: "Origem produto",
-  categoria_nome: "Categoria",
+  categoria_nome: "Categoria (nome)",
   preço: "Preço",
   preço_atacado: "Preço atacado",
   produto_filho: "Produto filho",
@@ -130,7 +130,7 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
   categoria_nome: {
     kind: "text",
     description:
-      "Nome da categoria (checklist Bubble / categoria_estoque). Precisa existir com o mesmo nome na empresa.",
+      "Nome da categoria. Se não existir em categoria_estoque desta empresa, será criada automaticamente e o produto recebe o id em categoria.",
   },
   preço: { kind: "number", description: "Número (ex.: 10 ou 10,5)" },
   preço_atacado: { kind: "number", description: "Número" },

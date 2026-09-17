@@ -157,6 +157,125 @@ async function loadCategoriaEstoqueMap(
   return map;
 }
 
+function generateBubbleUniqueId(): string {
+  const ts = Date.now();
+  const rand = Math.floor(Math.random() * 1e18);
+  return `${ts}x${rand}`;
+}
+
+async function createCategoriaEstoque(
+  empresaId: string,
+  nome: string
+): Promise<NamedRef> {
+  const trimmed = nome.trim();
+  if (!trimmed) {
+    throw new Error("Nome da categoria vazio");
+  }
+  const body = {
+    nome: trimmed,
+    empresa: empresaId,
+    "unique id": generateBubbleUniqueId(),
+    "Creation Date": new Date().toISOString(),
+    Creator: "(CRM Import)",
+    "variações": [],
+  };
+  const res = await agilizeFetch("categoria_estoque", {
+    method: "POST",
+    prefer: "return=representation",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(
+      `Falha ao criar categoria "${trimmed}" (HTTP ${res.status}): ${errText.slice(0, 300)}`
+    );
+  }
+  const rows = (await res.json()) as Array<{ id: number; nome: string }>;
+  if (!Array.isArray(rows) || rows.length === 0 || rows[0]?.id == null) {
+    throw new Error(`Categoria "${trimmed}" criada sem retorno de id`);
+  }
+  return {
+    id: String(rows[0].id),
+    nome: String(rows[0].nome ?? trimmed).trim(),
+  };
+}
+
+/**
+ * Garante categorias no checklist da empresa a partir dos nomes da planilha.
+ * createMissing=false: só avisa o que será criado.
+ * createMissing=true: cria em categoria_estoque (nome + empresa) e atualiza o mapa.
+ */
+async function ensureCategoriasFromRows(
+  empresaId: string,
+  rows: Array<{ rowNum: number; data: Record<string, unknown> }>,
+  catMap: Map<string, NamedRef>,
+  options: {
+    createMissing: boolean;
+    warnings: Array<{ row: number; warning: string }>;
+  }
+): Promise<{ created: string[]; pending: string[] }> {
+  const created: string[] = [];
+  const pending: string[] = [];
+  const toCreate: Array<{ key: string; display: string; rowNum: number }> = [];
+  const seen = new Set<string>();
+
+  for (const item of rows) {
+    const raw = item.data.categoria_nome;
+    if (raw == null || String(raw).trim() === "") continue;
+    const display = String(raw).trim();
+    const key = normalizeLookupName(display);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    if (catMap.has(key)) continue;
+
+    if (!options.createMissing) {
+      pending.push(display);
+      // Placeholder para o dry-run não emitir aviso de "não vinculada"
+      catMap.set(key, { id: "", nome: display });
+      options.warnings.push({
+        row: item.rowNum,
+        warning: `Categoria "${display}" será criada em categoria_estoque nesta empresa na importação.`,
+      });
+      continue;
+    }
+
+    toCreate.push({ key, display, rowNum: item.rowNum });
+  }
+
+  for (const item of toCreate) {
+    if (catMap.has(item.key) && catMap.get(item.key)!.id) continue;
+
+    try {
+      const ref = await createCategoriaEstoque(empresaId, item.display);
+      catMap.set(item.key, ref);
+      created.push(ref.nome);
+      options.warnings.push({
+        row: item.rowNum,
+        warning: `Categoria "${ref.nome}" criada (id=${ref.id}).`,
+      });
+    } catch (error) {
+      const refreshed = await loadCategoriaEstoqueMap(empresaId);
+      for (const [k, v] of refreshed) {
+        if (!catMap.has(k) || !catMap.get(k)!.id) catMap.set(k, v);
+      }
+      if (catMap.has(item.key) && catMap.get(item.key)!.id) {
+        created.push(item.display);
+        continue;
+      }
+      options.warnings.push({
+        row: item.rowNum,
+        warning:
+          error instanceof Error
+            ? error.message
+            : `Não foi possível criar a categoria "${item.display}"`,
+      });
+    }
+  }
+
+  return { created, pending };
+}
+
 async function loadMarcaMaps(empresaId: string): Promise<{
   byName: Map<string, NamedRef>;
   byId: Map<string, NamedRef>;
@@ -207,14 +326,19 @@ function enrichBubbleRelations(
     const key = normalizeLookupName(catNome);
     const hit = catMap.get(key);
     if (hit) {
-      data.categoria = hit.id;
+      if (hit.id) {
+        data.categoria = hit.id;
+      } else {
+        // Placeholder do dry-run (categoria ainda será criada na importação)
+        delete data.categoria;
+      }
       data.categoria_nome = hit.nome;
     } else {
       // Sem ID o seletor do Bubble fica vazio mesmo com categoria_nome preenchido
       delete data.categoria;
       warnings.push({
         row: rowNum,
-        warning: `Categoria "${String(catNome).trim()}" não existe no checklist desta empresa (tabela categoria_estoque). Cadastre no Bubble com o mesmo nome para aparecer no produto.`,
+        warning: `Categoria "${String(catNome).trim()}" não pôde ser vinculada (não encontrada/criada em categoria_estoque para esta empresa).`,
       });
     }
   }
@@ -242,12 +366,6 @@ function enrichBubbleRelations(
       }
     }
   }
-}
-
-function generateBubbleUniqueId(): string {
-  const ts = Date.now();
-  const rand = Math.floor(Math.random() * 1e18);
-  return `${ts}x${rand}`;
 }
 
 function toNumber(value: unknown): number | null {
@@ -342,7 +460,7 @@ function pickRawField(raw: ProductRow, field: AllowedField): unknown {
     nome: ["name", "produto", "nome_produto"],
     medida: ["unidade", "und", "un"],
     origem_produto: ["origem"],
-    categoria_nome: ["categoria"],
+    categoria_nome: ["categoria", "categorias", "categoria_nome", "category"],
     produto_filho: ["filho"],
     desativado: ["inativo"],
     qntd: ["qtd", "qtde", "quantidade", "estoque"],
@@ -820,6 +938,10 @@ async function dryRun(
   const { byName: marcaByName, byId: marcaById } = await loadMarcaMaps(
     empresaId
   );
+  await ensureCategoriasFromRows(empresaId, sanitized, catMap, {
+    createMissing: false,
+    warnings,
+  });
   for (const item of sanitized) {
     enrichBubbleRelations(
       item.data,
@@ -1514,6 +1636,10 @@ async function importBatch(
   const { byName: marcaByName, byId: marcaById } = await loadMarcaMaps(
     empresaId
   );
+  await ensureCategoriasFromRows(empresaId, prepared, catMap, {
+    createMissing: true,
+    warnings: [],
+  });
   for (const item of prepared) {
     enrichBubbleRelations(
       item.data,

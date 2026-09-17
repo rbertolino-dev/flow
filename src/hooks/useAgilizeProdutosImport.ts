@@ -260,6 +260,9 @@ const FIELD_ALIASES: Record<string, AgilizeEprodutosField> = {
   // origem / categoria
   origem: "origem_produto",
   categoria: "categoria_nome",
+  categorianome: "categoria_nome",
+  nomecategoria: "categoria_nome",
+  category: "categoria_nome",
   // flags
   produtofilho: "produto_filho",
   filho: "produto_filho",
