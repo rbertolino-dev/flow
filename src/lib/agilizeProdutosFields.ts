@@ -313,9 +313,9 @@ export function resolveBooleanOption(
   };
 }
 
-export const BATCH_SIZE = 25;
+export const BATCH_SIZE = 20;
 /** Pausa entre lotes — reduz 504 por sobrecarga na API Agilize Total */
-export const BATCH_DELAY_MS = 1500;
+export const BATCH_DELAY_MS = 2000;
 /** Retries automáticos quando o proxy devolve 504/502/503 */
 export const BATCH_RETRY_MAX = 3;
 export const BATCH_RETRY_BASE_MS = 2500;

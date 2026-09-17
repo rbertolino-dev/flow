@@ -54,7 +54,7 @@ type ExistingProduct = {
 };
 
 const MAX_BATCH = 50;
-const DEFAULT_BATCH = 25;
+const DEFAULT_BATCH = 20;
 const DRY_RUN_TTL_MS = 60 * 60 * 1000;
 
 function jsonResponse(body: unknown, status = 200) {
