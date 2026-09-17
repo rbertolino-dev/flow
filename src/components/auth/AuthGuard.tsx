@@ -6,6 +6,7 @@ import {
   getSessionWithTimeout,
   GET_SESSION_TIMEOUT_CACHED_MS,
   GET_SESSION_TIMEOUT_MS,
+  clearDeadLocalSession,
 } from "@/lib/getSessionWithTimeout";
 
 const SUPABASE_PROJECT_REF = "ogeljmbhqxpfjbpnbwog";
@@ -134,6 +135,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           } else {
             console.warn("Sessão local expirada ou inválida — redirecionando para login");
             setAuthenticated(false);
+            await clearDeadLocalSession();
             redirectToLogin();
           }
           setLoading(false);
@@ -149,6 +151,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
                 setAuthenticated(true);
               } else {
                 setAuthenticated(false);
+                void clearDeadLocalSession();
                 redirectToLogin();
               }
               setLoading(false);

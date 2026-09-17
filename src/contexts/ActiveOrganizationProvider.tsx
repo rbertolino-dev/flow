@@ -15,6 +15,12 @@ import {
   seedOrgCache,
 } from "@/lib/organizationUtils";
 import { sleep } from "@/lib/supabaseAuthLock";
+import {
+  GET_SESSION_TIMEOUT_CACHED_MS,
+  clearDeadLocalSession,
+  getSessionWithTimeout,
+  isInvalidAuthError,
+} from "@/lib/getSessionWithTimeout";
 
 export interface Organization {
   id: string;
@@ -64,7 +70,7 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
 
         const {
           data: { session },
-        } = await supabase.auth.getSession();
+        } = await getSessionWithTimeout({ timeoutMs: GET_SESSION_TIMEOUT_CACHED_MS });
         if (!session?.user) {
           setOrganizations([]);
           setActiveOrgId(null);
@@ -99,6 +105,7 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
           data = res.data;
           error = res.error;
           if (!error) break;
+          if (isInvalidAuthError(error)) break;
           if (attempt < maxAttempts - 1) {
             await sleep(120 * (attempt + 1));
           }
@@ -107,6 +114,9 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
         if (error) {
           console.error("Erro ao buscar organizações:", error);
           setActiveOrgId(null);
+          if (isInvalidAuthError(error)) {
+            await clearDeadLocalSession();
+          }
           return;
         }
 

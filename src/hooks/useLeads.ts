@@ -29,6 +29,12 @@ import {
 import { FUNNEL_LEAD_SELECT_COLUMNS } from "@/lib/funnelLeadSelect";
 import { fetchFunnelEnrichmentViaRpc } from "@/lib/funnelLeadEnrichment";
 import { getFunnelVisibleLeadIds } from "@/utils/funnelVisibleLeadsRegistry";
+import {
+  GET_SESSION_TIMEOUT_CACHED_MS,
+  clearDeadLocalSession,
+  getSessionWithTimeout,
+  isInvalidAuthError,
+} from "@/lib/getSessionWithTimeout";
 
 /**
  * Executa uma query por lote de lead_ids com no máximo `parallel` pedidos HTTP em voo.
@@ -169,14 +175,17 @@ export function useLeads() {
     const fetchStartedAt = Date.now();
     const myGeneration = ++fetchGenerationRef.current;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSessionWithTimeout({
+        timeoutMs: GET_SESSION_TIMEOUT_CACHED_MS,
+      });
       if (!session) {
         setLeads([]);
         toast({
-          title: "Você não está autenticado",
-          description: "Faça login para visualizar seus leads conectados.",
+          title: "Sessão expirada",
+          description: "Entre novamente para carregar o funil.",
         });
         setLoading(false);
+        await clearDeadLocalSession();
         return;
       }
 
@@ -700,11 +709,21 @@ export function useLeads() {
       }
     } catch (error: any) {
       console.error('❌ Erro ao carregar leads:', error);
-      toast({
-        title: "Erro ao carregar leads",
-        description: error.message || "Tente recarregar a página",
-        variant: "destructive",
-      });
+      if (isInvalidAuthError(error)) {
+        setLeads([]);
+        toast({
+          title: "Sessão expirada",
+          description: "Entre novamente para carregar o funil.",
+          variant: "destructive",
+        });
+        await clearDeadLocalSession();
+      } else {
+        toast({
+          title: "Erro ao carregar leads",
+          description: error.message || "Tente recarregar a página",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }

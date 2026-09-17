@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- hook legado com queries Supabase dinâmicas e fallbacks de schema */
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrganizationId, ensureUserOrganization } from "@/lib/organizationUtils";
@@ -103,32 +104,34 @@ export function useOnboarding() {
       const pipelineStagesCount = pipelineStages?.length || 0;
       const pipelineStepComplete = pipelineStagesCount >= 3;
 
-      // Verificar etapa de produtos (usando Edge Function do PostgreSQL)
+      // Verificar etapa de produtos. Se o onboarding já marcou a etapa, não ir à
+      // edge no load do funil (chamada lenta e desnecessária).
       let productsCount = 0;
       let productsStepComplete = completedSteps.includes('products');
-      
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const response = await fetch(`${supabaseUrl}/functions/v1/products?is_active=true`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${session.access_token}`,
-              "Content-Type": "application/json",
-            },
-          });
 
-          if (response.ok) {
-            const result = await response.json();
-            const products = result.data || [];
-            productsCount = products.length;
-            productsStepComplete = productsCount > 0 || completedSteps.includes('products');
+      if (!productsStepComplete) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const response = await fetch(`${supabaseUrl}/functions/v1/products?is_active=true`, {
+              method: "GET",
+              headers: {
+                "Authorization": `Bearer ${session.access_token}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              const products = result.data || [];
+              productsCount = products.length;
+              productsStepComplete = productsCount > 0 || completedSteps.includes('products');
+            }
           }
+        } catch (productsError: any) {
+          console.error('Erro ao buscar produtos:', productsError);
         }
-      } catch (productsError: any) {
-        console.error('Erro ao buscar produtos:', productsError);
-        // Se falhar, considerar como se não houvesse produtos (já inicializado acima)
       }
 
       // Verificar etapa de Evolution

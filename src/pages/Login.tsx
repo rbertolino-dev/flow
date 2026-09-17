@@ -40,7 +40,7 @@ export default function Login() {
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await getSessionWithTimeout();
-      if (session) {
+      if (session?.access_token) {
         navigate('/', { replace: true });
       }
     };

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { GET_SESSION_TIMEOUT_CACHED_MS, getSessionWithTimeout } from '@/lib/getSessionWithTimeout';
 
 const STORAGE_KEY = 'active_organization_id';
 const ORG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
@@ -30,7 +31,9 @@ export function seedOrgCache(orgId: string, userId: string): void {
 }
 
 export async function getUserOrganizationId(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await getSessionWithTimeout({
+    timeoutMs: GET_SESSION_TIMEOUT_CACHED_MS,
+  });
   if (!session?.user) return null;
 
   const userId = session.user.id;
