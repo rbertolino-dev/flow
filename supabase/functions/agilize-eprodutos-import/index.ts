@@ -309,6 +309,130 @@ async function loadMarcaMaps(empresaId: string): Promise<{
   return { byName, byId };
 }
 
+async function createMarca(
+  empresaId: string,
+  nome: string
+): Promise<NamedRef> {
+  const trimmed = nome.trim();
+  if (!trimmed) {
+    throw new Error("Nome da marca vazio");
+  }
+  const body = {
+    nome: trimmed,
+    // Typo legado Bubble — coluna correta é EMPREESA
+    EMPREESA: empresaId,
+    "unique id": generateBubbleUniqueId(),
+    "Creation Date": new Date().toISOString(),
+    Creator: "(CRM Import)",
+  };
+  const res = await agilizeFetch("marca", {
+    method: "POST",
+    prefer: "return=representation",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(
+      `Falha ao criar marca "${trimmed}" (HTTP ${res.status}): ${errText.slice(0, 300)}`
+    );
+  }
+  const rows = (await res.json()) as Array<{ id: number; nome: string }>;
+  if (!Array.isArray(rows) || rows.length === 0 || rows[0]?.id == null) {
+    throw new Error(`Marca "${trimmed}" criada sem retorno de id`);
+  }
+  return {
+    id: String(rows[0].id),
+    nome: String(rows[0].nome ?? trimmed).trim(),
+  };
+}
+
+/**
+ * Garante marcas no checklist da empresa a partir do texto da planilha (campo marca).
+ * createMissing=false: só avisa o que será criado.
+ * createMissing=true: cria em marca (nome + EMPREESA) e atualiza o mapa.
+ */
+async function ensureMarcasFromRows(
+  empresaId: string,
+  rows: Array<{ rowNum: number; data: Record<string, unknown> }>,
+  marcaByName: Map<string, NamedRef>,
+  marcaById: Map<string, NamedRef>,
+  options: {
+    createMissing: boolean;
+    warnings: Array<{ row: number; warning: string }>;
+  }
+): Promise<{ created: string[]; pending: string[] }> {
+  const created: string[] = [];
+  const pending: string[] = [];
+  const toCreate: Array<{ key: string; display: string; rowNum: number }> = [];
+  const seen = new Set<string>();
+
+  for (const item of rows) {
+    const raw = item.data.marca;
+    if (raw == null || String(raw).trim() === "") continue;
+    const display = String(raw).trim();
+    // Já é ID numérico existente — não criar
+    if (/^\d+$/.test(display) && marcaById.has(display)) continue;
+
+    const key = normalizeLookupName(display);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    const existing = marcaByName.get(key);
+    if (existing && existing.id) continue;
+
+    if (!options.createMissing) {
+      pending.push(display);
+      marcaByName.set(key, { id: "", nome: display });
+      options.warnings.push({
+        row: item.rowNum,
+        warning: `Marca "${display}" será criada na tabela marca (EMPREESA) nesta empresa na importação.`,
+      });
+      continue;
+    }
+
+    toCreate.push({ key, display, rowNum: item.rowNum });
+  }
+
+  for (const item of toCreate) {
+    const current = marcaByName.get(item.key);
+    if (current && current.id) continue;
+
+    try {
+      const ref = await createMarca(empresaId, item.display);
+      marcaByName.set(item.key, ref);
+      marcaById.set(ref.id, ref);
+      created.push(ref.nome);
+      options.warnings.push({
+        row: item.rowNum,
+        warning: `Marca "${ref.nome}" criada (id=${ref.id}).`,
+      });
+    } catch (error) {
+      const refreshed = await loadMarcaMaps(empresaId);
+      for (const [k, v] of refreshed.byName) {
+        if (!marcaByName.has(k) || !marcaByName.get(k)!.id) {
+          marcaByName.set(k, v);
+        }
+      }
+      for (const [k, v] of refreshed.byId) {
+        marcaById.set(k, v);
+      }
+      if (marcaByName.has(item.key) && marcaByName.get(item.key)!.id) {
+        created.push(item.display);
+        continue;
+      }
+      options.warnings.push({
+        row: item.rowNum,
+        warning:
+          error instanceof Error
+            ? error.message
+            : `Não foi possível criar a marca "${item.display}"`,
+      });
+    }
+  }
+
+  return { created, pending };
+}
+
 /**
  * Bubble mostra categoria/marca pelo ID do checklist (relação),
  * não só pelo texto *_nome. Resolve nome → id.
@@ -353,15 +477,21 @@ function enrichBubbleRelations(
     } else {
       const hit = marcaByName.get(normalizeLookupName(raw));
       if (hit) {
-        data.marca = hit.id;
-        data.marca_nome = hit.nome;
+        if (hit.id) {
+          data.marca = hit.id;
+          data.marca_nome = hit.nome;
+        } else {
+          // Placeholder do dry-run
+          delete data.marca;
+          data.marca_nome = hit.nome;
+        }
       } else {
         // Não gravar texto no campo marca (ID) — Bubble não seleciona
         delete data.marca;
         data.marca_nome = raw;
         warnings.push({
           row: rowNum,
-          warning: `Marca "${raw}" não existe no checklist desta empresa (tabela marca). Cadastre no Bubble com o mesmo nome para aparecer no produto.`,
+          warning: `Marca "${raw}" não pôde ser vinculada (não encontrada/criada na tabela marca para esta empresa).`,
         });
       }
     }
@@ -370,18 +500,23 @@ function enrichBubbleRelations(
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
+  // Número já parseado pelo Excel (valor binário correto) — manter
   if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  // Mesma lógica manual: texto → tira ponto de milhar → vírgula vira ponto decimal
   let s = String(value).trim();
   if (!s) return null;
-  // Planilha em pt-BR: remove R$, espaços, milhar (.) e troca decimal (,) por ponto
   s = s.replace(/\s/g, "").replace(/^R\$\s?/i, "");
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) || /^-?\d+,\d+$/.test(s)) {
+
+  // Se tem vírgula, trata como pt-BR: remove todos os pontos e troca vírgula por ponto
+  if (s.includes(",")) {
     s = s.replace(/\./g, "").replace(",", ".");
-  } else if (s.includes(",") && !s.includes(".")) {
-    s = s.replace(",", ".");
   } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+    // Só milhar sem decimais (ex.: 1.234)
     s = s.replace(/\./g, "");
   }
+  // caso contrário (ex.: 10.5 já americano) mantém
+
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
@@ -988,6 +1123,10 @@ async function dryRun(
     empresaId
   );
   await ensureCategoriasFromRows(empresaId, sanitized, catMap, {
+    createMissing: false,
+    warnings,
+  });
+  await ensureMarcasFromRows(empresaId, sanitized, marcaByName, marcaById, {
     createMissing: false,
     warnings,
   });
@@ -1686,6 +1825,10 @@ async function importBatch(
     empresaId
   );
   await ensureCategoriasFromRows(empresaId, prepared, catMap, {
+    createMissing: true,
+    warnings: [],
+  });
+  await ensureMarcasFromRows(empresaId, prepared, marcaByName, marcaById, {
     createMissing: true,
     warnings: [],
   });

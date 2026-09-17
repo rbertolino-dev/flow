@@ -239,6 +239,9 @@ export function AgilizeProdutosImportWizard() {
         const sheet = wb.Sheets[wb.SheetNames[0]];
         return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
           defval: "",
+          // raw:false → texto formatado da célula (ex.: "1.234,56" em pt-BR),
+          // para a conversão milhar/decimal funcionar como no Excel manual
+          raw: false,
         });
       };
 
@@ -830,8 +833,8 @@ export function AgilizeProdutosImportWizard() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription className="space-y-1">
                       <div className="font-medium">
-                        Avisos (categorias novas são criadas na importação; marcas
-                        precisam existir no checklist)
+                        Avisos (categorias e marcas novas são criadas na
+                        importação)
                       </div>
                       <ul className="list-disc pl-4 text-sm max-h-40 overflow-auto">
                         {dryRunResult.warnings.slice(0, 15).map((w, i) => (

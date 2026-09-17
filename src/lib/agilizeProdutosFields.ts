@@ -204,7 +204,7 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
   marca: {
     kind: "text",
     description:
-      "Nome da marca (checklist Bubble). Precisa existir com o mesmo nome na empresa.",
+      "Nome da marca. Se não existir na tabela marca desta empresa (EMPREESA), será criada e o produto recebe o id em marca + marca_nome.",
   },
   cod_interno: { kind: "text", description: "Texto / código" },
   codigo_barras: {
@@ -220,12 +220,10 @@ export function parseBrazilianNumber(value: unknown): number | null {
   let s = String(value).trim();
   if (!s) return null;
   s = s.replace(/\s/g, "").replace(/^R\$\s?/i, "");
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) || /^-?\d+,\d+$/.test(s)) {
+  // Igual ao Excel manual: texto → remove pontos → vírgula vira ponto
+  if (s.includes(",")) {
     s = s.replace(/\./g, "").replace(",", ".");
-  } else if (s.includes(",") && !s.includes(".")) {
-    s = s.replace(",", ".");
   } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
-    // milheiro sem decimais: 1.234 → 1234
     s = s.replace(/\./g, "");
   }
   const n = Number(s);
