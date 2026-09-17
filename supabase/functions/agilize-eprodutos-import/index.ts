@@ -529,6 +529,7 @@ function roundMoney2(value: number): number {
  * Campos derivados na importação:
  * - total_custo = custo_unit × qntd
  * - total_venda = preço × qntd
+ * - margem_unit = preço − custo_unit
  * - status por faixas de estoque
  * - qntd_inicial = qntd
  */
@@ -549,6 +550,10 @@ function applyDerivedProductFields(out: Record<string, unknown>) {
 
   if (preco != null && qntd != null) {
     out.total_venda = roundMoney2(preco * qntd);
+  }
+
+  if (preco != null && custo != null) {
+    out.margem_unit = roundMoney2(preco - custo);
   }
 
   if (qntd != null && ideal != null && baixa != null) {
@@ -963,29 +968,91 @@ async function verifySessionToken(
   }
 }
 
-async function fetchExistingCodigoIds(
-  empresaId: string,
-  codigos: string[]
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  const unique = [...new Set(codigos.filter(Boolean))];
-  const chunkSize = 50;
-  for (let i = 0; i < unique.length; i += chunkSize) {
-    const chunk = unique.slice(i, i + chunkSize);
-    const filter = chunk.map((c) => `"${String(c).replace(/"/g, "")}"`).join(",");
+type DupFingerprint = {
+  id?: number;
+  nome: string;
+  codigo: string;
+  preco: number | null;
+};
+
+function productDupFingerprint(data: Record<string, unknown>): DupFingerprint {
+  const precoRaw = data["preço"];
+  return {
+    nome: normalizeLookupName(data.nome),
+    codigo: data.codigo_produto != null ? String(data.codigo_produto).trim() : "",
+    preco:
+      typeof precoRaw === "number" && Number.isFinite(precoRaw)
+        ? Number(precoRaw)
+        : null,
+  };
+}
+
+/** Duplicata = 2 ou mais campos iguais entre nome, codigo_produto e preço. */
+function countDupFieldMatches(a: DupFingerprint, b: DupFingerprint): number {
+  let matches = 0;
+  if (a.codigo && b.codigo && a.codigo === b.codigo) matches += 1;
+  if (a.nome && b.nome && a.nome === b.nome) matches += 1;
+  if (a.preco != null && b.preco != null && a.preco === b.preco) matches += 1;
+  return matches;
+}
+
+function isDupMatch(a: DupFingerprint, b: DupFingerprint): boolean {
+  return countDupFieldMatches(a, b) >= 2;
+}
+
+function describeDupMatch(a: DupFingerprint, b: DupFingerprint): string {
+  const parts: string[] = [];
+  if (a.codigo && b.codigo && a.codigo === b.codigo) parts.push("codigo_produto");
+  if (a.nome && b.nome && a.nome === b.nome) parts.push("nome");
+  if (a.preco != null && b.preco != null && a.preco === b.preco) parts.push("preço");
+  return parts.join("+");
+}
+
+async function loadEmpresaDupIndex(
+  empresaId: string
+): Promise<DupFingerprint[]> {
+  const all: DupFingerprint[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; offset < 500000; offset += pageSize) {
     const res = await agilizeFetch(
-      `eprodutos?select=id,codigo_produto&empresa=eq.${encodeURIComponent(empresaId)}&codigo_produto=in.(${filter})`,
+      `eprodutos?select=id,nome,codigo_produto,pre%C3%A7o&empresa=eq.${encodeURIComponent(
+        empresaId
+      )}&order=id.asc&limit=${pageSize}&offset=${offset}`,
       { method: "GET" }
     );
-    if (!res.ok) continue;
-    const data = await res.json();
-    for (const item of data || []) {
-      if (item.codigo_produto != null && item.id != null) {
-        map.set(String(item.codigo_produto), Number(item.id));
-      }
+    if (!res.ok) break;
+    const rows = (await res.json()) as Array<{
+      id: number;
+      nome: string | null;
+      codigo_produto: string | null;
+      preço: number | null;
+    }>;
+    if (!rows.length) break;
+    for (const row of rows) {
+      all.push({
+        id: Number(row.id),
+        nome: normalizeLookupName(row.nome),
+        codigo:
+          row.codigo_produto != null ? String(row.codigo_produto).trim() : "",
+        preco:
+          row.preço != null && Number.isFinite(Number(row.preço))
+            ? Number(row.preço)
+            : null,
+      });
     }
+    if (rows.length < pageSize) break;
   }
-  return map;
+  return all;
+}
+
+function findDupInIndex(
+  candidate: DupFingerprint,
+  index: DupFingerprint[]
+): DupFingerprint | null {
+  for (const existing of index) {
+    if (isDupMatch(candidate, existing)) return existing;
+  }
+  return null;
 }
 
 async function fetchExistingCodigos(
@@ -1101,8 +1168,18 @@ async function dryRun(
 
   const valid: Array<{ row: number; data: Record<string, unknown> }> = [];
   const invalid: Array<{ row: number; error: string }> = [];
-  const duplicates: Array<{ row: number; codigo_produto: string }> = [];
-  const willUpdate: Array<{ row: number; codigo_produto: string }> = [];
+  const duplicates: Array<{
+    row: number;
+    codigo_produto: string;
+    matchFields?: string;
+    existingId?: number;
+  }> = [];
+  const willUpdate: Array<{
+    row: number;
+    codigo_produto: string;
+    matchFields?: string;
+    existingId?: number;
+  }> = [];
   const warnings: Array<{ row: number; warning: string }> = [];
 
   const sanitized: Array<{ rowNum: number; data: Record<string, unknown> }> =
@@ -1141,25 +1218,45 @@ async function dryRun(
     );
   }
 
-  const codigos = sanitized
-    .map((s) =>
-      s.data.codigo_produto != null ? String(s.data.codigo_produto) : ""
-    )
-    .filter(Boolean);
-  const existing = await fetchExistingCodigos(empresaId, codigos);
+  // Duplicata = 2+ campos iguais entre nome, codigo_produto e preço
+  const existingIndex = await loadEmpresaDupIndex(empresaId);
+  const sheetSeen: DupFingerprint[] = [];
 
   let insertCount = 0;
   for (const item of sanitized) {
-    const codigo =
-      item.data.codigo_produto != null
-        ? String(item.data.codigo_produto)
-        : "";
-    if (codigo && existing.has(codigo)) {
+    const fp = productDupFingerprint(item.data);
+    const codigo = fp.codigo;
+    const sheetHit = findDupInIndex(fp, sheetSeen);
+    const dbHit = findDupInIndex(fp, existingIndex);
+
+    if (sheetHit) {
+      const matchFields = describeDupMatch(fp, sheetHit);
+      duplicates.push({
+        row: item.rowNum,
+        codigo_produto: codigo,
+        matchFields: `planilha(${matchFields})`,
+      });
+      warnings.push({
+        row: item.rowNum,
+        warning: `Duplicata na própria planilha por ${matchFields}`,
+      });
+      continue;
+    }
+
+    if (dbHit) {
+      const matchFields = describeDupMatch(fp, dbHit);
       if (duplicateMode === "overwrite") {
-        willUpdate.push({ row: item.rowNum, codigo_produto: codigo });
+        willUpdate.push({
+          row: item.rowNum,
+          codigo_produto: codigo,
+          matchFields,
+          existingId: dbHit.id,
+        });
         warnings.push({
           row: item.rowNum,
-          warning: `Será SOBRESCRITO (codigo_produto=${codigo})`,
+          warning: `Será SOBRESCRITO (match ${matchFields}${
+            dbHit.id != null ? `, id=${dbHit.id}` : ""
+          })`,
         });
         if (!isBubbleVisible(item.data)) {
           const reasons: string[] = [];
@@ -1173,16 +1270,18 @@ async function dryRun(
         }
         valid.push({ row: item.rowNum, data: item.data });
       } else {
-        duplicates.push({ row: item.rowNum, codigo_produto: codigo });
+        duplicates.push({
+          row: item.rowNum,
+          codigo_produto: codigo,
+          matchFields,
+          existingId: dbHit.id,
+        });
       }
       continue;
     }
-    if (!codigo) {
-      warnings.push({
-        row: item.rowNum,
-        warning: "Sem codigo_produto — não será checado como duplicata",
-      });
-    }
+
+    sheetSeen.push(fp);
+
     if (!isBubbleVisible(item.data)) {
       const reasons: string[] = [];
       if (isTruthyFlag(item.data.desativado)) reasons.push("desativado=true");
@@ -1843,12 +1942,7 @@ async function importBatch(
     );
   }
 
-  const codigos = prepared
-    .map((p) =>
-      p.data.codigo_produto != null ? String(p.data.codigo_produto) : ""
-    )
-    .filter(Boolean);
-  const existingIds = await fetchExistingCodigoIds(empresaId, codigos);
+  const existingIndex = await loadEmpresaDupIndex(empresaId);
 
   const toInsert: Array<{ rowNum: number; data: Record<string, unknown> }> =
     [];
@@ -1859,18 +1953,15 @@ async function importBatch(
   }> = [];
 
   for (const item of prepared) {
-    const codigo =
-      item.data.codigo_produto != null
-        ? String(item.data.codigo_produto)
-        : "";
-    const existingId = codigo ? existingIds.get(codigo) : undefined;
-    if (existingId != null) {
+    const fp = productDupFingerprint(item.data);
+    const hit = findDupInIndex(fp, existingIndex);
+    if (hit && hit.id != null) {
       if (duplicateMode === "overwrite") {
-        toUpdate.push({ rowNum: item.rowNum, id: existingId, data: item.data });
+        toUpdate.push({ rowNum: item.rowNum, id: hit.id, data: item.data });
       } else {
         skipped.push({
           row: item.rowNum,
-          reason: `Duplicata codigo_produto=${codigo}`,
+          reason: `Duplicata por ${describeDupMatch(fp, hit)} (id=${hit.id})`,
         });
       }
       continue;

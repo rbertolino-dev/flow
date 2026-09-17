@@ -62,7 +62,7 @@ export async function downloadAgilizeProdutosTemplate(): Promise<void> {
     "calculado",
     "nao",
     "—",
-    "status, total_custo, total_venda, qntd_inicial e codigo_barras não vão no template (calculados/omitidos na importação)",
+    "status, total_custo, total_venda, margem_unit (=preço−custo), qntd_inicial e codigo_barras não vão no template",
   ]);
   legenda.getRow(1).font = { bold: true };
   legenda.columns.forEach((c) => {

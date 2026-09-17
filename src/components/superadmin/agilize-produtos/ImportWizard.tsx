@@ -767,7 +767,8 @@ export function AgilizeProdutosImportWizard() {
           <CardHeader>
             <CardTitle>4. Dry-run (sem gravar)</CardTitle>
             <CardDescription>
-              Valida linhas e detecta duplicatas por codigo_produto + empresa. Nada é inserido.
+              Valida linhas e detecta duplicatas quando 2+ campos coincidem entre
+              nome, codigo_produto e preço (nesta empresa). Nada é inserido.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -778,7 +779,8 @@ export function AgilizeProdutosImportWizard() {
 
             <div className="rounded-md border p-3 space-y-3">
               <Label className="text-sm font-medium">
-                Se o produto já existir nesta empresa (mesmo codigo_produto)
+                Se o produto já existir nesta empresa (2+ campos iguais entre
+                nome, codigo_produto e preço)
               </Label>
               <RadioGroup
                 value={duplicateMode}
@@ -934,7 +936,9 @@ export function AgilizeProdutosImportWizard() {
                           ...dryRunResult.duplicates.map((x) => ({
                             tipo: "duplicado",
                             linha: x.row,
-                            detalhe: x.codigo_produto,
+                            detalhe: x.matchFields
+                              ? `${x.matchFields}${x.codigo_produto ? ` | codigo=${x.codigo_produto}` : ""}`
+                              : x.codigo_produto,
                           })),
                         ])
                       }
@@ -956,8 +960,8 @@ export function AgilizeProdutosImportWizard() {
                     <code className="text-xs break-all">{empresaId}</code>
                     {empresaNome ? ` (${empresaNome})` : ""} está correto e desejo importar
                     {duplicateMode === "overwrite"
-                      ? " com sobrescrita dos produtos que já existirem (mesmo codigo_produto)."
-                      : " apenas INSERT (duplicatas serão ignoradas)."}
+                      ? " com sobrescrita dos produtos que já existirem (2+ campos iguais: nome, codigo_produto, preço)."
+                      : " apenas INSERT (duplicatas por 2+ campos iguais serão ignoradas)."}
                   </Label>
                 </div>
 

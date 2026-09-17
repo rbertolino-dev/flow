@@ -126,9 +126,19 @@ export interface DryRunResult {
   };
   preview: Record<string, unknown>[];
   invalid: Array<{ row: number; error: string }>;
-  duplicates: Array<{ row: number; codigo_produto: string }>;
+  duplicates: Array<{
+    row: number;
+    codigo_produto: string;
+    matchFields?: string;
+    existingId?: number;
+  }>;
   /** Quando duplicateMode=overwrite: linhas que serão atualizadas */
-  willUpdate?: Array<{ row: number; codigo_produto: string }>;
+  willUpdate?: Array<{
+    row: number;
+    codigo_produto: string;
+    matchFields?: string;
+    existingId?: number;
+  }>;
   warnings: Array<{ row: number; warning: string }>;
   sessionToken: string;
   duplicateMode?: DuplicateMode;
