@@ -1055,14 +1055,6 @@ function findDupInIndex(
   return null;
 }
 
-async function fetchExistingCodigos(
-  empresaId: string,
-  codigos: string[]
-): Promise<Set<string>> {
-  const map = await fetchExistingCodigoIds(empresaId, codigos);
-  return new Set(map.keys());
-}
-
 async function countEmpresaVisibility(empresaId: string) {
   const rows: Array<{ desativado?: unknown; produto_filho?: unknown }> = [];
   let offset = 0;
