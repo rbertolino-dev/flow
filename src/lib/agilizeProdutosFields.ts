@@ -26,6 +26,19 @@ export const AGILIZE_EPRODUTOS_FIELDS = [
 
 export type AgilizeEprodutosField = (typeof AGILIZE_EPRODUTOS_FIELDS)[number];
 
+/** Colunas do template Excel (calculados automaticamente ficam de fora). */
+export const AGILIZE_TEMPLATE_EXCLUDED_FIELDS = [
+  "codigo_barras",
+  "total_venda",
+  "total_custo",
+  "status",
+] as const satisfies readonly AgilizeEprodutosField[];
+
+export const AGILIZE_TEMPLATE_FIELDS = AGILIZE_EPRODUTOS_FIELDS.filter(
+  (f) =>
+    !(AGILIZE_TEMPLATE_EXCLUDED_FIELDS as readonly string[]).includes(f)
+) as AgilizeEprodutosField[];
+
 export const AGILIZE_FIELD_LABELS: Record<AgilizeEprodutosField, string> = {
   nome: "Nome",
   medida: "Medida",
@@ -132,8 +145,14 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
     description:
       "Nome da categoria. Se não existir em categoria_estoque desta empresa, será criada automaticamente e o produto recebe o id em categoria.",
   },
-  preço: { kind: "number", description: "Número (ex.: 10 ou 10,5)" },
-  preço_atacado: { kind: "number", description: "Número" },
+  preço: {
+    kind: "number",
+    description: "Número pt-BR (ex.: 10,50 ou 1.234,56) — convertido na importação",
+  },
+  preço_atacado: {
+    kind: "number",
+    description: "Número pt-BR — convertido na importação",
+  },
   produto_filho: {
     kind: "boolean",
     options: AGILIZE_BOOLEAN_OPTIONS,
@@ -144,21 +163,41 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
     options: AGILIZE_BOOLEAN_OPTIONS,
     description: "Seletor true/false",
   },
-  qnt_ideal: { kind: "number", description: "Número" },
-  qntd: { kind: "number", description: "Número" },
-  qntd_baixa: { kind: "number", description: "Número" },
+  qnt_ideal: {
+    kind: "number",
+    description: "Número (pt-BR na planilha → convertido na importação)",
+  },
+  qntd: {
+    kind: "number",
+    description:
+      "Número. Também preenche qntd_inicial e entra nos cálculos de totais/status",
+  },
+  qntd_baixa: {
+    kind: "number",
+    description: "Número (pt-BR na planilha → convertido na importação)",
+  },
   status: {
     kind: "select",
     options: AGILIZE_STATUS_OPTIONS,
-    description: "Seletor — Ideal | Em falta | Baixa",
+    description:
+      "Calculado na importação: Ideal / Baixa / Em falta (não vai no template)",
   },
-  total_custo: { kind: "number", description: "Número" },
-  total_venda: { kind: "number", description: "Número" },
+  total_custo: {
+    kind: "number",
+    description: "Calculado: custo_unit × qntd (não vai no template)",
+  },
+  total_venda: {
+    kind: "number",
+    description: "Calculado: preço × qntd (não vai no template)",
+  },
   codigo_produto: {
     kind: "number",
     description: "Número (código do produto na planilha Excel)",
   },
-  custo_unit: { kind: "number", description: "Número" },
+  custo_unit: {
+    kind: "number",
+    description: "Número (pt-BR na planilha → convertido na importação)",
+  },
   codigo_ncm: { kind: "text", description: "Texto (NCM)" },
   descricao_anp: { kind: "text", description: "Texto livre" },
   descricao: { kind: "text", description: "Texto livre" },
@@ -170,9 +209,28 @@ export const AGILIZE_FIELD_META: Record<AgilizeEprodutosField, AgilizeFieldMeta>
   cod_interno: { kind: "text", description: "Texto / código" },
   codigo_barras: {
     kind: "number",
-    description: "Número (EAN / código de barras da planilha Excel)",
+    description: "Opcional em planilhas antigas (não vai no template novo)",
   },
 };
+
+/** Converte número pt-BR (1.234,56) para number JS (1234.56). */
+export function parseBrazilianNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  let s = String(value).trim();
+  if (!s) return null;
+  s = s.replace(/\s/g, "").replace(/^R\$\s?/i, "");
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) || /^-?\d+,\d+$/.test(s)) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (s.includes(",") && !s.includes(".")) {
+    s = s.replace(",", ".");
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+    // milheiro sem decimais: 1.234 → 1234
+    s = s.replace(/\./g, "");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
 
 export const AGILIZE_NUMERIC_FIELDS: AgilizeEprodutosField[] = (
   Object.entries(AGILIZE_FIELD_META) as [AgilizeEprodutosField, AgilizeFieldMeta][]

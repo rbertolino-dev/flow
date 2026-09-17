@@ -370,14 +370,62 @@ function enrichBubbleRelations(
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "number" && !Number.isNaN(value)) return value;
-  const s = String(value).trim().replace(/\./g, "").replace(",", ".");
-  // Try BR format first if has comma; else plain
-  const plain = String(value).trim().replace(",", ".");
-  const n = Number(plain);
-  if (!Number.isNaN(n)) return n;
-  const n2 = Number(s);
-  return Number.isNaN(n2) ? null : n2;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  let s = String(value).trim();
+  if (!s) return null;
+  // Planilha em pt-BR: remove R$, espaços, milhar (.) e troca decimal (,) por ponto
+  s = s.replace(/\s/g, "").replace(/^R\$\s?/i, "");
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) || /^-?\d+,\d+$/.test(s)) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (s.includes(",") && !s.includes(".")) {
+    s = s.replace(",", ".");
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function roundMoney2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Campos derivados na importação:
+ * - total_custo = custo_unit × qntd
+ * - total_venda = preço × qntd
+ * - status por faixas de estoque
+ * - qntd_inicial = qntd
+ */
+function applyDerivedProductFields(out: Record<string, unknown>) {
+  const qntd = typeof out.qntd === "number" ? out.qntd : null;
+  const custo = typeof out.custo_unit === "number" ? out.custo_unit : null;
+  const preco = typeof out["preço"] === "number" ? (out["preço"] as number) : null;
+  const ideal = typeof out.qnt_ideal === "number" ? out.qnt_ideal : null;
+  const baixa = typeof out.qntd_baixa === "number" ? out.qntd_baixa : null;
+
+  if (qntd != null) {
+    out.qntd_inicial = qntd;
+  }
+
+  if (custo != null && qntd != null) {
+    out.total_custo = roundMoney2(custo * qntd);
+  }
+
+  if (preco != null && qntd != null) {
+    out.total_venda = roundMoney2(preco * qntd);
+  }
+
+  if (qntd != null && ideal != null && baixa != null) {
+    if (qntd >= ideal) {
+      out.status = "Ideal";
+    } else if (qntd > baixa && qntd < ideal) {
+      out.status = "Baixa";
+    } else {
+      // qntd <= qntd_baixa
+      out.status = "Em falta";
+    }
+  }
 }
 
 function isTruthyFlag(value: unknown): boolean {
@@ -720,7 +768,8 @@ function sanitizeRow(
     }
   }
 
-  if (!out.status) out.status = "Em falta";
+  // Sobrescreve/completa totais, status e qntd_inicial conforme regras
+  applyDerivedProductFields(out);
 
   return { ok: true, row: out };
 }
