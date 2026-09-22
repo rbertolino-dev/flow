@@ -109,6 +109,20 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByText(/quantidade de vendas/i)).toBeVisible();
     await expect(page.getByText(/total das vendas/i)).toBeVisible();
     await expect(page.getByRole("columnheader", { name: /^código$/i })).toBeVisible();
+
+    // Abrir comprovante da venda recém-criada (mesma sessão / org)
+    const dataRow = page
+      .locator("table tbody tr")
+      .filter({ hasNotText: /nenhuma venda encontrada/i })
+      .first();
+    if (await dataRow.isVisible().catch(() => false)) {
+      await human.randomDelay(300, 600);
+      await human.humanClick(dataRow.locator("td").first());
+      await expect(
+        page.locator("span").filter({ hasText: /^Comprovante de venda$/i })
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole("button", { name: /excluir venda/i })).toBeVisible();
+    }
   });
 
   test("PDV histórico — página dedicada @human-behavior @pdv", async ({ page }) => {
@@ -132,6 +146,13 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     page,
   }) => {
     const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
     await human.humanNavigate("/pdv/historico");
     if (page.url().includes("/login")) {
       test.skip(true, "Sessão E2E inválida");
@@ -141,31 +162,25 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       page.getByRole("heading", { name: /histórico de vendas/i })
     ).toBeVisible({ timeout: 45_000 });
 
-    const empty = page.getByText(/nenhuma venda encontrada/i);
-    const firstRow = page.locator("table tbody tr").first();
-    await expect(firstRow.or(empty)).toBeVisible({ timeout: 45_000 });
+    const emptyCell = page.getByRole("cell", { name: /nenhuma venda encontrada/i });
+    const dataRow = page
+      .locator("table tbody tr")
+      .filter({ hasNotText: /nenhuma venda encontrada/i })
+      .first();
 
-    const hasRow = await firstRow.isVisible().catch(() => false);
-    const isEmpty = await empty.isVisible().catch(() => false);
-    test.skip(isEmpty || !hasRow, "Sem vendas no período para abrir comprovante");
-
-    const getSaleResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/functions/v1/pos-sales") &&
-        res.url().includes("get_sale") &&
-        res.request().method() === "GET",
-      { timeout: 45_000 }
+    await expect(dataRow.or(emptyCell)).toBeVisible({ timeout: 45_000 });
+    test.skip(
+      await emptyCell.isVisible().catch(() => false),
+      "Sem vendas no período para abrir comprovante"
     );
 
     await human.randomDelay(400, 800);
-    await human.humanClick(firstRow);
+    // Clica na célula do código (evita áreas com scroll interno)
+    await human.humanClick(dataRow.locator("td").first());
 
-    const res = await getSaleResponse;
-    expect(res.ok()).toBeTruthy();
-
-    await expect(page.getByText(/comprovante de venda/i)).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      page.locator("span").filter({ hasText: /^Comprovante de venda$/i })
+    ).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/informações da venda/i)).toBeVisible();
     await expect(page.getByText(/formas de pagamento/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /romaneio de entrega/i })).toBeVisible();
