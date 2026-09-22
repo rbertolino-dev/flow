@@ -10,12 +10,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Camera, Loader2, Upload, X } from 'lucide-react';
 import { ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
-import { SignaturePad } from './SignaturePad';
+import { SignaturePad, SignaturePadHandle } from './SignaturePad';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import {
+  formatLeadAttachmentUploadError,
+  resolveLeadAttachmentContentType,
+  sanitizeAttachmentFilename,
+} from '@/lib/leadAttachments';
 
 const BUCKET = 'whatsapp-workflow-media';
+const MAX_BYTES = 8 * 1024 * 1024;
 
 interface ServiceOrderCloseDialogProps {
   open: boolean;
@@ -25,21 +31,89 @@ interface ServiceOrderCloseDialogProps {
   onClosed: (data: ServiceOrderCloseData) => Promise<boolean>;
 }
 
-async function uploadBlob(
+function guessExt(mime: string, fallback: string): string {
+  if (mime.includes('png')) return 'png';
+  if (mime.includes('webp')) return 'webp';
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+  return fallback;
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Comprime imagem para JPEG (reduz falhas de tamanho no storage). */
+async function compressImageBlob(blob: Blob, maxSide = 1600, quality = 0.82): Promise<Blob> {
+  if (!blob.type.startsWith('image/') || blob.type === 'image/gif') {
+    return blob;
+  }
+  if (typeof createImageBitmap === 'undefined' && typeof Image === 'undefined') {
+    return blob;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return blob;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const compressed = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', quality)
+    );
+    return compressed || blob;
+  } catch {
+    return blob;
+  }
+}
+
+async function uploadOrDataUrl(
   orgId: string,
   orderId: string,
   blob: Blob,
   filename: string
 ): Promise<string> {
-  const path = `${orgId}/service-orders/${orderId}/${Date.now()}-${filename}`;
+  if (!orgId) throw new Error('Organização não encontrada. Recarregue a página.');
+  if (blob.size > MAX_BYTES) {
+    throw new Error('Arquivo muito grande. Máximo 8 MB.');
+  }
+
+  const safeName = sanitizeAttachmentFilename(filename);
+  const contentType =
+    blob.type ||
+    resolveLeadAttachmentContentType(
+      new File([blob], safeName, { type: blob.type || '' })
+    );
+  const path = `${orgId}/service-orders/${orderId}/${Date.now()}-${safeName}`;
+
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
     upsert: false,
     cacheControl: '3600',
-    contentType: blob.type || 'image/jpeg',
+    contentType,
   });
-  if (error) throw error;
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+
+  if (!error) {
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  console.warn('Upload storage falhou, usando data URL:', error);
+  // Fallback: embute no banco/PDF (assinaturas e fotos pequenas)
+  if (blob.size <= 1.5 * 1024 * 1024 && contentType.startsWith('image/')) {
+    return blobToDataUrl(blob);
+  }
+  throw new Error(formatLeadAttachmentUploadError(error));
 }
 
 export function ServiceOrderCloseDialog({
@@ -53,12 +127,12 @@ export function ServiceOrderCloseDialog({
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const signatureRef = useRef<SignaturePadHandle>(null);
 
   const [summary, setSummary] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [attachments, setAttachments] = useState<string[]>([]);
-  const [signatureUrl, setSignatureUrl] = useState('');
   const [signaturePreview, setSignaturePreview] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -85,7 +159,6 @@ export function ServiceOrderCloseDialog({
           : ''
     );
     setAttachments(order.close_attachments || []);
-    setSignatureUrl(order.signature_url || '');
     setSignaturePreview(order.signature_url || '');
   }, [open, order]);
 
@@ -119,6 +192,13 @@ export function ServiceOrderCloseDialog({
     }
   };
 
+  const attachBlob = async (blob: Blob, filename: string) => {
+    const prepared = await compressImageBlob(blob);
+    const ext = guessExt(prepared.type || blob.type, 'jpg');
+    const name = filename.includes('.') ? filename : `${filename}.${ext}`;
+    return uploadOrDataUrl(organizationId, order.id, prepared, name);
+  };
+
   const capturePhoto = async () => {
     const video = videoRef.current;
     if (!video) return;
@@ -134,13 +214,13 @@ export function ServiceOrderCloseDialog({
         canvas.toBlob(resolve, 'image/jpeg', 0.85)
       );
       if (!blob) throw new Error('Falha ao capturar foto');
-      const url = await uploadBlob(organizationId, order.id, blob, 'camera.jpg');
+      const url = await attachBlob(blob, 'camera.jpg');
       setAttachments((prev) => [...prev, url]);
       stopCamera();
       toast({ title: 'Foto anexada' });
     } catch (err) {
       toast({
-        title: 'Erro',
+        title: 'Erro ao anexar foto',
         description: err instanceof Error ? err.message : 'Não foi possível anexar a foto',
         variant: 'destructive',
       });
@@ -151,11 +231,22 @@ export function ServiceOrderCloseDialog({
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return;
+    if (!organizationId) {
+      toast({
+        title: 'Erro no upload',
+        description: 'Organização não encontrada. Recarregue a página.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setUploading(true);
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
-        const url = await uploadBlob(organizationId, order.id, file, file.name.replace(/\s+/g, '_'));
+        const typed = new File([file], file.name, {
+          type: resolveLeadAttachmentContentType(file),
+        });
+        const url = await attachBlob(typed, typed.name.replace(/\s+/g, '_'));
         urls.push(url);
       }
       setAttachments((prev) => [...prev, ...urls]);
@@ -163,7 +254,7 @@ export function ServiceOrderCloseDialog({
     } catch (err) {
       toast({
         title: 'Erro no upload',
-        description: err instanceof Error ? err.message : 'Falha ao enviar arquivo',
+        description: formatLeadAttachmentUploadError(err),
         variant: 'destructive',
       });
     } finally {
@@ -172,29 +263,19 @@ export function ServiceOrderCloseDialog({
     }
   };
 
-  const handleSignatureSave = async (dataUrl: string) => {
-    if (!dataUrl) {
-      setSignatureUrl('');
-      setSignaturePreview('');
-      return;
+  const resolveSignatureUrl = async (): Promise<string> => {
+    const fromPad = signatureRef.current?.getDataUrl();
+    const raw = fromPad || signaturePreview;
+    if (!raw) {
+      throw new Error('Assine no campo de assinatura antes de finalizar.');
     }
-    setSignaturePreview(dataUrl);
-    setUploading(true);
-    try {
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const url = await uploadBlob(organizationId, order.id, blob, 'assinatura.png');
-      setSignatureUrl(url);
-      toast({ title: 'Assinatura salva' });
-    } catch (err) {
-      toast({
-        title: 'Erro na assinatura',
-        description: err instanceof Error ? err.message : 'Não foi possível salvar',
-        variant: 'destructive',
-      });
-    } finally {
-      setUploading(false);
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      return raw;
     }
+    // data URL → blob → upload (com fallback data URL)
+    const res = await fetch(raw);
+    const blob = await res.blob();
+    return uploadOrDataUrl(organizationId, order.id, blob, 'assinatura.png');
   };
 
   const handleFinalize = async () => {
@@ -206,25 +287,27 @@ export function ServiceOrderCloseDialog({
       });
       return;
     }
-    if (!signatureUrl) {
-      toast({
-        title: 'Assinatura obrigatória',
-        description: 'Salve a assinatura antes de finalizar.',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     setSaving(true);
-    const ok = await onClosed({
-      execution_summary: summary.trim(),
-      execution_starts_at: startDate ? new Date(startDate).toISOString() : undefined,
-      execution_ends_at: endDate ? new Date(endDate).toISOString() : undefined,
-      close_attachments: attachments,
-      signature_url: signatureUrl,
-    });
-    setSaving(false);
-    if (ok) onOpenChange(false);
+    try {
+      const signature_url = await resolveSignatureUrl();
+      const ok = await onClosed({
+        execution_summary: summary.trim(),
+        execution_starts_at: startDate ? new Date(startDate).toISOString() : undefined,
+        execution_ends_at: endDate ? new Date(endDate).toISOString() : undefined,
+        close_attachments: attachments,
+        signature_url,
+      });
+      if (ok) onOpenChange(false);
+    } catch (err) {
+      toast({
+        title: 'Não foi possível finalizar',
+        description: err instanceof Error ? err.message : 'Tente novamente',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -276,17 +359,21 @@ export function ServiceOrderCloseDialog({
                 type="button"
                 variant="secondary"
                 className="flex-1 rounded-full"
-                disabled={uploading}
+                disabled={uploading || saving}
                 onClick={() => fileRef.current?.click()}
               >
-                <Upload className="h-4 w-4 mr-1" />
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-1" />
+                )}
                 Subir os arquivos
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 className="flex-1 rounded-full"
-                disabled={uploading}
+                disabled={uploading || saving}
                 onClick={openCamera}
               >
                 <Camera className="h-4 w-4 mr-1" />
@@ -296,7 +383,7 @@ export function ServiceOrderCloseDialog({
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,.pdf"
+              accept="image/*,.pdf,image/jpeg,image/png,image/webp"
               multiple
               className="hidden"
               onChange={(e) => handleFiles(e.target.files)}
@@ -304,9 +391,19 @@ export function ServiceOrderCloseDialog({
 
             {cameraOpen && (
               <div className="space-y-2 border rounded-lg p-2">
-                <video ref={videoRef} className="w-full rounded-md bg-black aspect-video" playsInline muted />
+                <video
+                  ref={videoRef}
+                  className="w-full rounded-md bg-black aspect-video"
+                  playsInline
+                  muted
+                />
                 <div className="flex gap-2">
-                  <Button type="button" className="flex-1" onClick={capturePhoto} disabled={uploading}>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    onClick={capturePhoto}
+                    disabled={uploading}
+                  >
                     Capturar
                   </Button>
                   <Button type="button" variant="outline" onClick={stopCamera}>
@@ -319,8 +416,18 @@ export function ServiceOrderCloseDialog({
             {attachments.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {attachments.map((url) => (
-                  <div key={url} className="relative group">
-                    <img src={url} alt="Anexo" className="h-20 w-full object-cover rounded-md border" />
+                  <div key={url.slice(0, 64)} className="relative group">
+                    {url.startsWith('data:application/pdf') || url.toLowerCase().endsWith('.pdf') ? (
+                      <div className="h-20 flex items-center justify-center border rounded-md text-xs bg-muted">
+                        PDF
+                      </div>
+                    ) : (
+                      <img
+                        src={url}
+                        alt="Anexo"
+                        className="h-20 w-full object-cover rounded-md border"
+                      />
+                    )}
                     <button
                       type="button"
                       className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100"
@@ -344,7 +451,10 @@ export function ServiceOrderCloseDialog({
 
           <div className="space-y-1">
             <Label>Assinatura:</Label>
-            <SignaturePad onSave={handleSignatureSave} />
+            <SignaturePad
+              ref={signatureRef}
+              onChange={(dataUrl) => setSignaturePreview(dataUrl)}
+            />
             {signaturePreview && (
               <img
                 src={signaturePreview}
