@@ -119,6 +119,16 @@ export interface ServiceOrder {
   add_to_agilize_calendar: boolean;
   add_to_google_calendar: boolean;
   reference_images: string[];
+  is_closed?: boolean;
+  closed_at?: string | null;
+  closed_by?: string | null;
+  closed_by_name?: string | null;
+  execution_summary?: string | null;
+  execution_starts_at?: string | null;
+  execution_ends_at?: string | null;
+  close_attachments?: string[];
+  signature_url?: string | null;
+  creator_name?: string | null;
   created_by?: string | null;
   deleted_at?: string | null;
   created_at: string;
@@ -134,6 +144,25 @@ export interface ServiceOrder {
     email?: string;
     company?: string;
   } | null;
+}
+
+export interface ServiceOrderLog {
+  id: string;
+  service_order_id: string;
+  organization_id: string;
+  event_type: string;
+  message: string;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
+export interface ServiceOrderCloseData {
+  execution_summary: string;
+  execution_starts_at?: string;
+  execution_ends_at?: string;
+  close_attachments: string[];
+  signature_url: string;
 }
 
 export interface ServiceOrderFormData {

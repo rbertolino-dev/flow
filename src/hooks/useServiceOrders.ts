@@ -177,8 +177,18 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
         add_to_google_calendar: form.add_to_google_calendar || false,
         reference_images: form.reference_images || [],
         created_by: user?.id || null,
+        creator_name: null as string | null,
         ...totals,
       };
+
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        payload.creator_name = profile?.full_name || user.email || null;
+      }
 
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data: order, error } = await supabase
@@ -397,6 +407,138 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
     }
   };
 
+  const addLog = async (orderId: string, message: string, eventType = 'note') => {
+    if (!activeOrgId) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      let name: string | null = null;
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        name = profile?.full_name || user.email || null;
+      }
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      await supabase.from('service_order_logs').insert({
+        service_order_id: orderId,
+        organization_id: activeOrgId,
+        event_type: eventType,
+        message,
+        created_by: user?.id || null,
+        created_by_name: name,
+      });
+    } catch (err) {
+      console.error('Erro ao registrar log da OS:', err);
+    }
+  };
+
+  const closeOrder = async (
+    orderId: string,
+    data: {
+      execution_summary: string;
+      execution_starts_at?: string;
+      execution_ends_at?: string;
+      close_attachments: string[];
+      signature_url: string;
+    }
+  ) => {
+    if (!activeOrgId) return false;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      let closedByName: string | null = null;
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        closedByName = profile?.full_name || user.email || null;
+      }
+
+      // Marcar status final se existir
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: finalStatus } = await supabase
+        .from('service_order_statuses')
+        .select('id')
+        .eq('organization_id', activeOrgId)
+        .eq('is_final', true)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase
+        .from('service_orders')
+        .update({
+          is_closed: true,
+          closed_at: new Date().toISOString(),
+          closed_by: user?.id || null,
+          closed_by_name: closedByName,
+          execution_summary: data.execution_summary,
+          execution_starts_at: data.execution_starts_at || null,
+          execution_ends_at: data.execution_ends_at || null,
+          close_attachments: data.close_attachments || [],
+          signature_url: data.signature_url,
+          ...(finalStatus?.id ? { status_id: finalStatus.id } : {}),
+        })
+        .eq('id', orderId)
+        .eq('organization_id', activeOrgId);
+
+      if (error) throw error;
+
+      await addLog(orderId, 'Ordem de serviço encerrada', 'closed');
+      toast({ title: 'OS encerrada', description: 'Dados de fechamento salvos com sucesso.' });
+      await fetchOrders();
+      return true;
+    } catch (err) {
+      console.error('Erro ao encerrar OS:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível encerrar a OS',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const duplicateOrder = async (source: ServiceOrder): Promise<ServiceOrder | null> => {
+    return createOrder({
+      template_id: source.template_id || undefined,
+      status_id: source.status_id || undefined,
+      lead_id: source.lead_id || undefined,
+      client_name: source.client_name ? `${source.client_name} (cópia)` : undefined,
+      client_phone: source.client_phone || undefined,
+      responsible_name: source.responsible_name || undefined,
+      collaborator_name: source.collaborator_name || undefined,
+      service_name: source.service_name || undefined,
+      starts_at: source.starts_at || undefined,
+      ends_at: source.ends_at || undefined,
+      is_single_day: source.is_single_day,
+      address: source.address || undefined,
+      has_commission: source.has_commission,
+      commission_value: source.commission_value || undefined,
+      equipment_serial: source.equipment_serial || undefined,
+      equipment_conditions: source.equipment_conditions || undefined,
+      client_report: source.client_report || undefined,
+      diagnosis: source.diagnosis || undefined,
+      solution: source.solution || undefined,
+      warranty_terms: source.warranty_terms || undefined,
+      custom_fields: source.custom_fields || {},
+      items: (source.items || []).map((i) => ({ ...i, id: undefined })),
+      checklist: (source.checklist || []).map((c) => ({
+        ...c,
+        id: undefined,
+        is_done: false,
+      })),
+    });
+  };
+
   return {
     orders,
     loading,
@@ -406,6 +548,9 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
     updateOrder,
     deleteOrder,
     peekNextCode,
+    closeOrder,
+    duplicateOrder,
+    addLog,
   };
 }
 

@@ -42,7 +42,9 @@ import { useLeads } from '@/hooks/useLeads';
 import { CreateServiceOrderDialog } from '@/components/service-orders/CreateServiceOrderDialog';
 import { ServiceOrderTemplatesDialog } from '@/components/service-orders/ServiceOrderTemplatesDialog';
 import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceOrderStatusesDialog';
-import { ServiceOrderFormData, ServiceOrder } from '@/types/serviceOrder';
+import { ServiceOrderDetailDialog } from '@/components/service-orders/ServiceOrderDetailDialog';
+import { ServiceOrderCloseDialog } from '@/components/service-orders/ServiceOrderCloseDialog';
+import { ServiceOrderFormData, ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useActiveOrganization } from '@/hooks/useActiveOrganization';
@@ -52,6 +54,16 @@ import {
   openServiceOrderPDF,
 } from '@/lib/serviceOrderPdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 function formatDateRange(startsAt?: string | null, endsAt?: string | null) {
   if (!startsAt && !endsAt) return '—';
@@ -79,6 +91,11 @@ export default function ServiceOrders() {
   const [showCreate, setShowCreate] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showStatuses, setShowStatuses] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const [showClose, setShowClose] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [nextCode, setNextCode] = useState('-----');
   const [exportingId, setExportingId] = useState<string | null>(null);
 
@@ -97,8 +114,26 @@ export default function ServiceOrders() {
     [appliedFilters]
   );
 
-  const { orders, loading, statusCounts, createOrder, updateOrder, deleteOrder, peekNextCode, refetch } =
-    useServiceOrders(filters);
+  const {
+    orders,
+    loading,
+    statusCounts,
+    createOrder,
+    updateOrder,
+    deleteOrder,
+    peekNextCode,
+    refetch,
+    closeOrder,
+    duplicateOrder,
+  } = useServiceOrders(filters);
+
+  // Mantém o modal de detalhe sincronizado com a lista após refetch
+  useEffect(() => {
+    if (!selectedOrder?.id) return;
+    const fresh = orders.find((o) => o.id === selectedOrder.id);
+    if (fresh && fresh !== selectedOrder) setSelectedOrder(fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only when orders list or id changes
+  }, [orders, selectedOrder?.id]);
   const {
     statuses,
     refetch: refetchStatuses,
@@ -128,10 +163,11 @@ export default function ServiceOrders() {
 
   const exportOrderPdf = async (
     order: ServiceOrder,
-    opts?: { open?: boolean }
+    opts?: { open?: boolean; mode?: 'full' | 'no_values' }
   ) => {
     try {
       setExportingId(order.id);
+      const mode = opts?.mode || 'full';
 
       let orgData: { name?: string | null; company_profile?: string | null; logo_url?: string | null } | null =
         activeOrganization
@@ -149,6 +185,7 @@ export default function ServiceOrders() {
 
       const blob = await generateServiceOrderPDF({
         order,
+        mode,
         organizationName: orgData?.name || activeOrganization?.name,
         organizationData: orgData,
       });
@@ -156,11 +193,15 @@ export default function ServiceOrders() {
       if (opts?.open) {
         openServiceOrderPDF(blob);
       }
-      downloadServiceOrderPDF(blob, order.code);
+      const suffix = mode === 'no_values' ? '-sem-valores' : '';
+      downloadServiceOrderPDF(blob, `${order.code}${suffix}`);
 
       toast({
         title: 'PDF gerado',
-        description: `Ordem ${order.code} exportada com sucesso.`,
+        description:
+          mode === 'no_values'
+            ? `Ordem ${order.code} (sem valores) exportada.`
+            : `Ordem ${order.code} exportada com sucesso.`,
       });
     } catch (err) {
       console.error('Erro ao exportar PDF da OS:', err);
@@ -174,7 +215,26 @@ export default function ServiceOrders() {
     }
   };
 
-  const handleCreate = async (data: ServiceOrderFormData) => {
+  const openOrderDetail = (order: ServiceOrder) => {
+    setSelectedOrder(order);
+    setShowDetail(true);
+  };
+
+  const handleCreateOrUpdate = async (data: ServiceOrderFormData) => {
+    if (editingOrder) {
+      const ok = await updateOrder(editingOrder.id, {
+        ...data,
+        template_id: data.template_id || editingOrder.template_id,
+        status_id: data.status_id || editingOrder.status_id,
+      });
+      if (ok) {
+        setEditingOrder(null);
+        setShowCreate(false);
+        return true;
+      }
+      return false;
+    }
+
     const created = await createOrder(data);
     if (created) {
       const code = await peekNextCode();
@@ -197,7 +257,7 @@ export default function ServiceOrders() {
           .maybeSingle();
 
         if (full) {
-          await exportOrderPdf(full as ServiceOrder, { open: true });
+          await exportOrderPdf(full as ServiceOrder, { open: true, mode: 'full' });
         }
       } catch (err) {
         console.error('PDF automático falhou:', err);
@@ -205,6 +265,34 @@ export default function ServiceOrders() {
       return true;
     }
     return false;
+  };
+
+  const handleCloseOrder = async (data: ServiceOrderCloseData) => {
+    if (!selectedOrder) return false;
+    const ok = await closeOrder(selectedOrder.id, data);
+    if (ok) {
+      setShowClose(false);
+      // Mantém detalhe aberto com OS atualizada (useEffect sincroniza)
+    }
+    return ok;
+  };
+
+  const handleCopyOrder = async (order: ServiceOrder) => {
+    const copy = await duplicateOrder(order);
+    if (copy) {
+      toast({ title: 'OS copiada', description: `Nova ordem ${copy.code} criada.` });
+      setShowDetail(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedOrder) return;
+    const ok = await deleteOrder(selectedOrder.id);
+    if (ok) {
+      setShowDeleteConfirm(false);
+      setShowDetail(false);
+      setSelectedOrder(null);
+    }
   };
 
   return (
@@ -221,12 +309,12 @@ export default function ServiceOrders() {
             disabled={orders.length === 0 || !!exportingId}
             onClick={() => {
               if (orders.length === 1) {
-                exportOrderPdf(orders[0], { open: true });
+                exportOrderPdf(orders[0], { open: true, mode: 'full' });
                 return;
               }
               toast({
                 title: 'Exportar PDF',
-                description: 'Use Opções → Exportar PDF em cada ordem da lista.',
+                description: 'Abra a ordem ou use Opções → Exportar PDF na lista.',
               });
             }}
             data-testid="os-exportar-btn"
@@ -384,7 +472,12 @@ export default function ServiceOrders() {
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
-                  <TableRow key={order.id}>
+                  <TableRow
+                    key={order.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => openOrderDetail(order)}
+                    data-testid={`os-row-${order.id}`}
+                  >
                     <TableCell className="font-mono font-semibold">{order.code}</TableCell>
                     <TableCell>{order.responsible_name || '—'}</TableCell>
                     <TableCell>{formatDateRange(order.starts_at, order.ends_at)}</TableCell>
@@ -404,7 +497,7 @@ export default function ServiceOrders() {
                         minimumFractionDigits: 2,
                       })}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={order.status_id || undefined}
                         onValueChange={(statusId) => updateOrder(order.id, { status_id: statusId })}
@@ -433,7 +526,7 @@ export default function ServiceOrders() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm" data-testid={`os-row-options-${order.id}`}>
@@ -442,13 +535,23 @@ export default function ServiceOrders() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openOrderDetail(order)}>
+                            Abrir
+                          </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => exportOrderPdf(order, { open: true })}
+                            onClick={() => exportOrderPdf(order, { open: true, mode: 'full' })}
                             disabled={exportingId === order.id}
                             data-testid={`os-export-pdf-${order.id}`}
                           >
                             <FileDown className="h-4 w-4 mr-2" />
-                            {exportingId === order.id ? 'Gerando PDF...' : 'Exportar PDF'}
+                            {exportingId === order.id ? 'Gerando PDF...' : 'PDF completo'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => exportOrderPdf(order, { open: true, mode: 'no_values' })}
+                            disabled={exportingId === order.id || !order.is_closed}
+                          >
+                            <FileDown className="h-4 w-4 mr-2" />
+                            PDF sem valores
                           </DropdownMenuItem>
                           {statuses.map((s) => (
                             <DropdownMenuItem
@@ -460,7 +563,10 @@ export default function ServiceOrders() {
                           ))}
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => deleteOrder(order.id)}
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowDeleteConfirm(true);
+                            }}
                           >
                             Excluir
                           </DropdownMenuItem>
@@ -477,13 +583,17 @@ export default function ServiceOrders() {
 
       <CreateServiceOrderDialog
         open={showCreate}
-        onOpenChange={setShowCreate}
+        onOpenChange={(open) => {
+          setShowCreate(open);
+          if (!open) setEditingOrder(null);
+        }}
         templates={templates}
         statuses={statuses}
         products={products}
         leads={leads || []}
-        nextCode={nextCode}
-        onSubmit={handleCreate}
+        nextCode={editingOrder?.code || nextCode}
+        editingOrder={editingOrder}
+        onSubmit={handleCreateOrUpdate}
       />
 
       <ServiceOrderTemplatesDialog
@@ -506,6 +616,58 @@ export default function ServiceOrders() {
         deleteStatus={deleteStatus}
         moveStatus={moveStatus}
       />
+
+      <ServiceOrderDetailDialog
+        open={showDetail}
+        onOpenChange={setShowDetail}
+        order={selectedOrder}
+        exporting={!!selectedOrder && exportingId === selectedOrder.id}
+        onEdit={(order) => {
+          setEditingOrder(order);
+          setShowDetail(false);
+          setShowCreate(true);
+        }}
+        onCloseOrder={(order) => {
+          setSelectedOrder(order);
+          setShowClose(true);
+        }}
+        onDelete={(order) => {
+          setSelectedOrder(order);
+          setShowDeleteConfirm(true);
+        }}
+        onCopy={handleCopyOrder}
+        onExportPdf={(order, mode) => exportOrderPdf(order, { open: true, mode })}
+      />
+
+      {selectedOrder && activeOrgId && (
+        <ServiceOrderCloseDialog
+          open={showClose}
+          onOpenChange={setShowClose}
+          order={selectedOrder}
+          organizationId={activeOrgId}
+          onClosed={handleCloseOrder}
+        />
+      )}
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir ordem de serviço?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A ordem {selectedOrder?.code} será excluída. Esta ação não pode ser desfeita facilmente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteConfirm}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </CRMLayout>
   );
 }

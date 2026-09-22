@@ -3,9 +3,12 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ServiceOrder } from '@/types/serviceOrder';
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
+import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 
 export interface ServiceOrderPdfOptions {
   order: ServiceOrder;
+  /** full = com valores; no_values = sem preços/totais, inclui fechamento */
+  mode?: 'full' | 'no_values';
   organizationName?: string;
   organizationData?: {
     name?: string | null;
@@ -46,11 +49,14 @@ function asText(value: unknown): string {
 }
 
 /**
- * Gera PDF da Ordem de Serviço com todos os dados preenchidos.
+ * Gera PDF da Ordem de Serviço.
+ * mode=full: inclui valores/produtos com preços
+ * mode=no_values: omite valores monetários; inclui execução, fotos e assinatura do fechamento
  */
 export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): Promise<Blob> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const order = options.order;
+  const includeValues = (options.mode || 'full') !== 'no_values';
   const pageWidth = 210;
   const pageHeight = 297;
   const margin = 14;
@@ -155,14 +161,13 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
   doc.setFontSize(9);
   doc.text(orgName, pageWidth - margin, 12, { align: 'right' });
   doc.text(
-    `Emitido em ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}`,
+    includeValues ? 'PDF completo' : 'PDF sem valores',
     pageWidth - margin,
     20,
     { align: 'right' }
   );
   y = 36;
 
-  // Status badge
   if (order.status?.name) {
     ensureSpace(10);
     doc.setFont('helvetica', 'bold');
@@ -175,7 +180,7 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     const g = rgb ? parseInt(rgb[2], 16) : 116;
     const b = rgb ? parseInt(rgb[3], 16) : 139;
     doc.setFillColor(r, g, b);
-    const label = order.status.name;
+    const label = order.status.name + (order.is_closed ? ' (Encerrada)' : '');
     const tw = doc.getTextWidth(label) + 6;
     doc.roundedRect(margin + 28, y - 4.5, tw, 6.5, 1.5, 1.5, 'F');
     doc.setTextColor(255, 255, 255);
@@ -210,7 +215,7 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     y += h;
   }
 
-  if (order.has_commission || (order.commission_value && order.commission_value > 0)) {
+  if (includeValues && (order.has_commission || (order.commission_value && order.commission_value > 0))) {
     sectionTitle('Comissão');
     fieldPair(
       ['Empresa comissionada', order.has_commission ? 'Sim' : 'Não'],
@@ -251,15 +256,17 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
 
   const items = order.items || [];
   if (items.length > 0) {
-    sectionTitle('Produtos e serviços utilizados');
+    sectionTitle(includeValues ? 'Produtos e serviços utilizados' : 'Itens utilizados (sem valores)');
     ensureSpace(10);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
     doc.text('Item', margin, y);
-    doc.text('Qtd', margin + 95, y);
-    doc.text('Unit.', margin + 115, y);
-    doc.text('Total', margin + 150, y);
+    doc.text('Qtd', margin + 120, y);
+    if (includeValues) {
+      doc.text('Unit.', margin + 140, y);
+      doc.text('Total', margin + 165, y);
+    }
     y += 3;
     doc.setDrawColor(226, 232, 240);
     doc.line(margin, y, pageWidth - margin, y);
@@ -272,34 +279,40 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
       ensureSpace(8);
       const nameLines = doc.splitTextToSize(
         `${item.name}${item.item_type === 'service' ? ' (serviço)' : ''}`,
-        90
+        includeValues ? 110 : 150
       );
       doc.text(nameLines, margin, y);
-      doc.text(String(item.quantity), margin + 95, y);
-      doc.text(formatCurrency(item.unit_price), margin + 115, y);
-      doc.text(formatCurrency(item.total_price), margin + 150, y);
+      doc.text(String(item.quantity), margin + 120, y);
+      if (includeValues) {
+        doc.text(formatCurrency(item.unit_price), margin + 140, y);
+        doc.text(formatCurrency(item.total_price), margin + 165, y);
+      }
       y += Math.max(6, nameLines.length * 4);
     });
 
-    y += 2;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text(`Subtotal: ${formatCurrency(order.subtotal || 0)}`, pageWidth - margin, y, {
-      align: 'right',
-    });
-    y += 5;
-    if (order.discount > 0) {
-      doc.text(`Desconto: ${formatCurrency(order.discount)}`, pageWidth - margin, y, {
+    if (includeValues) {
+      y += 2;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`Subtotal: ${formatCurrency(order.subtotal || 0)}`, pageWidth - margin, y, {
         align: 'right',
       });
       y += 5;
+      if (order.discount > 0) {
+        doc.text(`Desconto: ${formatCurrency(order.discount)}`, pageWidth - margin, y, {
+          align: 'right',
+        });
+        y += 5;
+      }
+      doc.setFontSize(12);
+      doc.text(`TOTAL: ${formatCurrency(order.total || 0)}`, pageWidth - margin, y, {
+        align: 'right',
+      });
+      y += 8;
+    } else {
+      y += 4;
     }
-    doc.setFontSize(12);
-    doc.text(`TOTAL: ${formatCurrency(order.total || 0)}`, pageWidth - margin, y, {
-      align: 'right',
-    });
-    y += 8;
-  } else {
+  } else if (includeValues) {
     sectionTitle('Valores');
     fieldPair(
       ['Subtotal', formatCurrency(order.subtotal || 0)],
@@ -322,21 +335,81 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     y += 2;
   }
 
-  // Assinaturas
-  ensureSpace(40);
-  y += 8;
-  doc.setDrawColor(148, 163, 184);
-  doc.line(margin, y, margin + 70, y);
-  doc.line(pageWidth - margin - 70, y, pageWidth - margin, y);
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Assinatura do responsável', margin, y);
-  doc.text('Assinatura do cliente', pageWidth - margin - 70, y);
+  // Encerramento
+  if (order.is_closed || order.execution_summary || order.signature_url || (order.close_attachments || []).length) {
+    sectionTitle('Encerramento da ordem');
+    paragraph('Como foi a execução', order.execution_summary);
+    fieldPair(
+      ['Início da execução', formatDateTime(order.execution_starts_at)],
+      ['Fim da execução', formatDateTime(order.execution_ends_at)]
+    );
+    if (order.closed_at) {
+      fieldPair(
+        ['Encerrada em', formatDateTime(order.closed_at)],
+        ['Encerrada por', order.closed_by_name || '—']
+      );
+    }
 
-  y += 10;
+    const photos = order.close_attachments || [];
+    if (photos.length > 0) {
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('FOTOS / ANEXOS', margin, y);
+      y += 4;
+
+      for (const url of photos) {
+        try {
+          const img = await loadImageForBudgetPdf(url);
+          if (!img) continue;
+          const box = fitImageInBox(img.naturalW, img.naturalH, maxWidth, 55);
+          ensureSpace(box.h + 6);
+          doc.addImage(img.dataUrl, img.format, margin, y, box.w, box.h);
+          y += box.h + 4;
+        } catch (err) {
+          console.warn('Falha ao embutir anexo no PDF:', err);
+        }
+      }
+    }
+
+    if (order.signature_url) {
+      ensureSpace(40);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('ASSINATURA', margin, y);
+      y += 3;
+      try {
+        const img = await loadImageForBudgetPdf(order.signature_url);
+        if (img) {
+          const box = fitImageInBox(img.naturalW, img.naturalH, 80, 30);
+          ensureSpace(box.h + 4);
+          doc.addImage(img.dataUrl, img.format, margin, y, box.w, box.h);
+          y += box.h + 4;
+        }
+      } catch (err) {
+        console.warn('Falha ao embutir assinatura no PDF:', err);
+        y += 4;
+      }
+    }
+  } else {
+    // Assinaturas em branco (OS aberta)
+    ensureSpace(40);
+    y += 8;
+    doc.setDrawColor(148, 163, 184);
+    doc.line(margin, y, margin + 70, y);
+    doc.line(pageWidth - margin - 70, y, pageWidth - margin, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Assinatura do responsável', margin, y);
+    doc.text('Assinatura do cliente', pageWidth - margin - 70, y);
+  }
+
   doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
   doc.text(
     `Documento gerado automaticamente • OS ${order.code} • ${formatDate(order.created_at)}`,
     pageWidth / 2,

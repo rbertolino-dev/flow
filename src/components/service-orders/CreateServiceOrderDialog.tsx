@@ -26,10 +26,12 @@ import {
   ServiceOrderTemplate,
   ServiceOrderStatus,
   ServiceOrderTemplateField,
+  ServiceOrder,
 } from '@/types/serviceOrder';
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
 import { Product } from '@/types/product';
 import { Lead } from '@/types/lead';
+import { format } from 'date-fns';
 
 interface CreateServiceOrderDialogProps {
   open: boolean;
@@ -39,6 +41,7 @@ interface CreateServiceOrderDialogProps {
   products: Product[];
   leads: Lead[];
   nextCode: string;
+  editingOrder?: ServiceOrder | null;
   onSubmit: (data: ServiceOrderFormData) => Promise<boolean>;
 }
 
@@ -71,10 +74,12 @@ export function CreateServiceOrderDialog({
   products,
   leads,
   nextCode,
+  editingOrder,
   onSubmit,
 }: CreateServiceOrderDialogProps) {
   const defaultTemplate = templates.find((t) => t.is_default) || templates[0];
   const defaultStatus = statuses.find((s) => s.is_default) || statuses[0];
+  const isEditing = !!editingOrder;
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [saving, setSaving] = useState(false);
@@ -94,22 +99,62 @@ export function CreateServiceOrderDialog({
   );
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    if (editingOrder) {
       setStep(1);
-      setTemplateId(defaultTemplate?.id || '');
-      setStatusId(defaultStatus?.id || '');
+      setTemplateId(editingOrder.template_id || defaultTemplate?.id || '');
+      setStatusId(editingOrder.status_id || defaultStatus?.id || '');
       setForm({
-        is_single_day: true,
-        has_commission: false,
-        custom_fields: {},
+        template_id: editingOrder.template_id || undefined,
+        status_id: editingOrder.status_id || undefined,
+        lead_id: editingOrder.lead_id || undefined,
+        client_name: editingOrder.client_name || undefined,
+        client_phone: editingOrder.client_phone || undefined,
+        responsible_name: editingOrder.responsible_name || undefined,
+        collaborator_name: editingOrder.collaborator_name || undefined,
+        service_name: editingOrder.service_name || undefined,
+        starts_at: editingOrder.starts_at
+          ? format(new Date(editingOrder.starts_at), "yyyy-MM-dd'T'HH:mm")
+          : undefined,
+        ends_at: editingOrder.ends_at
+          ? format(new Date(editingOrder.ends_at), "yyyy-MM-dd'T'HH:mm")
+          : undefined,
+        is_single_day: editingOrder.is_single_day,
+        address: editingOrder.address || undefined,
+        has_commission: editingOrder.has_commission,
+        commission_value: editingOrder.commission_value || undefined,
+        equipment_serial: editingOrder.equipment_serial || undefined,
+        equipment_conditions: editingOrder.equipment_conditions || undefined,
+        client_report: editingOrder.client_report || undefined,
+        diagnosis: editingOrder.diagnosis || undefined,
+        solution: editingOrder.solution || undefined,
+        warranty_terms: editingOrder.warranty_terms || undefined,
+        custom_fields: editingOrder.custom_fields || {},
+        label_tag: editingOrder.label_tag || undefined,
       });
-      setItems([]);
-      setChecklist([]);
-      setLeadSearch('');
-      setLabelTag('');
+      setItems(editingOrder.items || []);
+      setChecklist(editingOrder.checklist || []);
+      setLeadSearch(editingOrder.client_name || editingOrder.lead?.name || '');
+      setLabelTag(editingOrder.label_tag || '');
       setNewCheckItem('');
+      return;
     }
-  }, [open, defaultTemplate?.id, defaultStatus?.id]);
+
+    setStep(1);
+    setTemplateId(defaultTemplate?.id || '');
+    setStatusId(defaultStatus?.id || '');
+    setForm({
+      is_single_day: true,
+      has_commission: false,
+      custom_fields: {},
+    });
+    setItems([]);
+    setChecklist([]);
+    setLeadSearch('');
+    setLabelTag('');
+    setNewCheckItem('');
+  }, [open, editingOrder, defaultTemplate?.id, defaultStatus?.id]);
 
   const setField = (key: string, value: unknown, isCustom: boolean) => {
     if (isCustom) {
@@ -302,8 +347,15 @@ export function CreateServiceOrderDialog({
 
   const handleFinalize = async () => {
     setSaving(true);
+    const toIso = (v?: string) => {
+      if (!v) return undefined;
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? v : d.toISOString();
+    };
     const ok = await onSubmit({
       ...form,
+      starts_at: toIso(form.starts_at),
+      ends_at: toIso(form.ends_at),
       template_id: templateId,
       status_id: statusId || undefined,
       label_tag: labelTag || undefined,
@@ -320,9 +372,9 @@ export function CreateServiceOrderDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-2 pr-6">
             <span>
-              {step === 1 && 'Nova ordem de serviço'}
+              {step === 1 && (isEditing ? 'Editar ordem de serviço' : 'Nova ordem de serviço')}
               {step === 2 && 'Produtos da O.S.'}
-              {step === 3 && 'Finalizar O.S.'}
+              {step === 3 && (isEditing ? 'Salvar alterações' : 'Finalizar O.S.')}
             </span>
             <Badge variant="outline" className="font-mono text-base">
               {nextCode}
@@ -502,7 +554,7 @@ export function CreateServiceOrderDialog({
                 Voltar
               </Button>
               <Button onClick={handleFinalize} disabled={saving}>
-                {saving ? 'Salvando...' : 'Finalizar'}
+                {saving ? 'Salvando...' : isEditing ? 'Salvar' : 'Finalizar'}
               </Button>
             </div>
           </div>
