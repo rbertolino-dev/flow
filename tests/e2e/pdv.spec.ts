@@ -56,6 +56,30 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.hesitate(300, 600);
     await human.humanClick(page.getByRole("button", { name: /^fechar$/i }));
 
+    // Cliente da organização (obrigatório) — cria se necessário
+    const clientInput = page.getByPlaceholder(/buscar cliente da organização/i);
+    await expect(clientInput).toBeVisible();
+    await human.humanClick(clientInput);
+    await human.humanType(clientInput, "E2E");
+    await human.randomDelay(600, 1000);
+    const clientOption = page
+      .locator(".absolute.z-20 button")
+      .filter({ hasText: /./ })
+      .first();
+    const hasClient = await clientOption.isVisible().catch(() => false);
+    if (hasClient) {
+      await human.humanClick(clientOption);
+    } else {
+      await human.humanClick(page.getByTitle(/criar cliente nesta organização/i));
+      const createDialog = page.getByRole("dialog").filter({ hasText: /novo cliente/i });
+      await expect(createDialog).toBeVisible();
+      await human.humanType(createDialog.locator("input").nth(0), `Cliente E2E ${Date.now()}`);
+      await human.humanType(createDialog.locator("input").nth(1), "11999998888");
+      await human.hesitate(300, 600);
+      await human.humanClick(createDialog.getByRole("button", { name: /^criar cliente$/i }));
+      await expect(page.getByText(/cliente criado/i)).toBeVisible({ timeout: 15_000 });
+    }
+
     await human.randomDelay(200, 400);
     const selectTrigger = page.locator('[role="combobox"]').last();
     await human.humanClick(selectTrigger);
@@ -67,6 +91,13 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.hesitate(400, 800);
     const finalize = page.getByRole("button", { name: /^finalizar$/i });
     await expect(finalize).toBeEnabled();
+    await human.humanClick(finalize);
+
+    // Dialog Confirmar venda
+    await expect(page.getByRole("heading", { name: /confirmar venda/i })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(/forma de pag/i)).toBeVisible();
 
     const finalizeResponse = page.waitForResponse(
       (res) =>
@@ -76,14 +107,18 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       { timeout: 45_000 }
     );
 
-    await human.humanClick(finalize);
+    await human.hesitate(400, 800);
+    await human.humanClick(page.getByRole("button", { name: /^confirmar$/i }));
     const res = await finalizeResponse;
     expect(res.ok() || res.status() === 201).toBeTruthy();
 
-    await expect(page.getByText(/venda finalizada|venda #/i).first()).toBeVisible({
-      timeout: 30_000,
-    });
+    // Tela VENDA FINALIZADA + impressão cupom/A4 + nova venda
+    await expect(page.getByText(/venda finalizada/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: /nova venda/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /imprimir cupom/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /imprimir comprovante a4/i })).toBeVisible();
 
+    await human.humanClick(page.getByRole("button", { name: /nova venda/i }));
     await expect(page.getByRole("button", { name: /itens inventário\s*0/i })).toBeVisible({
       timeout: 15_000,
     });

@@ -7,7 +7,8 @@ export type PaymentMethod =
   | 'cartao_debito'
   | 'boleto'
   | 'transferencia_bancaria'
-  | 'parcelado';
+  | 'parcelado'
+  | 'cheque';
 
 export interface PaymentMethodOption {
   value: PaymentMethod;
@@ -35,6 +36,10 @@ export const PAYMENT_METHODS: PaymentMethodOption[] = [
   {
     value: 'boleto',
     label: 'Boleto',
+  },
+  {
+    value: 'cheque',
+    label: 'Cheque',
   },
   {
     value: 'transferencia_bancaria',

@@ -111,10 +111,20 @@ export interface FinalizeSalePayload {
   discount_amount?: number;
   notes?: string | null;
   add_commission?: boolean;
+  commission_user_id?: string | null;
+  commission_user_name?: string | null;
   lead_id?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;
   cash_session_id?: string | null;
+  apply_stock?: boolean;
+  generate_financial?: boolean;
+  payment_date?: string | null;
+  payment_notes?: string | null;
+  sale_description?: string | null;
+  financial_account?: string | null;
+  financial_category?: string | null;
+  sold_at?: string | null;
 }
 
 export interface FinalizeSaleResult {
@@ -125,6 +135,12 @@ export interface FinalizeSaleResult {
   discount_amount: number;
   commission_amount: number;
   cash_session_id?: string | null;
+  customer_name?: string | null;
+  sold_at?: string | null;
+  notes?: string | null;
+  sale_description?: string | null;
+  apply_stock?: boolean;
+  generate_financial?: boolean;
 }
 
 export interface UpdateSalePayload {

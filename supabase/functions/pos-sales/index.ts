@@ -366,6 +366,17 @@ serve(async (req) => {
 
         const discountAmount = Math.max(0, Number(body.discount_amount || 0));
         const addCommission = Boolean(body.add_commission);
+        const applyStock = body.apply_stock !== false;
+        const generateFinancial = Boolean(body.generate_financial);
+        const commissionUserId = body.commission_user_id || null;
+        const commissionUserName = body.commission_user_name || null;
+
+        if (addCommission && !commissionUserId) {
+          return json({
+            error: "Selecione o usuário vinculado à comissão",
+          }, 400);
+        }
+
         let subtotal = 0;
         const normalizedItems = items.map((item) => {
           const qty = Number(item.quantity);
@@ -436,6 +447,9 @@ serve(async (req) => {
           }
         }
 
+        const soldAt = body.sold_at || new Date().toISOString();
+        const paymentDate = body.payment_date || soldAt.slice(0, 10);
+
         const tx = pg;
         await tx.queryArray`BEGIN`;
 
@@ -455,13 +469,19 @@ serve(async (req) => {
               lead_id, customer_name, customer_phone,
               status, subtotal, discount_amount, total,
               notes, add_commission, commission_amount,
-              sold_by, sold_by_name, sold_at, supplier_name
+              commission_user_id, commission_user_name,
+              sold_by, sold_by_name, sold_at, supplier_name,
+              apply_stock, generate_financial, payment_date, payment_notes,
+              sale_description, financial_account, financial_category
             ) VALUES (
               ${organizationId}, ${saleNumber}, ${cashSessionId},
               ${body.lead_id || null}, ${body.customer_name || null}, ${body.customer_phone || null},
               'completed', ${subtotal}, ${discountAmount}, ${total},
               ${body.notes || null}, ${addCommission}, ${commissionAmount},
-              ${user.id}, ${userName}, now(), ${body.supplier_name || null}
+              ${commissionUserId}, ${commissionUserName},
+              ${user.id}, ${userName}, ${soldAt}, ${body.supplier_name || null},
+              ${applyStock}, ${generateFinancial}, ${paymentDate}, ${body.payment_notes || null},
+              ${body.sale_description || null}, ${body.financial_account || null}, ${body.financial_category || null}
             )
             RETURNING id, sale_number
           `;
@@ -480,7 +500,7 @@ serve(async (req) => {
               )
             `;
 
-            if (item.item_type === "product" && item.item_id) {
+            if (applyStock && item.item_type === "product" && item.item_id) {
               const stockRow = await tx.queryObject<{ stock_quantity: number | null }>`
                 SELECT stock_quantity FROM products
                 WHERE id = ${item.item_id} AND organization_id = ${organizationId}
@@ -531,6 +551,12 @@ serve(async (req) => {
               discount_amount: discountAmount,
               commission_amount: commissionAmount,
               cash_session_id: cashSessionId,
+              customer_name: body.customer_name || null,
+              sold_at: soldAt,
+              notes: body.notes || null,
+              sale_description: body.sale_description || null,
+              apply_stock: applyStock,
+              generate_financial: generateFinancial,
             },
           }, 201);
         } catch (txErr) {

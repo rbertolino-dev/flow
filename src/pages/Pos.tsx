@@ -10,9 +10,9 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -27,7 +27,11 @@ import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
-import type { PosCartItem, PosPaymentLine } from "@/types/pos";
+import type { FinalizeSaleResult, PosCartItem, PosPaymentLine } from "@/types/pos";
+import { PosConfirmSaleDialog, type PosConfirmSaleValues } from "@/components/pos/PosConfirmSaleDialog";
+import { PosSaleSuccessDialog } from "@/components/pos/PosSaleSuccessDialog";
+import { PosCreateClientDialog } from "@/components/pos/PosCreateClientDialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   History,
   Plus,
@@ -64,11 +68,19 @@ interface LeadOption {
   id: string;
   name: string;
   phone: string;
+  company?: string | null;
+}
+
+interface OrgMemberOption {
+  id: string;
+  full_name: string | null;
+  email: string;
 }
 
 export default function Pos() {
   const navigate = useNavigate();
-  const { activeOrgId } = useActiveOrganization();
+  const { toast } = useToast();
+  const { activeOrgId, activeOrganization } = useActiveOrganization();
   const { products, loading: productsLoading, refetch: refetchProducts } = useProducts();
   const { data: services = [], isLoading: servicesLoading } = useServices();
   const { loading: posLoading, finalizeSale, getOpenCashSession, openCash } =
@@ -81,6 +93,7 @@ export default function Pos() {
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
   const [addCommission, setAddCommission] = useState(false);
+  const [commissionUserId, setCommissionUserId] = useState("");
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
   const [paymentMethodDraft, setPaymentMethodDraft] = useState<string>("");
 
@@ -88,8 +101,16 @@ export default function Pos() {
   const [leadOptions, setLeadOptions] = useState<LeadOption[]>([]);
   const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
   const [searchingLeads, setSearchingLeads] = useState(false);
+  const [createClientOpen, setCreateClientOpen] = useState(false);
 
+  const [orgMembers, setOrgMembers] = useState<OrgMemberOption[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [lastSale, setLastSale] = useState<FinalizeSaleResult | null>(null);
+  const [lastSaleItems, setLastSaleItems] = useState<PosCartItem[]>([]);
+  const [lastSalePayments, setLastSalePayments] = useState<PosPaymentLine[]>([]);
+  const [nextSaleNumberHint, setNextSaleNumberHint] = useState<string>("—");
 
   useEffect(() => {
     if (!activeOrgId) return;
@@ -99,11 +120,35 @@ export default function Pos() {
         try {
           await openCash(0);
         } catch {
-          // caixa será aberto no finalize se necessário
+          // ignore
         }
       }
     })();
   }, [activeOrgId, getOpenCashSession, openCash]);
+
+  useEffect(() => {
+    if (!activeOrgId) {
+      setOrgMembers([]);
+      return;
+    }
+    void (async () => {
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id")
+        .eq("organization_id", activeOrgId);
+      const ids = (members || []).map((m) => m.user_id);
+      if (!ids.length) {
+        setOrgMembers([]);
+        return;
+      }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", ids)
+        .order("full_name", { ascending: true });
+      setOrgMembers((profiles || []) as OrgMemberOption[]);
+    })();
+  }, [activeOrgId]);
 
   useEffect(() => {
     if (!activeOrgId || leadQuery.trim().length < 2) {
@@ -116,11 +161,11 @@ export default function Pos() {
         const q = leadQuery.trim();
         const { data } = await supabase
           .from("leads")
-          .select("id, name, phone")
+          .select("id, name, phone, company")
           .eq("organization_id", activeOrgId)
           .is("deleted_at", null)
-          .or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
-          .limit(8);
+          .or(`name.ilike.%${q}%,phone.ilike.%${q}%,company.ilike.%${q}%`)
+          .limit(10);
         setLeadOptions((data || []) as LeadOption[]);
       } catch {
         setLeadOptions([]);
@@ -164,6 +209,11 @@ export default function Pos() {
   );
   const total = Math.max(0, subtotal - discount);
   const paymentsSum = payments.reduce((s, p) => s + p.amount, 0);
+
+  const commissionUserName = useMemo(() => {
+    const u = orgMembers.find((m) => m.id === commissionUserId);
+    return u?.full_name || u?.email || null;
+  }, [orgMembers, commissionUserId]);
 
   const addProductToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
@@ -255,37 +305,82 @@ export default function Pos() {
     setDiscount(0);
     setNotes("");
     setAddCommission(false);
+    setCommissionUserId("");
     setPayments([]);
+    setPaymentMethodDraft("");
     setSelectedLead(null);
     setLeadQuery("");
     setSearch("");
   };
 
-  const handleFinalizeClick = async () => {
-    if (!cart.length || posLoading) return;
+  const openConfirmDialog = () => {
+    if (!cart.length) return;
+    if (!selectedLead) {
+      toast({
+        title: "Selecione um cliente",
+        description: "Escolha um cliente cadastrado na organização ou crie um novo.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (addCommission && !commissionUserId) {
+      toast({
+        title: "Selecione o usuário da comissão",
+        description: "Com a comissão ativa, escolha o colaborador vinculado.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setNextSaleNumberHint("novo");
+    setConfirmOpen(true);
+  };
 
+  const handleConfirmSale = async (
+    values: PosConfirmSaleValues,
+    confirmPayment: PosPaymentLine
+  ) => {
+    // Prefer payments already added in sidebar; otherwise use confirm dialog method
     let finalPayments = [...payments];
     if (!finalPayments.length) {
-      if (!paymentMethodDraft) return;
+      if (paymentMethodDraft) {
+        finalPayments = [
+          {
+            id: crypto.randomUUID(),
+            method: paymentMethodDraft,
+            amount: Number(total.toFixed(2)),
+          },
+        ];
+      } else {
+        finalPayments = [confirmPayment];
+      }
+    } else if (Math.abs(paymentsSum - total) > 0.05) {
       finalPayments = [
+        ...finalPayments,
         {
           id: crypto.randomUUID(),
-          method: paymentMethodDraft,
+          method: confirmPayment.method,
+          amount: Number((total - paymentsSum).toFixed(2)),
+        },
+      ];
+    }
+
+    // Force the primary payment method from confirm dialog when single payment
+    if (finalPayments.length === 1) {
+      finalPayments = [
+        {
+          ...finalPayments[0],
+          method: values.paymentMethod || finalPayments[0].method,
           amount: Number(total.toFixed(2)),
         },
       ];
-    } else if (Math.abs(paymentsSum - total) > 0.05) {
-      if (!paymentMethodDraft) return;
-      finalPayments.push({
-        id: crypto.randomUUID(),
-        method: paymentMethodDraft,
-        amount: Number((total - paymentsSum).toFixed(2)),
-      });
     }
 
+    const snapshotItems = [...cart];
+    const snapshotPayments = [...finalPayments];
+
     try {
-      await finalizeSale({
-        items: cart.map((i) => ({
+      const result = await finalizeSale({
+        items: snapshotItems.map((i) => ({
           item_type: i.item_type,
           item_id: i.item_id,
           name: i.name,
@@ -297,40 +392,61 @@ export default function Pos() {
         })),
         payments: finalPayments.map((p) => ({ method: p.method, amount: p.amount })),
         discount_amount: discount,
-        notes: notes || null,
+        notes: notes || values.paymentNotes || null,
         add_commission: addCommission,
+        commission_user_id: addCommission ? commissionUserId : null,
+        commission_user_name: addCommission ? commissionUserName : null,
         lead_id: selectedLead?.id || null,
         customer_name: selectedLead?.name || null,
         customer_phone: selectedLead?.phone || null,
+        apply_stock: values.applyStock,
+        generate_financial: values.generateFinancial,
+        payment_date: values.paymentDate,
+        payment_notes: values.paymentNotes || null,
+        sale_description: values.saleDescription || null,
+        financial_account: values.financialAccount || null,
+        financial_category: values.financialCategory || null,
       });
+
+      setConfirmOpen(false);
+      setLastSale({
+        ...result,
+        customer_name: selectedLead?.name || null,
+        notes: notes || values.paymentNotes || null,
+        sale_description: values.saleDescription || null,
+        sold_at: new Date().toISOString(),
+      });
+      setLastSaleItems(snapshotItems);
+      setLastSalePayments(snapshotPayments);
       resetSale();
       await refetchProducts();
+      setSuccessOpen(true);
     } catch {
-      // toast já exibido no hook
+      // toast no hook
     }
   };
 
-  const canFinalize =
+  const canOpenConfirm =
     cart.length > 0 &&
     total >= 0 &&
-    (payments.length > 0 || !!paymentMethodDraft) &&
+    !!selectedLead &&
+    (!addCommission || !!commissionUserId) &&
     !posLoading;
 
   return (
     <CRMLayout activeView="pdv" onViewChange={() => {}}>
       <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
-        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <Button variant="outline" size="sm" onClick={() => navigate("/pdv/historico")}>
             <History className="mr-2 h-4 w-4" />
             Histórico de vendas
           </Button>
 
-          <div className="relative flex min-w-[240px] max-w-md flex-1 items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Contato</span>
+          <div className="relative flex min-w-[260px] max-w-lg flex-1 items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Cliente</span>
             <div className="relative flex-1">
               <Input
-                placeholder="Buscar cliente..."
+                placeholder="Buscar cliente da organização..."
                 value={selectedLead ? selectedLead.name : leadQuery}
                 onChange={(e) => {
                   setSelectedLead(null);
@@ -364,7 +480,10 @@ export default function Pos() {
                       }}
                     >
                       <span className="font-medium">{lead.name}</span>
-                      <span className="text-xs text-muted-foreground">{lead.phone}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {lead.phone}
+                        {lead.company ? ` · ${lead.company}` : ""}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -376,8 +495,9 @@ export default function Pos() {
             <Button
               variant="outline"
               size="icon"
-              title="Novo contato (vá ao CRM)"
-              onClick={() => window.open("/crm", "_blank")}
+              title="Criar cliente nesta organização"
+              onClick={() => setCreateClientOpen(true)}
+              disabled={!activeOrgId}
             >
               <UserPlus className="h-4 w-4" />
             </Button>
@@ -385,7 +505,6 @@ export default function Pos() {
         </div>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_380px]">
-          {/* Catalog */}
           <div className="flex min-h-0 flex-col border-r">
             <Tabs
               value={catalogTab}
@@ -487,14 +606,13 @@ export default function Pos() {
             </Tabs>
           </div>
 
-          {/* Summary */}
           <div className="flex min-h-0 flex-col bg-muted/20">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h2 className="text-lg font-semibold">Resumo</h2>
               <ScanBarcode className="h-5 w-5 text-muted-foreground" />
             </div>
 
-            <div className="space-y-3 p-4">
+            <div className="space-y-3 overflow-y-auto p-4">
               <div className="rounded-lg bg-primary px-4 py-3 text-primary-foreground">
                 <div className="flex justify-between text-sm opacity-90">
                   <span>Subtotal</span>
@@ -527,6 +645,7 @@ export default function Pos() {
               </Button>
 
               <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Formas de pagamento</Label>
                 {payments.map((p) => (
                   <div
                     key={p.id}
@@ -575,13 +694,35 @@ export default function Pos() {
                 rows={2}
               />
 
-              <div className="flex items-center justify-between">
-                <Label htmlFor="add-commission">Adicionar comissão</Label>
-                <Switch
-                  id="add-commission"
-                  checked={addCommission}
-                  onCheckedChange={setAddCommission}
-                />
+              <div className="space-y-2 rounded-md border bg-background p-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="add-commission">Adicionar comissão</Label>
+                  <Switch
+                    id="add-commission"
+                    checked={addCommission}
+                    onCheckedChange={(v) => {
+                      setAddCommission(v);
+                      if (!v) setCommissionUserId("");
+                    }}
+                  />
+                </div>
+                {addCommission && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Usuário vinculado à comissão</Label>
+                    <Select value={commissionUserId} onValueChange={setCommissionUserId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o colaborador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orgMembers.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.full_name || m.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -589,24 +730,21 @@ export default function Pos() {
               <Button
                 className="w-full"
                 size="lg"
-                disabled={!canFinalize}
-                onClick={() => void handleFinalizeClick()}
+                disabled={!canOpenConfirm}
+                onClick={openConfirmDialog}
               >
-                {posLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Finalizando...
-                  </>
-                ) : (
-                  "Finalizar"
-                )}
+                Finalizar
               </Button>
+              {!selectedLead && cart.length > 0 && (
+                <p className="mt-2 text-center text-xs text-destructive">
+                  Selecione ou crie um cliente da organização para continuar
+                </p>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Cart dialog */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -655,6 +793,48 @@ export default function Pos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {activeOrgId && (
+        <PosCreateClientDialog
+          open={createClientOpen}
+          onOpenChange={setCreateClientOpen}
+          organizationId={activeOrgId}
+          onCreated={(client) => {
+            setSelectedLead(client);
+            setLeadQuery("");
+          }}
+        />
+      )}
+
+      <PosConfirmSaleDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        saleCodePreview={nextSaleNumberHint}
+        total={total}
+        customerName={
+          selectedLead
+            ? `${selectedLead.name}${selectedLead.company ? ` - ${selectedLead.company}` : ""}`
+            : null
+        }
+        organizationName={activeOrganization?.name}
+        defaultPaymentMethod={payments[0]?.method || paymentMethodDraft || "pix"}
+        loading={posLoading}
+        onConfirm={(values, payment) => void handleConfirmSale(values, payment)}
+      />
+
+      <PosSaleSuccessDialog
+        open={successOpen}
+        onOpenChange={setSuccessOpen}
+        sale={lastSale}
+        items={lastSaleItems}
+        payments={lastSalePayments}
+        organizationName={activeOrganization?.name}
+        onNewSale={() => {
+          setSuccessOpen(false);
+          setLastSale(null);
+          resetSale();
+        }}
+      />
     </CRMLayout>
   );
 }
