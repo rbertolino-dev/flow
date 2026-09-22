@@ -21,9 +21,16 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { usePosSales } from "@/hooks/usePosSales";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import type { PosSale, PosSalesSummary } from "@/types/pos";
 import { PosSaleReceiptSheet } from "@/components/pos/PosSaleReceiptSheet";
+import {
+  EMPTY_POS_SALES_FILTERS,
+  PosSalesFilterDialog,
+  type PosSalesAdvancedFilters,
+} from "@/components/pos/PosSalesFilterDialog";
 import {
   ShoppingCart,
   Download,
@@ -118,6 +125,7 @@ function exportCsv(sales: PosSale[]) {
 export default function PosSalesHistory() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { activeOrgId } = useActiveOrganization();
   const { loading, listSalesDetailed, getOpenCashSession, openCash, closeCash } =
     usePosSales();
 
@@ -130,6 +138,13 @@ export default function PosSalesHistory() {
   const [toTime, setToTime] = useState(toDefault.time);
   const [saleCode, setSaleCode] = useState("");
   const [searchExtra, setSearchExtra] = useState("");
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] =
+    useState<PosSalesAdvancedFilters>(EMPTY_POS_SALES_FILTERS);
+  const [orgMembers, setOrgMembers] = useState<
+    Array<{ id: string; full_name: string | null; email: string }>
+  >([]);
 
   const [sales, setSales] = useState<PosSale[]>([]);
   const [summary, setSummary] = useState<PosSalesSummary>({
@@ -145,8 +160,30 @@ export default function PosSalesHistory() {
   const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
 
+  const hasAdvancedFilters = useMemo(() => {
+    const f = advancedFilters;
+    return Boolean(
+      f.clientQuery.trim() ||
+        f.soldByUserId ||
+        f.paymentMethod ||
+        f.origin ||
+        f.withInvoice ||
+        (f.priceMin !== "" && Number(f.priceMin) > 0) ||
+        (f.priceMax !== "" && Number(f.priceMax) < 500000)
+    );
+  }, [advancedFilters]);
+
   const loadSales = useCallback(async () => {
     try {
+      const priceMin =
+        advancedFilters.priceMin !== ""
+          ? Number(advancedFilters.priceMin)
+          : undefined;
+      const priceMax =
+        advancedFilters.priceMax !== ""
+          ? Number(advancedFilters.priceMax)
+          : undefined;
+
       const result = await listSalesDetailed({
         date_from: toIsoLocal(fromDate, fromTime, false),
         date_to: toIsoLocal(toDate, toTime, true),
@@ -154,6 +191,16 @@ export default function PosSalesHistory() {
         search: searchExtra.trim() || undefined,
         include_items: true,
         limit: 500,
+        customer_field: advancedFilters.clientField,
+        customer_query: advancedFilters.clientQuery.trim() || undefined,
+        sold_by: advancedFilters.soldByUserId || undefined,
+        payment_method: advancedFilters.paymentMethod || undefined,
+        origin: advancedFilters.origin || undefined,
+        price_min:
+          priceMin != null && !Number.isNaN(priceMin) ? priceMin : undefined,
+        price_max:
+          priceMax != null && !Number.isNaN(priceMax) ? priceMax : undefined,
+        with_invoice: advancedFilters.withInvoice || undefined,
       });
       setSales(result.data);
       setSummary(result.summary);
@@ -163,13 +210,47 @@ export default function PosSalesHistory() {
       setSales([]);
       setSummary({ sales_count: 0, sales_total: 0 });
     }
-  }, [fromDate, fromTime, toDate, toTime, saleCode, searchExtra, listSalesDetailed, toast]);
+  }, [
+    fromDate,
+    fromTime,
+    toDate,
+    toTime,
+    saleCode,
+    searchExtra,
+    advancedFilters,
+    listSalesDetailed,
+    toast,
+  ]);
 
   useEffect(() => {
     void loadSales();
     // carga inicial do período padrão
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!activeOrgId) {
+      setOrgMembers([]);
+      return;
+    }
+    void (async () => {
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id")
+        .eq("organization_id", activeOrgId);
+      const ids = (members || []).map((m) => m.user_id);
+      if (!ids.length) {
+        setOrgMembers([]);
+        return;
+      }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", ids)
+        .order("full_name", { ascending: true });
+      setOrgMembers((profiles || []) as typeof orgMembers);
+    })();
+  }, [activeOrgId]);
 
   const refreshCash = useCallback(async () => {
     try {
@@ -315,15 +396,16 @@ export default function PosSalesHistory() {
               </div>
               <Button
                 className="bg-blue-600 text-white hover:bg-blue-700"
-                onClick={() => void loadSales()}
+                onClick={() => setFilterOpen(true)}
                 disabled={loading}
               >
-                {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Filter className="mr-2 h-4 w-4" />
-                )}
+                <Filter className="mr-2 h-4 w-4" />
                 Filtros
+                {hasAdvancedFilters ? (
+                  <Badge className="ml-2 bg-white/20 text-white hover:bg-white/20">
+                    ativos
+                  </Badge>
+                ) : null}
               </Button>
               <Button
                 className="bg-teal-700 text-white hover:bg-teal-800"
@@ -331,6 +413,16 @@ export default function PosSalesHistory() {
               >
                 <Wallet className="mr-2 h-4 w-4" />
                 Caixa
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void loadSales()}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Buscar
               </Button>
             </div>
           </div>
@@ -418,12 +510,23 @@ export default function PosSalesHistory() {
                           {sale.sold_by_name || "—"}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className="rounded-full bg-rose-100 text-rose-700 hover:bg-rose-100"
-                          >
-                            Sem nota
-                          </Badge>
+                          {(sale as PosSale & { invoice_number?: string | null })
+                            .invoice_number ? (
+                            <Badge
+                              variant="secondary"
+                              className="rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                            >
+                              {(sale as PosSale & { invoice_number?: string })
+                                .invoice_number}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="secondary"
+                              className="rounded-full bg-rose-100 text-rose-700 hover:bg-rose-100"
+                            >
+                              Sem nota
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -472,6 +575,75 @@ export default function PosSalesHistory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PosSalesFilterDialog
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        value={advancedFilters}
+        orgMembers={orgMembers}
+        onApply={(filters) => {
+          setAdvancedFilters(filters);
+          // load after state update via microtask with filters arg
+          void (async () => {
+            try {
+              const priceMin =
+                filters.priceMin !== "" ? Number(filters.priceMin) : undefined;
+              const priceMax =
+                filters.priceMax !== "" ? Number(filters.priceMax) : undefined;
+              const result = await listSalesDetailed({
+                date_from: toIsoLocal(fromDate, fromTime, false),
+                date_to: toIsoLocal(toDate, toTime, true),
+                sale_code: saleCode.trim() || undefined,
+                search: searchExtra.trim() || undefined,
+                include_items: true,
+                limit: 500,
+                customer_field: filters.clientField,
+                customer_query: filters.clientQuery.trim() || undefined,
+                sold_by: filters.soldByUserId || undefined,
+                payment_method: filters.paymentMethod || undefined,
+                origin: filters.origin || undefined,
+                price_min:
+                  priceMin != null && !Number.isNaN(priceMin) ? priceMin : undefined,
+                price_max:
+                  priceMax != null && !Number.isNaN(priceMax) ? priceMax : undefined,
+                with_invoice: filters.withInvoice || undefined,
+              });
+              setSales(result.data);
+              setSummary(result.summary);
+              toast({
+                title: "Filtros aplicados",
+                description: `${result.summary.sales_count} venda(s) encontrada(s)`,
+              });
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error ? error.message : "Erro ao filtrar";
+              toast({ title: "Erro", description: message, variant: "destructive" });
+            }
+          })();
+        }}
+        onClear={() => {
+          setAdvancedFilters(EMPTY_POS_SALES_FILTERS);
+          void (async () => {
+            try {
+              const result = await listSalesDetailed({
+                date_from: toIsoLocal(fromDate, fromTime, false),
+                date_to: toIsoLocal(toDate, toTime, true),
+                sale_code: saleCode.trim() || undefined,
+                search: searchExtra.trim() || undefined,
+                include_items: true,
+                limit: 500,
+              });
+              setSales(result.data);
+              setSummary(result.summary);
+              toast({ title: "Filtros limpos" });
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error ? error.message : "Erro ao limpar filtros";
+              toast({ title: "Erro", description: message, variant: "destructive" });
+            }
+          })();
+        }}
+      />
 
       <PosSaleReceiptSheet
         saleId={receiptSaleId}

@@ -78,6 +78,19 @@ export interface ListSalesOptions {
   limit?: number;
   offset?: number;
   include_items?: boolean;
+  /** Contato (nome) ou telefone do cliente */
+  customer_field?: "contato" | "telefone";
+  customer_query?: string;
+  /** UUID do usuário responsável (sold_by) */
+  sold_by?: string;
+  /** Método em pos_sale_payments */
+  payment_method?: string;
+  /** Origem da venda (pdv, orcamento, importacao) */
+  origin?: string;
+  price_min?: number;
+  price_max?: number;
+  /** Apenas vendas com nota fiscal emitida */
+  with_invoice?: boolean;
 }
 
 export interface ListSalesResult {

@@ -70,6 +70,18 @@ export function usePosSales() {
         if (opts?.limit) params.set("limit", String(opts.limit));
         if (opts?.offset) params.set("offset", String(opts.offset));
         if (opts?.include_items) params.set("include_items", "1");
+        if (opts?.customer_field) params.set("customer_field", opts.customer_field);
+        if (opts?.customer_query) params.set("customer_query", opts.customer_query);
+        if (opts?.sold_by) params.set("sold_by", opts.sold_by);
+        if (opts?.payment_method) params.set("payment_method", opts.payment_method);
+        if (opts?.origin) params.set("origin", opts.origin);
+        if (opts?.price_min != null && !Number.isNaN(opts.price_min)) {
+          params.set("price_min", String(opts.price_min));
+        }
+        if (opts?.price_max != null && !Number.isNaN(opts.price_max)) {
+          params.set("price_max", String(opts.price_max));
+        }
+        if (opts?.with_invoice) params.set("with_invoice", "1");
         const result = await callPos(`?${params.toString()}`);
         return {
           data: (result.data || []) as PosSale[],

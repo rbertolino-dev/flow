@@ -189,7 +189,7 @@ serve(async (req) => {
         });
       }
 
-      // list_sales (default) — filtros: search, sale_code, date_from, date_to, include_items
+      // list_sales (default) — filtros avançados do histórico
       const limit = Math.min(parseInt(url.searchParams.get("limit") || "100"), 500);
       const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
       const search = url.searchParams.get("search")?.trim() || "";
@@ -197,41 +197,98 @@ serve(async (req) => {
       const dateFrom = url.searchParams.get("date_from")?.trim() || "";
       const dateTo = url.searchParams.get("date_to")?.trim() || "";
       const includeItems = url.searchParams.get("include_items") === "1";
+      const customerField = url.searchParams.get("customer_field")?.trim() || "contato";
+      const customerQuery = url.searchParams.get("customer_query")?.trim() || "";
+      const soldBy = url.searchParams.get("sold_by")?.trim() || "";
+      const paymentMethod = url.searchParams.get("payment_method")?.trim() || "";
+      const origin = url.searchParams.get("origin")?.trim() || "";
+      const priceMinRaw = url.searchParams.get("price_min")?.trim() || "";
+      const priceMaxRaw = url.searchParams.get("price_max")?.trim() || "";
+      const withInvoice = url.searchParams.get("with_invoice") === "1";
 
       const where: string[] = [
-        "organization_id = $1",
-        "status = 'completed'",
+        "s.organization_id = $1",
+        "s.status = 'completed'",
       ];
       const params: unknown[] = [organizationId];
       let p = 1;
 
       if (saleCode) {
         p++;
-        where.push(`CAST(sale_number AS TEXT) ILIKE $${p}`);
+        where.push(`CAST(s.sale_number AS TEXT) ILIKE $${p}`);
         params.push(`%${saleCode}%`);
       }
 
       if (search) {
         p++;
         where.push(`(
-          customer_name ILIKE $${p}
-          OR customer_phone ILIKE $${p}
-          OR CAST(sale_number AS TEXT) ILIKE $${p}
-          OR COALESCE(notes,'') ILIKE $${p}
-          OR COALESCE(sold_by_name,'') ILIKE $${p}
+          s.customer_name ILIKE $${p}
+          OR s.customer_phone ILIKE $${p}
+          OR CAST(s.sale_number AS TEXT) ILIKE $${p}
+          OR COALESCE(s.notes,'') ILIKE $${p}
+          OR COALESCE(s.sold_by_name,'') ILIKE $${p}
         )`);
         params.push(`%${search}%`);
       }
 
+      if (customerQuery) {
+        p++;
+        if (customerField === "telefone") {
+          where.push(`COALESCE(s.customer_phone,'') ILIKE $${p}`);
+        } else {
+          where.push(`COALESCE(s.customer_name,'') ILIKE $${p}`);
+        }
+        params.push(`%${customerQuery}%`);
+      }
+
+      if (soldBy) {
+        p++;
+        where.push(`s.sold_by = $${p}::uuid`);
+        params.push(soldBy);
+      }
+
+      if (paymentMethod) {
+        p++;
+        where.push(`EXISTS (
+          SELECT 1 FROM pos_sale_payments sp
+          WHERE sp.sale_id = s.id
+            AND sp.organization_id = s.organization_id
+            AND sp.method = $${p}
+        )`);
+        params.push(paymentMethod);
+      }
+
+      if (origin) {
+        p++;
+        where.push(`COALESCE(s.sale_origin, 'pdv') = $${p}`);
+        params.push(origin);
+      }
+
+      if (priceMinRaw !== "" && !Number.isNaN(Number(priceMinRaw))) {
+        p++;
+        where.push(`s.total >= $${p}::numeric`);
+        params.push(Number(priceMinRaw));
+      }
+
+      if (priceMaxRaw !== "" && !Number.isNaN(Number(priceMaxRaw))) {
+        p++;
+        where.push(`s.total <= $${p}::numeric`);
+        params.push(Number(priceMaxRaw));
+      }
+
+      if (withInvoice) {
+        where.push(`s.invoice_number IS NOT NULL AND TRIM(s.invoice_number) <> ''`);
+      }
+
       if (dateFrom) {
         p++;
-        where.push(`COALESCE(sold_at, created_at) >= $${p}::timestamptz`);
+        where.push(`COALESCE(s.sold_at, s.created_at) >= $${p}::timestamptz`);
         params.push(dateFrom);
       }
 
       if (dateTo) {
         p++;
-        where.push(`COALESCE(sold_at, created_at) <= $${p}::timestamptz`);
+        where.push(`COALESCE(s.sold_at, s.created_at) <= $${p}::timestamptz`);
         params.push(dateTo);
       }
 
@@ -242,8 +299,8 @@ serve(async (req) => {
         sales_total: string | number | null;
       }>(
         `SELECT COUNT(*)::bigint AS sales_count,
-                COALESCE(SUM(total), 0)::numeric AS sales_total
-         FROM pos_sales
+                COALESCE(SUM(s.total), 0)::numeric AS sales_total
+         FROM pos_sales s
          WHERE ${whereSql}`,
         params
       );
@@ -257,9 +314,9 @@ serve(async (req) => {
       const offsetIdx = p;
 
       const sales = await pg.queryObject(
-        `SELECT * FROM pos_sales
+        `SELECT s.* FROM pos_sales s
          WHERE ${whereSql}
-         ORDER BY COALESCE(sold_at, created_at) DESC
+         ORDER BY COALESCE(s.sold_at, s.created_at) DESC
          LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
         listParams
       );
@@ -472,7 +529,8 @@ serve(async (req) => {
               commission_user_id, commission_user_name,
               sold_by, sold_by_name, sold_at, supplier_name,
               apply_stock, generate_financial, payment_date, payment_notes,
-              sale_description, financial_account, financial_category
+              sale_description, financial_account, financial_category,
+              sale_origin
             ) VALUES (
               ${organizationId}, ${saleNumber}, ${cashSessionId},
               ${body.lead_id || null}, ${body.customer_name || null}, ${body.customer_phone || null},
@@ -481,7 +539,8 @@ serve(async (req) => {
               ${commissionUserId}, ${commissionUserName},
               ${user.id}, ${userName}, ${soldAt}, ${body.supplier_name || null},
               ${applyStock}, ${generateFinancial}, ${paymentDate}, ${body.payment_notes || null},
-              ${body.sale_description || null}, ${body.financial_account || null}, ${body.financial_category || null}
+              ${body.sale_description || null}, ${body.financial_account || null}, ${body.financial_category || null},
+              ${body.sale_origin || "pdv"}
             )
             RETURNING id, sale_number
           `;
