@@ -102,6 +102,19 @@ async function downscaleDataUrlForPdf(
 
 export async function loadImageForBudgetPdf(url: string): Promise<LoadedPdfImage | null> {
   try {
+    // data: URLs (assinatura/anexos com fallback local) — sem fetch
+    if (url.startsWith('data:')) {
+      const mimeMatch = /^data:([^;,]+)/i.exec(url);
+      const format = mimeMatch ? mimeToPdfImageFormat(mimeMatch[1]) : 'PNG';
+      const { w, h } = await measureImageFromDataUrl(url);
+      const largeEnoughToCompress = w > 400 || h > 400 || url.length > 200_000;
+      if (largeEnoughToCompress) {
+        const small = await downscaleDataUrlForPdf(url, 384);
+        if (small) return small;
+      }
+      return { dataUrl: url, format, naturalW: w, naturalH: h };
+    }
+
     const response = await fetch(url, {
       mode: 'cors',
       credentials: 'omit',
