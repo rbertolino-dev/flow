@@ -52,6 +52,7 @@ const ContractsNewSafe = lazy(() => import("./pages/ContractsNewSafe"));
 const BudgetsModule = lazy(() => import("./pages/BudgetsModule"));
 const SignContract = lazy(() => import("./pages/SignContract"));
 const Budgets = lazy(() => import("./pages/Budgets"));
+const Pos = lazy(() => import("./pages/Pos"));
 const Employees = lazy(() => import("./pages/Employees"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
 const PublicBooking = lazy(() => import("./pages/PublicBooking"));
@@ -177,6 +178,7 @@ const App = () => {
                 <Route path="/contracts/new-safe" element={<ContractsNewSafe />} />
                 <Route path="/contracts/new-safe-v2" element={<ContractsNewSafe />} />
                 <Route path="/budgets" element={<Budgets />} />
+                <Route path="/pdv" element={<Pos />} />
                 <Route path="/budgets-module" element={<BudgetsModule />} />
                 <Route path="/employees" element={<Employees />} />
                 <Route path="/sign-contract/:contractId" element={<SignContract />} />

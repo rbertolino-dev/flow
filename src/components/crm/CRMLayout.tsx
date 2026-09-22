@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine } from "lucide-react";
+import { LayoutDashboard, Phone, Settings, Menu, LogOut, UserCog, Send, MessageSquare, Bot, Calendar, Users, FileText, ShoppingBag, Zap, Sparkles, Building2, FileSignature, Receipt, Globe, PenLine, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,7 @@ export type CRMView =
   | "contracts"
   // | "digital-contracts" // REMOVIDO TEMPORARIAMENTE
   | "budgets"
+  | "pdv"
   | "employees"
   | "messages-center"
   | "landing-page"
@@ -104,6 +105,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     'contracts': 'contracts', // controlado por feature
     // 'digital-contracts': 'digital_contracts', // controlado por feature - REMOVIDO TEMPORARIAMENTE
     'budgets': 'budgets', // controlado por feature
+    'pdv': 'pos', // controlado por feature
     'employees': 'employees', // controlado por feature
     'landing-page': 'landing_page', // controlado por feature
     'wordpress-content': 'wordpress_content',
@@ -129,6 +131,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
     { id: "contracts" as const, label: "Contratos", icon: FileSignature },
     // { id: "digital-contracts" as const, label: "Contrato Digital", icon: FileSignature }, // REMOVIDO TEMPORARIAMENTE
     { id: "budgets" as const, label: "Orçamentos", icon: Receipt },
+    { id: "pdv" as const, label: "PDV", icon: Store },
     { id: "employees" as const, label: "Colaboradores", icon: Users },
     { id: "landing-page" as const, label: "Landing Page", icon: Globe },
     { id: "wordpress-content" as const, label: "Conteúdo WordPress", icon: PenLine },
@@ -295,6 +298,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
               //   navigate('/contratos-digitais');
               } else if (item.id === 'budgets') {
                 navigate('/budgets');
+              } else if (item.id === 'pdv') {
+                navigate('/pdv');
               } else if (item.id === 'employees') {
                 navigate('/employees');
               } else if (item.id === 'landing-page') {
@@ -458,6 +463,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                         //   navigate('/contratos-digitais');
                         } else if (item.id === 'budgets') {
                           navigate('/budgets');
+                        } else if (item.id === 'pdv') {
+                          navigate('/pdv');
                         } else if (item.id === 'employees') {
                           navigate('/employees');
                         } else if (item.id === 'landing-page') {

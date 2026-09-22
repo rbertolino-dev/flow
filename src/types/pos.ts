@@ -1,0 +1,82 @@
+export type PosItemType = "product" | "service";
+
+export interface PosCartItem {
+  key: string;
+  item_type: PosItemType;
+  item_id: string;
+  name: string;
+  sku?: string | null;
+  unit?: string | null;
+  quantity: number;
+  unit_price: number;
+  discount_amount: number;
+  stock_quantity?: number | null;
+}
+
+export interface PosPaymentLine {
+  id: string;
+  method: string;
+  amount: number;
+}
+
+export interface PosSale {
+  id: string;
+  organization_id: string;
+  sale_number: number;
+  cash_session_id?: string | null;
+  lead_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  status: string;
+  subtotal: number;
+  discount_amount: number;
+  total: number;
+  notes?: string | null;
+  add_commission: boolean;
+  commission_amount: number;
+  sold_by?: string | null;
+  sold_by_name?: string | null;
+  created_at: string;
+}
+
+export interface PosCashSession {
+  id: string;
+  organization_id: string;
+  status: "open" | "closed";
+  opened_at: string;
+  closed_at?: string | null;
+  opening_amount: number;
+  closing_amount?: number | null;
+  opened_by_name?: string | null;
+}
+
+export interface FinalizeSalePayload {
+  items: Array<{
+    item_type: PosItemType;
+    item_id?: string | null;
+    name: string;
+    sku?: string | null;
+    unit?: string | null;
+    quantity: number;
+    unit_price: number;
+    discount_amount?: number;
+  }>;
+  payments: Array<{ method: string; amount: number }>;
+  discount_amount?: number;
+  notes?: string | null;
+  add_commission?: boolean;
+  lead_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  cash_session_id?: string | null;
+}
+
+export interface FinalizeSaleResult {
+  id: string;
+  sale_number: number;
+  total: number;
+  subtotal: number;
+  discount_amount: number;
+  commission_amount: number;
+  cash_session_id?: string | null;
+}

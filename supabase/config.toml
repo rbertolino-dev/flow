@@ -304,6 +304,10 @@ verify_jwt = true
 [functions.send-budget-whatsapp]
 verify_jwt = true
 
+# ========== PDV ==========
+[functions.pos-sales]
+verify_jwt = true
+
 # ========== Contratos ==========
 [functions.send-contract-reminder]
 verify_jwt = false
