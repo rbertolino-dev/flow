@@ -136,7 +136,9 @@ export interface FinalizeSaleResult {
   commission_amount: number;
   cash_session_id?: string | null;
   customer_name?: string | null;
+  customer_phone?: string | null;
   sold_at?: string | null;
+  sold_by_name?: string | null;
   notes?: string | null;
   sale_description?: string | null;
   apply_stock?: boolean;

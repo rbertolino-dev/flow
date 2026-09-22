@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCircle2, Printer, Plus, FileText } from "lucide-react";
 import type { FinalizeSaleResult, PosCartItem, PosPaymentLine } from "@/types/pos";
-import { printPosA4, printPosCupom } from "@/lib/posPrint";
+import { printPosA4, printPosCupom, type PosPrintOrgInfo } from "@/lib/posPrint";
 
 type Props = {
   open: boolean;
@@ -16,6 +16,7 @@ type Props = {
   items: PosCartItem[];
   payments: PosPaymentLine[];
   organizationName?: string;
+  organization?: PosPrintOrgInfo;
   onNewSale: () => void;
 };
 
@@ -26,6 +27,7 @@ export function PosSaleSuccessDialog({
   items,
   payments,
   organizationName,
+  organization,
   onNewSale,
 }: Props) {
   if (!sale) return null;
@@ -38,6 +40,7 @@ export function PosSaleSuccessDialog({
     items,
     payments,
     organizationName,
+    organization: organization || { name: organizationName },
   };
 
   return (

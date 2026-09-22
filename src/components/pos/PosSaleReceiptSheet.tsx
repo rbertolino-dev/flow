@@ -28,9 +28,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { supabase } from "@/integrations/supabase/client";
 import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
-import type { PosSale, PosSaleItem } from "@/types/pos";
-import { Loader2, Pencil } from "lucide-react";
+import { printPosA4, printPosCupom } from "@/lib/posPrint";
+import type { PosCartItem, PosSale, PosSaleItem } from "@/types/pos";
+import { Loader2, Pencil, Printer, FileText } from "lucide-react";
 
 function formatMoney(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -143,6 +146,47 @@ function printRomaneio(
   w.document.close();
 }
 
+function saleToPrintPayload(
+  sale: PosSale,
+  organization?: { name?: string | null; cnpj?: string | null; address?: string | null }
+) {
+  const items: PosCartItem[] = (sale.items || []).map((i: PosSaleItem) => ({
+    key: i.id,
+    item_type: i.item_type,
+    item_id: i.item_id || i.id,
+    name: i.name,
+    sku: i.sku,
+    unit: i.unit,
+    quantity: Number(i.quantity),
+    unit_price: Number(i.unit_price),
+    discount_amount: Number(i.discount_amount || 0),
+  }));
+  const payments = (sale.payments || []).map((p) => ({
+    id: p.id,
+    method: p.method,
+    amount: Number(p.amount),
+  }));
+  return {
+    sale: {
+      id: sale.id,
+      sale_number: Number(sale.sale_number),
+      total: Number(sale.total),
+      subtotal: Number(sale.subtotal),
+      discount_amount: Number(sale.discount_amount || 0),
+      commission_amount: Number(sale.commission_amount || 0),
+      customer_name: sale.customer_name,
+      customer_phone: sale.customer_phone,
+      sold_at: sale.sold_at || sale.created_at,
+      sold_by_name: sale.sold_by_name,
+      notes: sale.notes,
+    },
+    items,
+    payments,
+    organizationName: organization?.name || undefined,
+    organization,
+  };
+}
+
 interface PosSaleReceiptSheetProps {
   saleId: string | null;
   open: boolean;
@@ -157,10 +201,16 @@ export function PosSaleReceiptSheet({
   onChanged,
 }: PosSaleReceiptSheetProps) {
   const { toast } = useToast();
+  const { activeOrgId, activeOrganization } = useActiveOrganization();
   const { getSale, updateSale, cancelSale, updateSaleItems, loading } =
     usePosSales();
 
   const [sale, setSale] = useState<PosSale | null>(null);
+  const [orgPrintInfo, setOrgPrintInfo] = useState<{
+    name?: string | null;
+    cnpj?: string | null;
+    address?: string | null;
+  }>({});
   const [fetching, setFetching] = useState(false);
   const [notes, setNotes] = useState("");
   const [notesDirty, setNotesDirty] = useState(false);
@@ -207,6 +257,25 @@ export function PosSaleReceiptSheet({
       setNotesDirty(false);
     }
   }, [open, saleId, loadSale]);
+
+  useEffect(() => {
+    if (!activeOrgId) {
+      setOrgPrintInfo({});
+      return;
+    }
+    void (async () => {
+      const { data } = await supabase
+        .from("organizations")
+        .select("name, cnpj, address")
+        .eq("id", activeOrgId)
+        .maybeSingle();
+      setOrgPrintInfo({
+        name: data?.name || activeOrganization?.name || null,
+        cnpj: (data as { cnpj?: string | null } | null)?.cnpj || null,
+        address: (data as { address?: string | null } | null)?.address || null,
+      });
+    })();
+  }, [activeOrgId, activeOrganization?.name]);
 
   const products = useMemo(
     () => (sale?.items || []).filter((i) => i.item_type === "product"),
@@ -479,6 +548,23 @@ export function PosSaleReceiptSheet({
 
                 {/* Ações 2x2 */}
                 <div className="grid grid-cols-2 gap-2 px-4 pt-2">
+                  <Button
+                    type="button"
+                    className="h-11 bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={() => printPosCupom(saleToPrintPayload(sale, orgPrintInfo))}
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    Imprimir cupom
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11"
+                    onClick={() => printPosA4(saleToPrintPayload(sale, orgPrintInfo))}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Comprovante A4
+                  </Button>
                   <Button
                     type="button"
                     variant="secondary"

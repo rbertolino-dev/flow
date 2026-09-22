@@ -111,6 +111,11 @@ export default function Pos() {
   const [lastSaleItems, setLastSaleItems] = useState<PosCartItem[]>([]);
   const [lastSalePayments, setLastSalePayments] = useState<PosPaymentLine[]>([]);
   const [nextSaleNumberHint, setNextSaleNumberHint] = useState<string>("—");
+  const [orgPrintInfo, setOrgPrintInfo] = useState<{
+    name?: string | null;
+    cnpj?: string | null;
+    address?: string | null;
+  }>({});
 
   useEffect(() => {
     if (!activeOrgId) return;
@@ -125,6 +130,25 @@ export default function Pos() {
       }
     })();
   }, [activeOrgId, getOpenCashSession, openCash]);
+
+  useEffect(() => {
+    if (!activeOrgId) {
+      setOrgPrintInfo({});
+      return;
+    }
+    void (async () => {
+      const { data } = await supabase
+        .from("organizations")
+        .select("name, cnpj, address")
+        .eq("id", activeOrgId)
+        .maybeSingle();
+      setOrgPrintInfo({
+        name: data?.name || activeOrganization?.name || null,
+        cnpj: (data as { cnpj?: string | null } | null)?.cnpj || null,
+        address: (data as { address?: string | null } | null)?.address || null,
+      });
+    })();
+  }, [activeOrgId, activeOrganization?.name]);
 
   useEffect(() => {
     if (!activeOrgId) {
@@ -411,10 +435,13 @@ export default function Pos() {
       setConfirmOpen(false);
       setLastSale({
         ...result,
-        customer_name: selectedLead?.name || null,
+        customer_name: selectedLead?.name || result.customer_name || null,
+        customer_phone: selectedLead?.phone || result.customer_phone || null,
+        sold_by_name: result.sold_by_name || null,
         notes: notes || values.paymentNotes || null,
         sale_description: values.saleDescription || null,
-        sold_at: new Date().toISOString(),
+        sold_at: result.sold_at || new Date().toISOString(),
+        subtotal: result.subtotal ?? total,
       });
       setLastSaleItems(snapshotItems);
       setLastSalePayments(snapshotPayments);
@@ -828,7 +855,8 @@ export default function Pos() {
         sale={lastSale}
         items={lastSaleItems}
         payments={lastSalePayments}
-        organizationName={activeOrganization?.name}
+        organizationName={orgPrintInfo.name || activeOrganization?.name}
+        organization={orgPrintInfo}
         onNewSale={() => {
           setSuccessOpen(false);
           setLastSale(null);
