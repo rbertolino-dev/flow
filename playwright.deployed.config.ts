@@ -38,7 +38,7 @@ export default defineConfig({
     },
     {
       name: "chromium-functional",
-      testMatch: /(funnel-lead-tags|pdv)\.spec\.ts/,
+      testMatch: /(funnel-lead-tags|pdv|service-orders)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         ...(existsSync(E2E_AUTH_FILE) ? { storageState: E2E_AUTH_FILE } : {}),

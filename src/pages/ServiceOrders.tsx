@@ -3,7 +3,6 @@ import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -33,6 +32,7 @@ import {
   MoreHorizontal,
   Loader2,
   Settings2,
+  Download,
 } from 'lucide-react';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
 import { useServiceOrderStatuses, useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
@@ -40,6 +40,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useLeads } from '@/hooks/useLeads';
 import { CreateServiceOrderDialog } from '@/components/service-orders/CreateServiceOrderDialog';
 import { ServiceOrderTemplatesDialog } from '@/components/service-orders/ServiceOrderTemplatesDialog';
+import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceOrderStatusesDialog';
 import { ServiceOrderFormData } from '@/types/serviceOrder';
 import { format } from 'date-fns';
 
@@ -68,6 +69,7 @@ export default function ServiceOrders() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showStatuses, setShowStatuses] = useState(false);
   const [nextCode, setNextCode] = useState('-----');
 
   const filters = useMemo(
@@ -84,7 +86,14 @@ export default function ServiceOrders() {
 
   const { orders, loading, statusCounts, createOrder, updateOrder, deleteOrder, peekNextCode, refetch } =
     useServiceOrders(filters);
-  const { statuses, refetch: refetchStatuses } = useServiceOrderStatuses();
+  const {
+    statuses,
+    refetch: refetchStatuses,
+    createStatus,
+    updateStatus,
+    deleteStatus,
+    moveStatus,
+  } = useServiceOrderStatuses();
   const { templates, refetch: refetchTemplates } = useServiceOrderTemplates();
   const { products } = useProducts();
   const { leads } = useLeads();
@@ -122,25 +131,44 @@ export default function ServiceOrders() {
             <ClipboardList className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Ordem de Serviço</h1>
           </div>
+          <Button variant="outline" size="sm" disabled title="Em breve">
+            <Download className="h-4 w-4 mr-1" />
+            Exportar
+          </Button>
         </div>
 
-        {/* Status cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {statuses.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => {
-                setStatusFilter(s.id);
-                setAppliedFilters((prev) => ({ ...prev, status_id: s.id }));
-              }}
-              className="rounded-lg p-4 text-left text-white shadow-sm transition hover:opacity-90"
-              style={{ backgroundColor: s.color }}
-            >
-              <p className="text-sm font-medium capitalize opacity-95">{s.name}</p>
-              <p className="text-3xl font-bold mt-2">{statusCounts[s.id] || 0}</p>
-            </button>
-          ))}
+        {/* Status cards — etapas da organização */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="os-status-cards">
+          {statuses.map((s) => {
+            const active = statusFilter === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  if (statusFilter === s.id) {
+                    setStatusFilter('all');
+                    setAppliedFilters((prev) => {
+                      const next = { ...prev };
+                      delete next.status_id;
+                      return next;
+                    });
+                  } else {
+                    setStatusFilter(s.id);
+                    setAppliedFilters((prev) => ({ ...prev, status_id: s.id }));
+                  }
+                }}
+                className={`rounded-lg p-4 text-left text-white shadow-sm transition hover:opacity-90 ${
+                  active ? 'ring-2 ring-offset-2 ring-primary' : ''
+                }`}
+                style={{ backgroundColor: s.color }}
+                data-testid={`os-status-card-${s.id}`}
+              >
+                <p className="text-sm font-medium capitalize opacity-95">{s.name}</p>
+                <p className="text-3xl font-bold mt-2">{statusCounts[s.id] || 0}</p>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -148,15 +176,25 @@ export default function ServiceOrders() {
             {orders.length} {orders.length === 1 ? 'Ordem' : 'Ordens'}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setShowTemplates(true)}>
+            <Button variant="secondary" onClick={() => setShowTemplates(true)} data-testid="os-modelos-btn">
               <LayoutTemplate className="h-4 w-4 mr-1" />
               MODELOS
             </Button>
-            <Button onClick={() => setShowCreate(true)} className="bg-slate-800 hover:bg-slate-900">
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="bg-slate-800 hover:bg-slate-900"
+              data-testid="os-criar-btn"
+            >
               <Plus className="h-4 w-4 mr-1" />
               CRIAR ORDEM
             </Button>
-            <Button variant="outline" size="icon" onClick={() => setShowTemplates(true)} title="Configurar">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowStatuses(true)}
+              title="Criar e editar etapas (status)"
+              data-testid="os-etapas-gear-btn"
+            >
               <Settings2 className="h-4 w-4" />
             </Button>
           </div>
@@ -268,21 +306,38 @@ export default function ServiceOrders() {
                       })}
                     </TableCell>
                     <TableCell>
-                      {order.status ? (
-                        <Badge
-                          className="text-white border-0"
-                          style={{ backgroundColor: order.status.color }}
+                      <Select
+                        value={order.status_id || undefined}
+                        onValueChange={(statusId) => updateOrder(order.id, { status_id: statusId })}
+                      >
+                        <SelectTrigger
+                          className="w-[160px] h-8 border-0 text-white font-medium"
+                          style={{
+                            backgroundColor: order.status?.color || '#64748b',
+                          }}
+                          data-testid={`os-row-status-${order.id}`}
                         >
-                          {order.status.name}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">—</Badge>
-                      )}
+                          <SelectValue placeholder="Selecione etapa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statuses.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: s.color }}
+                                />
+                                {s.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" data-testid={`os-row-options-${order.id}`}>
                             Opções
                             <MoreHorizontal className="h-4 w-4 ml-1" />
                           </Button>
@@ -293,7 +348,7 @@ export default function ServiceOrders() {
                               key={s.id}
                               onClick={() => updateOrder(order.id, { status_id: s.id })}
                             >
-                              Status: {s.name}
+                              Mover para: {s.name}
                             </DropdownMenuItem>
                           ))}
                           <DropdownMenuItem
@@ -333,6 +388,16 @@ export default function ServiceOrders() {
           refetchStatuses();
           refetch();
         }}
+      />
+
+      <ServiceOrderStatusesDialog
+        open={showStatuses}
+        onOpenChange={setShowStatuses}
+        statuses={statuses}
+        createStatus={createStatus}
+        updateStatus={updateStatus}
+        deleteStatus={deleteStatus}
+        moveStatus={moveStatus}
       />
     </CRMLayout>
   );

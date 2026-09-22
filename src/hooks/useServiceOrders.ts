@@ -97,8 +97,16 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
 
       setOrders(list);
 
+      // Contagens dos cards: sempre sobre todas as OS da org (sem filtro de status)
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { data: countRows } = await supabase
+        .from('service_orders')
+        .select('status_id')
+        .eq('organization_id', activeOrgId)
+        .is('deleted_at', null);
+
       const counts: Record<string, number> = {};
-      list.forEach((o) => {
+      ((countRows || []) as Array<{ status_id: string | null }>).forEach((o) => {
         const key = o.status_id || 'none';
         counts[key] = (counts[key] || 0) + 1;
       });

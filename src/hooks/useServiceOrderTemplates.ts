@@ -97,24 +97,36 @@ export function useServiceOrderStatuses() {
     name: string;
     color?: string;
     is_final?: boolean;
+    is_default?: boolean;
   }) => {
     if (!activeOrgId) return null;
     try {
       const maxOrder = statuses.reduce((m, s) => Math.max(m, s.sort_order), 0);
+
+      if (input.is_default) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        await supabase
+          .from('service_order_statuses')
+          .update({ is_default: false })
+          .eq('organization_id', activeOrgId);
+      }
+
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data, error } = await supabase
         .from('service_order_statuses')
         .insert({
           organization_id: activeOrgId,
-          name: input.name,
+          name: input.name.trim(),
           color: input.color || '#64748b',
           is_final: input.is_final || false,
+          is_default: input.is_default || false,
           sort_order: maxOrder + 10,
         })
         .select()
         .single();
 
       if (error) throw error;
+      toast({ title: 'Etapa criada', description: `"${input.name}" adicionada.` });
       await fetchStatuses();
       return data as ServiceOrderStatus;
     } catch (err) {
@@ -128,7 +140,154 @@ export function useServiceOrderStatuses() {
     }
   };
 
-  return { statuses, loading, refetch: fetchStatuses, createStatus };
+  const updateStatus = async (
+    id: string,
+    patch: {
+      name?: string;
+      color?: string;
+      is_final?: boolean;
+      is_default?: boolean;
+      sort_order?: number;
+    }
+  ) => {
+    if (!activeOrgId) return false;
+    try {
+      if (patch.is_default) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        await supabase
+          .from('service_order_statuses')
+          .update({ is_default: false })
+          .eq('organization_id', activeOrgId)
+          .neq('id', id);
+      }
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase
+        .from('service_order_statuses')
+        .update({
+          ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+          ...(patch.color !== undefined ? { color: patch.color } : {}),
+          ...(patch.is_final !== undefined ? { is_final: patch.is_final } : {}),
+          ...(patch.is_default !== undefined ? { is_default: patch.is_default } : {}),
+          ...(patch.sort_order !== undefined ? { sort_order: patch.sort_order } : {}),
+        })
+        .eq('id', id)
+        .eq('organization_id', activeOrgId);
+
+      if (error) throw error;
+      toast({ title: 'Etapa atualizada' });
+      await fetchStatuses();
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar status:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível atualizar etapa',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const deleteStatus = async (id: string) => {
+    if (!activeOrgId) return false;
+    try {
+      if (statuses.length <= 1) {
+        toast({
+          title: 'Não permitido',
+          description: 'Mantenha ao menos uma etapa.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { count } = await supabase
+        .from('service_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', activeOrgId)
+        .eq('status_id', id)
+        .is('deleted_at', null);
+
+      if ((count || 0) > 0) {
+        toast({
+          title: 'Etapa em uso',
+          description: `Há ${count} ordem(ns) com esta etapa. Altere o status delas antes de excluir.`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase
+        .from('service_order_statuses')
+        .delete()
+        .eq('id', id)
+        .eq('organization_id', activeOrgId);
+
+      if (error) throw error;
+      toast({ title: 'Etapa excluída' });
+      await fetchStatuses();
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir status:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível excluir etapa',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const moveStatus = async (id: string, direction: 'up' | 'down') => {
+    if (!activeOrgId) return false;
+    const idx = statuses.findIndex((s) => s.id === id);
+    if (idx < 0) return false;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= statuses.length) return false;
+
+    const a = statuses[idx];
+    const b = statuses[swapIdx];
+    try {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error: errA } = await supabase
+        .from('service_order_statuses')
+        .update({ sort_order: b.sort_order })
+        .eq('id', a.id)
+        .eq('organization_id', activeOrgId);
+      if (errA) throw errA;
+
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error: errB } = await supabase
+        .from('service_order_statuses')
+        .update({ sort_order: a.sort_order })
+        .eq('id', b.id)
+        .eq('organization_id', activeOrgId);
+      if (errB) throw errB;
+
+      await fetchStatuses();
+      return true;
+    } catch (err) {
+      console.error('Erro ao reordenar etapas:', err);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível reordenar as etapas',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  return {
+    statuses,
+    loading,
+    refetch: fetchStatuses,
+    createStatus,
+    updateStatus,
+    deleteStatus,
+    moveStatus,
+  };
 }
 
 export function useServiceOrderTemplates() {
