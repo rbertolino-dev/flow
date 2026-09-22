@@ -90,9 +90,24 @@ async function getUserName(
 }
 
 function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
+  return new Response(JSON.stringify(data, (_key, value) =>
+    typeof value === "bigint" ? Number(value) : value
+  ), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/** Normaliza linhas do Postgres (BigInt → number, Date → ISO). */
+function serializeRows<T extends Record<string, unknown>>(rows: T[]): T[] {
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (typeof v === "bigint") out[k] = Number(v);
+      else if (v instanceof Date) out[k] = v.toISOString();
+      else out[k] = v;
+    }
+    return out as T;
   });
 }
 
@@ -140,7 +155,7 @@ serve(async (req) => {
           ORDER BY opened_at DESC
           LIMIT 1
         `;
-        return json({ data: result.rows[0] || null });
+        return json({ data: result.rows[0] ? serializeRows([result.rows[0] as Record<string, unknown>])[0] : null });
       }
 
       if (action === "get_sale") {
@@ -167,9 +182,9 @@ serve(async (req) => {
 
         return json({
           data: {
-            ...sale.rows[0],
-            items: items.rows,
-            payments: payments.rows,
+            ...serializeRows([sale.rows[0] as Record<string, unknown>])[0],
+            items: serializeRows(items.rows as Record<string, unknown>[]),
+            payments: serializeRows(payments.rows as Record<string, unknown>[]),
           },
         });
       }
@@ -205,7 +220,7 @@ serve(async (req) => {
         `;
       }
 
-      return json({ data: sales.rows });
+      return json({ data: serializeRows(sales.rows as Record<string, unknown>[]) });
     }
 
     // ---- POST actions ----

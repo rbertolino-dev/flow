@@ -683,7 +683,7 @@ export default function Pos() {
           ) : history.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma venda encontrada.</p>
           ) : (
-            <ul className="max-h-[60vh] divide-y overflow-y-auto">
+            <ul data-testid="pdv-sales-history" className="max-h-[60vh] divide-y overflow-y-auto">
               {history.map((sale) => (
                 <li key={sale.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <div>
