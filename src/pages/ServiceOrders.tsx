@@ -33,6 +33,7 @@ import {
   Loader2,
   Settings2,
   Download,
+  FileDown,
 } from 'lucide-react';
 import { useServiceOrders } from '@/hooks/useServiceOrders';
 import { useServiceOrderStatuses, useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
@@ -41,8 +42,16 @@ import { useLeads } from '@/hooks/useLeads';
 import { CreateServiceOrderDialog } from '@/components/service-orders/CreateServiceOrderDialog';
 import { ServiceOrderTemplatesDialog } from '@/components/service-orders/ServiceOrderTemplatesDialog';
 import { ServiceOrderStatusesDialog } from '@/components/service-orders/ServiceOrderStatusesDialog';
-import { ServiceOrderFormData } from '@/types/serviceOrder';
+import { ServiceOrderFormData, ServiceOrder } from '@/types/serviceOrder';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
+import {
+  generateServiceOrderPDF,
+  downloadServiceOrderPDF,
+  openServiceOrderPDF,
+} from '@/lib/serviceOrderPdfGenerator';
+import { supabase } from '@/integrations/supabase/client';
 
 function formatDateRange(startsAt?: string | null, endsAt?: string | null) {
   if (!startsAt && !endsAt) return '—';
@@ -71,6 +80,10 @@ export default function ServiceOrders() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showStatuses, setShowStatuses] = useState(false);
   const [nextCode, setNextCode] = useState('-----');
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const { toast } = useToast();
+  const { activeOrganization, activeOrgId } = useActiveOrganization();
 
   const filters = useMemo(
     () => ({
@@ -113,11 +126,82 @@ export default function ServiceOrders() {
     });
   };
 
+  const exportOrderPdf = async (
+    order: ServiceOrder,
+    opts?: { open?: boolean }
+  ) => {
+    try {
+      setExportingId(order.id);
+
+      let orgData: { name?: string | null; company_profile?: string | null; logo_url?: string | null } | null =
+        activeOrganization
+          ? { name: activeOrganization.name }
+          : null;
+
+      if (activeOrgId) {
+        const { data } = await supabase
+          .from('organizations')
+          .select('name, logo_url')
+          .eq('id', activeOrgId)
+          .maybeSingle();
+        if (data) orgData = data as typeof orgData;
+      }
+
+      const blob = await generateServiceOrderPDF({
+        order,
+        organizationName: orgData?.name || activeOrganization?.name,
+        organizationData: orgData,
+      });
+
+      if (opts?.open) {
+        openServiceOrderPDF(blob);
+      }
+      downloadServiceOrderPDF(blob, order.code);
+
+      toast({
+        title: 'PDF gerado',
+        description: `Ordem ${order.code} exportada com sucesso.`,
+      });
+    } catch (err) {
+      console.error('Erro ao exportar PDF da OS:', err);
+      toast({
+        title: 'Erro ao exportar PDF',
+        description: err instanceof Error ? err.message : 'Não foi possível gerar o PDF',
+        variant: 'destructive',
+      });
+    } finally {
+      setExportingId(null);
+    }
+  };
+
   const handleCreate = async (data: ServiceOrderFormData) => {
     const created = await createOrder(data);
     if (created) {
       const code = await peekNextCode();
       setNextCode(code);
+      try {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: full } = await supabase
+          .from('service_orders')
+          .select(
+            `
+            *,
+            status:service_order_statuses(*),
+            template:service_order_templates(id, name, is_default),
+            lead:leads(id, name, phone, email, company),
+            items:service_order_items(*),
+            checklist:service_order_checklist_items(*)
+          `
+          )
+          .eq('id', created.id)
+          .maybeSingle();
+
+        if (full) {
+          await exportOrderPdf(full as ServiceOrder, { open: true });
+        }
+      } catch (err) {
+        console.error('PDF automático falhou:', err);
+      }
       return true;
     }
     return false;
@@ -131,7 +215,22 @@ export default function ServiceOrders() {
             <ClipboardList className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Ordem de Serviço</h1>
           </div>
-          <Button variant="outline" size="sm" disabled title="Em breve">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={orders.length === 0 || !!exportingId}
+            onClick={() => {
+              if (orders.length === 1) {
+                exportOrderPdf(orders[0], { open: true });
+                return;
+              }
+              toast({
+                title: 'Exportar PDF',
+                description: 'Use Opções → Exportar PDF em cada ordem da lista.',
+              });
+            }}
+            data-testid="os-exportar-btn"
+          >
             <Download className="h-4 w-4 mr-1" />
             Exportar
           </Button>
@@ -343,6 +442,14 @@ export default function ServiceOrders() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => exportOrderPdf(order, { open: true })}
+                            disabled={exportingId === order.id}
+                            data-testid={`os-export-pdf-${order.id}`}
+                          >
+                            <FileDown className="h-4 w-4 mr-2" />
+                            {exportingId === order.id ? 'Gerando PDF...' : 'Exportar PDF'}
+                          </DropdownMenuItem>
                           {statuses.map((s) => (
                             <DropdownMenuItem
                               key={s.id}
