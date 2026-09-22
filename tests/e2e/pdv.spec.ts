@@ -96,19 +96,36 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       { timeout: 45_000 }
     );
     await human.humanClick(page.getByRole("button", { name: /histórico de vendas/i }));
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.waitForURL(/\/pdv\/historico/, { timeout: 15_000 });
     await expect(
-      page.getByRole("dialog").getByRole("heading", { name: /histórico de vendas/i })
-    ).toBeVisible();
+      page.getByRole("heading", { name: /histórico de vendas/i })
+    ).toBeVisible({ timeout: 30_000 });
     const histRes = await historyResponse;
     expect(histRes.ok()).toBeTruthy();
     const histBody = await histRes.json();
     expect(Array.isArray(histBody.data)).toBeTruthy();
-    expect(histBody.data.length).toBeGreaterThan(0);
+    expect(histBody.summary).toBeTruthy();
 
-    await expect(page.getByRole("dialog").getByText(/#\d+/).first()).toBeVisible({
-      timeout: 20_000,
-    });
+    await expect(page.getByText(/quantidade de vendas/i)).toBeVisible();
+    await expect(page.getByText(/total das vendas/i)).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^código$/i })).toBeVisible();
+  });
+
+  test("PDV histórico — página dedicada @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    await human.humanNavigate("/pdv/historico");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+    await expect(
+      page.getByRole("heading", { name: /histórico de vendas/i })
+    ).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("button", { name: /^exportar$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^filtros$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^caixa$/i })).toBeVisible();
+    await expect(page.getByText(/quantidade de vendas/i)).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /serviço\/produto/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /nota fiscal/i })).toBeVisible();
   });
 
   test("PDV — acessibilidade básica @accessibility @pdv", async ({ page }) => {

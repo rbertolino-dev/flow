@@ -19,6 +19,20 @@ export interface PosPaymentLine {
   amount: number;
 }
 
+export interface PosSaleItem {
+  id: string;
+  sale_id: string;
+  item_type: PosItemType;
+  item_id?: string | null;
+  name: string;
+  sku?: string | null;
+  unit?: string | null;
+  quantity: number;
+  unit_price: number;
+  discount_amount: number;
+  total_price: number;
+}
+
 export interface PosSale {
   id: string;
   organization_id: string;
@@ -37,6 +51,27 @@ export interface PosSale {
   sold_by?: string | null;
   sold_by_name?: string | null;
   created_at: string;
+  items?: PosSaleItem[];
+}
+
+export interface PosSalesSummary {
+  sales_count: number;
+  sales_total: number;
+}
+
+export interface ListSalesOptions {
+  search?: string;
+  sale_code?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+  include_items?: boolean;
+}
+
+export interface ListSalesResult {
+  data: PosSale[];
+  summary: PosSalesSummary;
 }
 
 export interface PosCashSession {

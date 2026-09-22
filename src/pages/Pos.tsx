@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,7 @@ import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
-import type { PosCartItem, PosPaymentLine, PosSale } from "@/types/pos";
+import type { PosCartItem, PosPaymentLine } from "@/types/pos";
 import {
   History,
   Plus,
@@ -66,10 +67,11 @@ interface LeadOption {
 }
 
 export default function Pos() {
+  const navigate = useNavigate();
   const { activeOrgId } = useActiveOrganization();
   const { products, loading: productsLoading, refetch: refetchProducts } = useProducts();
   const { data: services = [], isLoading: servicesLoading } = useServices();
-  const { loading: posLoading, listSales, finalizeSale, getOpenCashSession, openCash } =
+  const { loading: posLoading, finalizeSale, getOpenCashSession, openCash } =
     usePosSales();
 
   const [catalogTab, setCatalogTab] = useState<"products" | "services">("products");
@@ -87,9 +89,6 @@ export default function Pos() {
   const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
   const [searchingLeads, setSearchingLeads] = useState(false);
 
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState<PosSale[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
@@ -311,19 +310,6 @@ export default function Pos() {
     }
   };
 
-  const openHistory = useCallback(async () => {
-    setHistoryOpen(true);
-    setHistoryLoading(true);
-    try {
-      const rows = await listSales({ limit: 50 });
-      setHistory(rows);
-    } catch {
-      setHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [listSales]);
-
   const canFinalize =
     cart.length > 0 &&
     total >= 0 &&
@@ -335,7 +321,7 @@ export default function Pos() {
       <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-          <Button variant="outline" size="sm" onClick={() => void openHistory()}>
+          <Button variant="outline" size="sm" onClick={() => navigate("/pdv/historico")}>
             <History className="mr-2 h-4 w-4" />
             Histórico de vendas
           </Button>
@@ -667,40 +653,6 @@ export default function Pos() {
           <DialogFooter>
             <Button onClick={() => setCartOpen(false)}>Fechar</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* History dialog */}
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Histórico de vendas</DialogTitle>
-          </DialogHeader>
-          {historyLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma venda encontrada.</p>
-          ) : (
-            <ul data-testid="pdv-sales-history" className="max-h-[60vh] divide-y overflow-y-auto">
-              {history.map((sale) => (
-                <li key={sale.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                  <div>
-                    <p className="font-medium">
-                      #{sale.sale_number}
-                      {sale.customer_name ? ` — ${sale.customer_name}` : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(sale.created_at).toLocaleString("pt-BR")}
-                      {sale.sold_by_name ? ` · ${sale.sold_by_name}` : ""}
-                    </p>
-                  </div>
-                  <p className="font-semibold">{formatMoney(Number(sale.total))}</p>
-                </li>
-              ))}
-            </ul>
-          )}
         </DialogContent>
       </Dialog>
     </CRMLayout>

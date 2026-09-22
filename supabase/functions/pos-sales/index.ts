@@ -189,38 +189,112 @@ serve(async (req) => {
         });
       }
 
-      // list_sales (default)
-      const limit = Math.min(parseInt(url.searchParams.get("limit") || "35"), 100);
+      // list_sales (default) — filtros: search, sale_code, date_from, date_to, include_items
+      const limit = Math.min(parseInt(url.searchParams.get("limit") || "100"), 500);
       const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
-      const search = url.searchParams.get("search")?.trim();
+      const search = url.searchParams.get("search")?.trim() || "";
+      const saleCode = url.searchParams.get("sale_code")?.trim() || "";
+      const dateFrom = url.searchParams.get("date_from")?.trim() || "";
+      const dateTo = url.searchParams.get("date_to")?.trim() || "";
+      const includeItems = url.searchParams.get("include_items") === "1";
 
-      let sales;
-      if (search) {
-        const like = `%${search}%`;
-        sales = await pg.queryObject`
-          SELECT * FROM pos_sales
-          WHERE organization_id = ${organizationId}
-            AND status = 'completed'
-            AND (
-              customer_name ILIKE ${like}
-              OR customer_phone ILIKE ${like}
-              OR CAST(sale_number AS TEXT) ILIKE ${like}
-              OR notes ILIKE ${like}
-            )
-          ORDER BY created_at DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `;
-      } else {
-        sales = await pg.queryObject`
-          SELECT * FROM pos_sales
-          WHERE organization_id = ${organizationId}
-            AND status = 'completed'
-          ORDER BY created_at DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `;
+      const where: string[] = [
+        "organization_id = $1",
+        "status = 'completed'",
+      ];
+      const params: unknown[] = [organizationId];
+      let p = 1;
+
+      if (saleCode) {
+        p++;
+        where.push(`CAST(sale_number AS TEXT) ILIKE $${p}`);
+        params.push(`%${saleCode}%`);
       }
 
-      return json({ data: serializeRows(sales.rows as Record<string, unknown>[]) });
+      if (search) {
+        p++;
+        where.push(`(
+          customer_name ILIKE $${p}
+          OR customer_phone ILIKE $${p}
+          OR CAST(sale_number AS TEXT) ILIKE $${p}
+          OR COALESCE(notes,'') ILIKE $${p}
+          OR COALESCE(sold_by_name,'') ILIKE $${p}
+        )`);
+        params.push(`%${search}%`);
+      }
+
+      if (dateFrom) {
+        p++;
+        where.push(`created_at >= $${p}::timestamptz`);
+        params.push(dateFrom);
+      }
+
+      if (dateTo) {
+        p++;
+        where.push(`created_at <= $${p}::timestamptz`);
+        params.push(dateTo);
+      }
+
+      const whereSql = where.join(" AND ");
+
+      const summaryResult = await pg.queryObject<{
+        sales_count: string | number;
+        sales_total: string | number | null;
+      }>(
+        `SELECT COUNT(*)::bigint AS sales_count,
+                COALESCE(SUM(total), 0)::numeric AS sales_total
+         FROM pos_sales
+         WHERE ${whereSql}`,
+        params
+      );
+
+      const listParams = [...params];
+      p++;
+      listParams.push(limit);
+      const limitIdx = p;
+      p++;
+      listParams.push(offset);
+      const offsetIdx = p;
+
+      const sales = await pg.queryObject(
+        `SELECT * FROM pos_sales
+         WHERE ${whereSql}
+         ORDER BY created_at DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        listParams
+      );
+
+      const serialized = serializeRows(sales.rows as Record<string, unknown>[]);
+
+      if (includeItems && serialized.length) {
+        const ids = serialized.map((s) => String(s.id));
+        const itemsResult = await pg.queryObject(
+          `SELECT * FROM pos_sale_items
+           WHERE organization_id = $1
+             AND sale_id = ANY($2::uuid[])
+           ORDER BY created_at ASC`,
+          [organizationId, ids]
+        );
+        const items = serializeRows(itemsResult.rows as Record<string, unknown>[]);
+        const bySale = new Map<string, Record<string, unknown>[]>();
+        for (const item of items) {
+          const sid = String(item.sale_id);
+          if (!bySale.has(sid)) bySale.set(sid, []);
+          bySale.get(sid)!.push(item);
+        }
+        for (const sale of serialized) {
+          (sale as Record<string, unknown>).items = bySale.get(String(sale.id)) || [];
+        }
+      }
+
+      const summaryRow = summaryResult.rows[0];
+      return json({
+        data: serialized,
+        summary: {
+          sales_count: Number(summaryRow?.sales_count || 0),
+          sales_total: Number(summaryRow?.sales_total || 0),
+        },
+      });
     }
 
     // ---- POST actions ----

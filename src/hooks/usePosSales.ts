@@ -5,6 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import type {
   FinalizeSalePayload,
   FinalizeSaleResult,
+  ListSalesOptions,
+  ListSalesResult,
   PosCashSession,
   PosSale,
 } from "@/types/pos";
@@ -54,21 +56,39 @@ export function usePosSales() {
     [activeOrgId]
   );
 
-  const listSales = useCallback(
-    async (opts?: { search?: string; limit?: number; offset?: number }) => {
+  const listSalesDetailed = useCallback(
+    async (opts?: ListSalesOptions): Promise<ListSalesResult> => {
       setLoading(true);
       try {
         const params = new URLSearchParams({ action: "list_sales" });
         if (opts?.search) params.set("search", opts.search);
+        if (opts?.sale_code) params.set("sale_code", opts.sale_code);
+        if (opts?.date_from) params.set("date_from", opts.date_from);
+        if (opts?.date_to) params.set("date_to", opts.date_to);
         if (opts?.limit) params.set("limit", String(opts.limit));
         if (opts?.offset) params.set("offset", String(opts.offset));
+        if (opts?.include_items) params.set("include_items", "1");
         const result = await callPos(`?${params.toString()}`);
-        return (result.data || []) as PosSale[];
+        return {
+          data: (result.data || []) as PosSale[],
+          summary: {
+            sales_count: Number(result.summary?.sales_count || 0),
+            sales_total: Number(result.summary?.sales_total || 0),
+          },
+        };
       } finally {
         setLoading(false);
       }
     },
     [callPos]
+  );
+
+  const listSales = useCallback(
+    async (opts?: ListSalesOptions): Promise<PosSale[]> => {
+      const result = await listSalesDetailed(opts);
+      return result.data;
+    },
+    [listSalesDetailed]
   );
 
   const getOpenCashSession = useCallback(async () => {
@@ -85,6 +105,23 @@ export function usePosSales() {
       return result.data as PosCashSession;
     },
     [callPos]
+  );
+
+  const closeCash = useCallback(
+    async (sessionId: string, closingAmount = 0, notes?: string) => {
+      const result = await callPos("", {
+        method: "POST",
+        body: {
+          action: "close_cash",
+          session_id: sessionId,
+          closing_amount: closingAmount,
+          notes: notes || null,
+        },
+      });
+      toast({ title: "Caixa fechado" });
+      return result.data as PosCashSession;
+    },
+    [callPos, toast]
   );
 
   const finalizeSale = useCallback(
@@ -118,8 +155,10 @@ export function usePosSales() {
   return {
     loading,
     listSales,
+    listSalesDetailed,
     getOpenCashSession,
     openCash,
+    closeCash,
     finalizeSale,
   };
 }
