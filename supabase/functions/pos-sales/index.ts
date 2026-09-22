@@ -225,13 +225,13 @@ serve(async (req) => {
 
       if (dateFrom) {
         p++;
-        where.push(`created_at >= $${p}::timestamptz`);
+        where.push(`COALESCE(sold_at, created_at) >= $${p}::timestamptz`);
         params.push(dateFrom);
       }
 
       if (dateTo) {
         p++;
-        where.push(`created_at <= $${p}::timestamptz`);
+        where.push(`COALESCE(sold_at, created_at) <= $${p}::timestamptz`);
         params.push(dateTo);
       }
 
@@ -259,7 +259,7 @@ serve(async (req) => {
       const sales = await pg.queryObject(
         `SELECT * FROM pos_sales
          WHERE ${whereSql}
-         ORDER BY created_at DESC
+         ORDER BY COALESCE(sold_at, created_at) DESC
          LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
         listParams
       );
@@ -455,13 +455,13 @@ serve(async (req) => {
               lead_id, customer_name, customer_phone,
               status, subtotal, discount_amount, total,
               notes, add_commission, commission_amount,
-              sold_by, sold_by_name
+              sold_by, sold_by_name, sold_at, supplier_name
             ) VALUES (
               ${organizationId}, ${saleNumber}, ${cashSessionId},
               ${body.lead_id || null}, ${body.customer_name || null}, ${body.customer_phone || null},
               'completed', ${subtotal}, ${discountAmount}, ${total},
               ${body.notes || null}, ${addCommission}, ${commissionAmount},
-              ${user.id}, ${userName}
+              ${user.id}, ${userName}, now(), ${body.supplier_name || null}
             )
             RETURNING id, sale_number
           `;
@@ -535,6 +535,366 @@ serve(async (req) => {
           }, 201);
         } catch (txErr) {
           await tx.queryArray`ROLLBACK`;
+          throw txErr;
+        }
+      }
+
+      // ---- update_sale: notes, customer, sold_at, supplier ----
+      if (postAction === "update_sale") {
+        const saleId = body.sale_id || body.id;
+        if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
+
+        const existing = await pg.queryObject<{ id: string; status: string }>`
+          SELECT id, status FROM pos_sales
+          WHERE id = ${saleId} AND organization_id = ${organizationId}
+          LIMIT 1
+        `;
+        if (!existing.rows.length) return json({ error: "Venda não encontrada" }, 404);
+        if (existing.rows[0].status === "cancelled") {
+          return json({ error: "Venda cancelada não pode ser alterada" }, 400);
+        }
+
+        const sets: string[] = [];
+        const params: unknown[] = [];
+        let p = 0;
+
+        if (body.notes !== undefined) {
+          p++;
+          sets.push(`notes = $${p}`);
+          params.push(body.notes === "" || body.notes === null ? null : String(body.notes));
+        }
+        if (body.customer_name !== undefined) {
+          p++;
+          sets.push(`customer_name = $${p}`);
+          params.push(
+            body.customer_name === "" || body.customer_name === null
+              ? null
+              : String(body.customer_name)
+          );
+        }
+        if (body.customer_phone !== undefined) {
+          p++;
+          sets.push(`customer_phone = $${p}`);
+          params.push(
+            body.customer_phone === "" || body.customer_phone === null
+              ? null
+              : String(body.customer_phone)
+          );
+        }
+        if (body.sold_at !== undefined && body.sold_at !== null) {
+          p++;
+          sets.push(`sold_at = $${p}::timestamptz`);
+          params.push(String(body.sold_at));
+        }
+        if (body.supplier_name !== undefined) {
+          p++;
+          sets.push(`supplier_name = $${p}`);
+          params.push(
+            body.supplier_name === "" || body.supplier_name === null
+              ? null
+              : String(body.supplier_name)
+          );
+        }
+
+        if (!sets.length) return json({ error: "Nenhum campo para atualizar" }, 400);
+
+        p++;
+        params.push(saleId);
+        const idIdx = p;
+        p++;
+        params.push(organizationId);
+        const orgIdx = p;
+
+        const result = await pg.queryObject(
+          `UPDATE pos_sales
+           SET ${sets.join(", ")}
+           WHERE id = $${idIdx} AND organization_id = $${orgIdx} AND status = 'completed'
+           RETURNING *`,
+          params
+        );
+        if (!result.rows.length) return json({ error: "Falha ao atualizar venda" }, 500);
+        return json({ data: serializeRows([result.rows[0] as Record<string, unknown>])[0] });
+      }
+
+      // ---- cancel_sale / delete_sale: soft cancel + reverter estoque ----
+      if (postAction === "cancel_sale" || postAction === "delete_sale") {
+        const saleId = body.sale_id || body.id;
+        if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
+
+        await pg.queryArray`BEGIN`;
+        try {
+          const sale = await pg.queryObject<{ id: string; status: string }>`
+            SELECT id, status FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+            FOR UPDATE
+          `;
+          if (!sale.rows.length) {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Venda não encontrada" }, 404);
+          }
+          if (sale.rows[0].status === "cancelled") {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Venda já está cancelada" }, 400);
+          }
+
+          const items = await pg.queryObject<{
+            item_type: string;
+            item_id: string | null;
+            quantity: number;
+          }>`
+            SELECT item_type, item_id, quantity
+            FROM pos_sale_items
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          `;
+
+          for (const item of items.rows) {
+            if (item.item_type !== "product" || !item.item_id) continue;
+            const qty = Number(item.quantity);
+            if (qty <= 0) continue;
+
+            const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
+              SELECT stock_quantity FROM products
+              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+              FOR UPDATE
+            `;
+            if (!stockRow.rows.length) continue;
+
+            const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+            const after = before + qty;
+
+            await pg.queryArray`
+              UPDATE products
+              SET stock_quantity = ${after}, updated_at = now()
+              WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+            `;
+
+            await pg.queryArray`
+              INSERT INTO pos_stock_movements (
+                organization_id, product_id, sale_id, movement_type,
+                quantity_delta, stock_before, stock_after, created_by, notes
+              ) VALUES (
+                ${organizationId}, ${item.item_id}, ${saleId}, 'sale_cancel',
+                ${qty}, ${before}, ${after}, ${user.id}, 'Cancelamento de venda'
+              )
+            `;
+          }
+
+          const updated = await pg.queryObject`
+            UPDATE pos_sales
+            SET status = 'cancelled'
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+            RETURNING *
+          `;
+
+          await pg.queryArray`COMMIT`;
+          return json({
+            data: serializeRows([updated.rows[0] as Record<string, unknown>])[0],
+            message: "Venda cancelada e estoque revertido",
+          });
+        } catch (txErr) {
+          await pg.queryArray`ROLLBACK`;
+          throw txErr;
+        }
+      }
+
+      // ---- update_sale_items: ajustar quantidades + estoque + totais ----
+      if (postAction === "update_sale_items") {
+        const saleId = body.sale_id || body.id;
+        const itemUpdates = (body.items || []) as Array<{
+          id: string;
+          quantity: number;
+        }>;
+        if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
+        if (!Array.isArray(itemUpdates) || !itemUpdates.length) {
+          return json({ error: "items obrigatório" }, 400);
+        }
+
+        await pg.queryArray`BEGIN`;
+        try {
+          const sale = await pg.queryObject<{
+            id: string;
+            status: string;
+            discount_amount: number;
+          }>`
+            SELECT id, status, discount_amount FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+            FOR UPDATE
+          `;
+          if (!sale.rows.length) {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Venda não encontrada" }, 404);
+          }
+          if (sale.rows[0].status === "cancelled") {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Venda cancelada não pode ser alterada" }, 400);
+          }
+
+          for (const upd of itemUpdates) {
+            const newQty = Number(upd.quantity);
+            if (!upd.id || Number.isNaN(newQty) || newQty < 0) {
+              await pg.queryArray`ROLLBACK`;
+              return json({ error: "Quantidade inválida" }, 400);
+            }
+
+            const itemRow = await pg.queryObject<{
+              id: string;
+              item_type: string;
+              item_id: string | null;
+              quantity: number;
+              unit_price: number;
+              discount_amount: number;
+            }>`
+              SELECT id, item_type, item_id, quantity, unit_price, discount_amount
+              FROM pos_sale_items
+              WHERE id = ${upd.id} AND sale_id = ${saleId} AND organization_id = ${organizationId}
+              FOR UPDATE
+            `;
+            if (!itemRow.rows.length) {
+              await pg.queryArray`ROLLBACK`;
+              return json({ error: `Item ${upd.id} não encontrado` }, 404);
+            }
+
+            const item = itemRow.rows[0];
+            const oldQty = Number(item.quantity);
+            const delta = newQty - oldQty;
+
+            if (newQty === 0) {
+              // Remover item e devolver estoque
+              if (item.item_type === "product" && item.item_id && oldQty > 0) {
+                const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
+                  SELECT stock_quantity FROM products
+                  WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+                  FOR UPDATE
+                `;
+                if (stockRow.rows.length) {
+                  const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+                  const after = before + oldQty;
+                  await pg.queryArray`
+                    UPDATE products
+                    SET stock_quantity = ${after}, updated_at = now()
+                    WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+                  `;
+                  await pg.queryArray`
+                    INSERT INTO pos_stock_movements (
+                      organization_id, product_id, sale_id, movement_type,
+                      quantity_delta, stock_before, stock_after, created_by, notes
+                    ) VALUES (
+                      ${organizationId}, ${item.item_id}, ${saleId}, 'adjustment',
+                      ${oldQty}, ${before}, ${after}, ${user.id}, 'Troca: remoção de item'
+                    )
+                  `;
+                }
+              }
+              await pg.queryArray`
+                DELETE FROM pos_sale_items
+                WHERE id = ${item.id} AND organization_id = ${organizationId}
+              `;
+              continue;
+            }
+
+            if (delta !== 0 && item.item_type === "product" && item.item_id) {
+              const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
+                SELECT stock_quantity FROM products
+                WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+                FOR UPDATE
+              `;
+              if (stockRow.rows.length) {
+                const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+                // delta > 0 = vendeu mais (reduz estoque); delta < 0 = devolve
+                const after = before - delta;
+                await pg.queryArray`
+                  UPDATE products
+                  SET stock_quantity = ${after}, updated_at = now()
+                  WHERE id = ${item.item_id} AND organization_id = ${organizationId}
+                `;
+                await pg.queryArray`
+                  INSERT INTO pos_stock_movements (
+                    organization_id, product_id, sale_id, movement_type,
+                    quantity_delta, stock_before, stock_after, created_by, notes
+                  ) VALUES (
+                    ${organizationId}, ${item.item_id}, ${saleId}, 'adjustment',
+                    ${-delta}, ${before}, ${after}, ${user.id}, 'Troca: ajuste de quantidade'
+                  )
+                `;
+              }
+            }
+
+            const unitPrice = Number(item.unit_price);
+            const itemDiscount = Number(item.discount_amount || 0);
+            const totalPrice = Math.max(0, newQty * unitPrice - itemDiscount);
+
+            await pg.queryArray`
+              UPDATE pos_sale_items
+              SET quantity = ${newQty}, total_price = ${totalPrice}
+              WHERE id = ${item.id} AND organization_id = ${organizationId}
+            `;
+          }
+
+          // Recalcular totais da venda
+          const totals = await pg.queryObject<{ subtotal: number }>`
+            SELECT COALESCE(SUM(total_price), 0)::numeric AS subtotal
+            FROM pos_sale_items
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          const subtotal = Number(totals.rows[0]?.subtotal || 0);
+          const discountAmount = Number(sale.rows[0].discount_amount || 0);
+          const total = Math.max(0, subtotal - discountAmount);
+
+          const remaining = await pg.queryObject<{ cnt: string }>`
+            SELECT COUNT(*)::text AS cnt FROM pos_sale_items
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          if (Number(remaining.rows[0]?.cnt || 0) === 0) {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "A venda deve ter ao menos um item" }, 400);
+          }
+
+          await pg.queryArray`
+            UPDATE pos_sales
+            SET subtotal = ${subtotal}, total = ${total}
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
+
+          // Ajustar pagamentos proporcionalmente se houver um único pagamento
+          const payments = await pg.queryObject<{ id: string; amount: number }>`
+            SELECT id, amount FROM pos_sale_payments
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          if (payments.rows.length === 1) {
+            await pg.queryArray`
+              UPDATE pos_sale_payments
+              SET amount = ${total}
+              WHERE id = ${payments.rows[0].id}
+            `;
+          }
+
+          await pg.queryArray`COMMIT`;
+
+          // Retornar venda completa
+          const full = await pg.queryObject`
+            SELECT * FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          const itemsOut = await pg.queryObject`
+            SELECT * FROM pos_sale_items
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+            ORDER BY created_at ASC
+          `;
+          const paymentsOut = await pg.queryObject`
+            SELECT * FROM pos_sale_payments
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+            ORDER BY created_at ASC
+          `;
+
+          return json({
+            data: {
+              ...serializeRows([full.rows[0] as Record<string, unknown>])[0],
+              items: serializeRows(itemsOut.rows as Record<string, unknown>[]),
+              payments: serializeRows(paymentsOut.rows as Record<string, unknown>[]),
+            },
+          });
+        } catch (txErr) {
+          await pg.queryArray`ROLLBACK`;
           throw txErr;
         }
       }

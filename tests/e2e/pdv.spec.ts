@@ -128,6 +128,53 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByRole("columnheader", { name: /nota fiscal/i })).toBeVisible();
   });
 
+  test("PDV histórico — abrir comprovante de venda @human-behavior @pdv", async ({
+    page,
+  }) => {
+    const human = new HumanBehavior(page);
+    await human.humanNavigate("/pdv/historico");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+
+    await expect(
+      page.getByRole("heading", { name: /histórico de vendas/i })
+    ).toBeVisible({ timeout: 45_000 });
+
+    const empty = page.getByText(/nenhuma venda encontrada/i);
+    const firstRow = page.locator("table tbody tr").first();
+    await expect(firstRow.or(empty)).toBeVisible({ timeout: 45_000 });
+
+    const hasRow = await firstRow.isVisible().catch(() => false);
+    const isEmpty = await empty.isVisible().catch(() => false);
+    test.skip(isEmpty || !hasRow, "Sem vendas no período para abrir comprovante");
+
+    const getSaleResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/functions/v1/pos-sales") &&
+        res.url().includes("get_sale") &&
+        res.request().method() === "GET",
+      { timeout: 45_000 }
+    );
+
+    await human.randomDelay(400, 800);
+    await human.humanClick(firstRow);
+
+    const res = await getSaleResponse;
+    expect(res.ok()).toBeTruthy();
+
+    await expect(page.getByText(/comprovante de venda/i)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(/informações da venda/i)).toBeVisible();
+    await expect(page.getByText(/formas de pagamento/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /romaneio de entrega/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /romaneio de montagem/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /trocar produtos/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /alterar venda/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /excluir venda/i })).toBeVisible();
+  });
+
   test("PDV — acessibilidade básica @accessibility @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     await human.humanNavigate("/pdv");

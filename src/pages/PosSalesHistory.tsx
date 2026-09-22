@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useToast } from "@/hooks/use-toast";
 import type { PosSale, PosSalesSummary } from "@/types/pos";
+import { PosSaleReceiptSheet } from "@/components/pos/PosSaleReceiptSheet";
 import {
   ShoppingCart,
   Download,
@@ -140,6 +141,9 @@ export default function PosSalesHistory() {
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [cashStatus, setCashStatus] = useState<"open" | "closed" | "none">("none");
   const [closingAmount, setClosingAmount] = useState("");
+
+  const [receiptSaleId, setReceiptSaleId] = useState<string | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const loadSales = useCallback(async () => {
     try {
@@ -382,12 +386,19 @@ export default function PosSalesHistory() {
                     </TableRow>
                   ) : (
                     sales.map((sale) => (
-                      <TableRow key={sale.id}>
+                      <TableRow
+                        key={sale.id}
+                        className="cursor-pointer hover:bg-muted/60"
+                        onClick={() => {
+                          setReceiptSaleId(sale.id);
+                          setReceiptOpen(true);
+                        }}
+                      >
                         <TableCell className="font-medium tabular-nums">
                           {sale.sale_number}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
-                          {formatDateTime(sale.created_at)}
+                          {formatDateTime(sale.sold_at || sale.created_at)}
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums">
                           {formatMoney(Number(sale.total))}
@@ -461,6 +472,16 @@ export default function PosSalesHistory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PosSaleReceiptSheet
+        saleId={receiptSaleId}
+        open={receiptOpen}
+        onOpenChange={(open) => {
+          setReceiptOpen(open);
+          if (!open) setReceiptSaleId(null);
+        }}
+        onChanged={() => void loadSales()}
+      />
     </CRMLayout>
   );
 }

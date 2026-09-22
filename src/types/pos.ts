@@ -19,6 +19,14 @@ export interface PosPaymentLine {
   amount: number;
 }
 
+export interface PosSalePayment {
+  id: string;
+  sale_id: string;
+  method: string;
+  amount: number;
+  created_at?: string;
+}
+
 export interface PosSaleItem {
   id: string;
   sale_id: string;
@@ -50,8 +58,11 @@ export interface PosSale {
   commission_amount: number;
   sold_by?: string | null;
   sold_by_name?: string | null;
+  sold_at?: string | null;
+  supplier_name?: string | null;
   created_at: string;
   items?: PosSaleItem[];
+  payments?: PosSalePayment[];
 }
 
 export interface PosSalesSummary {
@@ -114,4 +125,18 @@ export interface FinalizeSaleResult {
   discount_amount: number;
   commission_amount: number;
   cash_session_id?: string | null;
+}
+
+export interface UpdateSalePayload {
+  sale_id: string;
+  notes?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  sold_at?: string | null;
+  supplier_name?: string | null;
+}
+
+export interface UpdateSaleItemsPayload {
+  sale_id: string;
+  items: Array<{ id: string; quantity: number }>;
 }

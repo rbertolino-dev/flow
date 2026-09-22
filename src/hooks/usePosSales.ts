@@ -9,6 +9,8 @@ import type {
   ListSalesResult,
   PosCashSession,
   PosSale,
+  UpdateSaleItemsPayload,
+  UpdateSalePayload,
 } from "@/types/pos";
 
 async function getAccessToken(): Promise<string | null> {
@@ -152,13 +154,89 @@ export function usePosSales() {
     [callPos, toast]
   );
 
+  const getSale = useCallback(
+    async (saleId: string): Promise<PosSale> => {
+      const params = new URLSearchParams({ action: "get_sale", id: saleId });
+      const result = await callPos(`?${params.toString()}`);
+      return result.data as PosSale;
+    },
+    [callPos]
+  );
+
+  const updateSale = useCallback(
+    async (payload: UpdateSalePayload): Promise<PosSale> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "update_sale", ...payload },
+        });
+        toast({ title: "Venda atualizada" });
+        return result.data as PosSale;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro ao atualizar venda";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
+  const cancelSale = useCallback(
+    async (saleId: string): Promise<PosSale> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "cancel_sale", sale_id: saleId },
+        });
+        toast({ title: "Venda excluída", description: "Estoque revertido" });
+        return result.data as PosSale;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro ao excluir venda";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
+  const updateSaleItems = useCallback(
+    async (payload: UpdateSaleItemsPayload): Promise<PosSale> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "update_sale_items", ...payload },
+        });
+        toast({ title: "Itens atualizados" });
+        return result.data as PosSale;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro ao trocar produtos";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
   return {
     loading,
     listSales,
     listSalesDetailed,
+    getSale,
     getOpenCashSession,
     openCash,
     closeCash,
     finalizeSale,
+    updateSale,
+    cancelSale,
+    updateSaleItems,
   };
 }
