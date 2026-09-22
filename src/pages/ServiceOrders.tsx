@@ -128,12 +128,12 @@ export default function ServiceOrders() {
   } = useServiceOrders(filters);
 
   // Mantém o modal de detalhe sincronizado com a lista após refetch
+  const selectedOrderId = selectedOrder?.id;
   useEffect(() => {
-    if (!selectedOrder?.id) return;
-    const fresh = orders.find((o) => o.id === selectedOrder.id);
-    if (fresh && fresh !== selectedOrder) setSelectedOrder(fresh);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only when orders list or id changes
-  }, [orders, selectedOrder?.id]);
+    if (!selectedOrderId) return;
+    const fresh = orders.find((o) => o.id === selectedOrderId);
+    if (fresh) setSelectedOrder(fresh);
+  }, [orders, selectedOrderId]);
   const {
     statuses,
     refetch: refetchStatuses,
