@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ServiceOrder } from '@/types/serviceOrder';
+import { ServiceOrder, ServiceOrderTemplateField, fieldsShownOnPdf } from '@/types/serviceOrder';
 import { organizationNameForDocuments } from '@/lib/organizationDisplayName';
 import { fitImageInBox, loadImageForBudgetPdf } from '@/lib/budgetPdfImage';
 
@@ -46,6 +46,44 @@ function asText(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   return String(value);
+}
+
+function nonempty(value: unknown): string | null {
+  if (value === null || value === undefined || value === '' || value === '—') return null;
+  const text = typeof value === 'boolean' ? (value ? 'Sim' : 'Não') : String(value).trim();
+  return text ? text : null;
+}
+
+function valueForTemplateField(
+  order: ServiceOrder,
+  field: ServiceOrderTemplateField,
+  includeValues: boolean
+): string | null {
+  const key = field.field_key;
+  if (key === 'commission_value' && !includeValues) return null;
+
+  if (key === 'lead_id') {
+    return nonempty(
+      [order.client_name || order.lead?.name, order.client_phone || order.lead?.phone].filter(Boolean).join(' · ')
+    );
+  }
+  if (key === 'is_single_day') return order.is_single_day ? 'Um dia só' : 'Mais de um dia';
+  if (key === 'starts_at') return nonempty(formatDateTime(order.starts_at));
+  if (key === 'ends_at') return nonempty(formatDateTime(order.ends_at));
+  if (key === 'has_commission') return order.has_commission ? 'Sim' : null;
+  if (key === 'commission_value') {
+    const amount = Number(order.commission_value || 0);
+    return amount > 0 ? formatCurrency(amount) : null;
+  }
+  if (key === 'add_to_agilize_calendar') return order.add_to_agilize_calendar ? 'Sim' : 'Não';
+  if (key === 'add_to_google_calendar') return order.add_to_google_calendar ? 'Sim' : 'Não';
+
+  const direct = order as unknown as Record<string, unknown>;
+  const raw = key in direct && key !== 'custom_fields' ? direct[key] : order.custom_fields?.[key];
+  if (field.field_type === 'date') return nonempty(formatDate(raw ? String(raw) : null));
+  if (field.field_type === 'datetime') return nonempty(formatDateTime(raw ? String(raw) : null));
+  if (typeof raw === 'boolean') return raw ? 'Sim' : 'Não';
+  return nonempty(raw);
 }
 
 /**
@@ -189,6 +227,44 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     y += 8;
   }
 
+  const pdfFields = order.template?.fields?.length
+    ? fieldsShownOnPdf(order.template)
+    : [];
+
+  if (pdfFields.length > 0) {
+    const printable = pdfFields
+      .map((field) => ({
+        label: field.label,
+        value: valueForTemplateField(order, field, includeValues),
+        wide: field.field_type === 'textarea' || field.field_key === 'address',
+      }))
+      .filter((row): row is { label: string; value: string; wide: boolean } => !!row.value);
+
+    if (order.label_tag) {
+      printable.push({ label: 'Etiqueta', value: order.label_tag, wide: false });
+    }
+
+    if (printable.length > 0) {
+      sectionTitle('Dados da ordem');
+    }
+
+    let index = 0;
+    while (index < printable.length) {
+      const current = printable[index];
+      const next = printable[index + 1];
+      if (!current.wide && next && !next.wide) {
+        fieldPair([current.label, current.value], [next.label, next.value]);
+        index += 2;
+      } else if (current.wide) {
+        paragraph(current.label, current.value);
+        index += 1;
+      } else {
+        const h = field(current.label, current.value, true);
+        y += h;
+        index += 1;
+      }
+    }
+  } else {
   sectionTitle('Dados gerais');
   fieldPair(
     ['Cliente', order.client_name || order.lead?.name || '—'],
@@ -252,6 +328,7 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
         y += h;
       }
     }
+  }
   }
 
   const items = order.items || [];

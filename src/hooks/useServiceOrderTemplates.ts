@@ -329,6 +329,7 @@ export function useServiceOrderTemplates() {
       is_standard: true,
       is_required: f.is_required,
       is_visible: true,
+      include_in_pdf: f.include_in_pdf !== false,
       placeholder: f.placeholder || null,
       sort_order: f.sort_order,
       section: f.section,
@@ -467,6 +468,7 @@ export function useServiceOrderTemplates() {
         is_standard: true,
         is_required: f.is_required,
         is_visible: true,
+        include_in_pdf: f.include_in_pdf !== false,
         placeholder: f.placeholder || null,
         sort_order: f.sort_order,
         section: f.section,
@@ -485,6 +487,7 @@ export function useServiceOrderTemplates() {
             is_standard: f.is_standard,
             is_required: f.is_required,
             is_visible: f.is_visible,
+            include_in_pdf: f.include_in_pdf !== false,
             placeholder: f.placeholder || null,
             sort_order: f.sort_order,
             section: f.section || 'geral',
@@ -505,6 +508,7 @@ export function useServiceOrderTemplates() {
             is_standard: false,
             is_required: cf.is_required || false,
             is_visible: true,
+            include_in_pdf: true,
             placeholder: cf.placeholder || null,
             sort_order: maxOrder + (idx + 1) * 10,
             section: cf.section || 'personalizado',
@@ -563,6 +567,7 @@ export function useServiceOrderTemplates() {
           is_standard: false,
           is_required: field.is_required || false,
           is_visible: true,
+          include_in_pdf: true,
           placeholder: field.placeholder || null,
           options: field.options || [],
           sort_order: maxOrder + 10,
@@ -585,17 +590,78 @@ export function useServiceOrderTemplates() {
     }
   };
 
-  const updateFieldVisibility = async (fieldId: string, is_visible: boolean) => {
+  const updateTemplateField = async (
+    fieldId: string,
+    patch: { is_visible?: boolean; include_in_pdf?: boolean }
+  ) => {
     try {
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { error } = await supabase
         .from('service_order_template_fields')
-        .update({ is_visible })
+        .update(patch)
         .eq('id', fieldId);
       if (error) throw error;
       await fetchTemplates();
+      return true;
     } catch (err) {
       console.error('Erro ao atualizar campo:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível atualizar o campo',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const updateFieldVisibility = async (fieldId: string, is_visible: boolean) => {
+    return updateTemplateField(fieldId, { is_visible });
+  };
+
+  const deleteTemplateField = async (fieldId: string) => {
+    try {
+      // @ts-expect-error tabela ainda nao tipada no client gerado
+      const { error } = await supabase
+        .from('service_order_template_fields')
+        .delete()
+        .eq('id', fieldId);
+      if (error) throw error;
+      toast({ title: 'Campo excluído' });
+      await fetchTemplates();
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir campo:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível excluir o campo',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const reorderTemplateFields = async (orderedIds: string[]) => {
+    try {
+      const updates = orderedIds.map((id, index) => {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        return supabase
+          .from('service_order_template_fields')
+          .update({ sort_order: (index + 1) * 10 })
+          .eq('id', id);
+      });
+      const results = await Promise.all(updates);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+      await fetchTemplates();
+      return true;
+    } catch (err) {
+      console.error('Erro ao reordenar campos:', err);
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Não foi possível reordenar os campos',
+        variant: 'destructive',
+      });
+      return false;
     }
   };
 
@@ -640,6 +706,9 @@ export function useServiceOrderTemplates() {
     createTemplate,
     addCustomField,
     updateFieldVisibility,
+    updateTemplateField,
+    deleteTemplateField,
+    reorderTemplateFields,
     deleteTemplate,
   };
 }

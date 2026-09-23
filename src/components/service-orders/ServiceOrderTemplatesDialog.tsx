@@ -19,8 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CheckSquare, Eye, EyeOff, FileText, Plus, Trash2 } from 'lucide-react';
-import { ServiceOrderChecklistTemplateItem, ServiceOrderTemplate } from '@/types/serviceOrder';
+import { CheckSquare, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Plus, Star, Trash2 } from 'lucide-react';
+import {
+  ServiceOrderChecklistTemplateItem,
+  ServiceOrderTemplate,
+  fieldsForTemplateEditor,
+  fieldsShownOnPdf,
+} from '@/types/serviceOrder';
 import { useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { osDialogContentClass } from './osResponsive';
@@ -29,7 +34,7 @@ interface ServiceOrderTemplatesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: ServiceOrderTemplate[];
-  onTemplatesChanged?: () => void;
+  onTemplatesChanged?: () => void | Promise<unknown>;
 }
 
 export function ServiceOrderTemplatesDialog({
@@ -38,14 +43,21 @@ export function ServiceOrderTemplatesDialog({
   templates,
   onTemplatesChanged,
 }: ServiceOrderTemplatesDialogProps) {
-  const { createTemplate, addCustomField, updateFieldVisibility, deleteTemplate, refetch } =
-    useServiceOrderTemplates();
+  const {
+    createTemplate,
+    addCustomField,
+    updateTemplateField,
+    deleteTemplateField,
+    reorderTemplateFields,
+    deleteTemplate,
+    refetch,
+  } = useServiceOrderTemplates();
   const {
     checklists,
     createChecklist,
     updateChecklist,
     deleteChecklist,
-    linkedIdsForTemplate,
+    linksForTemplate,
     setTemplateLinks,
     refetch: refetchChecklists,
   } = useServiceOrderChecklists();
@@ -57,7 +69,7 @@ export function ServiceOrderTemplatesDialog({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newFieldLabel, setNewFieldLabel] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
-  const [linkedIds, setLinkedIds] = useState<string[]>([]);
+  const [linked, setLinked] = useState<Array<{ id: string; isDefault: boolean }>>([]);
 
   const [clName, setClName] = useState('');
   const [clDescription, setClDescription] = useState('');
@@ -71,10 +83,17 @@ export function ServiceOrderTemplatesDialog({
 
   useEffect(() => {
     if (!selected?.id) {
-      setLinkedIds([]);
+      setLinked([]);
       return;
     }
-    linkedIdsForTemplate(selected.id).then(setLinkedIds);
+    linksForTemplate(selected.id).then((rows) =>
+      setLinked(
+        rows.map((row) => ({
+          id: row.checklist_template_id,
+          isDefault: !!row.is_default,
+        }))
+      )
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, checklists.length]);
 
@@ -96,14 +115,37 @@ export function ServiceOrderTemplatesDialog({
     }
   };
 
-  const toggleLink = async (checklistId: string) => {
+  const persistLinks = async (next: Array<{ id: string; isDefault: boolean }>) => {
     if (!selected) return;
-    const next = linkedIds.includes(checklistId)
-      ? linkedIds.filter((id) => id !== checklistId)
-      : [...linkedIds, checklistId];
-    setLinkedIds(next);
-    const ok = await setTemplateLinks(selected.id, next);
-    if (!ok) setLinkedIds(linkedIds);
+    const previous = linked;
+    const normalized =
+      next.length > 0 && !next.some((item) => item.isDefault)
+        ? next.map((item, index) => ({ ...item, isDefault: index === 0 }))
+        : next;
+    setLinked(normalized);
+    const ok = await setTemplateLinks(
+      selected.id,
+      normalized.map((item) => item.id),
+      normalized.find((item) => item.isDefault)?.id ?? null
+    );
+    if (!ok) setLinked(previous);
+  };
+
+  const toggleLink = (checklistId: string) => {
+    const exists = linked.some((item) => item.id === checklistId);
+    const next = exists
+      ? linked.filter((item) => item.id !== checklistId)
+      : [...linked, { id: checklistId, isDefault: false }];
+    persistLinks(next);
+  };
+
+  const markDefaultChecklist = (checklistId: string) => {
+    persistLinks(linked.map((item) => ({ ...item, isDefault: item.id === checklistId })));
+  };
+
+  const refreshTemplates = async () => {
+    await refetch();
+    await onTemplatesChanged?.();
   };
 
   const saveChecklist = async () => {
@@ -159,7 +201,7 @@ export function ServiceOrderTemplatesDialog({
         <DialogHeader>
           <DialogTitle className="pr-8">Modelos e checklists</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Monte o formulário da OS e associe checklists. Cada checklist pode entrar ou não no PDF.
+            Defina quais campos entram no formulário, quais saem no PDF e em que ordem. O checklist do modelo aparece na prévia.
           </p>
         </DialogHeader>
 
@@ -188,11 +230,9 @@ export function ServiceOrderTemplatesDialog({
                       {t.is_default && <Badge variant="secondary">Padrão</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {(t.fields || []).filter(
-                        (f) =>
-                          f.is_visible &&
-                          !(t.is_default && (f.field_key === 'equipment_serial' || f.field_key === 'equipment_conditions'))
-                      ).length} campos
+                      {fieldsForTemplateEditor(t).filter((f) => f.is_visible).length} campos no formulário
+                      {' · '}
+                      {fieldsShownOnPdf(t).length} no PDF
                     </p>
                   </button>
                 ))}
@@ -253,38 +293,112 @@ export function ServiceOrderTemplatesDialog({
                   )}
                 </div>
 
-                <div className="rounded-xl border divide-y max-h-56 overflow-y-auto">
-                  {(selected.fields || [])
-                    .filter(
-                      (f) =>
-                        !(
-                          selected.is_default &&
-                          (f.field_key === 'equipment_serial' || f.field_key === 'equipment_conditions')
-                        )
-                    )
-                    .map((f) => (
-                    <div key={f.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                      <div className="min-w-0">
-                        <p className={`text-sm font-medium truncate ${f.is_visible ? '' : 'text-muted-foreground'}`}>
-                          {f.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {f.is_standard ? 'Padrão' : 'Personalizado'} · {f.field_type}
-                        </p>
+                <div className="rounded-xl border bg-slate-50 px-3 py-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                  <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> No formulário</span>
+                  <span className="inline-flex items-center gap-1"><EyeOff className="h-3.5 w-3.5" /> Oculto na OS</span>
+                  <span className="inline-flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Sai no PDF</span>
+                  <span>Uso interno = só na tela, fora do PDF</span>
+                </div>
+
+                <div className="rounded-xl border divide-y max-h-80 overflow-y-auto">
+                  {fieldsForTemplateEditor(selected).map((f, index, list) => {
+                    return (
+                      <div key={f.id} className={`px-3 py-2 space-y-2 ${f.is_visible ? '' : 'bg-muted/40'}`}>
+                        <div className="flex items-start gap-2">
+                          <div className="flex flex-col">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              disabled={index === 0}
+                              onClick={async () => {
+                                const ordered = list.map((field) => field.id);
+                                const [moved] = ordered.splice(index, 1);
+                                ordered.splice(index - 1, 0, moved);
+                                await reorderTemplateFields(ordered);
+                                await refreshTemplates();
+                              }}
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              disabled={index === list.length - 1}
+                              onClick={async () => {
+                                const ordered = list.map((field) => field.id);
+                                const [moved] = ordered.splice(index, 1);
+                                ordered.splice(index + 1, 0, moved);
+                                await reorderTemplateFields(ordered);
+                                await refreshTemplates();
+                              }}
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm font-medium truncate ${f.is_visible ? '' : 'text-muted-foreground line-through'}`}>
+                              {index + 1}. {f.label}
+                            </p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              <Badge variant="outline">{f.is_standard ? 'Padrão' : 'Personalizado'}</Badge>
+                              <Badge variant={f.is_visible ? 'secondary' : 'outline'}>
+                                {f.is_visible ? 'No formulário' : 'Oculto'}
+                              </Badge>
+                              <Badge variant={f.include_in_pdf === false ? 'outline' : 'default'}>
+                                {f.include_in_pdf === false ? 'Uso interno' : 'No PDF'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 pl-9">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              await updateTemplateField(f.id, { is_visible: !f.is_visible });
+                              await refreshTemplates();
+                            }}
+                          >
+                            {f.is_visible ? <EyeOff className="h-3.5 w-3.5 mr-1" /> : <Eye className="h-3.5 w-3.5 mr-1" />}
+                            {f.is_visible ? 'Ocultar' : 'Reativar'}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={f.include_in_pdf === false ? 'outline' : 'secondary'}
+                            onClick={async () => {
+                              await updateTemplateField(f.id, { include_in_pdf: f.include_in_pdf === false });
+                              await refreshTemplates();
+                            }}
+                          >
+                            <FileText className="h-3.5 w-3.5 mr-1" />
+                            {f.include_in_pdf === false ? 'Incluir no PDF' : 'Deixar interno'}
+                          </Button>
+                          {!f.is_standard && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={async () => {
+                                if (!window.confirm(`Excluir o campo "${f.label}" deste modelo?`)) return;
+                                await deleteTemplateField(f.id);
+                                await refreshTemplates();
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Excluir
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={async () => {
-                          await updateFieldVisibility(f.id, !f.is_visible);
-                          onTemplatesChanged?.();
-                        }}
-                      >
-                        {f.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="grid sm:grid-cols-[1fr_140px_auto] gap-2 items-end">
@@ -314,47 +428,106 @@ export function ServiceOrderTemplatesDialog({
                         field_type: newFieldType,
                       });
                       setNewFieldLabel('');
-                      await refetch();
-                      onTemplatesChanged?.();
+                      await refreshTemplates();
                     }}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
 
-                <div className="rounded-xl border p-3 space-y-2">
-                  <p className="text-sm font-semibold flex items-center gap-2">
-                    <CheckSquare className="h-4 w-4" />
-                    Checklists deste modelo
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Ao criar uma OS com este modelo, estes itens entram automaticamente.
-                  </p>
+                <div className="rounded-xl border p-3 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      <CheckSquare className="h-4 w-4" />
+                      Checklist deste modelo
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Os checklists vinculados entram na nova OS. O padrão é o checklist principal deste modelo.
+                      {' '}
+                      {linked.length === 0
+                        ? 'Nenhum checklist vinculado e nenhum padrão definido.'
+                        : linked.some((item) => item.isDefault)
+                          ? `Padrão: ${checklists.find((c) => c.id === linked.find((item) => item.isDefault)?.id)?.name || 'definido'}.`
+                          : 'Nenhum checklist marcado como padrão.'}
+                    </p>
+                  </div>
                   {checklists.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Crie um checklist na aba ao lado.</p>
                   ) : (
                     <div className="space-y-2">
-                      {checklists.map((c) => (
-                        <label
-                          key={c.id}
-                          className="flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={linkedIds.includes(c.id)}
-                            onChange={() => toggleLink(c.id)}
-                          />
-                          <span className="flex-1 min-w-0">
-                            <span className="text-sm font-medium block truncate">{c.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {c.items.length} itens
-                              {c.include_in_pdf ? ' · sai no PDF' : ' · não sai no PDF'}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
+                      {checklists.map((c) => {
+                        const link = linked.find((item) => item.id === c.id);
+                        const onPdf = c.include_in_pdf !== false;
+                        return (
+                          <div key={c.id} className={`rounded-lg border px-3 py-2 space-y-2 ${link ? 'border-primary/40 bg-primary/5' : ''}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{c.name}</p>
+                                <p className="text-xs text-muted-foreground">{c.items.length} itens</p>
+                              </div>
+                              <div className="flex flex-wrap justify-end gap-1">
+                                <Badge variant={link ? 'default' : 'outline'}>{link ? 'Vinculado' : 'Não vinculado'}</Badge>
+                                {link?.isDefault && (
+                                  <Badge className="bg-amber-500 hover:bg-amber-500">
+                                    <Star className="h-3 w-3 mr-1" />
+                                    Padrão
+                                  </Badge>
+                                )}
+                                <Badge variant={onPdf ? 'secondary' : 'outline'}>{onPdf ? 'No PDF' : 'Fora do PDF'}</Badge>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="button" size="sm" variant={link ? 'secondary' : 'outline'} onClick={() => toggleLink(c.id)}>
+                                {link ? 'Desvincular' : 'Vincular ao modelo'}
+                              </Button>
+                              {link && !link.isDefault && (
+                                <Button type="button" size="sm" variant="outline" onClick={() => markDefaultChecklist(c.id)}>
+                                  <Star className="h-3.5 w-3.5 mr-1" />
+                                  Definir como padrão
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={async () => {
+                                  await updateChecklist(c.id, { include_in_pdf: !onPdf });
+                                  await refetchChecklists();
+                                }}
+                              >
+                                <FileText className="h-3.5 w-3.5 mr-1" />
+                                {onPdf ? 'Tirar do PDF' : 'Colocar no PDF'}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
+                </div>
+
+                <div className="rounded-xl border p-3 space-y-2">
+                  <p className="text-sm font-semibold">Prévia do PDF</p>
+                  <ol className="text-sm space-y-1 list-decimal pl-4">
+                    {fieldsShownOnPdf(selected).length === 0 && (
+                      <li className="list-none -ml-4 text-muted-foreground">Nenhum campo marcado para o PDF.</li>
+                    )}
+                    {fieldsShownOnPdf(selected).map((field) => (
+                      <li key={field.id}>{field.label}</li>
+                    ))}
+                    {linked.map((item) => {
+                      const checklist = checklists.find((c) => c.id === item.id);
+                      if (!checklist) return null;
+                      const onPdf = checklist.include_in_pdf !== false;
+                      return (
+                        <li key={item.id} className={onPdf ? '' : 'text-muted-foreground'}>
+                          Checklist: {checklist.name}
+                          {item.isDefault ? ' (padrão)' : ''}
+                          {onPdf ? '' : ' — uso interno, fora do PDF'}
+                        </li>
+                      );
+                    })}
+                  </ol>
                 </div>
               </div>
             ) : (

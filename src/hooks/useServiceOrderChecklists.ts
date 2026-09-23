@@ -131,18 +131,38 @@ export function useServiceOrderChecklists() {
     return true;
   };
 
-  const linkedIdsForTemplate = async (templateId: string): Promise<string[]> => {
+  const linksForTemplate = async (
+    templateId: string
+  ): Promise<Array<{ checklist_template_id: string; is_default: boolean }>> => {
     // @ts-expect-error tabela ainda nao tipada no client gerado
     const { data, error } = await supabase
       .from('service_order_template_checklists')
-      .select('checklist_template_id')
+      .select('checklist_template_id, is_default')
       .eq('template_id', templateId);
     if (error) return [];
-    return ((data || []) as Array<{ checklist_template_id: string }>).map((r) => r.checklist_template_id);
+    return (data || []) as Array<{ checklist_template_id: string; is_default: boolean }>;
   };
 
-  const setTemplateLinks = async (templateId: string, checklistIds: string[]) => {
+  const linkedIdsForTemplate = async (templateId: string): Promise<string[]> => {
+    const rows = await linksForTemplate(templateId);
+    return rows.map((r) => r.checklist_template_id);
+  };
+
+  const setTemplateLinks = async (
+    templateId: string,
+    checklistIds: string[],
+    defaultChecklistId?: string | null
+  ) => {
     if (!activeOrgId) return false;
+
+    let keepDefault = defaultChecklistId;
+    if (defaultChecklistId === undefined) {
+      const current = await linksForTemplate(templateId);
+      const marked = current.find((row) => row.is_default)?.checklist_template_id || null;
+      keepDefault = marked && checklistIds.includes(marked) ? marked : null;
+    }
+    if (keepDefault && !checklistIds.includes(keepDefault)) keepDefault = null;
+
     // @ts-expect-error tabela ainda nao tipada no client gerado
     const { error: delError } = await supabase
       .from('service_order_template_checklists')
@@ -157,6 +177,7 @@ export function useServiceOrderChecklists() {
       template_id: templateId,
       checklist_template_id,
       organization_id: activeOrgId,
+      is_default: checklist_template_id === keepDefault,
     }));
     // @ts-expect-error tabela ainda nao tipada no client gerado
     const { error } = await supabase.from('service_order_template_checklists').insert(rows);
@@ -194,6 +215,7 @@ export function useServiceOrderChecklists() {
     updateChecklist,
     deleteChecklist,
     linkedIdsForTemplate,
+    linksForTemplate,
     setTemplateLinks,
     itemsForTemplates,
   };

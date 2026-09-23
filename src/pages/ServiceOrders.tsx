@@ -666,9 +666,7 @@ export default function ServiceOrders() {
         onOpenChange={setShowTemplates}
         templates={templates}
         onTemplatesChanged={() => {
-          refetchTemplates();
-          refetchStatuses();
-          refetch();
+          return Promise.all([refetchTemplates(), refetchStatuses(), refetch()]);
         }}
       />
 

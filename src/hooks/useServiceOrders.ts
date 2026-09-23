@@ -49,7 +49,10 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
           `
           *,
           status:service_order_statuses(*),
-          template:service_order_templates(id, name, is_default),
+          template:service_order_templates(
+            id, name, is_default,
+            fields:service_order_template_fields(*)
+          ),
           lead:leads(id, name, phone, email, company),
           items:service_order_items(*),
           checklist:service_order_checklist_items(*)

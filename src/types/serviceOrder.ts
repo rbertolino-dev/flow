@@ -54,6 +54,8 @@ export interface ServiceOrderTemplateField {
   default_value?: string | null;
   sort_order: number;
   section?: string | null;
+  /** false = uso interno, não entra no PDF */
+  include_in_pdf?: boolean;
   created_at: string;
 }
 
@@ -230,6 +232,7 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   section: string;
   sort_order: number;
   placeholder?: string;
+  include_in_pdf?: boolean;
 }> = [
   { field_key: 'lead_id', label: 'Contato / Cliente', field_type: 'lead', is_required: true, section: 'pessoas', sort_order: 10 },
   { field_key: 'responsible_name', label: 'Responsável', field_type: 'user', is_required: false, section: 'pessoas', sort_order: 20 },
@@ -245,9 +248,26 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   { field_key: 'diagnosis', label: 'Diagnóstico/Problema', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 140 },
   { field_key: 'solution', label: 'Solução/Instrução', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 150 },
   { field_key: 'warranty_terms', label: 'Termo de garantia (opcional)', field_type: 'textarea', is_required: false, section: 'garantia', sort_order: 160 },
-  { field_key: 'add_to_agilize_calendar', label: 'Adicionar à Agenda Agilize', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 170 },
-  { field_key: 'add_to_google_calendar', label: 'Adicionar ao Google Agenda', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 180 },
+  { field_key: 'add_to_agilize_calendar', label: 'Adicionar à Agenda Agilize', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 170, include_in_pdf: false },
+  { field_key: 'add_to_google_calendar', label: 'Adicionar ao Google Agenda', field_type: 'boolean', is_required: false, section: 'integracao', sort_order: 180, include_in_pdf: false },
 ];
+
+const HIDDEN_ON_DEFAULT_TEMPLATE = new Set(['equipment_serial', 'equipment_conditions']);
+
+export function fieldsForTemplateEditor(
+  template: Pick<ServiceOrderTemplate, 'is_default' | 'fields'>
+): ServiceOrderTemplateField[] {
+  return (template.fields || [])
+    .filter((f) => !(template.is_default && HIDDEN_ON_DEFAULT_TEMPLATE.has(f.field_key)))
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
+
+export function fieldsShownOnPdf(
+  template: Pick<ServiceOrderTemplate, 'is_default' | 'fields'>
+): ServiceOrderTemplateField[] {
+  return fieldsForTemplateEditor(template).filter((f) => f.is_visible && f.include_in_pdf !== false);
+}
 
 export const DEFAULT_STATUSES: Array<{
   name: string;
