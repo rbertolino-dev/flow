@@ -81,6 +81,7 @@ export function useProducts(options?: { enabled?: boolean }) {
         cost: item.cost,
         category: item.category,
         sku: item.sku,
+        barcode: item.barcode,
         stock_quantity: item.stock_quantity,
         min_stock: item.min_stock,
         unit: item.unit,

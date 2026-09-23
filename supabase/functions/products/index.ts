@@ -15,6 +15,7 @@ interface Product {
   name: string;
   description?: string | null;
   sku?: string | null;
+  barcode?: string | null;
   price: number;
   cost?: number | null;
   category?: string | null;
@@ -323,7 +324,7 @@ serve(async (req) => {
 
           if (search) {
             paramCount++;
-            query += ` AND (name ILIKE $${paramCount} OR description ILIKE $${paramCount} OR sku ILIKE $${paramCount})`;
+            query += ` AND (name ILIKE $${paramCount} OR description ILIKE $${paramCount} OR sku ILIKE $${paramCount} OR COALESCE(barcode,'') ILIKE $${paramCount})`;
             params.push(`%${search}%`);
           }
 
@@ -366,6 +367,7 @@ serve(async (req) => {
           name,
           description,
           sku,
+          barcode,
           price,
           cost,
           category,
@@ -420,6 +422,7 @@ serve(async (req) => {
             name,
             description,
             sku,
+            barcode,
             price,
             cost,
             category,
@@ -433,7 +436,7 @@ serve(async (req) => {
             created_by,
             created_by_name
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+            $1, $2, $3, $4, $5, $18, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
           ) RETURNING *
         `;
 
@@ -455,6 +458,7 @@ serve(async (req) => {
           commission_fixed || null,
           user.id,
           userName,
+          barcode || null,
         ];
 
         const result = await client.queryObject<Product>(insertQuery, insertParams);
@@ -534,7 +538,7 @@ serve(async (req) => {
         let paramCount = 0;
 
         const allowedFields = [
-          'name', 'description', 'sku', 'price', 'cost', 'category',
+          'name', 'description', 'sku', 'barcode', 'price', 'cost', 'category',
           'is_active', 'stock_quantity', 'min_stock', 'unit', 'image_url',
           'commission_percentage', 'commission_fixed'
         ];

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -40,12 +33,12 @@ import {
   Search,
   Package,
   Trash2,
-  ShoppingCart,
   ScanBarcode,
   Loader2,
   UserPlus,
   X,
   Wrench,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +88,10 @@ export default function Pos() {
   const [exactSearch, setExactSearch] = useState(false);
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [createServiceOpen, setCreateServiceOpen] = useState(false);
+  const [barcodeMode, setBarcodeMode] = useState(false);
+  const [scannedIds, setScannedIds] = useState<string[]>([]);
+  const [barcodeDraft, setBarcodeDraft] = useState("");
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<PosCartItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
@@ -110,7 +107,6 @@ export default function Pos() {
   const [createClientOpen, setCreateClientOpen] = useState(false);
 
   const [orgMembers, setOrgMembers] = useState<OrgMemberOption[]>([]);
-  const [cartOpen, setCartOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [lastSale, setLastSale] = useState<FinalizeSaleResult | null>(null);
@@ -208,20 +204,26 @@ export default function Pos() {
 
   const filteredProducts = useMemo(() => {
     const active = products.filter((p) => p.is_active);
+    if (barcodeMode) {
+      const order = new Map(scannedIds.map((id, i) => [id, i]));
+      return active
+        .filter((p) => order.has(p.id))
+        .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    }
     const q = search.trim().toLowerCase();
     if (!q) return active;
     return active.filter((p) => {
-      const hay = `${p.name} ${p.sku || ""} ${p.category || ""}`.toLowerCase();
+      const hay = `${p.name} ${p.sku || ""} ${p.barcode || ""} ${p.category || ""}`.toLowerCase();
       if (exactSearch) {
         return (
           p.name.toLowerCase() === q ||
           (p.sku || "").toLowerCase() === q ||
-          (p.sku || "").toLowerCase().includes(q)
+          (p.barcode || "").toLowerCase() === q
         );
       }
       return hay.includes(q);
     });
-  }, [products, search, exactSearch]);
+  }, [products, search, exactSearch, barcodeMode, scannedIds]);
 
   const filteredServices = useMemo(() => {
     const active = services.filter((s) => s.is_active);
@@ -368,6 +370,47 @@ export default function Pos() {
     setCart((prev) => prev.filter((i) => i.key !== key));
   };
 
+  const updateCartItem = (
+    key: string,
+    patch: Partial<Pick<PosCartItem, "quantity" | "unit_price" | "discount_amount">>
+  ) => {
+    setCart((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  };
+
+  useEffect(() => {
+    if (barcodeMode) barcodeInputRef.current?.focus();
+  }, [barcodeMode]);
+
+  const handleBarcodeScan = (raw: string) => {
+    const code = raw.trim();
+    if (!code) return;
+    const norm = code.replace(/\s/g, "").toLowerCase();
+    const product = products.find((p) => {
+      const barcode = (p.barcode || "").replace(/\s/g, "").toLowerCase();
+      const sku = (p.sku || "").replace(/\s/g, "").toLowerCase();
+      return barcode === norm || sku === norm;
+    });
+    if (!product) {
+      toast({
+        title: "Código não encontrado",
+        description: `Nenhum produto com código ${code}`,
+        variant: "destructive",
+      });
+      setBarcodeDraft("");
+      return;
+    }
+    setScannedIds((prev) => (prev.includes(product.id) ? prev : [...prev, product.id]));
+    pushProductToCart({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      unit: product.unit,
+      price: Number(product.price),
+      stock_quantity: product.stock_quantity,
+    });
+    setBarcodeDraft("");
+  };
+
   const addPayment = () => {
     if (!paymentMethodDraft || total <= 0) return;
     const remaining = Math.max(0, total - paymentsSum);
@@ -398,6 +441,8 @@ export default function Pos() {
     setSelectedLead(null);
     setLeadQuery("");
     setSearch("");
+    setBarcodeDraft("");
+    setScannedIds([]);
   };
 
   const openConfirmDialog = () => {
@@ -594,7 +639,7 @@ export default function Pos() {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_380px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_494px]">
           <div className="flex min-h-0 flex-col border-r">
             <Tabs
               value={catalogTab}
@@ -661,7 +706,11 @@ export default function Pos() {
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : filteredProducts.length === 0 ? (
-                  <p className="p-6 text-sm text-muted-foreground">Nenhum produto encontrado.</p>
+                  <p className="p-6 text-sm text-muted-foreground">
+                    {barcodeMode
+                      ? "Modo código de barras ativo. Bipe um produto para ele aparecer aqui."
+                      : "Nenhum produto encontrado."}
+                  </p>
                 ) : (
                   <ul className="divide-y">
                     {filteredProducts.map((p) => (
@@ -724,43 +773,150 @@ export default function Pos() {
             </Tabs>
           </div>
 
-          <div className="flex min-h-0 flex-col bg-muted/20">
+          <div className="flex min-h-0 flex-col bg-background">
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="text-lg font-semibold">Resumo</h2>
-              <ScanBarcode className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold">Resumo</h2>
+              <Button
+                type="button"
+                variant={barcodeMode ? "default" : "outline"}
+                size="icon"
+                title={
+                  barcodeMode
+                    ? "Sair do modo código de barras"
+                    : "Ler código de barras — a lista some e só aparecem os produtos bipados"
+                }
+                aria-label="Leitor de código de barras"
+                onClick={() => {
+                  setBarcodeMode((v) => !v);
+                  setCatalogTab("products");
+                }}
+              >
+                <ScanBarcode className="h-5 w-5" />
+              </Button>
             </div>
 
-            <div className="space-y-3 overflow-y-auto p-4">
-              <div className="rounded-lg bg-primary px-4 py-3 text-primary-foreground">
-                <div className="flex justify-between text-sm opacity-90">
-                  <span>Subtotal</span>
-                  <span>{formatMoney(subtotal)}</span>
-                </div>
-                <div className="mt-1 flex items-center justify-between text-sm opacity-90">
-                  <span>Desconto</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={discount || ""}
-                    onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-                    className="h-7 w-24 border-primary-foreground/30 bg-primary-foreground/10 text-right text-primary-foreground"
-                  />
-                </div>
-                <div className="mt-2 flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span>{formatMoney(total)}</span>
-                </div>
+            {barcodeMode && (
+              <div className="border-b px-4 py-2">
+                <Input
+                  ref={barcodeInputRef}
+                  placeholder="Bipe o código de barras"
+                  value={barcodeDraft}
+                  onChange={(e) => setBarcodeDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleBarcodeScan(barcodeDraft);
+                    }
+                  }}
+                />
               </div>
+            )}
 
-              <Button
-                variant="secondary"
-                className="w-full bg-teal-600 text-white hover:bg-teal-700"
-                onClick={() => setCartOpen(true)}
-              >
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Itens Inventário {cart.length}
-              </Button>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              {cart.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Clique em um produto ou serviço para adicionar ao resumo.
+                </p>
+              ) : (
+                <ul className="space-y-4">
+                  {cart.map((item) => {
+                    const lineTotal = item.quantity * item.unit_price - item.discount_amount;
+                    return (
+                      <li key={item.key} className="border-b pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-semibold leading-snug">
+                            {item.name}
+                            <span className="font-normal text-muted-foreground">
+                              {" "}
+                              - {item.unit || "Un"}
+                            </span>
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-semibold tabular-nums">
+                              {formatMoney(lineTotal)}
+                            </span>
+                            <Pencil className="h-4 w-4 text-sky-600" />
+                            <button type="button" onClick={() => removeCartItem(item.key)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Valor unit:</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="h-8"
+                              value={item.unit_price}
+                              onChange={(e) =>
+                                updateCartItem(item.key, {
+                                  unit_price: Math.max(0, Number(e.target.value) || 0),
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Qnt:</Label>
+                            <Input
+                              type="number"
+                              min={0.001}
+                              step="1"
+                              className="h-8"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateCartQty(item.key, Number(e.target.value) || 0)
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Desconto:</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="h-8"
+                              placeholder="Digite"
+                              value={item.discount_amount || ""}
+                              onChange={(e) =>
+                                updateCartItem(item.key, {
+                                  discount_amount: Math.max(0, Number(e.target.value) || 0),
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {cart.length > 0 && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-red-600 text-white hover:bg-red-700"
+                    onClick={() => setCart([])}
+                  >
+                    Limpar Tudo
+                  </Button>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Desconto geral</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={discount || ""}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+                  placeholder="0,00"
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Formas de pagamento</Label>
@@ -844,73 +1000,35 @@ export default function Pos() {
               </div>
             </div>
 
-            <div className="mt-auto border-t p-4">
-              <Button
-                className="w-full"
-                size="lg"
-                disabled={!canOpenConfirm}
-                onClick={openConfirmDialog}
-              >
-                Finalizar
-              </Button>
-              {!selectedLead && cart.length > 0 && (
-                <p className="mt-2 text-center text-xs text-destructive">
-                  Selecione ou crie um cliente da organização para continuar
-                </p>
-              )}
+            <div className="mt-auto">
+              <div className="flex items-center justify-between bg-blue-700 px-4 py-3 text-white">
+                <span className="font-semibold">Subtotal:</span>
+                <span className="text-2xl font-bold tabular-nums">
+                  {total.toLocaleString("pt-BR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className="border-t p-4">
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={!canOpenConfirm}
+                  onClick={openConfirmDialog}
+                >
+                  Finalizar
+                </Button>
+                {!selectedLead && cart.length > 0 && (
+                  <p className="mt-2 text-center text-xs text-destructive">
+                    Selecione ou crie um cliente da organização para continuar
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Itens da venda ({cart.length})</DialogTitle>
-          </DialogHeader>
-          {cart.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum item no carrinho.</p>
-          ) : (
-            <ul className="max-h-[50vh] space-y-3 overflow-y-auto">
-              {cart.map((item) => (
-                <li key={item.key} className="flex items-start justify-between gap-2 border-b pb-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatMoney(item.unit_price)} / {item.unit || "un"}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0.001}
-                        step="1"
-                        className="h-8 w-20"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateCartQty(item.key, Number(e.target.value) || 0)
-                        }
-                      />
-                      <span className="text-sm font-medium">
-                        {formatMoney(item.quantity * item.unit_price - item.discount_amount)}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeCartItem(item.key)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setCartOpen(false)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {activeOrgId && (
         <PosCreateClientDialog

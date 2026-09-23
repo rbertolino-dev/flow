@@ -47,14 +47,8 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.humanClick(productBtn);
     await human.randomDelay(300, 600);
 
-    const cartBtn = page.getByRole("button", { name: /itens inventário/i });
-    await expect(cartBtn).toContainText(/1/);
-
-    await human.humanClick(cartBtn);
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByText(/itens da venda/i)).toBeVisible();
-    await human.hesitate(300, 600);
-    await human.humanClick(page.getByRole("button", { name: /^fechar$/i }));
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible();
+    await expect(page.getByText(/valor unit/i).first()).toBeVisible({ timeout: 10_000 });
 
     // Cliente da organização (obrigatório) — cria se necessário
     const clientInput = page.getByPlaceholder(/buscar cliente da organização/i);
@@ -119,7 +113,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByRole("button", { name: /imprimir comprovante a4/i })).toBeVisible();
 
     await human.humanClick(page.getByRole("button", { name: /nova venda/i }));
-    await expect(page.getByRole("button", { name: /itens inventário\s*0/i })).toBeVisible({
+    await expect(page.getByText(/clique em um produto ou serviço/i)).toBeVisible({
       timeout: 15_000,
     });
 

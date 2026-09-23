@@ -8,6 +8,7 @@ export interface Product {
   cost?: number | null;
   category: string;
   sku?: string | null;
+  barcode?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
   unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)
@@ -30,6 +31,7 @@ export interface ProductFormData {
   cost?: number | null;
   category: string;
   sku?: string | null;
+  barcode?: string | null;
   stock_quantity?: number | null;
   min_stock?: number | null;
   unit?: string | null; // Unidade de medida (ex: un, kg, m, m², etc.)

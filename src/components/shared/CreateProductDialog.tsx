@@ -55,6 +55,7 @@ export function CreateProductDialog({
     price: '',
     category: defaultCategory || '',
     unit: '',
+    barcode: '',
     image_url: '' as string | null,
   });
 
@@ -67,6 +68,7 @@ export function CreateProductDialog({
         price: '',
         category: defaultCategory || '',
         unit: '',
+        barcode: '',
         image_url: null,
       });
       setImagePreview(null);
@@ -146,6 +148,7 @@ export function CreateProductDialog({
         price: price,
         category: formData.category.trim() || 'Produto',
         unit: formData.unit.trim() || null,
+        barcode: formData.barcode.trim() || null,
         image_url: formData.image_url || null,
         is_active: true,
       });
@@ -160,6 +163,7 @@ export function CreateProductDialog({
         price: '',
         category: defaultCategory || '',
         unit: '',
+        barcode: '',
         image_url: null,
       });
       setImagePreview(null);
@@ -258,6 +262,17 @@ export function CreateProductDialog({
               </Button>
             )}
             <p className="text-xs text-muted-foreground">JPG, PNG ou WebP.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="product-barcode">Código de barras</Label>
+            <Input
+              id="product-barcode"
+              value={formData.barcode}
+              onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+              placeholder="EAN / código bipado"
+              disabled={loading}
+            />
           </div>
 
           <div className="space-y-2">
