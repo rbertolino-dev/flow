@@ -232,8 +232,8 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   placeholder?: string;
 }> = [
   { field_key: 'lead_id', label: 'Contato / Cliente', field_type: 'lead', is_required: true, section: 'pessoas', sort_order: 10 },
-  { field_key: 'responsible_name', label: 'Responsável', field_type: 'text', is_required: false, section: 'pessoas', sort_order: 20 },
-  { field_key: 'collaborator_name', label: 'Colaborador', field_type: 'text', is_required: false, section: 'pessoas', sort_order: 30 },
+  { field_key: 'responsible_name', label: 'Responsável', field_type: 'user', is_required: false, section: 'pessoas', sort_order: 20 },
+  { field_key: 'collaborator_name', label: 'Colaborador', field_type: 'user', is_required: false, section: 'pessoas', sort_order: 30 },
   { field_key: 'service_name', label: 'Serviço', field_type: 'service', is_required: false, section: 'pessoas', sort_order: 40 },
   { field_key: 'is_single_day', label: 'Um dia só', field_type: 'boolean', is_required: false, section: 'agenda', sort_order: 50 },
   { field_key: 'starts_at', label: 'Data início', field_type: 'datetime', is_required: false, section: 'agenda', sort_order: 60 },
@@ -241,8 +241,6 @@ export const STANDARD_TEMPLATE_FIELDS: Array<{
   { field_key: 'has_commission', label: 'Ordem de Serviço com empresa comissionada', field_type: 'boolean', is_required: false, section: 'comissao', sort_order: 80 },
   { field_key: 'commission_value', label: 'Valor da Comissão', field_type: 'number', is_required: false, section: 'comissao', sort_order: 90 },
   { field_key: 'address', label: 'Endereço', field_type: 'text', is_required: false, section: 'comissao', sort_order: 100 },
-  { field_key: 'equipment_serial', label: 'Equipamento (nº de série)', field_type: 'equipment', is_required: false, section: 'equipamento', sort_order: 110 },
-  { field_key: 'equipment_conditions', label: 'Condições Atuais do Equipamento', field_type: 'text', is_required: false, section: 'equipamento', sort_order: 120, placeholder: 'Condições Atuais' },
   { field_key: 'client_report', label: 'Relato do cliente', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 130 },
   { field_key: 'diagnosis', label: 'Diagnóstico/Problema', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 140 },
   { field_key: 'solution', label: 'Solução/Instrução', field_type: 'textarea', is_required: false, section: 'descricao', sort_order: 150 },

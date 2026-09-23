@@ -188,7 +188,11 @@ export function ServiceOrderTemplatesDialog({
                       {t.is_default && <Badge variant="secondary">Padrão</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {(t.fields || []).filter((f) => f.is_visible).length} campos
+                      {(t.fields || []).filter(
+                        (f) =>
+                          f.is_visible &&
+                          !(t.is_default && (f.field_key === 'equipment_serial' || f.field_key === 'equipment_conditions'))
+                      ).length} campos
                     </p>
                   </button>
                 ))}
@@ -250,7 +254,15 @@ export function ServiceOrderTemplatesDialog({
                 </div>
 
                 <div className="rounded-xl border divide-y max-h-56 overflow-y-auto">
-                  {(selected.fields || []).map((f) => (
+                  {(selected.fields || [])
+                    .filter(
+                      (f) =>
+                        !(
+                          selected.is_default &&
+                          (f.field_key === 'equipment_serial' || f.field_key === 'equipment_conditions')
+                        )
+                    )
+                    .map((f) => (
                     <div key={f.id} className="flex items-center justify-between gap-2 px-3 py-2">
                       <div className="min-w-0">
                         <p className={`text-sm font-medium truncate ${f.is_visible ? '' : 'text-muted-foreground'}`}>

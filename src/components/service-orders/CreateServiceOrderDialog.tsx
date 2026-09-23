@@ -31,6 +31,9 @@ import {
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
 import { osDialogContentClass } from './osResponsive';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
+import { useActiveOrganization } from '@/hooks/useActiveOrganization';
+import { useServices } from '@/hooks/useServices';
+import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/types/product';
 import { Lead } from '@/types/lead';
 import { format } from 'date-fns';
@@ -68,6 +71,15 @@ const STANDARD_KEYS = new Set([
   'add_to_google_calendar',
 ]);
 
+const DEFAULT_HIDDEN_KEYS = new Set(['equipment_serial', 'equipment_conditions']);
+
+function formatLeadAddress(lead: Lead): string {
+  const cep = lead.postalCode
+    ? lead.postalCode.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')
+    : '';
+  return [lead.address, lead.neighborhood, lead.city, cep].filter(Boolean).join(', ');
+}
+
 export function CreateServiceOrderDialog({
   open,
   onOpenChange,
@@ -96,12 +108,52 @@ export function CreateServiceOrderDialog({
   const [labelTag, setLabelTag] = useState('');
   const { checklists, linkedIdsForTemplate, itemsForTemplates } = useServiceOrderChecklists();
   const appliedChecklistKey = useRef<string | null>(null);
+  const { activeOrgId } = useActiveOrganization();
+  const { activeServices } = useServices();
+  const [orgUsers, setOrgUsers] = useState<Array<{ id: string; name: string }>>([]);
 
   const template = templates.find((t) => t.id === templateId) || defaultTemplate;
   const visibleFields = useMemo(
-    () => (template?.fields || []).filter((f) => f.is_visible).sort((a, b) => a.sort_order - b.sort_order),
+    () =>
+      (template?.fields || [])
+        .filter((f) => f.is_visible)
+        .filter((f) => !(template?.is_default && DEFAULT_HIDDEN_KEYS.has(f.field_key)))
+        .sort((a, b) => a.sort_order - b.sort_order),
     [template]
   );
+
+  useEffect(() => {
+    if (!open || !activeOrgId) return;
+    let cancelled = false;
+    (async () => {
+      const { data: members, error } = await supabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', activeOrgId);
+      if (error || cancelled) return;
+      const ids = (members || []).map((m) => m.user_id).filter(Boolean);
+      if (ids.length === 0) {
+        setOrgUsers([]);
+        return;
+      }
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', ids);
+      if (cancelled) return;
+      setOrgUsers(
+        (profiles || [])
+          .map((p) => ({
+            id: p.id,
+            name: (p.full_name || p.email || 'Usuário').trim(),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeOrgId]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,8 +169,11 @@ export function CreateServiceOrderDialog({
         client_name: editingOrder.client_name || undefined,
         client_phone: editingOrder.client_phone || undefined,
         responsible_name: editingOrder.responsible_name || undefined,
+        responsible_user_id: editingOrder.responsible_user_id || undefined,
         collaborator_name: editingOrder.collaborator_name || undefined,
+        collaborator_user_id: editingOrder.collaborator_user_id || undefined,
         service_name: editingOrder.service_name || undefined,
+        service_id: editingOrder.service_id || undefined,
         starts_at: editingOrder.starts_at
           ? format(new Date(editingOrder.starts_at), "yyyy-MM-dd'T'HH:mm")
           : undefined,
@@ -235,6 +290,7 @@ export function CreateServiceOrderDialog({
                     setField('lead_id', lead.id, false);
                     setField('client_name', lead.name, false);
                     setField('client_phone', lead.phone || '', false);
+                    setField('address', formatLeadAddress(lead), false);
                     setLeadSearch(lead.name || '');
                   }}
                 >
@@ -249,6 +305,108 @@ export function CreateServiceOrderDialog({
               {form.client_name}
               {form.client_phone ? ` · ${form.client_phone}` : ''}
             </Badge>
+          )}
+        </div>
+      );
+    }
+
+    const isUserField =
+      field.field_key === 'responsible_name' ||
+      field.field_key === 'collaborator_name' ||
+      field.field_type === 'user';
+    if (isUserField) {
+      const idKey =
+        field.field_key === 'collaborator_name' ? 'collaborator_user_id' : 'responsible_user_id';
+      const storedId = !isCustom ? String((form as Record<string, unknown>)[idKey] || '') : '';
+      const storedName = String(value || '');
+      const matched =
+        orgUsers.find((u) => u.id === storedId) || orgUsers.find((u) => u.name === storedName);
+      const selectValue = matched?.id || (storedName ? '__current__' : undefined);
+
+      return (
+        <div key={field.id} className="space-y-1">
+          <Label>
+            {field.label}
+            {field.is_required && ' *'}
+          </Label>
+          <Select
+            value={selectValue}
+            onValueChange={(id) => {
+              if (id === '__current__') return;
+              const user = orgUsers.find((u) => u.id === id);
+              if (!user) return;
+              if (!isCustom && (field.field_key === 'responsible_name' || field.field_key === 'collaborator_name')) {
+                setField(idKey, user.id, false);
+              }
+              setField(field.field_key, user.name, isCustom);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um usuário da organização" />
+            </SelectTrigger>
+            <SelectContent>
+              {storedName && !matched && (
+                <SelectItem value="__current__">{storedName}</SelectItem>
+              )}
+              {orgUsers.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {orgUsers.length === 0 && (
+            <p className="text-xs text-muted-foreground">Nenhum usuário cadastrado nesta organização.</p>
+          )}
+        </div>
+      );
+    }
+
+    const isServiceField = field.field_key === 'service_name' || field.field_type === 'service';
+    if (isServiceField) {
+      const storedId = !isCustom ? String(form.service_id || '') : '';
+      const storedName = String(value || '');
+      const matched =
+        activeServices.find((s) => s.id === storedId) ||
+        activeServices.find((s) => s.name === storedName);
+      const selectValue = matched?.id || (storedName ? '__current__' : undefined);
+
+      return (
+        <div key={field.id} className="space-y-1 md:col-span-2">
+          <Label>
+            {field.label}
+            {field.is_required && ' *'}
+          </Label>
+          <Select
+            value={selectValue}
+            onValueChange={(id) => {
+              if (id === '__current__') return;
+              const service = activeServices.find((s) => s.id === id);
+              if (!service) return;
+              if (!isCustom && field.field_key === 'service_name') {
+                setField('service_id', service.id, false);
+              }
+              setField(field.field_key, service.name, isCustom);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um serviço" />
+            </SelectTrigger>
+            <SelectContent>
+              {storedName && !matched && (
+                <SelectItem value="__current__">{storedName}</SelectItem>
+              )}
+              {activeServices.map((service) => (
+                <SelectItem key={service.id} value={service.id}>
+                  {service.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {activeServices.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Nenhum serviço ativo cadastrado. Cadastre em Produtos e Serviços.
+            </p>
           )}
         </div>
       );

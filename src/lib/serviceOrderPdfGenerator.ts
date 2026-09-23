@@ -223,7 +223,7 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     );
   }
 
-  if (order.equipment_serial || order.equipment_conditions) {
+  if (order.template?.is_default === false && (order.equipment_serial || order.equipment_conditions)) {
     sectionTitle('Equipamento');
     fieldPair(
       ['Nº de série', order.equipment_serial || '—'],
