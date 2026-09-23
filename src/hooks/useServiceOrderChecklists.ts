@@ -14,8 +14,12 @@ function parseItems(raw: unknown): ServiceOrderChecklistTemplateItem[] {
     .map((item) => {
       if (typeof item === 'string') return { title: item, include_in_pdf: true };
       if (item && typeof item === 'object' && 'title' in item) {
-        const row = item as { title?: string; include_in_pdf?: boolean };
-        return { title: String(row.title || ''), include_in_pdf: row.include_in_pdf !== false };
+        const row = item as { title?: string; include_in_pdf?: boolean; response_type?: string };
+        return {
+          title: String(row.title || ''),
+          include_in_pdf: row.include_in_pdf !== false,
+          response_type: row.response_type === 'text' ? 'text' : 'checkpoint',
+        };
       }
       return null;
     })
@@ -174,6 +178,8 @@ export function useServiceOrderChecklists() {
           sort_order: rows.length * 10 + idx,
           include_in_pdf: item.include_in_pdf !== false && tpl.include_in_pdf !== false,
           checklist_template_id: tpl.id,
+          response_type: item.response_type === 'text' ? 'text' : 'checkpoint',
+          answer: '',
         });
       });
     });

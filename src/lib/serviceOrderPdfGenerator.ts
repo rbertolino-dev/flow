@@ -327,13 +327,20 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
   if (checklist.length > 0) {
     sectionTitle('Checklist');
     checklist.forEach((c) => {
-      ensureSpace(7);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
-      const mark = c.is_done ? '[X]' : '[ ]';
-      doc.text(`${mark}  ${c.title}`, margin, y);
-      y += 6;
+      if (c.response_type === 'text') {
+        const lines = doc.splitTextToSize(`${c.title}: ${c.answer?.trim() || '—'}`, maxWidth);
+        ensureSpace(lines.length * 5 + 2);
+        doc.text(lines, margin, y);
+        y += lines.length * 5 + 1;
+      } else {
+        ensureSpace(7);
+        const mark = c.is_done ? '[X]' : '[ ]';
+        doc.text(`${mark}  ${c.title}`, margin, y);
+        y += 6;
+      }
     });
     y += 2;
   }

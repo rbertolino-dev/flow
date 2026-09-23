@@ -75,6 +75,8 @@ export interface ServiceOrderItem {
   notes?: string | null;
 }
 
+export type ChecklistResponseType = 'checkpoint' | 'text';
+
 export interface ServiceOrderChecklistItem {
   id?: string;
   service_order_id?: string;
@@ -84,11 +86,15 @@ export interface ServiceOrderChecklistItem {
   sort_order: number;
   include_in_pdf?: boolean;
   checklist_template_id?: string | null;
+  /** checkpoint = marcar; text = escrever a resposta da ação */
+  response_type?: ChecklistResponseType;
+  answer?: string | null;
 }
 
 export interface ServiceOrderChecklistTemplateItem {
   title: string;
   include_in_pdf?: boolean;
+  response_type?: ChecklistResponseType;
 }
 
 export interface ServiceOrderChecklistTemplate {

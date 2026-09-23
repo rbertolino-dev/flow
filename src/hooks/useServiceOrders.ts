@@ -229,6 +229,8 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
           is_done: c.is_done || false,
           include_in_pdf: c.include_in_pdf !== false,
           checklist_template_id: c.checklist_template_id || null,
+          response_type: c.response_type === 'text' ? 'text' : 'checkpoint',
+          answer: c.answer || null,
           sort_order: c.sort_order ?? idx * 10,
         }));
         // @ts-expect-error tabela ainda nao tipada no client gerado
@@ -345,6 +347,8 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
             is_done: c.is_done || false,
             include_in_pdf: c.include_in_pdf !== false,
             checklist_template_id: c.checklist_template_id || null,
+            response_type: c.response_type === 'text' ? 'text' : 'checkpoint',
+            answer: c.answer || null,
             sort_order: c.sort_order ?? idx * 10,
           }));
           // @ts-expect-error tabela ainda nao tipada no client gerado

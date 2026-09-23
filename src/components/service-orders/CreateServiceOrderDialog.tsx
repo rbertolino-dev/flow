@@ -90,6 +90,7 @@ export function CreateServiceOrderDialog({
   const [items, setItems] = useState<ServiceOrderItem[]>([]);
   const [checklist, setChecklist] = useState<ServiceOrderChecklistItem[]>([]);
   const [newCheckItem, setNewCheckItem] = useState('');
+  const [newCheckType, setNewCheckType] = useState<'checkpoint' | 'text'>('checkpoint');
   const [leadSearch, setLeadSearch] = useState('');
   const [statusId, setStatusId] = useState(defaultStatus?.id || '');
   const [labelTag, setLabelTag] = useState('');
@@ -523,7 +524,7 @@ export function CreateServiceOrderDialog({
               )}
               <div className="flex flex-col sm:flex-row gap-2">
                 <Input
-                  placeholder="Novo item"
+                  placeholder="Nova ação"
                   value={newCheckItem}
                   onChange={(e) => setNewCheckItem(e.target.value)}
                   onKeyDown={(e) => {
@@ -535,6 +536,8 @@ export function CreateServiceOrderDialog({
                           title: newCheckItem.trim(),
                           is_done: false,
                           include_in_pdf: true,
+                          response_type: newCheckType,
+                          answer: '',
                           sort_order: prev.length * 10,
                         },
                       ]);
@@ -542,6 +545,15 @@ export function CreateServiceOrderDialog({
                     }
                   }}
                 />
+                <Select value={newCheckType} onValueChange={(v) => setNewCheckType(v as 'checkpoint' | 'text')}>
+                  <SelectTrigger className="sm:w-[150px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="checkpoint">Checkpoint</SelectItem>
+                    <SelectItem value="text">Escrever</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="secondary"
@@ -553,6 +565,8 @@ export function CreateServiceOrderDialog({
                         title: newCheckItem.trim(),
                         is_done: false,
                         include_in_pdf: true,
+                        response_type: newCheckType,
+                        answer: '',
                         sort_order: prev.length * 10,
                       },
                     ]);
@@ -563,43 +577,61 @@ export function CreateServiceOrderDialog({
                   Item
                 </Button>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {checklist.map((c, idx) => (
                   <div
                     key={`${c.title}-${idx}`}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                    className="rounded-md border px-3 py-2 text-sm space-y-2"
                   >
-                    <label className="flex items-center gap-2 flex-1 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={c.is_done}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="flex-1 min-w-0 font-medium truncate">{c.title}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {c.response_type === 'text' ? 'Escrever' : 'Checkpoint'}
+                      </span>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                        <Switch
+                          checked={c.include_in_pdf !== false}
+                          onCheckedChange={(v) => {
+                            const next = [...checklist];
+                            next[idx] = { ...next[idx], include_in_pdf: v };
+                            setChecklist(next);
+                          }}
+                        />
+                        PDF
+                      </label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setChecklist(checklist.filter((_, i) => i !== idx))}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                    {c.response_type === 'text' ? (
+                      <Input
+                        placeholder="Escreva a resposta desta ação"
+                        value={c.answer || ''}
                         onChange={(e) => {
                           const next = [...checklist];
-                          next[idx] = { ...next[idx], is_done: e.target.checked };
+                          next[idx] = { ...next[idx], answer: e.target.value };
                           setChecklist(next);
                         }}
                       />
-                      <span className="truncate">{c.title}</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                      <Switch
-                        checked={c.include_in_pdf !== false}
-                        onCheckedChange={(v) => {
-                          const next = [...checklist];
-                          next[idx] = { ...next[idx], include_in_pdf: v };
-                          setChecklist(next);
-                        }}
-                      />
-                      PDF
-                    </label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setChecklist(checklist.filter((_, i) => i !== idx))}
-                    >
-                      Remover
-                    </Button>
+                    ) : (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={c.is_done}
+                          onChange={(e) => {
+                            const next = [...checklist];
+                            next[idx] = { ...next[idx], is_done: e.target.checked };
+                            setChecklist(next);
+                          }}
+                        />
+                        Concluído
+                      </label>
+                    )}
                   </div>
                 ))}
               </div>

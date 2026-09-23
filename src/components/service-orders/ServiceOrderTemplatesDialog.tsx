@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CheckSquare, Eye, EyeOff, FileText, Plus, Trash2 } from 'lucide-react';
-import { ServiceOrderTemplate } from '@/types/serviceOrder';
+import { ServiceOrderChecklistTemplateItem, ServiceOrderTemplate } from '@/types/serviceOrder';
 import { useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { osDialogContentClass } from './osResponsive';
@@ -63,7 +63,8 @@ export function ServiceOrderTemplatesDialog({
   const [clDescription, setClDescription] = useState('');
   const [clPdf, setClPdf] = useState(true);
   const [clItem, setClItem] = useState('');
-  const [clItems, setClItems] = useState<string[]>([]);
+  const [clItemType, setClItemType] = useState<'checkpoint' | 'text'>('checkpoint');
+  const [clItems, setClItems] = useState<ServiceOrderChecklistTemplateItem[]>([]);
   const [editingChecklistId, setEditingChecklistId] = useState<string | null>(null);
 
   const selected = templates.find((t) => t.id === (selectedId || templates[0]?.id));
@@ -107,7 +108,11 @@ export function ServiceOrderTemplatesDialog({
 
   const saveChecklist = async () => {
     if (!clName.trim() || clItems.length === 0) return;
-    const items = clItems.map((title) => ({ title, include_in_pdf: clPdf }));
+    const items = clItems.map((item) => ({
+      title: item.title,
+      include_in_pdf: clPdf,
+      response_type: item.response_type === 'text' ? 'text' as const : 'checkpoint' as const,
+    }));
     if (editingChecklistId) {
       await updateChecklist(editingChecklistId, {
         name: clName.trim(),
@@ -128,6 +133,7 @@ export function ServiceOrderTemplatesDialog({
     setClPdf(true);
     setClItems([]);
     setClItem('');
+    setClItemType('checkpoint');
     setEditingChecklistId(null);
     await refetchChecklists();
   };
@@ -139,7 +145,12 @@ export function ServiceOrderTemplatesDialog({
     setClName(found.name);
     setClDescription(found.description || '');
     setClPdf(found.include_in_pdf !== false);
-    setClItems(found.items.map((i) => i.title));
+    setClItems(
+      found.items.map((i) => ({
+        title: i.title,
+        response_type: i.response_type === 'text' ? 'text' : 'checkpoint',
+      }))
+    );
   };
 
   return (
@@ -358,7 +369,12 @@ export function ServiceOrderTemplatesDialog({
                   </div>
                   <ul className="text-sm text-muted-foreground space-y-0.5">
                     {c.items.map((item) => (
-                      <li key={item.title}>• {item.title}</li>
+                      <li key={item.title}>
+                        • {item.title}{' '}
+                        <span className="text-xs">
+                          ({item.response_type === 'text' ? 'escrever' : 'checkpoint'})
+                        </span>
+                      </li>
                     ))}
                   </ul>
                   <div className="flex gap-2">
@@ -392,25 +408,34 @@ export function ServiceOrderTemplatesDialog({
                 <span className="text-sm">Incluir no PDF da ordem</span>
                 <Switch checked={clPdf} onCheckedChange={setClPdf} />
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
-                  placeholder="Item do checklist"
+                  placeholder="Ação do checklist"
                   value={clItem}
                   onChange={(e) => setClItem(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && clItem.trim()) {
                       e.preventDefault();
-                      setClItems((prev) => [...prev, clItem.trim()]);
+                      setClItems((prev) => [...prev, { title: clItem.trim(), response_type: clItemType }]);
                       setClItem('');
                     }
                   }}
                 />
+                <Select value={clItemType} onValueChange={(v) => setClItemType(v as 'checkpoint' | 'text')}>
+                  <SelectTrigger className="sm:w-[150px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="checkpoint">Checkpoint</SelectItem>
+                    <SelectItem value="text">Escrever</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => {
                     if (!clItem.trim()) return;
-                    setClItems((prev) => [...prev, clItem.trim()]);
+                    setClItems((prev) => [...prev, { title: clItem.trim(), response_type: clItemType }]);
                     setClItem('');
                   }}
                 >
@@ -420,10 +445,13 @@ export function ServiceOrderTemplatesDialog({
               <ul className="space-y-1">
                 {clItems.map((item, idx) => (
                   <li
-                    key={`${item}-${idx}`}
-                    className="flex items-center justify-between text-sm border rounded-md px-2 py-1"
+                    key={`${item.title}-${idx}`}
+                    className="flex items-center justify-between gap-2 text-sm border rounded-md px-2 py-1"
                   >
-                    <span>{item}</span>
+                    <span className="min-w-0 truncate">{item.title}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {item.response_type === 'text' ? 'Escrever' : 'Checkpoint'}
+                    </span>
                     <button
                       type="button"
                       className="text-muted-foreground"
