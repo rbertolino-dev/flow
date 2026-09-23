@@ -20,7 +20,13 @@ import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
-import type { FinalizeSaleResult, PosCartItem, PosPaymentLine } from "@/types/pos";
+import {
+  DEFAULT_POS_SETTINGS,
+  type FinalizeSaleResult,
+  type PosCartItem,
+  type PosPaymentLine,
+  type PosSettings,
+} from "@/types/pos";
 import { PosConfirmSaleDialog, type PosConfirmSaleValues } from "@/components/pos/PosConfirmSaleDialog";
 import { PosSaleSuccessDialog } from "@/components/pos/PosSaleSuccessDialog";
 import { PosCreateClientDialog } from "@/components/pos/PosCreateClientDialog";
@@ -39,6 +45,7 @@ import {
   X,
   Wrench,
   Pencil,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -92,7 +99,7 @@ export default function Pos() {
   const { products, loading: productsLoading, refetch: refetchProducts } = useProducts();
   const { services = [], loading: servicesLoading, refetch: refetchServices } =
     useServices();
-  const { loading: posLoading, finalizeSale, getOpenCashSession, openCash } =
+  const { loading: posLoading, finalizeSale, getOpenCashSession, openCash, getPosSettings } =
     usePosSales();
 
   const [catalogTab, setCatalogTab] = useState<"products" | "services">("products");
@@ -129,6 +136,8 @@ export default function Pos() {
   const [lastSaleItems, setLastSaleItems] = useState<PosCartItem[]>([]);
   const [lastSalePayments, setLastSalePayments] = useState<PosPaymentLine[]>([]);
   const [nextSaleNumberHint, setNextSaleNumberHint] = useState<string>("—");
+  const [posSettings, setPosSettings] = useState<PosSettings>(DEFAULT_POS_SETTINGS);
+  const [defaultLead, setDefaultLead] = useState<LeadOption | null>(null);
   const [orgPrintInfo, setOrgPrintInfo] = useState<{
     name?: string | null;
     cnpj?: string | null;
@@ -193,6 +202,52 @@ export default function Pos() {
   }, [activeOrgId]);
 
   useEffect(() => {
+    if (!activeOrgId) return;
+    let cancelled = false;
+    getPosSettings()
+      .then((settings) => {
+        if (!cancelled) setPosSettings(settings);
+      })
+      .catch(() => {
+        if (!cancelled) setPosSettings(DEFAULT_POS_SETTINGS);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrgId, getPosSettings]);
+
+  useEffect(() => {
+    if (posSettings.sale_notes) {
+      setNotes((current) => current || posSettings.sale_notes);
+    }
+    if (posSettings.commission_required) setAddCommission(true);
+  }, [posSettings]);
+
+  useEffect(() => {
+    if (!activeOrgId || !posSettings.default_lead_id) {
+      setDefaultLead(null);
+      return;
+    }
+    let cancelled = false;
+    void supabase
+      .from("leads")
+      .select("id, name, phone, company")
+      .eq("id", posSettings.default_lead_id)
+      .eq("organization_id", activeOrgId)
+      .is("deleted_at", null)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const lead = (data || null) as LeadOption | null;
+        setDefaultLead(lead);
+        if (lead) setSelectedLead((current) => current ?? lead);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrgId, posSettings.default_lead_id]);
+
+  useEffect(() => {
     if (!activeOrgId || leadQuery.trim().length < 2) {
       setLeadOptions([]);
       return;
@@ -219,7 +274,11 @@ export default function Pos() {
   }, [leadQuery, activeOrgId]);
 
   const filteredProducts = useMemo(() => {
-    const active = products.filter((p) => p.is_active);
+    const active = products.filter((p) => {
+      if (!p.is_active) return false;
+      if (!posSettings.block_out_of_stock) return true;
+      return Number(p.stock_quantity ?? 0) > 0;
+    });
     if (barcodeMode) {
       const order = new Map(scannedIds.map((id, i) => [id, i]));
       return active
@@ -239,7 +298,7 @@ export default function Pos() {
       }
       return hay.includes(q);
     });
-  }, [products, search, exactSearch, barcodeMode, scannedIds]);
+  }, [products, search, exactSearch, barcodeMode, scannedIds, posSettings.block_out_of_stock]);
 
   const filteredServices = useMemo(() => {
     const active = services.filter((s) => s.is_active);
@@ -401,11 +460,11 @@ export default function Pos() {
     const code = raw.trim();
     if (!code) return;
     const norm = code.replace(/\s/g, "").toLowerCase();
-    const product = products.find((p) => {
-      const barcode = (p.barcode || "").replace(/\s/g, "").toLowerCase();
-      const sku = (p.sku || "").replace(/\s/g, "").toLowerCase();
-      return barcode === norm || sku === norm;
-    });
+    const primaryField = posSettings.stock_code_field === "barcode" ? "barcode" : "sku";
+    const secondaryField = primaryField === "barcode" ? "sku" : "barcode";
+    const matchesField = (field: "barcode" | "sku") =>
+      products.find((p) => (p[field] || "").replace(/\s/g, "").toLowerCase() === norm);
+    const product = matchesField(primaryField) || matchesField(secondaryField);
     if (!product) {
       toast({
         title: "Código não encontrado",
@@ -449,12 +508,12 @@ export default function Pos() {
   const resetSale = () => {
     setCart([]);
     setDiscount(0);
-    setNotes("");
-    setAddCommission(false);
+    setNotes(posSettings.sale_notes || "");
+    setAddCommission(posSettings.commission_required);
     setCommissionUserId("");
     setPayments([]);
     setPaymentMethodDraft("");
-    setSelectedLead(null);
+    setSelectedLead(defaultLead);
     setLeadQuery("");
     setSearch("");
     setBarcodeDraft("");
@@ -471,12 +530,40 @@ export default function Pos() {
       });
       return;
     }
-    if (addCommission && !commissionUserId) {
+    if ((addCommission || posSettings.commission_required) && !commissionUserId) {
       toast({
         title: "Selecione o usuário da comissão",
         description: "Com a comissão ativa, escolha o colaborador vinculado.",
         variant: "destructive",
       });
+      return;
+    }
+    if (posSettings.simple_sale) {
+      const method = payments[0]?.method || paymentMethodDraft || "pix";
+      const dateLabel = new Date().toLocaleDateString("pt-BR");
+      const today = new Date();
+      const paymentDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      void handleConfirmSale(
+        {
+          applyStock: true,
+          generateFinancial: true,
+          saleDescription:
+            notes ||
+            (selectedLead ? `Venda - ${selectedLead.name} - ${dateLabel}` : `Venda - ${dateLabel}`),
+          paymentDate,
+          financialAccount:
+            posSettings.financial_account || activeOrganization?.name || "Conta principal",
+          financialCategory: posSettings.financial_category,
+          paymentMethod: method,
+          paymentNotes: notes,
+          splitRecurrence: false,
+        },
+        {
+          id: crypto.randomUUID(),
+          method,
+          amount: Number(total.toFixed(2)),
+        }
+      );
       return;
     }
     setNextSaleNumberHint("novo");
@@ -621,6 +708,8 @@ export default function Pos() {
         sale_description: values.saleDescription || null,
         financial_account: values.financialAccount || null,
         financial_category: values.financialCategory || null,
+        default_commission_type: posSettings.commission_type,
+        default_commission_value: posSettings.commission_value,
       });
 
       setConfirmOpen(false);
@@ -648,17 +737,29 @@ export default function Pos() {
     cart.length > 0 &&
     total >= 0 &&
     !!selectedLead &&
-    (!addCommission || !!commissionUserId) &&
+    (!(addCommission || posSettings.commission_required) || !!commissionUserId) &&
     !posLoading;
 
   return (
     <CRMLayout activeView="pdv" onViewChange={() => {}}>
       <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-          <Button variant="outline" size="sm" onClick={() => navigate("/pdv/historico")}>
-            <History className="mr-2 h-4 w-4" />
-            Histórico de vendas
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Configurações do PDV"
+              aria-label="Configurações do PDV"
+              onClick={() => navigate("/pdv/configuracoes")}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/pdv/historico")}>
+              <History className="mr-2 h-4 w-4" />
+              Histórico de vendas
+            </Button>
+          </div>
 
           <div className="relative flex min-w-[260px] max-w-lg flex-1 items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">Cliente</span>
@@ -839,7 +940,10 @@ export default function Pos() {
                           <div className="min-w-0">
                             <p className="truncate font-medium leading-snug">{p.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              Código: {p.sku || "—"}
+                              Código:{" "}
+                              {(posSettings.stock_code_field === "barcode"
+                                ? p.barcode || p.sku
+                                : p.sku || p.barcode) || "—"}
                             </p>
                             <p className={cn("text-xs", stockClass(p.stock_quantity))}>
                               {stockLabel(p.stock_quantity)}
@@ -1036,6 +1140,7 @@ export default function Pos() {
                 />
               </div>
 
+              {posSettings.show_payment_method && (
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Formas de pagamento</Label>
                 {payments.map((p) => (
@@ -1078,6 +1183,7 @@ export default function Pos() {
                   </Button>
                 </div>
               </div>
+              )}
 
               <Textarea
                 placeholder="Observações"
@@ -1091,13 +1197,20 @@ export default function Pos() {
                   <Label htmlFor="add-commission">Adicionar comissão</Label>
                   <Switch
                     id="add-commission"
-                    checked={addCommission}
+                    checked={addCommission || posSettings.commission_required}
+                    disabled={posSettings.commission_required}
                     onCheckedChange={(v) => {
+                      if (posSettings.commission_required) return;
                       setAddCommission(v);
                       if (!v) setCommissionUserId("");
                     }}
                   />
                 </div>
+                {posSettings.commission_required && (
+                  <p className="text-xs text-muted-foreground">
+                    Comissão obrigatória pela configuração do PDV.
+                  </p>
+                )}
                 {addCommission && (
                   <div className="space-y-1">
                     <Label className="text-xs">Usuário vinculado à comissão</Label>
@@ -1206,6 +1319,9 @@ export default function Pos() {
         }
         organizationName={activeOrganization?.name}
         defaultPaymentMethod={payments[0]?.method || paymentMethodDraft || "pix"}
+        defaultFinancialAccount={posSettings.financial_account}
+        defaultFinancialCategory={posSettings.financial_category}
+        defaultNotes={posSettings.sale_notes}
         loading={posLoading}
         onConfirm={(values, payment) => void handleConfirmSale(values, payment)}
       />

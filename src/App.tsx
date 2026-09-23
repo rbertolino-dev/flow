@@ -54,6 +54,7 @@ const SignContract = lazy(() => import("./pages/SignContract"));
 const Budgets = lazy(() => import("./pages/Budgets"));
 const Pos = lazy(() => import("./pages/Pos"));
 const PosSalesHistory = lazy(() => import("./pages/PosSalesHistory"));
+const PosSettings = lazy(() => import("./pages/PosSettings"));
 const ServiceOrders = lazy(() => import("./pages/ServiceOrders"));
 const Employees = lazy(() => import("./pages/Employees"));
 const PublicSurvey = lazy(() => import("./pages/PublicSurvey"));
@@ -182,6 +183,7 @@ const App = () => {
                 <Route path="/budgets" element={<Budgets />} />
                 <Route path="/pdv" element={<Pos />} />
                 <Route path="/pdv/historico" element={<PosSalesHistory />} />
+                <Route path="/pdv/configuracoes" element={<PosSettings />} />
                 <Route path="/service-orders" element={<ServiceOrders />} />
                 <Route path="/budgets-module" element={<BudgetsModule />} />
                 <Route path="/employees" element={<Employees />} />

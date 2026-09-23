@@ -158,6 +158,18 @@ serve(async (req) => {
         return json({ data: result.rows[0] ? serializeRows([result.rows[0] as Record<string, unknown>])[0] : null });
       }
 
+      if (action === "pos_settings") {
+        const result = await pg.queryObject`
+          SELECT * FROM pos_settings
+          WHERE organization_id = ${organizationId}
+          LIMIT 1
+        `;
+        const row = result.rows[0]
+          ? serializeRows([result.rows[0] as Record<string, unknown>])[0]
+          : null;
+        return json({ data: row });
+      }
+
       if (action === "get_sale") {
         const saleId = url.searchParams.get("id");
         if (!saleId) return json({ error: "id obrigatório" }, 400);
@@ -463,6 +475,52 @@ serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const postAction = body.action || action;
 
+      if (postAction === "save_pos_settings") {
+        const commissionType = body.commission_type === "fixed" ? "fixed" : "percent";
+        const stockCode = body.stock_code_field === "barcode" ? "barcode" : "sku";
+        const saved = await pg.queryObject`
+          INSERT INTO pos_settings (
+            organization_id, sale_notes, financial_account, financial_category,
+            default_lead_id, default_lead_name, simple_sale, commission_required,
+            show_payment_method, commission_type, commission_value, stock_code_field,
+            block_out_of_stock, updated_at
+          ) VALUES (
+            ${organizationId},
+            ${body.sale_notes || ""},
+            ${body.financial_account || ""},
+            ${body.financial_category || ""},
+            ${body.default_lead_id || null},
+            ${body.default_lead_name || null},
+            ${Boolean(body.simple_sale)},
+            ${Boolean(body.commission_required)},
+            ${body.show_payment_method !== false},
+            ${commissionType},
+            ${Number(body.commission_value || 0)},
+            ${stockCode},
+            ${Boolean(body.block_out_of_stock)},
+            now()
+          )
+          ON CONFLICT (organization_id) DO UPDATE SET
+            sale_notes = EXCLUDED.sale_notes,
+            financial_account = EXCLUDED.financial_account,
+            financial_category = EXCLUDED.financial_category,
+            default_lead_id = EXCLUDED.default_lead_id,
+            default_lead_name = EXCLUDED.default_lead_name,
+            simple_sale = EXCLUDED.simple_sale,
+            commission_required = EXCLUDED.commission_required,
+            show_payment_method = EXCLUDED.show_payment_method,
+            commission_type = EXCLUDED.commission_type,
+            commission_value = EXCLUDED.commission_value,
+            stock_code_field = EXCLUDED.stock_code_field,
+            block_out_of_stock = EXCLUDED.block_out_of_stock,
+            updated_at = now()
+          RETURNING *
+        `;
+        return json({
+          data: serializeRows([saved.rows[0] as Record<string, unknown>])[0],
+        });
+      }
+
       if (postAction === "open_cash") {
         const existing = await pg.queryObject`
           SELECT id FROM pos_cash_sessions
@@ -581,6 +639,13 @@ serve(async (req) => {
               const pct = Number(prod.rows[0].commission_percentage || 0);
               const fixed = Number(prod.rows[0].commission_fixed || 0);
               commissionAmount += (item.total_price * pct) / 100 + fixed * item.quantity;
+            }
+          }
+          if (commissionAmount === 0) {
+            const dtype = body.default_commission_type === "fixed" ? "fixed" : "percent";
+            const dvalue = Number(body.default_commission_value || 0);
+            if (dvalue > 0) {
+              commissionAmount = dtype === "fixed" ? dvalue : (total * dvalue) / 100;
             }
           }
         }

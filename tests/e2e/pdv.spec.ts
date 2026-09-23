@@ -239,6 +239,29 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.locator("kbd", { hasText: /^F5$/ })).toHaveCount(0);
   });
 
+  test("PDV — configurações de venda @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    await human.humanNavigate("/pdv");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({
+      timeout: 45_000,
+    });
+    await human.humanClick(page.getByRole("button", { name: /configurações do pdv/i }));
+    await expect(page.getByRole("heading", { name: /configuração de venda/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/observações da venda/i)).toBeVisible();
+    await expect(page.getByText(/cliente padrão/i)).toBeVisible();
+    await expect(page.getByText(/venda simples/i)).toBeVisible();
+    await expect(page.getByText(/comissão de venda obrigatória/i)).toBeVisible();
+    await expect(page.getByText(/registro de meio de pagamento/i)).toBeVisible();
+    await expect(page.getByText(/código do estoque padrão/i)).toBeVisible();
+    await expect(page.getByText(/bloqueio de produtos em falta/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /^salvar$/i })).toBeVisible();
+  });
+
   test("PDV histórico — caixa consolidado @human-behavior @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     const orgId = process.env.E2E_ORG_ID?.trim();

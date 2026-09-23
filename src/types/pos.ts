@@ -116,6 +116,60 @@ export interface PosCashConsolidated {
   other_entries: PosCashOtherEntry[];
 }
 
+export type PosCommissionType = "percent" | "fixed";
+export type PosStockCodeField = "sku" | "barcode";
+
+export interface PosSettings {
+  sale_notes: string;
+  financial_account: string;
+  financial_category: string;
+  default_lead_id: string | null;
+  default_lead_name: string | null;
+  simple_sale: boolean;
+  commission_required: boolean;
+  show_payment_method: boolean;
+  commission_type: PosCommissionType;
+  commission_value: number;
+  stock_code_field: PosStockCodeField;
+  block_out_of_stock: boolean;
+}
+
+export const DEFAULT_POS_SETTINGS: PosSettings = {
+  sale_notes: "",
+  financial_account: "",
+  financial_category: "",
+  default_lead_id: null,
+  default_lead_name: null,
+  simple_sale: false,
+  commission_required: false,
+  show_payment_method: true,
+  commission_type: "percent",
+  commission_value: 0,
+  stock_code_field: "sku",
+  block_out_of_stock: false,
+};
+
+export function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSettings {
+  const commissionType = raw?.commission_type === "fixed" ? "fixed" : "percent";
+  const stockCode = raw?.stock_code_field === "barcode" ? "barcode" : "sku";
+  return {
+    ...DEFAULT_POS_SETTINGS,
+    ...raw,
+    sale_notes: raw?.sale_notes || "",
+    financial_account: raw?.financial_account || "",
+    financial_category: raw?.financial_category || "",
+    default_lead_id: raw?.default_lead_id || null,
+    default_lead_name: raw?.default_lead_name || null,
+    simple_sale: Boolean(raw?.simple_sale),
+    commission_required: Boolean(raw?.commission_required),
+    show_payment_method: raw?.show_payment_method !== false,
+    commission_type: commissionType,
+    commission_value: Number(raw?.commission_value || 0),
+    stock_code_field: stockCode,
+    block_out_of_stock: Boolean(raw?.block_out_of_stock),
+  };
+}
+
 export interface PosCashSession {
   id: string;
   organization_id: string;
@@ -156,6 +210,8 @@ export interface FinalizeSalePayload {
   financial_account?: string | null;
   financial_category?: string | null;
   sold_at?: string | null;
+  default_commission_type?: "percent" | "fixed";
+  default_commission_value?: number;
 }
 
 export interface FinalizeSaleResult {

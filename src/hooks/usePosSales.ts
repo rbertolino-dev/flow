@@ -9,6 +9,8 @@ import type {
   ListSalesResult,
   PosCashConsolidated,
   PosCashSession,
+  PosSettings,
+  normalizePosSettings,
   PosSale,
   UpdateSaleItemsPayload,
   UpdateSalePayload,
@@ -130,6 +132,23 @@ export function usePosSales() {
       };
     },
     [callPos]
+  );
+
+  const getPosSettings = useCallback(async (): Promise<PosSettings> => {
+    const result = await callPos("?action=pos_settings");
+    return normalizePosSettings((result.data || null) as Partial<PosSettings> | null);
+  }, [callPos]);
+
+  const savePosSettings = useCallback(
+    async (settings: PosSettings): Promise<PosSettings> => {
+      const result = await callPos("", {
+        method: "POST",
+        body: { action: "save_pos_settings", ...settings },
+      });
+      toast({ title: "Configurações do PDV salvas" });
+      return normalizePosSettings((result.data || settings) as Partial<PosSettings>);
+    },
+    [callPos, toast]
   );
 
   const getOpenCashSession = useCallback(async () => {
@@ -271,6 +290,8 @@ export function usePosSales() {
     listSalesDetailed,
     getSale,
     getCashConsolidated,
+    getPosSettings,
+    savePosSettings,
     getOpenCashSession,
     openCash,
     closeCash,

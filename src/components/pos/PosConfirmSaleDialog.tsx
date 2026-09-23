@@ -41,6 +41,9 @@ type Props = {
   customerName?: string | null;
   organizationName?: string;
   defaultPaymentMethod?: string;
+  defaultFinancialAccount?: string;
+  defaultFinancialCategory?: string;
+  defaultNotes?: string;
   loading?: boolean;
   onConfirm: (values: PosConfirmSaleValues, payment: PosPaymentLine) => void;
 };
@@ -58,6 +61,9 @@ export function PosConfirmSaleDialog({
   customerName,
   organizationName,
   defaultPaymentMethod,
+  defaultFinancialAccount,
+  defaultFinancialCategory,
+  defaultNotes,
   loading,
   onConfirm,
 }: Props) {
@@ -79,14 +85,22 @@ export function PosConfirmSaleDialog({
       : `Venda - ${dateLabel}`;
     setSaleDescription(desc);
     setPaymentDate(todayInputDate());
-    setFinancialAccount(organizationName || "Conta principal");
-    setFinancialCategory("");
+    setFinancialAccount(defaultFinancialAccount || organizationName || "Conta principal");
+    setFinancialCategory(defaultFinancialCategory || "");
     setPaymentMethod(defaultPaymentMethod || "pix");
-    setPaymentNotes("");
+    setPaymentNotes(defaultNotes || "");
     setApplyStock(true);
     setGenerateFinancial(true);
     setSplitRecurrence(false);
-  }, [open, customerName, organizationName, defaultPaymentMethod]);
+  }, [
+    open,
+    customerName,
+    organizationName,
+    defaultPaymentMethod,
+    defaultFinancialAccount,
+    defaultFinancialCategory,
+    defaultNotes,
+  ]);
 
   const canConfirm = useMemo(
     () => !!paymentMethod && total >= 0 && !loading,
