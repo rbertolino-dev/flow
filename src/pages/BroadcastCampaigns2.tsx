@@ -48,6 +48,7 @@ import {
   mapRpcFallReportRow,
   type CampaignInstanceFallRow,
 } from "@/lib/broadcastCampaignInstanceFallReport";
+import { formatUnsentContactsText } from "@/lib/broadcastUnsentContacts";
 import { InstanceStatusPanel } from "@/components/crm/InstanceStatusPanel";
 import { InstanceDisconnectionAlerts } from "@/components/crm/InstanceDisconnectionAlerts";
 import { InstanceDisconnectionReportDialog } from "@/components/crm/InstanceDisconnectionReportDialog";
@@ -586,6 +587,8 @@ export default function BroadcastCampaigns2() {
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [logsCampaignId, setLogsCampaignId] = useState<string | null>(null);
+  const [copyingUnsent, setCopyingUnsent] = useState(false);
   const [selectedCampaignLogs, setSelectedCampaignLogs] = useState<any[]>([]);
   const [logsCampaignQueueTotals, setLogsCampaignQueueTotals] = useState<{
     source_version: string;
@@ -2839,8 +2842,125 @@ export default function BroadcastCampaigns2() {
     }
   };
 
+  const fetchCancelledContacts = async (campaignId: string) => {
+    const pageSize = 1000;
+    const rows: Array<{ phone: string | null; name: string | null }> = [];
+    for (let from = 0; from < 200000; from += pageSize) {
+      let query = supabase
+        .from("broadcast_queue_2")
+        .select("phone, name")
+        .eq("campaign_id", campaignId)
+        .eq("status", "cancelled")
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (activeOrgId) query = query.eq("organization_id", activeOrgId);
+      const { data, error } = await query;
+      if (error) throw error;
+      const batch = data || [];
+      rows.push(...batch);
+      if (batch.length < pageSize) break;
+    }
+    return rows;
+  };
+
+  const loadUnsentContactsText = async (campaignId: string) => {
+    const rows = await fetchCancelledContacts(campaignId);
+    const text = formatUnsentContactsText(rows);
+    const count = text ? text.split("\n").length : 0;
+    return { text, count };
+  };
+
+  const handleCopyUnsentNumbers = async () => {
+    if (!logsCampaignId) return;
+    try {
+      setCopyingUnsent(true);
+      const { text, count } = await loadUnsentContactsText(logsCampaignId);
+      if (!text) {
+        toast({
+          title: "Nenhum número pendente",
+          description: "Esta campanha não tem números cancelados antes do disparo.",
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Números copiados",
+        description: `${count.toLocaleString("pt-BR")} número(s) que não foram disparados. Cole na lista ao criar a nova campanha.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao copiar números",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingUnsent(false);
+    }
+  };
+
+  const handleNewCampaignFromUnsent = async () => {
+    if (!logsCampaignId) return;
+    try {
+      setCopyingUnsent(true);
+      const { data: campaignData, error: campaignError } = await supabase
+        .from("broadcast_campaigns_2")
+        .select("*")
+        .eq("id", logsCampaignId)
+        .single();
+      if (campaignError) throw campaignError;
+
+      const { text, count } = await loadUnsentContactsText(logsCampaignId);
+      if (!text) {
+        toast({
+          title: "Nenhum número pendente",
+          description: "Esta campanha não tem números cancelados antes do disparo.",
+        });
+        return;
+      }
+
+      const method = campaignData.sending_method === "rotate" || campaignData.sending_method === "separate"
+        ? campaignData.sending_method
+        : "single";
+      const instanceIds = normalizeInstanceIdList(campaignData.instance_ids);
+
+      setNewCampaign({
+        name: `${campaignData.name} (não disparados)`,
+        instanceId: method === "single" ? (campaignData.instance_id || "") : "",
+        instanceIds: method === "single" ? [] : instanceIds,
+        selectedGroupId: "",
+        sendingMethod: method,
+        templateId: campaignData.message_template_id || "",
+        customMessage: campaignData.custom_message || "",
+        messageVariations: [],
+        ...delaysFromSource(campaignData.min_delay_seconds, campaignData.max_delay_seconds),
+        scheduledStart: undefined,
+        fromTemplate: false,
+        useLatamValidator: false,
+      });
+      setPastedList(text);
+      setImportMode("paste");
+      setValidationResult(null);
+      setSelectedCampaignTemplate(null);
+      setLogsDialogOpen(false);
+      setCreateDialogOpen(true);
+      toast({
+        title: "Lista pronta",
+        description: `${count.toLocaleString("pt-BR")} número(s) não disparados foram colocados na nova campanha. Revise e valide os contatos.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao montar a nova campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingUnsent(false);
+    }
+  };
+
   const handleViewLogs = async (campaignId: string) => {
     try {
+      setLogsCampaignId(campaignId);
       setLogsCampaignQueueTotals(null);
       setLogsInstanceFallReport([]);
       const rpcClient = supabase as unknown as {
@@ -4645,6 +4765,7 @@ export default function BroadcastCampaigns2() {
         onOpenChange={(open) => {
           setLogsDialogOpen(open);
           if (!open) {
+            setLogsCampaignId(null);
             setLogsCampaignQueueTotals(null);
             setLogsInstanceFallReport([]);
           }
@@ -4682,6 +4803,25 @@ export default function BroadcastCampaigns2() {
                 <div className="font-semibold">
                   {logsCampaignQueueTotals.cancelled_count.toLocaleString("pt-BR")} · {logsCampaignQueueTotals.source_version}
                 </div>
+              </div>
+            </div>
+          )}
+          {(logsCampaignQueueTotals?.cancelled_count ?? 0) > 0 && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 mb-3 space-y-2">
+              <p className="text-sm font-medium">Números não disparados (campanha cancelada)</p>
+              <p className="text-xs text-muted-foreground">
+                {logsCampaignQueueTotals!.cancelled_count.toLocaleString("pt-BR")} número(s) ficaram sem envio porque a campanha foi cancelada.
+                Os já enviados não entram nesta lista.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => void handleCopyUnsentNumbers()} disabled={copyingUnsent}>
+                  {copyingUnsent ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Copy className="h-4 w-4 mr-1" />}
+                  Copiar números
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void handleNewCampaignFromUnsent()} disabled={copyingUnsent}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Nova campanha com estes números
+                </Button>
               </div>
             </div>
           )}
