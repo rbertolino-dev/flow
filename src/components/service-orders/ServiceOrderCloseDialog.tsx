@@ -19,6 +19,7 @@ import {
   resolveLeadAttachmentContentType,
   sanitizeAttachmentFilename,
 } from '@/lib/leadAttachments';
+import { osDialogContentClass } from './osResponsive';
 
 const BUCKET = 'whatsapp-workflow-media';
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -318,9 +319,12 @@ export function ServiceOrderCloseDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto" data-testid="os-close-dialog">
+      <DialogContent
+        className={`${osDialogContentClass} sm:max-w-lg pb-[max(1rem,env(safe-area-inset-bottom))]`}
+        data-testid="os-close-dialog"
+      >
         <DialogHeader>
-          <DialogTitle className="text-center tracking-wide">
+          <DialogTitle className="text-center tracking-wide text-base sm:text-lg pr-6">
             ENCERRAR ORDEM DE SERVIÇO
           </DialogTitle>
         </DialogHeader>
@@ -338,14 +342,16 @@ export function ServiceOrderCloseDialog({
 
           <div className="space-y-1">
             <Label>Confirmar duração da execução:</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Input
                 type="datetime-local"
+                className="w-full min-w-0 text-base sm:text-sm"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
               <Input
                 type="datetime-local"
+                className="w-full min-w-0 text-base sm:text-sm"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -354,11 +360,11 @@ export function ServiceOrderCloseDialog({
 
           <div className="space-y-2">
             <Label>Anexar arquivos ou fotos:</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="secondary"
-                className="flex-1 rounded-full"
+                className="flex-1 rounded-full min-h-11"
                 disabled={uploading || saving}
                 onClick={() => fileRef.current?.click()}
               >
@@ -372,7 +378,7 @@ export function ServiceOrderCloseDialog({
               <Button
                 type="button"
                 variant="secondary"
-                className="flex-1 rounded-full"
+                className="flex-1 rounded-full min-h-11"
                 disabled={uploading || saving}
                 onClick={openCamera}
               >
@@ -414,7 +420,7 @@ export function ServiceOrderCloseDialog({
             )}
 
             {attachments.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {attachments.map((url) => (
                   <div key={url.slice(0, 64)} className="relative group">
                     {url.startsWith('data:application/pdf') || url.toLowerCase().endsWith('.pdf') ? (
@@ -453,6 +459,7 @@ export function ServiceOrderCloseDialog({
             <Label>Assinatura:</Label>
             <SignaturePad
               ref={signatureRef}
+              height={150}
               onChange={(dataUrl) => setSignaturePreview(dataUrl)}
             />
             {signaturePreview && (
@@ -465,7 +472,7 @@ export function ServiceOrderCloseDialog({
           </div>
 
           <Button
-            className="w-full rounded-full"
+            className="w-full rounded-full min-h-12 sticky bottom-0"
             size="lg"
             onClick={handleFinalize}
             disabled={saving || uploading}

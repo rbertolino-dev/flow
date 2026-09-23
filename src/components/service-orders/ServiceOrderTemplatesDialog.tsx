@@ -21,6 +21,7 @@ import {
 import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { ServiceOrderTemplate } from '@/types/serviceOrder';
 import { useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
+import { osDialogContentClass } from './osResponsive';
 
 interface ServiceOrderTemplatesDialogProps {
   open: boolean;
@@ -80,7 +81,7 @@ export function ServiceOrderTemplatesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className={`${osDialogContentClass} sm:max-w-3xl`}>
         <DialogHeader>
           <DialogTitle>Modelos de Ordem de Serviço</DialogTitle>
         </DialogHeader>

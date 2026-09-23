@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ServiceOrder, ServiceOrderLog } from '@/types/serviceOrder';
 import { supabase } from '@/integrations/supabase/client';
+import { osDialogContentClass } from './osResponsive';
 
 interface ServiceOrderDetailDialogProps {
   open: boolean;
@@ -101,9 +102,12 @@ export function ServiceOrderDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto p-0 gap-0" data-testid="os-detail-dialog">
+      <DialogContent
+        className={`${osDialogContentClass} sm:max-w-md p-0 gap-0`}
+        data-testid="os-detail-dialog"
+      >
         <DialogHeader className="px-5 pt-5 pb-2">
-          <DialogTitle className="text-2xl font-bold tracking-tight flex items-start justify-between gap-2 pr-6">
+          <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight flex items-start justify-between gap-2 pr-8">
             <span>ORDEM {order.code}</span>
             {order.label_tag && (
               <Badge variant="secondary" className="font-normal">
@@ -304,9 +308,9 @@ export function ServiceOrderDetailDialog({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 p-4 border-t bg-muted/20">
+        <div className="grid grid-cols-2 gap-2 p-3 sm:p-4 border-t bg-muted/20 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button
-            className="bg-sky-500 hover:bg-sky-600 text-white"
+            className="bg-sky-500 hover:bg-sky-600 text-white min-h-11 text-sm"
             onClick={() => onEdit(order)}
             disabled={!!order.is_closed}
           >
@@ -314,7 +318,7 @@ export function ServiceOrderDetailDialog({
             Editar
           </Button>
           <Button
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-11 text-sm"
             onClick={() => onCloseOrder(order)}
             disabled={!!order.is_closed}
             data-testid="os-detail-close-btn"
@@ -322,11 +326,11 @@ export function ServiceOrderDetailDialog({
             <XCircle className="h-4 w-4 mr-1" />
             Fechar
           </Button>
-          <Button className="bg-violet-600 hover:bg-violet-700 text-white" onClick={loadLogs}>
+          <Button className="bg-violet-600 hover:bg-violet-700 text-white min-h-11 text-sm" onClick={loadLogs}>
             Logs da O.S.
           </Button>
           <Button
-            className="bg-red-600 hover:bg-red-700 text-white"
+            className="bg-red-600 hover:bg-red-700 text-white min-h-11 text-sm"
             onClick={() => onDelete(order)}
           >
             <Trash2 className="h-4 w-4 mr-1" />

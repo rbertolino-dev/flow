@@ -29,6 +29,7 @@ import {
   ServiceOrder,
 } from '@/types/serviceOrder';
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
+import { osDialogContentClass } from './osResponsive';
 import { Product } from '@/types/product';
 import { Lead } from '@/types/lead';
 import { format } from 'date-fns';
@@ -368,9 +369,9 @@ export function CreateServiceOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className={`${osDialogContentClass} sm:max-w-3xl`}>
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between gap-2 pr-6">
+          <DialogTitle className="flex flex-wrap items-center justify-between gap-2 pr-8 text-base sm:text-lg">
             <span>
               {step === 1 && (isEditing ? 'Editar ordem de serviço' : 'Nova ordem de serviço')}
               {step === 2 && 'Produtos da O.S.'}

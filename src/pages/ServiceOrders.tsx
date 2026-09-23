@@ -295,6 +295,54 @@ export default function ServiceOrders() {
     }
   };
 
+  const renderOrderMenu = (order: ServiceOrder, testSuffix = '') => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-10"
+          data-testid={`os-row-options-${order.id}${testSuffix}`}
+        >
+          Opções
+          <MoreHorizontal className="h-4 w-4 ml-1" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => openOrderDetail(order)}>Abrir</DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => exportOrderPdf(order, { open: true, mode: 'full' })}
+          disabled={exportingId === order.id}
+          data-testid={`os-export-pdf-${order.id}${testSuffix}`}
+        >
+          <FileDown className="h-4 w-4 mr-2" />
+          {exportingId === order.id ? 'Gerando PDF...' : 'PDF completo'}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => exportOrderPdf(order, { open: true, mode: 'no_values' })}
+          disabled={exportingId === order.id || !order.is_closed}
+        >
+          <FileDown className="h-4 w-4 mr-2" />
+          PDF sem valores
+        </DropdownMenuItem>
+        {statuses.map((s) => (
+          <DropdownMenuItem key={s.id} onClick={() => updateOrder(order.id, { status_id: s.id })}>
+            Mover para: {s.name}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuItem
+          className="text-destructive"
+          onClick={() => {
+            setSelectedOrder(order);
+            setShowDeleteConfirm(true);
+          }}
+        >
+          Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <CRMLayout activeView="service-orders" onViewChange={() => {}}>
       <div className="p-4 md:p-6 space-y-6">
@@ -325,7 +373,7 @@ export default function ServiceOrders() {
         </div>
 
         {/* Status cards — etapas da organização */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="os-status-cards">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3" data-testid="os-status-cards">
           {statuses.map((s) => {
             const active = statusFilter === s.id;
             return (
@@ -345,14 +393,14 @@ export default function ServiceOrders() {
                     setAppliedFilters((prev) => ({ ...prev, status_id: s.id }));
                   }
                 }}
-                className={`rounded-lg p-4 text-left text-white shadow-sm transition hover:opacity-90 ${
+                className={`rounded-lg p-3 sm:p-4 text-left text-white shadow-sm transition hover:opacity-90 ${
                   active ? 'ring-2 ring-offset-2 ring-primary' : ''
                 }`}
                 style={{ backgroundColor: s.color }}
                 data-testid={`os-status-card-${s.id}`}
               >
-                <p className="text-sm font-medium capitalize opacity-95">{s.name}</p>
-                <p className="text-3xl font-bold mt-2">{statusCounts[s.id] || 0}</p>
+                <p className="text-xs sm:text-sm font-medium capitalize opacity-95 line-clamp-2">{s.name}</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">{statusCounts[s.id] || 0}</p>
               </button>
             );
           })}
@@ -362,14 +410,14 @@ export default function ServiceOrders() {
           <p className="text-sm text-muted-foreground font-medium">
             {orders.length} {orders.length === 1 ? 'Ordem' : 'Ordens'}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setShowTemplates(true)} data-testid="os-modelos-btn">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Button variant="secondary" className="flex-1 sm:flex-none min-h-11" onClick={() => setShowTemplates(true)} data-testid="os-modelos-btn">
               <LayoutTemplate className="h-4 w-4 mr-1" />
               MODELOS
             </Button>
             <Button
               onClick={() => setShowCreate(true)}
-              className="bg-slate-800 hover:bg-slate-900"
+              className="bg-slate-800 hover:bg-slate-900 flex-1 sm:flex-none min-h-11"
               data-testid="os-criar-btn"
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -392,11 +440,11 @@ export default function ServiceOrders() {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1">
               <Label>Filtrar por período (início)</Label>
-              <Input type="datetime-local" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <Input type="datetime-local" className="w-full min-w-0" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Até</Label>
-              <Input type="datetime-local" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <Input type="datetime-local" className="w-full min-w-0" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Código</Label>
@@ -435,27 +483,86 @@ export default function ServiceOrders() {
               />
             </div>
           </div>
-          <Button onClick={handleApplyFilters}>
+          <Button className="w-full sm:w-auto min-h-11" onClick={handleApplyFilters}>
             <Filter className="h-4 w-4 mr-1" />
             Filtros
           </Button>
         </div>
 
         {/* Table */}
-        <div className="border rounded-lg overflow-auto bg-card">
+        <div className="space-y-3">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">
+            <div className="flex items-center justify-center py-16 text-muted-foreground border rounded-lg bg-card">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
               Carregando ordens...
             </div>
           ) : orders.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">
+            <div className="py-16 text-center text-muted-foreground border rounded-lg bg-card px-4">
               Nenhuma ordem de serviço encontrada.
               <div className="mt-3">
                 <Button onClick={() => setShowCreate(true)}>Criar primeira OS</Button>
               </div>
             </div>
           ) : (
+            <>
+              <div className="lg:hidden space-y-3" data-testid="os-mobile-cards">
+                {orders.map((order) => (
+                  <article
+                    key={order.id}
+                    className="border rounded-xl bg-card p-4 space-y-3 shadow-sm"
+                    data-testid={`os-card-${order.id}`}
+                  >
+                    <button
+                      type="button"
+                      className="w-full text-left space-y-1"
+                      onClick={() => openOrderDetail(order)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-mono font-semibold text-base">{order.code}</span>
+                        <span className="text-sm font-medium whitespace-nowrap">
+                          R${' '}
+                          {(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium truncate">
+                        {order.client_phone ? `${order.client_phone} · ` : ''}
+                        {order.client_name || order.lead?.name || 'Sem cliente'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {order.service_name || 'Serviço'} · {formatDateRange(order.starts_at, order.ends_at)}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {order.responsible_name || 'Sem responsável'}
+                        {order.diagnosis ? ` · ${order.diagnosis}` : ''}
+                      </p>
+                    </button>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={order.status_id || undefined}
+                        onValueChange={(statusId) => updateOrder(order.id, { status_id: statusId })}
+                      >
+                        <SelectTrigger
+                          className="flex-1 h-10 border-0 text-white font-medium"
+                          style={{ backgroundColor: order.status?.color || '#64748b' }}
+                          data-testid={`os-card-status-${order.id}`}
+                        >
+                          <SelectValue placeholder="Etapa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statuses.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {renderOrderMenu(order)}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="hidden lg:block border rounded-lg overflow-auto bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -476,7 +583,7 @@ export default function ServiceOrders() {
                     key={order.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => openOrderDetail(order)}
-                    data-testid={`os-row-${order.id}`}
+                    data-testid={`os-row-desktop-${order.id}`}
                   >
                     <TableCell className="font-mono font-semibold">{order.code}</TableCell>
                     <TableCell>{order.responsible_name || '—'}</TableCell>
@@ -507,7 +614,7 @@ export default function ServiceOrders() {
                           style={{
                             backgroundColor: order.status?.color || '#64748b',
                           }}
-                          data-testid={`os-row-status-${order.id}`}
+                          data-testid={`os-row-status-desktop-${order.id}`}
                         >
                           <SelectValue placeholder="Selecione etapa" />
                         </SelectTrigger>
@@ -527,56 +634,14 @@ export default function ServiceOrders() {
                       </Select>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" data-testid={`os-row-options-${order.id}`}>
-                            Opções
-                            <MoreHorizontal className="h-4 w-4 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openOrderDetail(order)}>
-                            Abrir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => exportOrderPdf(order, { open: true, mode: 'full' })}
-                            disabled={exportingId === order.id}
-                            data-testid={`os-export-pdf-${order.id}`}
-                          >
-                            <FileDown className="h-4 w-4 mr-2" />
-                            {exportingId === order.id ? 'Gerando PDF...' : 'PDF completo'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => exportOrderPdf(order, { open: true, mode: 'no_values' })}
-                            disabled={exportingId === order.id || !order.is_closed}
-                          >
-                            <FileDown className="h-4 w-4 mr-2" />
-                            PDF sem valores
-                          </DropdownMenuItem>
-                          {statuses.map((s) => (
-                            <DropdownMenuItem
-                              key={s.id}
-                              onClick={() => updateOrder(order.id, { status_id: s.id })}
-                            >
-                              Mover para: {s.name}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowDeleteConfirm(true);
-                            }}
-                          >
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {renderOrderMenu(order, '-desktop')}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+              </div>
+            </>
           )}
         </div>
       </div>

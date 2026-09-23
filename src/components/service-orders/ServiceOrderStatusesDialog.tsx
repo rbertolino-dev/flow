@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, Check } from 'lucide-react';
+import { osDialogContentClass } from './osResponsive';
 import { ServiceOrderStatus } from '@/types/serviceOrder';
 
 const PRESET_COLORS = [
@@ -113,7 +114,7 @@ export function ServiceOrderStatusesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="os-statuses-dialog">
+      <DialogContent className={`${osDialogContentClass} sm:max-w-2xl`} data-testid="os-statuses-dialog">
         <DialogHeader>
           <DialogTitle>Etapas da Ordem de Serviço</DialogTitle>
           <DialogDescription>
