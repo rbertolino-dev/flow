@@ -31,6 +31,8 @@ import type { FinalizeSaleResult, PosCartItem, PosPaymentLine } from "@/types/po
 import { PosConfirmSaleDialog, type PosConfirmSaleValues } from "@/components/pos/PosConfirmSaleDialog";
 import { PosSaleSuccessDialog } from "@/components/pos/PosSaleSuccessDialog";
 import { PosCreateClientDialog } from "@/components/pos/PosCreateClientDialog";
+import { PosCreateServiceDialog } from "@/components/pos/PosCreateServiceDialog";
+import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   History,
@@ -43,6 +45,7 @@ import {
   Loader2,
   UserPlus,
   X,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -82,13 +85,16 @@ export default function Pos() {
   const { toast } = useToast();
   const { activeOrgId, activeOrganization } = useActiveOrganization();
   const { products, loading: productsLoading, refetch: refetchProducts } = useProducts();
-  const { data: services = [], isLoading: servicesLoading } = useServices();
+  const { services = [], loading: servicesLoading, refetch: refetchServices } =
+    useServices();
   const { loading: posLoading, finalizeSale, getOpenCashSession, openCash } =
     usePosSales();
 
   const [catalogTab, setCatalogTab] = useState<"products" | "services">("products");
   const [search, setSearch] = useState("");
   const [exactSearch, setExactSearch] = useState(false);
+  const [createProductOpen, setCreateProductOpen] = useState(false);
+  const [createServiceOpen, setCreateServiceOpen] = useState(false);
   const [cart, setCart] = useState<PosCartItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
@@ -267,6 +273,39 @@ export default function Pos() {
     });
   };
 
+  const pushProductToCart = (product: {
+    id: string;
+    name: string;
+    sku?: string | null;
+    unit?: string | null;
+    price: number;
+    stock_quantity?: number | null;
+  }) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.item_type === "product" && i.item_id === product.id);
+      if (existing) {
+        return prev.map((i) =>
+          i.key === existing.key ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          key: `product-${product.id}`,
+          item_type: "product" as const,
+          item_id: product.id,
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit || "un",
+          quantity: 1,
+          unit_price: Number(product.price),
+          discount_amount: 0,
+          stock_quantity: product.stock_quantity,
+        },
+      ];
+    });
+  };
+
   const addServiceToCart = (serviceId: string) => {
     const service = services.find((s) => s.id === serviceId);
     if (!service) return;
@@ -282,6 +321,30 @@ export default function Pos() {
         {
           key: `service-${service.id}`,
           item_type: "service",
+          item_id: service.id,
+          name: service.name,
+          unit: "un",
+          quantity: 1,
+          unit_price: Number(service.price),
+          discount_amount: 0,
+        },
+      ];
+    });
+  };
+
+  const pushServiceToCart = (service: { id: string; name: string; price: number }) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.item_type === "service" && i.item_id === service.id);
+      if (existing) {
+        return prev.map((i) =>
+          i.key === existing.key ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          key: `service-${service.id}`,
+          item_type: "service" as const,
           item_id: service.id,
           name: service.name,
           unit: "un",
@@ -560,7 +623,35 @@ export default function Pos() {
                   >
                     Busca Exata
                   </Button>
-                  <Package className="h-5 w-5 text-muted-foreground" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    title={
+                      catalogTab === "products"
+                        ? "Cadastrar novo produto"
+                        : "Cadastrar novo serviço"
+                    }
+                    aria-label={
+                      catalogTab === "products"
+                        ? "Cadastrar novo produto"
+                        : "Cadastrar novo serviço"
+                    }
+                    onClick={() => {
+                      if (catalogTab === "products") {
+                        setCreateProductOpen(true);
+                      } else {
+                        setCreateServiceOpen(true);
+                      }
+                    }}
+                  >
+                    {catalogTab === "products" ? (
+                      <Package className="h-5 w-5" />
+                    ) : (
+                      <Wrench className="h-5 w-5" />
+                    )}
+                  </Button>
                 </div>
               </div>
 
@@ -832,6 +923,39 @@ export default function Pos() {
           }}
         />
       )}
+
+      <CreateProductDialog
+        open={createProductOpen}
+        onOpenChange={setCreateProductOpen}
+        onProductCreated={(product) => {
+          void refetchProducts();
+          pushProductToCart({
+            id: product.id,
+            name: product.name,
+            sku: product.sku,
+            unit: product.unit,
+            price: Number(product.price),
+            stock_quantity: product.stock_quantity,
+          });
+          toast({
+            title: "Produto cadastrado",
+            description: `${product.name} adicionado à venda`,
+          });
+        }}
+      />
+
+      <PosCreateServiceDialog
+        open={createServiceOpen}
+        onOpenChange={setCreateServiceOpen}
+        onCreated={(service) => {
+          void refetchServices();
+          pushServiceToCart(service);
+          toast({
+            title: "Serviço cadastrado",
+            description: `${service.name} adicionado à venda`,
+          });
+        }}
+      />
 
       <PosConfirmSaleDialog
         open={confirmOpen}
