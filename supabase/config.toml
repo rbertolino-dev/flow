@@ -338,3 +338,6 @@ verify_jwt = false
 # ========== Agilize Total - import eprodutos ==========
 [functions.agilize-eprodutos-import]
 verify_jwt = true
+
+[functions.agilize-eclientes-import]
+verify_jwt = true
