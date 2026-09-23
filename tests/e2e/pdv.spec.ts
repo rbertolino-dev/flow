@@ -260,6 +260,14 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByText(/código do estoque padrão/i)).toBeVisible();
     await expect(page.getByText(/bloqueio de produtos em falta/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /^salvar$/i })).toBeVisible();
+
+    await human.humanClick(page.getByRole("button", { name: /^descontos$/i }));
+    await expect(page.getByRole("heading", { name: /desconto por forma de pagamento/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^adicionar$/i })).toBeVisible();
+    await human.humanClick(page.getByRole("combobox").first());
+    await expect(page.getByRole("option", { name: /^pix$/i })).toBeVisible();
+    await expect(page.getByRole("option", { name: /^permuta$/i })).toBeVisible();
+    await expect(page.getByRole("option", { name: /^crediário$/i })).toBeVisible();
   });
 
   test("PDV histórico — caixa consolidado @human-behavior @pdv", async ({ page }) => {

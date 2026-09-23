@@ -315,6 +315,16 @@ export default function Pos() {
     [cart]
   );
   const total = Math.max(0, subtotal - discount);
+  const activePaymentMethod = payments[0]?.method || paymentMethodDraft;
+  const activePaymentDiscount = posSettings.payment_discounts.find(
+    (item) => item.method === activePaymentMethod
+  );
+
+  useEffect(() => {
+    if (!activePaymentDiscount) return;
+    const next = Math.round(subtotal * (activePaymentDiscount.percent / 100) * 100) / 100;
+    setDiscount((current) => (Math.abs(current - next) < 0.009 ? current : next));
+  }, [activePaymentDiscount, subtotal]);
   const paymentsSum = payments.reduce((s, p) => s + p.amount, 0);
 
   const commissionUserName = useMemo(() => {
@@ -641,6 +651,16 @@ export default function Pos() {
     values: PosConfirmSaleValues,
     confirmPayment: PosPaymentLine
   ) => {
+    const methodForDiscount =
+      values.paymentMethod || paymentMethodDraft || payments[0]?.method || "";
+    const discountRule = posSettings.payment_discounts.find(
+      (item) => item.method === methodForDiscount
+    );
+    const saleDiscount = discountRule
+      ? Math.round(subtotal * (discountRule.percent / 100) * 100) / 100
+      : discount;
+    const saleTotal = Math.max(0, subtotal - saleDiscount);
+
     // Prefer payments already added in sidebar; otherwise use confirm dialog method
     let finalPayments = [...payments];
     if (!finalPayments.length) {
@@ -649,19 +669,19 @@ export default function Pos() {
           {
             id: crypto.randomUUID(),
             method: paymentMethodDraft,
-            amount: Number(total.toFixed(2)),
+            amount: Number(saleTotal.toFixed(2)),
           },
         ];
       } else {
-        finalPayments = [confirmPayment];
+        finalPayments = [{ ...confirmPayment, amount: Number(saleTotal.toFixed(2)) }];
       }
-    } else if (Math.abs(paymentsSum - total) > 0.05) {
+    } else if (Math.abs(paymentsSum - saleTotal) > 0.05) {
       finalPayments = [
         ...finalPayments,
         {
           id: crypto.randomUUID(),
           method: confirmPayment.method,
-          amount: Number((total - paymentsSum).toFixed(2)),
+          amount: Number((saleTotal - paymentsSum).toFixed(2)),
         },
       ];
     }
@@ -672,7 +692,7 @@ export default function Pos() {
         {
           ...finalPayments[0],
           method: values.paymentMethod || finalPayments[0].method,
-          amount: Number(total.toFixed(2)),
+          amount: Number(saleTotal.toFixed(2)),
         },
       ];
     }
@@ -693,7 +713,7 @@ export default function Pos() {
           discount_amount: i.discount_amount,
         })),
         payments: finalPayments.map((p) => ({ method: p.method, amount: p.amount })),
-        discount_amount: discount,
+        discount_amount: saleDiscount,
         notes: notes || values.paymentNotes || null,
         add_commission: addCommission,
         commission_user_id: addCommission ? commissionUserId : null,
@@ -1128,6 +1148,11 @@ export default function Pos() {
 
               <div className="space-y-1">
                 <Label className="text-sm text-muted-foreground">Desconto geral</Label>
+                {activePaymentDiscount ? (
+                  <p className="text-xs text-muted-foreground">
+                    {activePaymentDiscount.percent}% à vista nesta forma de pagamento
+                  </p>
+                ) : null}
                 <Input
                   ref={discountInputRef}
                   type="number"

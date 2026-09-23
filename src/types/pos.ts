@@ -119,6 +119,11 @@ export interface PosCashConsolidated {
 export type PosCommissionType = "percent" | "fixed";
 export type PosStockCodeField = "sku" | "barcode";
 
+export interface PosPaymentDiscount {
+  method: string;
+  percent: number;
+}
+
 export interface PosSettings {
   sale_notes: string;
   financial_account: string;
@@ -132,6 +137,7 @@ export interface PosSettings {
   commission_value: number;
   stock_code_field: PosStockCodeField;
   block_out_of_stock: boolean;
+  payment_discounts: PosPaymentDiscount[];
 }
 
 export const DEFAULT_POS_SETTINGS: PosSettings = {
@@ -147,7 +153,23 @@ export const DEFAULT_POS_SETTINGS: PosSettings = {
   commission_value: 0,
   stock_code_field: "sku",
   block_out_of_stock: false,
+  payment_discounts: [],
 };
+
+export function normalizePaymentDiscounts(raw: unknown): PosPaymentDiscount[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const seen = new Set<string>();
+  const discounts: PosPaymentDiscount[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const method = String((item as { method?: string }).method || "").trim();
+    const percent = Number((item as { percent?: number }).percent || 0);
+    if (!method || percent <= 0 || percent > 100 || seen.has(method)) continue;
+    seen.add(method);
+    discounts.push({ method, percent });
+  }
+  return discounts;
+}
 
 export function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSettings {
   const commissionType = raw?.commission_type === "fixed" ? "fixed" : "percent";
@@ -167,6 +189,7 @@ export function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSett
     commission_value: Number(raw?.commission_value || 0),
     stock_code_field: stockCode,
     block_out_of_stock: Boolean(raw?.block_out_of_stock),
+    payment_discounts: normalizePaymentDiscounts(raw?.payment_discounts),
   };
 }
 

@@ -478,12 +478,29 @@ serve(async (req) => {
       if (postAction === "save_pos_settings") {
         const commissionType = body.commission_type === "fixed" ? "fixed" : "percent";
         const stockCode = body.stock_code_field === "barcode" ? "barcode" : "sku";
+        const allowedMethods = new Set([
+          "dinheiro", "pix", "cartao_credito", "cartao_debito", "boleto",
+          "transferencia_bancaria", "parcelado", "cheque", "permuta", "carne", "crediario",
+        ]);
+        const seenMethods = new Set<string>();
+        const hasPaymentDiscounts = Array.isArray(body.payment_discounts);
+        const paymentDiscounts = (hasPaymentDiscounts ? body.payment_discounts : [])
+          .map((item: { method?: string; percent?: number }) => ({
+            method: String(item?.method || "").trim(),
+            percent: Number(item?.percent || 0),
+          }))
+          .filter((item: { method: string; percent: number }) => {
+            if (!allowedMethods.has(item.method) || item.percent <= 0 || item.percent > 100) return false;
+            if (seenMethods.has(item.method)) return false;
+            seenMethods.add(item.method);
+            return true;
+          });
         const saved = await pg.queryObject`
           INSERT INTO pos_settings (
             organization_id, sale_notes, financial_account, financial_category,
             default_lead_id, default_lead_name, simple_sale, commission_required,
             show_payment_method, commission_type, commission_value, stock_code_field,
-            block_out_of_stock, updated_at
+            block_out_of_stock, payment_discounts, updated_at
           ) VALUES (
             ${organizationId},
             ${body.sale_notes || ""},
@@ -498,6 +515,7 @@ serve(async (req) => {
             ${Number(body.commission_value || 0)},
             ${stockCode},
             ${Boolean(body.block_out_of_stock)},
+            ${hasPaymentDiscounts ? JSON.stringify(paymentDiscounts) : "[]"}::jsonb,
             now()
           )
           ON CONFLICT (organization_id) DO UPDATE SET
@@ -513,6 +531,10 @@ serve(async (req) => {
             commission_value = EXCLUDED.commission_value,
             stock_code_field = EXCLUDED.stock_code_field,
             block_out_of_stock = EXCLUDED.block_out_of_stock,
+            payment_discounts = CASE
+              WHEN ${hasPaymentDiscounts} THEN EXCLUDED.payment_discounts
+              ELSE pos_settings.payment_discounts
+            END,
             updated_at = now()
           RETURNING *
         `;

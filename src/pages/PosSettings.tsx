@@ -19,9 +19,12 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_POS_SETTINGS,
+  type PosPaymentDiscount,
   type PosSettings,
 } from "@/types/pos";
-import { ArrowLeft, Loader2, X } from "lucide-react";
+import { POS_DISCOUNT_PAYMENT_METHODS } from "@/lib/paymentMethods";
+import { ArrowLeft, Loader2, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface LeadOption {
   id: string;
@@ -40,6 +43,9 @@ export default function PosSettings() {
   const [saving, setSaving] = useState(false);
   const [leadQuery, setLeadQuery] = useState("");
   const [leadOptions, setLeadOptions] = useState<LeadOption[]>([]);
+  const [section, setSection] = useState<"vendas" | "descontos">("vendas");
+  const [discountMethod, setDiscountMethod] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -82,10 +88,10 @@ export default function PosSettings() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const save = async () => {
+  const save = async (next: PosSettings = form) => {
     setSaving(true);
     try {
-      const saved = await savePosSettings(form);
+      const saved = await savePosSettings(next);
       setForm(saved);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao salvar";
@@ -94,6 +100,39 @@ export default function PosSettings() {
       setSaving(false);
     }
   };
+
+  const addPaymentDiscount = () => {
+    const percent = Number(discountPercent.replace(",", "."));
+    if (!discountMethod || !(percent > 0) || percent > 100) {
+      toast({
+        title: "Informe a forma e o desconto",
+        description: "O desconto é um percentual entre 0 e 100.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const payment_discounts = [
+      ...form.payment_discounts.filter((item) => item.method !== discountMethod),
+      { method: discountMethod, percent },
+    ];
+    const next = { ...form, payment_discounts };
+    setForm(next);
+    setDiscountMethod("");
+    setDiscountPercent("");
+    void save(next);
+  };
+
+  const removePaymentDiscount = (method: string) => {
+    const next = {
+      ...form,
+      payment_discounts: form.payment_discounts.filter((item) => item.method !== method),
+    };
+    setForm(next);
+    void save(next);
+  };
+
+  const discountLabel = (method: string) =>
+    POS_DISCOUNT_PAYMENT_METHODS.find((item) => item.value === method)?.label || method;
 
   return (
     <CRMLayout activeView="pdv" onViewChange={() => {}}>
@@ -115,7 +154,84 @@ export default function PosSettings() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="space-y-6 rounded-lg border bg-card p-4 shadow-sm md:p-6">
+          <div className="flex min-h-[520px] overflow-hidden rounded-lg border bg-card shadow-sm">
+            <nav className="flex w-44 shrink-0 flex-col gap-1 border-r bg-muted/40 p-3">
+              <button
+                type="button"
+                className={cn(
+                  "rounded-md px-3 py-2 text-left text-sm",
+                  section === "vendas" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-background/70"
+                )}
+                onClick={() => setSection("vendas")}
+              >
+                Vendas
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "rounded-md px-3 py-2 text-left text-sm",
+                  section === "descontos" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-background/70"
+                )}
+                onClick={() => setSection("descontos")}
+              >
+                Descontos
+              </button>
+            </nav>
+
+            {section === "descontos" ? (
+              <div className="min-w-0 flex-1 p-4 md:p-6">
+                <h2 className="text-xl font-semibold">Desconto por Forma de Pagamento</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Adicione descontos fixos por forma de pagamento
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Select value={discountMethod || undefined} onValueChange={setDiscountMethod}>
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue placeholder="Forma de pagamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POS_DISCOUNT_PAYMENT_METHODS.map((method) => (
+                        <SelectItem key={method.value} value={method.value}>
+                          {method.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    className="w-[120px]"
+                    placeholder="Desconto"
+                    inputMode="decimal"
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    className="bg-blue-700 text-white hover:bg-blue-800"
+                    disabled={saving}
+                    onClick={addPaymentDiscount}
+                  >
+                    Adicionar
+                  </Button>
+                </div>
+                <div className="mt-4 divide-y rounded-md border">
+                  {form.payment_discounts.length === 0 ? (
+                    <p className="px-3 py-6 text-sm text-muted-foreground">
+                      Nenhum desconto cadastrado.
+                    </p>
+                  ) : (
+                    form.payment_discounts.map((item) => (
+                      <PaymentDiscountRow
+                        key={item.method}
+                        item={item}
+                        label={discountLabel(item.method)}
+                        onRemove={() => removePaymentDiscount(item.method)}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+          <div className="min-w-0 flex-1 space-y-6 p-4 md:p-6">
             <SettingRow
               title="Observações da Venda"
               description="Texto que já vem preenchido nas observações de cada venda nova."
@@ -301,9 +417,32 @@ export default function PosSettings() {
               </Button>
             </div>
           </div>
+            )}
+          </div>
         )}
       </div>
     </CRMLayout>
+  );
+}
+
+function PaymentDiscountRow({
+  item,
+  label,
+  onRemove,
+}: {
+  item: PosPaymentDiscount;
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_72px_40px] items-center gap-2 bg-slate-50 px-3 py-2 text-sm">
+      <span>{label}</span>
+      <span className="text-muted-foreground">À vista</span>
+      <span className="text-right tabular-nums">{Number(item.percent)}%</span>
+      <button type="button" onClick={onRemove} aria-label={`Remover desconto de ${label}`}>
+        <Trash2 className="ml-auto h-4 w-4 text-red-600" />
+      </button>
+    </div>
   );
 }
 
