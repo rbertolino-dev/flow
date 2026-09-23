@@ -20,6 +20,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PosCashConsolidatedDialog } from "@/components/pos/PosCashConsolidatedDialog";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
@@ -126,7 +133,7 @@ export default function PosSalesHistory() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
-  const { loading, listSalesDetailed, getOpenCashSession, openCash, closeCash } =
+  const { loading, listSalesDetailed, getOpenCashSession, openCash, closeCash, getCashConsolidated } =
     usePosSales();
 
   const fromDefault = useMemo(() => defaultDateFrom(), []);
@@ -153,6 +160,7 @@ export default function PosSalesHistory() {
   });
 
   const [cashOpen, setCashOpen] = useState(false);
+  const [consolidatedOpen, setConsolidatedOpen] = useState(false);
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [cashStatus, setCashStatus] = useState<"open" | "closed" | "none">("none");
   const [closingAmount, setClosingAmount] = useState("");
@@ -407,13 +415,22 @@ export default function PosSalesHistory() {
                   </Badge>
                 ) : null}
               </Button>
-              <Button
-                className="bg-teal-700 text-white hover:bg-teal-800"
-                onClick={() => void handleOpenCashDialog()}
-              >
-                <Wallet className="mr-2 h-4 w-4" />
-                Caixa
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-green-700 text-white hover:bg-green-800">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Caixa
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuItem onClick={() => void handleOpenCashDialog()}>
+                    Abrir/Fechar Caixa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setConsolidatedOpen(true)}>
+                    Caixa Consolidado
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="secondary"
                 onClick={() => void loadSales()}
@@ -537,6 +554,12 @@ export default function PosSalesHistory() {
           </div>
         </div>
       </div>
+
+      <PosCashConsolidatedDialog
+        open={consolidatedOpen}
+        onOpenChange={setConsolidatedOpen}
+        onConsult={getCashConsolidated}
+      />
 
       <Dialog open={cashOpen} onOpenChange={setCashOpen}>
         <DialogContent>

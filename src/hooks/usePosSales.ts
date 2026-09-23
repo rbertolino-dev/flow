@@ -7,6 +7,7 @@ import type {
   FinalizeSaleResult,
   ListSalesOptions,
   ListSalesResult,
+  PosCashConsolidated,
   PosCashSession,
   PosSale,
   UpdateSaleItemsPayload,
@@ -103,6 +104,32 @@ export function usePosSales() {
       return result.data;
     },
     [listSalesDetailed]
+  );
+
+  const getCashConsolidated = useCallback(
+    async (opts: {
+      date_from: string;
+      date_to: string;
+      day_period?: string;
+    }): Promise<PosCashConsolidated> => {
+      const params = new URLSearchParams({
+        action: "cash_consolidated",
+        date_from: opts.date_from,
+        date_to: opts.date_to,
+      });
+      if (opts.day_period && opts.day_period !== "all") {
+        params.set("day_period", opts.day_period);
+      }
+      const result = await callPos(`?${params.toString()}`);
+      const data = (result.data || {}) as Partial<PosCashConsolidated>;
+      return {
+        payments: data.payments || [],
+        products_by_category: data.products_by_category || [],
+        services_by_category: data.services_by_category || [],
+        other_entries: data.other_entries || [],
+      };
+    },
+    [callPos]
   );
 
   const getOpenCashSession = useCallback(async () => {
@@ -243,6 +270,7 @@ export function usePosSales() {
     listSales,
     listSalesDetailed,
     getSale,
+    getCashConsolidated,
     getOpenCashSession,
     openCash,
     closeCash,

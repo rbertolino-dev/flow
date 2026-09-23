@@ -189,6 +189,110 @@ serve(async (req) => {
         });
       }
 
+      if (action === "cash_consolidated") {
+        const dateFrom = url.searchParams.get("date_from")?.trim() || "";
+        const dateTo = url.searchParams.get("date_to")?.trim() || "";
+        const dayPeriod = url.searchParams.get("day_period")?.trim() || "all";
+        if (!dateFrom || !dateTo) {
+          return json({ error: "Informe a data inicial e a data final" }, 400);
+        }
+
+        const hourExpr =
+          "EXTRACT(HOUR FROM (COALESCE(s.sold_at, s.created_at) AT TIME ZONE 'America/Sao_Paulo'))";
+        const periodSql =
+          dayPeriod === "dawn"
+            ? `AND ${hourExpr} >= 0 AND ${hourExpr} < 6`
+            : dayPeriod === "morning"
+            ? `AND ${hourExpr} >= 6 AND ${hourExpr} < 12`
+            : dayPeriod === "afternoon"
+            ? `AND ${hourExpr} >= 12 AND ${hourExpr} < 18`
+            : dayPeriod === "night"
+            ? `AND ${hourExpr} >= 18 AND ${hourExpr} < 24`
+            : "";
+
+        const saleWhere = `
+          s.organization_id = $1
+          AND s.status = 'completed'
+          AND COALESCE(s.sold_at, s.created_at) >= $2::timestamptz
+          AND COALESCE(s.sold_at, s.created_at) <= $3::timestamptz
+          ${periodSql}
+        `;
+        const params = [organizationId, dateFrom, dateTo];
+        const asNumber = (value: unknown) => {
+          const n = Number(value);
+          return Number.isFinite(n) ? n : 0;
+        };
+
+        const payments = await pg.queryObject<{ method: string; amount: string | number }>(
+          `SELECT sp.method AS method,
+                  COALESCE(SUM(sp.amount), 0)::numeric AS amount
+           FROM pos_sale_payments sp
+           JOIN pos_sales s ON s.id = sp.sale_id
+           WHERE ${saleWhere}
+           GROUP BY sp.method
+           ORDER BY amount DESC`,
+          params
+        );
+
+        const products = await pg.queryObject<{
+          category: string;
+          quantity: string | number;
+          amount: string | number;
+        }>(
+          `SELECT COALESCE(NULLIF(TRIM(p.category), ''), 'Produtos sem categoria') AS category,
+                  COALESCE(SUM(i.quantity), 0)::numeric AS quantity,
+                  COALESCE(SUM(i.total_price), 0)::numeric AS amount
+           FROM pos_sale_items i
+           JOIN pos_sales s ON s.id = i.sale_id
+           LEFT JOIN products p
+             ON i.item_type = 'product' AND p.id = i.item_id
+           WHERE ${saleWhere}
+             AND i.item_type = 'product'
+           GROUP BY 1
+           ORDER BY amount DESC, category ASC`,
+          params
+        );
+
+        const services = await pg.queryObject<{
+          category: string;
+          quantity: string | number;
+          amount: string | number;
+        }>(
+          `SELECT COALESCE(NULLIF(TRIM(sv.category), ''), 'Serviços sem categoria') AS category,
+                  COALESCE(SUM(i.quantity), 0)::numeric AS quantity,
+                  COALESCE(SUM(i.total_price), 0)::numeric AS amount
+           FROM pos_sale_items i
+           JOIN pos_sales s ON s.id = i.sale_id
+           LEFT JOIN services sv
+             ON i.item_type = 'service' AND sv.id = i.item_id
+           WHERE ${saleWhere}
+             AND i.item_type = 'service'
+           GROUP BY 1
+           ORDER BY amount DESC, category ASC`,
+          params
+        );
+
+        return json({
+          data: {
+            payments: payments.rows.map((row) => ({
+              method: row.method,
+              amount: asNumber(row.amount),
+            })),
+            products_by_category: products.rows.map((row) => ({
+              category: row.category,
+              quantity: asNumber(row.quantity),
+              amount: asNumber(row.amount),
+            })),
+            services_by_category: services.rows.map((row) => ({
+              category: row.category,
+              quantity: asNumber(row.quantity),
+              amount: asNumber(row.amount),
+            })),
+            other_entries: [] as Array<{ description: string; amount: number }>,
+          },
+        });
+      }
+
       // list_sales (default) — filtros avançados do histórico
       const limit = Math.min(parseInt(url.searchParams.get("limit") || "100"), 500);
       const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);

@@ -98,6 +98,24 @@ export interface ListSalesResult {
   summary: PosSalesSummary;
 }
 
+export interface PosCashCategoryTotal {
+  category: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface PosCashOtherEntry {
+  description: string;
+  amount: number;
+}
+
+export interface PosCashConsolidated {
+  payments: Array<{ method: string; amount: number }>;
+  products_by_category: PosCashCategoryTotal[];
+  services_by_category: PosCashCategoryTotal[];
+  other_entries: PosCashOtherEntry[];
+}
+
 export interface PosCashSession {
   id: string;
   organization_id: string;
