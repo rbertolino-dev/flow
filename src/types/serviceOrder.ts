@@ -82,6 +82,23 @@ export interface ServiceOrderChecklistItem {
   title: string;
   is_done: boolean;
   sort_order: number;
+  include_in_pdf?: boolean;
+  checklist_template_id?: string | null;
+}
+
+export interface ServiceOrderChecklistTemplateItem {
+  title: string;
+  include_in_pdf?: boolean;
+}
+
+export interface ServiceOrderChecklistTemplate {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string | null;
+  include_in_pdf: boolean;
+  items: ServiceOrderChecklistTemplateItem[];
+  created_at: string;
 }
 
 export interface ServiceOrder {

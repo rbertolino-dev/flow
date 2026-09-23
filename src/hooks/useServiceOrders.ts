@@ -227,6 +227,8 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
           organization_id: activeOrgId,
           title: c.title,
           is_done: c.is_done || false,
+          include_in_pdf: c.include_in_pdf !== false,
+          checklist_template_id: c.checklist_template_id || null,
           sort_order: c.sort_order ?? idx * 10,
         }));
         // @ts-expect-error tabela ainda nao tipada no client gerado
@@ -341,6 +343,8 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
             organization_id: activeOrgId,
             title: c.title,
             is_done: c.is_done || false,
+            include_in_pdf: c.include_in_pdf !== false,
+            checklist_template_id: c.checklist_template_id || null,
             sort_order: c.sort_order ?? idx * 10,
           }));
           // @ts-expect-error tabela ainda nao tipada no client gerado

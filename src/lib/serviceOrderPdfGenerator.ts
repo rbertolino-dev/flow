@@ -320,7 +320,10 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     );
   }
 
-  const checklist = (order.checklist || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+  const checklist = (order.checklist || [])
+    .filter((c) => c.include_in_pdf !== false)
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order);
   if (checklist.length > 0) {
     sectionTitle('Checklist');
     checklist.forEach((c) => {

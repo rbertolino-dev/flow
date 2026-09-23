@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,7 @@ import {
 } from '@/types/serviceOrder';
 import { ServiceOrderProductsStep } from './ServiceOrderProductsStep';
 import { osDialogContentClass } from './osResponsive';
+import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { Product } from '@/types/product';
 import { Lead } from '@/types/lead';
 import { format } from 'date-fns';
@@ -92,6 +93,8 @@ export function CreateServiceOrderDialog({
   const [leadSearch, setLeadSearch] = useState('');
   const [statusId, setStatusId] = useState(defaultStatus?.id || '');
   const [labelTag, setLabelTag] = useState('');
+  const { checklists, linkedIdsForTemplate, itemsForTemplates } = useServiceOrderChecklists();
+  const appliedChecklistKey = useRef<string | null>(null);
 
   const template = templates.find((t) => t.id === templateId) || defaultTemplate;
   const visibleFields = useMemo(
@@ -156,6 +159,21 @@ export function CreateServiceOrderDialog({
     setLabelTag('');
     setNewCheckItem('');
   }, [open, editingOrder, defaultTemplate?.id, defaultStatus?.id]);
+
+  useEffect(() => {
+    if (!open) {
+      appliedChecklistKey.current = null;
+      return;
+    }
+    if (editingOrder || !templateId || checklists.length === 0) return;
+    if (appliedChecklistKey.current === templateId) return;
+    appliedChecklistKey.current = templateId;
+    linkedIdsForTemplate(templateId).then((ids) => {
+      const rows = itemsForTemplates(ids);
+      if (rows.length > 0) setChecklist(rows);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingOrder, templateId, checklists.length]);
 
   const setField = (key: string, value: unknown, isCustom: boolean) => {
     if (isCustom) {
@@ -475,13 +493,35 @@ export function CreateServiceOrderDialog({
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4" />
-                  Checklist da OS
-                </Label>
-              </div>
-              <div className="flex gap-2">
+              <Label className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Checklist da OS
+              </Label>
+              {checklists.length > 0 && (
+                <Select
+                  key={`add-cl-${checklist.length}`}
+                  onValueChange={(id) => {
+                    const rows = itemsForTemplates([id]).map((row, idx) => ({
+                      ...row,
+                      sort_order: (checklist.length + idx) * 10,
+                    }));
+                    setChecklist((prev) => [...prev, ...rows]);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Adicionar checklist pronto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {checklists.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.include_in_pdf ? '' : ' (fora do PDF)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   placeholder="Novo item"
                   value={newCheckItem}
@@ -494,6 +534,7 @@ export function CreateServiceOrderDialog({
                         {
                           title: newCheckItem.trim(),
                           is_done: false,
+                          include_in_pdf: true,
                           sort_order: prev.length * 10,
                         },
                       ]);
@@ -511,6 +552,7 @@ export function CreateServiceOrderDialog({
                       {
                         title: newCheckItem.trim(),
                         is_done: false,
+                        include_in_pdf: true,
                         sort_order: prev.length * 10,
                       },
                     ]);
@@ -518,25 +560,38 @@ export function CreateServiceOrderDialog({
                   }}
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  Adicionar item
+                  Item
                 </Button>
               </div>
               <div className="space-y-1">
                 {checklist.map((c, idx) => (
-                  <label
-                    key={idx}
-                    className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                  <div
+                    key={`${c.title}-${idx}`}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md border px-3 py-2 text-sm"
                   >
-                    <input
-                      type="checkbox"
-                      checked={c.is_done}
-                      onChange={(e) => {
-                        const next = [...checklist];
-                        next[idx] = { ...next[idx], is_done: e.target.checked };
-                        setChecklist(next);
-                      }}
-                    />
-                    <span className="flex-1">{c.title}</span>
+                    <label className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={c.is_done}
+                        onChange={(e) => {
+                          const next = [...checklist];
+                          next[idx] = { ...next[idx], is_done: e.target.checked };
+                          setChecklist(next);
+                        }}
+                      />
+                      <span className="truncate">{c.title}</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                      <Switch
+                        checked={c.include_in_pdf !== false}
+                        onCheckedChange={(v) => {
+                          const next = [...checklist];
+                          next[idx] = { ...next[idx], include_in_pdf: v };
+                          setChecklist(next);
+                        }}
+                      />
+                      PDF
+                    </label>
                     <Button
                       type="button"
                       size="sm"
@@ -545,7 +600,7 @@ export function CreateServiceOrderDialog({
                     >
                       Remover
                     </Button>
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
