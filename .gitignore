@@ -28,6 +28,9 @@ extensions/agilize-crm-sidekick/release/*.zip
 *.sw?
 .last-deploy
 
+# Backups locais de instâncias Evolution (tokens Chatwoot/API)
+backups/evolution-instances/
+
 # Credenciais (não versionar)
 .env.e2e.local
 playwright/.auth/

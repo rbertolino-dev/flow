@@ -27,6 +27,10 @@ verify_jwt = false
 [functions.create-evolution-instance]
 verify_jwt = true
 
+# Destravar QR: gateway não valida JWT (domínio customizado). A função valida Authorization + getUser().
+[functions.unstuck-evolution-instance]
+verify_jwt = false
+
 [functions.public-signup]
 verify_jwt = false
 

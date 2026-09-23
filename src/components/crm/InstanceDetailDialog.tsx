@@ -17,10 +17,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Edit2, Save, X } from "lucide-react";
+import { CalendarIcon, Edit2, Loader2, Save, Unlock, X } from "lucide-react";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { InstanceConnectionMonthStats } from "@/components/crm/InstanceConnectionMonthStats";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { unstuckEvolutionInstance } from "@/lib/unstuckEvolutionInstance";
+import { fetchEvolutionConnectionStateByConfigId } from "@/lib/evolutionConnectionStateProxy";
+import { extractConnectionState } from "@/lib/evolutionStatus";
 
 interface Instance {
   id: string;
@@ -64,7 +68,6 @@ export function InstanceDetailDialog({
   const [editingGuideline, setEditingGuideline] = useState(false);
   const [availableReserveAgents, setAvailableReserveAgents] = useState<string[]>([]);
 
-  // Estados do formulário
   const [reserveAgentName, setReserveAgentName] = useState<string>("");
   const [guideline, setGuideline] = useState<string>("");
   const [dailyDispatchLimit, setDailyDispatchLimit] = useState<string>("");
@@ -72,8 +75,13 @@ export function InstanceDetailDialog({
   const [segment, setSegment] = useState<string>("");
   const [segmentStartDate, setSegmentStartDate] = useState<Date | undefined>(undefined);
   const [segmentEndDate, setSegmentEndDate] = useState<Date | undefined>(undefined);
+  const [confirmUnstuckOpen, setConfirmUnstuckOpen] = useState(false);
+  const [unstucking, setUnstucking] = useState(false);
+  const [unstuckQr, setUnstuckQr] = useState<string | null>(null);
+  const [unstuckChatwootOk, setUnstuckChatwootOk] = useState<boolean | null>(null);
+  const [didUnstuck, setDidUnstuck] = useState(false);
+  const [reconnectedAfterUnstuck, setReconnectedAfterUnstuck] = useState(false);
 
-  // Carregar dados da instância quando abrir
   useEffect(() => {
     if (instance && open) {
       setReserveAgentName(instance.reserve_agent_name || "");
@@ -88,19 +96,24 @@ export function InstanceDetailDialog({
         instance.segment_end_date ? new Date(instance.segment_end_date) : undefined
       );
       setEditingGuideline(false);
+      setConfirmUnstuckOpen(false);
+      setUnstucking(false);
+      setUnstuckQr(null);
+      setUnstuckChatwootOk(null);
+      setDidUnstuck(false);
+      setReconnectedAfterUnstuck(false);
     }
   }, [instance, open]);
 
-  // Buscar agentes disponíveis para reserva (apenas agentes que não são titulares de nenhuma instância)
   useEffect(() => {
     if (open && activeOrgId) {
       fetchAvailableReserveAgents();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carrega ao abrir o dialog
   }, [open, activeOrgId]);
 
   const fetchAvailableReserveAgents = async () => {
     try {
-      // Buscar todas as instâncias da organização
       const { data: instances, error } = await supabase
         .from("evolution_config")
         .select("instance_name, is_titular, reserve_agent_name")
@@ -108,7 +121,6 @@ export function InstanceDetailDialog({
 
       if (error) throw error;
 
-      // Coletar todos os nomes de agentes titulares (não podem ser usados como reserva)
       const titularAgents = new Set<string>();
       instances?.forEach((inst) => {
         if (inst.is_titular && inst.instance_name) {
@@ -116,24 +128,18 @@ export function InstanceDetailDialog({
         }
       });
 
-      // Coletar agentes disponíveis para reserva:
-      // 1. Instâncias que não são titulares
-      // 2. Agentes reserva existentes que não são titulares
       const reserveAgents = new Set<string>();
-      
       instances?.forEach((inst) => {
-        // Adicionar instâncias que não são titulares
         if (!inst.is_titular && inst.instance_name) {
           reserveAgents.add(inst.instance_name);
         }
-        // Adicionar agentes reserva que não são titulares
         if (inst.reserve_agent_name && !titularAgents.has(inst.reserve_agent_name)) {
           reserveAgents.add(inst.reserve_agent_name);
         }
       });
 
       setAvailableReserveAgents(Array.from(reserveAgents).sort());
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao buscar agentes disponíveis:", error);
       toast({
         title: "Erro",
@@ -148,7 +154,7 @@ export function InstanceDetailDialog({
 
     setLoading(true);
     try {
-      const updateData: any = {
+      const updateData = {
         reserve_agent_name: reserveAgentName || null,
         guideline: guideline || "ok",
         daily_dispatch_limit: dailyDispatchLimit ? parseInt(dailyDispatchLimit) : null,
@@ -176,11 +182,11 @@ export function InstanceDetailDialog({
       if (onUpdate) {
         onUpdate();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao salvar:", error);
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível salvar as alterações",
+        description: error instanceof Error ? error.message : "Não foi possível salvar as alterações",
         variant: "destructive",
       });
     } finally {
@@ -188,11 +194,82 @@ export function InstanceDetailDialog({
     }
   };
 
+  const handleUnstuck = async () => {
+    if (!instance) return;
+    setConfirmUnstuckOpen(false);
+    setUnstucking(true);
+    setUnstuckQr(null);
+    try {
+      const result = await unstuckEvolutionInstance(instance.id);
+      if (!result.success) {
+        throw new Error(result.error || "Falha ao destravar a instância");
+      }
+      setDidUnstuck(true);
+      setUnstuckQr(result.qrCode);
+      setUnstuckChatwootOk(result.chatwootRestored ?? null);
+      toast({
+        title: "Instância destravada",
+        description: result.chatwootRestored
+          ? "Chatwoot restaurado. Escaneie o QR Code para conectar."
+          : "Escaneie o QR Code para conectar. Confira o Chatwoot se as mensagens não chegarem.",
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Não foi possível destravar a instância";
+      console.error("Erro ao destravar instância:", error);
+      toast({
+        title: "Erro ao destravar",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setUnstucking(false);
+    }
+  };
+
+  const handleDialogOpenChange = (next: boolean) => {
+    if (unstucking) return;
+    onOpenChange(next);
+    if (!next && didUnstuck && onUpdate) {
+      onUpdate();
+    }
+  };
+
+  useEffect(() => {
+    if (!open || !instance || !didUnstuck || !unstuckQr) return;
+    let cancelled = false;
+    const tick = async () => {
+      const state = await fetchEvolutionConnectionStateByConfigId(instance.id);
+      if (cancelled) return;
+      if (extractConnectionState(state.body) === true) {
+        toast({
+          title: "Conectado",
+          description: `${instance.instance_name} conectou após o QR.`,
+        });
+        setUnstuckQr(null);
+        setReconnectedAfterUnstuck(true);
+      }
+    };
+    const interval = setInterval(tick, 5000);
+    void tick();
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [open, instance, didUnstuck, unstuckQr, toast]);
+
   if (!instance) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (unstucking) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (unstucking) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             Detalhes da Instância: {instance.instance_name}
@@ -208,11 +285,47 @@ export function InstanceDetailDialog({
             <Badge variant={instance.is_connected ? "default" : "secondary"}>
               {instance.is_connected ? "Conectado" : "Desconectado"}
             </Badge>
+            {didUnstuck && !reconnectedAfterUnstuck && (
+              <Badge variant="outline">Aguardando QR</Badge>
+            )}
           </div>
+
+          {unstucking && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                Destravando <strong>{instance.instance_name}</strong>: backup, exclusão e recriação na Evolution.
+                Isso pode levar até um minuto.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {unstuckQr && (
+            <div className="rounded-md border bg-muted/40 p-4 space-y-3 text-center">
+              <p className="text-sm font-medium">Escaneie o QR Code no WhatsApp desta instância</p>
+              <img
+                src={unstuckQr}
+                alt={`QR Code ${instance.instance_name}`}
+                className="mx-auto h-52 w-52 rounded bg-white p-2"
+              />
+              {unstuckChatwootOk === false && (
+                <p className="text-xs text-amber-700">
+                  A instância foi recriada, mas o Chatwoot pode precisar ser conferido.
+                </p>
+              )}
+            </div>
+          )}
+
+          {didUnstuck && !unstuckQr && !unstucking && !reconnectedAfterUnstuck && (
+            <Alert>
+              <AlertDescription>
+                Instância recriada. Use Reconectar se o QR não aparecer.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <InstanceConnectionMonthStats instanceId={instance.id} enabled={open} />
 
-          {/* Agente Reserva */}
           <div className="space-y-2">
             <Label htmlFor="reserve-agent">Agente Reserva</Label>
             <Select value={reserveAgentName} onValueChange={setReserveAgentName}>
@@ -233,7 +346,6 @@ export function InstanceDetailDialog({
             </p>
           </div>
 
-          {/* Diretriz */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="guideline">Diretriz</Label>
@@ -286,7 +398,6 @@ export function InstanceDetailDialog({
             )}
           </div>
 
-          {/* Limites de Disparo */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="daily-limit">Total de Disparos por Dia</Label>
@@ -312,7 +423,6 @@ export function InstanceDetailDialog({
             </div>
           </div>
 
-          {/* Segmento */}
           <div className="space-y-2">
             <Label htmlFor="segment">Segmento</Label>
             <Select value={segment} onValueChange={setSegment}>
@@ -330,7 +440,6 @@ export function InstanceDetailDialog({
             </Select>
           </div>
 
-          {/* Datas do Segmento */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Data de Início do Segmento</Label>
@@ -386,18 +495,64 @@ export function InstanceDetailDialog({
             </div>
           </div>
 
-          {/* Botões de Ação */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Fechar
+          {confirmUnstuckOpen && (
+            <Alert variant="destructive">
+              <AlertDescription className="space-y-3">
+                <p>
+                  Destravar <strong>{instance.instance_name}</strong> apaga a sessão do WhatsApp
+                  só desta instância na Evolution, recria com o mesmo nome e restaura o Chatwoot.
+                  Depois será preciso escanear o QR Code.
+                  {instance.is_connected ? " A conexão atual será encerrada." : ""}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmUnstuckOpen(false)}
+                    disabled={unstucking}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleUnstuck}
+                    disabled={unstucking}
+                  >
+                    {unstucking ? "Destravando..." : "Sim, destravar esta instância"}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-wrap justify-between gap-2 pt-4 border-t">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setConfirmUnstuckOpen(true)}
+              disabled={loading || unstucking}
+            >
+              {unstucking ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Unlock className="h-4 w-4 mr-2" />
+              )}
+              Destravar instância
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              {loading ? "Salvando..." : "Salvar Alterações"}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => handleDialogOpenChange(false)} disabled={unstucking}>
+                Fechar
+              </Button>
+              <Button onClick={handleSave} disabled={loading || unstucking}>
+                {loading ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-
