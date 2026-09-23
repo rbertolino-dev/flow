@@ -50,11 +50,11 @@ const CASH_SHORTCUTS = [
   { key: "F2", label: "Cliente" },
   { key: "F3", label: "Buscar" },
   { key: "F4", label: "Barras" },
-  { key: "F5", label: "Novo cliente" },
   { key: "F6", label: "Desconto" },
   { key: "F7", label: "Pagamento" },
   { key: "F8", label: "Limpar" },
   { key: "F9", label: "Histórico" },
+  { key: "F10", label: "Novo cliente" },
   { key: "F12", label: "Finalizar" },
 ] as const;
 
@@ -510,7 +510,7 @@ export default function Pos() {
         setBarcodeMode(true);
         window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
         return true;
-      case "F5":
+      case "F10":
         if (activeOrgId) setCreateClientOpen(true);
         return true;
       case "F6":

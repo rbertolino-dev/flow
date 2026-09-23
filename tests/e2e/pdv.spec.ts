@@ -226,6 +226,87 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     expect(clearRes.ok()).toBeTruthy();
   });
 
+  test("PDV — novo cliente no atalho F10 @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    await human.humanNavigate("/pdv");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({
+      timeout: 45_000,
+    });
+    await expect(page.getByRole("button", { name: /f10\s*novo cliente/i })).toBeVisible();
+    await expect(page.locator("kbd", { hasText: /^F5$/ })).toHaveCount(0);
+  });
+
+  test("PDV histórico — caixa consolidado @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
+    await human.humanNavigate("/pdv/historico");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+
+    await expect(page.getByRole("heading", { name: /histórico de vendas/i })).toBeVisible({
+      timeout: 45_000,
+    });
+
+    await human.randomDelay(400, 800);
+    await human.humanClick(page.getByRole("button", { name: /^caixa$/i }));
+    await expect(page.getByRole("menuitem", { name: /abrir\/fechar caixa/i })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /caixa consolidado/i })).toBeVisible();
+
+    const opened = page.waitForResponse(
+      (res) =>
+        res.url().includes("/functions/v1/pos-sales") &&
+        res.url().includes("cash_consolidated") &&
+        res.request().method() === "GET",
+      { timeout: 45_000 }
+    );
+    await human.humanClick(page.getByRole("menuitem", { name: /caixa consolidado/i }));
+
+    const openRes = await opened;
+    expect(openRes.ok()).toBeTruthy();
+    const openBody = await openRes.json();
+    expect(Array.isArray(openBody.data?.payments)).toBeTruthy();
+    expect(Array.isArray(openBody.data?.products_by_category)).toBeTruthy();
+    expect(Array.isArray(openBody.data?.services_by_category)).toBeTruthy();
+    expect(Array.isArray(openBody.data?.other_entries)).toBeTruthy();
+
+    const dialog = page.getByRole("dialog", { name: /caixa consolidado/i });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(/formas de pagamento/i)).toBeVisible();
+    await expect(dialog.getByText(/vendas de produtos por categoria/i)).toBeVisible();
+    await expect(dialog.getByText(/vendas de serviços por categoria/i)).toBeVisible();
+    await expect(dialog.getByText(/outras entradas/i)).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /^consultar$/i })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /^exportar$/i })).toBeVisible();
+
+    await human.humanClick(dialog.getByRole("combobox"));
+    await human.randomDelay(200, 400);
+    await human.humanClick(page.getByRole("option", { name: /manhã/i }));
+
+    const morning = page.waitForResponse(
+      (res) =>
+        res.url().includes("cash_consolidated") &&
+        res.url().includes("day_period=morning") &&
+        res.request().method() === "GET",
+      { timeout: 45_000 }
+    );
+    await human.hesitate(300, 600);
+    await human.humanClick(dialog.getByRole("button", { name: /^consultar$/i }));
+    const morningRes = await morning;
+    expect(morningRes.ok()).toBeTruthy();
+    const morningBody = await morningRes.json();
+    expect(Array.isArray(morningBody.data?.payments)).toBeTruthy();
+  });
+
   test("PDV histórico — página dedicada @human-behavior @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     await human.humanNavigate("/pdv/historico");
