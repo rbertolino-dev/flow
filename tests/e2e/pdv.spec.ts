@@ -160,6 +160,78 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     }
   });
 
+  test("PDV histórico — dialog Filtrar vendas @human-behavior @pdv", async ({
+    page,
+  }) => {
+    const human = new HumanBehavior(page);
+    await human.humanNavigate("/pdv/historico");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+
+    await expect(
+      page.getByRole("heading", { name: /histórico de vendas/i })
+    ).toBeVisible({ timeout: 45_000 });
+
+    await human.humanClick(page.getByRole("button", { name: /filtros/i }).first());
+    const dialog = page.getByRole("dialog").filter({ hasText: /filtrar vendas/i });
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+
+    await expect(dialog.getByText(/^cliente$/i)).toBeVisible();
+    await expect(dialog.getByText(/^responsável$/i)).toBeVisible();
+    await expect(dialog.getByText(/forma de pagamento/i)).toBeVisible();
+    await expect(dialog.getByText(/^origem$/i)).toBeVisible();
+    await expect(dialog.getByText(/preço acima de/i)).toBeVisible();
+    await expect(dialog.getByText(/preço abaixo de/i)).toBeVisible();
+
+    // Forma de pagamento = PIX (4º combobox: cliente-tipo, responsável, pagamento, origem)
+    const comboboxes = dialog.locator('[role="combobox"]');
+    await expect(comboboxes).toHaveCount(4, { timeout: 10_000 });
+    await human.humanClick(comboboxes.nth(2));
+    await human.randomDelay(200, 400);
+    await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+
+    const filterResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/functions/v1/pos-sales") &&
+        res.url().includes("list_sales") &&
+        res.url().includes("payment_method=pix") &&
+        res.request().method() === "GET",
+      { timeout: 45_000 }
+    );
+
+    await human.hesitate(300, 600);
+    await human.humanClick(
+      dialog.getByRole("button", { name: /filtrar vendas com nota emitida/i })
+    );
+
+    const res = await filterResponse;
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(Array.isArray(body.data)).toBeTruthy();
+    expect(body.summary).toBeTruthy();
+
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByText(/quantidade de vendas/i)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Limpar filtros
+    await human.humanClick(page.getByRole("button", { name: /filtros/i }).first());
+    await expect(dialog).toBeVisible();
+    const clearResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/functions/v1/pos-sales") &&
+        res.url().includes("list_sales") &&
+        !res.url().includes("payment_method=") &&
+        res.request().method() === "GET",
+      { timeout: 45_000 }
+    );
+    await human.humanClick(dialog.getByRole("button", { name: /limpar filtros/i }));
+    const clearRes = await clearResponse;
+    expect(clearRes.ok()).toBeTruthy();
+  });
+
   test("PDV histórico — página dedicada @human-behavior @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     await human.humanNavigate("/pdv/historico");
