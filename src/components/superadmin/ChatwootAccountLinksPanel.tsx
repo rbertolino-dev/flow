@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Copy, Link2, Loader2, Trash2 } from "lucide-react";
+import { Copy, Loader2, Trash2 } from "lucide-react";
 
 const CHATWOOT_BASE_URL = "https://acesso.atendimentoagilize.com";
 const DASHBOARD_APP_URL =
@@ -236,205 +233,158 @@ export function ChatwootAccountLinksPanel() {
     }
   }
 
+  const editing = links.some((link) => link.organization_id === organizationId);
+
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Link2 className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold">Chatwoot e Agilize Flow</h1>
+    <div className="mx-auto max-w-5xl">
+      <header className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-xl font-medium tracking-tight">Chatwoot e Agilize Flow</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Uma organização do Flow para uma conta do Chatwoot.</p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Uma empresa do Agilize Flow conversa com uma conta do Chatwoot. São dois dados, um de cada sistema.
-        </p>
-      </div>
+        <Button type="button" variant="outline" size="sm" className="shadow-none" onClick={() => void copyDashboardUrl()}>
+          <Copy className="mr-2 h-3.5 w-3.5" />
+          Copiar aba do Chatwoot
+        </Button>
+      </header>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-card p-4 text-sm">
-          <p className="font-semibold">Dado do Agilize Flow</p>
-          <p className="mt-2 text-muted-foreground">
-            O <strong className="text-foreground">nome da organização</strong>, o mesmo que aparece no seletor de empresa no topo do Flow.
-          </p>
-          <p className="mt-2 text-muted-foreground">Não use CNPJ, e-mail nem o nome da conta do Chatwoot.</p>
-        </div>
-        <div className="rounded-lg border bg-card p-4 text-sm">
-          <p className="font-semibold">Dado do Chatwoot</p>
-          <p className="mt-2 text-muted-foreground">
-            Só o <strong className="text-foreground">número da conta</strong>, o que vem depois de <code>/app/accounts/</code> na barra de endereço.
-          </p>
-          <p className="mt-2 text-muted-foreground">
-            Exemplo: <code>acesso.atendimentoagilize.com/app/accounts/5/...</code> → o número é <strong className="text-foreground">5</strong>.
-          </p>
-          <p className="mt-2 text-muted-foreground">Não use o nome da conta, o token nem o e-mail do agente.</p>
-        </div>
-      </div>
+      <div className="grid gap-12 pt-8 lg:grid-cols-2">
+        <section className="space-y-8">
+          <div>
+            <h2 className="text-sm font-medium">{editing ? "Editar ligação" : "Nova ligação"}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              No Chatwoot, cole a aba em Configurações → Aplicativos → Dashboard Apps. O número fica na URL, depois de /app/accounts/.
+            </p>
+          </div>
 
-      <Alert>
-        <AlertDescription className="space-y-3 text-sm">
-          <p className="font-semibold">Antes de ligar, faça isto no Chatwoot</p>
-          <ol className="list-decimal space-y-2 pl-5">
-            <li>Entre na conta do Chatwoot dessa empresa. Não faça isso dentro do Agilize Flow.</li>
-            <li>
-              Abra <strong>Configurações → Aplicativos → Dashboard Apps</strong> e cole o endereço abaixo. Ele é igual para todas as contas. Isso faz a aba aparecer dentro da conversa.
-            </li>
-            <li>Olhe a URL dessa conta e anote só o número depois de <code>/app/accounts/</code>. Esse número entra no formulário daqui.</li>
-          </ol>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input readOnly value={DASHBOARD_APP_URL} className="font-mono text-xs" />
-            <Button type="button" variant="secondary" onClick={() => void copyDashboardUrl()}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copiar endereço da aba
-            </Button>
-          </div>
-        </AlertDescription>
-      </Alert>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{links.some((link) => link.organization_id === organizationId) ? "Alterar ligação" : "Ligar os dois sistemas"}</CardTitle>
-          <CardDescription>Preencha um campo com o dado do Flow e o outro com o dado do Chatwoot.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="org-filter">1. Nome da empresa no Agilize Flow</Label>
-            <p className="text-xs text-muted-foreground">
-              Digite pelo menos 2 letras. A lista aparece aqui embaixo. Clique no nome para escolher.
-            </p>
-            <Input
-              id="org-filter"
-              value={orgFilter}
-              onChange={(event) => {
-                setOrgFilter(event.target.value);
-                setOrganizationId("");
-              }}
-              placeholder="Ex.: guilherme"
-              autoComplete="off"
-            />
-            {orgFilter.trim().length >= 2 && organizationId === "" && (
-              <div className="max-h-56 overflow-auto rounded-md border bg-background">
-                {filteredOrganizations.length === 0 ? (
-                  <p className="p-3 text-sm text-muted-foreground">Nenhuma empresa com esse nome.</p>
-                ) : (
-                  filteredOrganizations.map((org) => (
-                    <button
-                      key={org.id}
-                      type="button"
-                      className="block w-full border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
-                      onClick={() => chooseOrganization(org)}
-                    >
-                      {org.name}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-            {selectedOrganization ? (
-              <p className="text-sm">
-                Empresa escolhida: <strong>{selectedOrganization.name}</strong>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="org-filter" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Agilize Flow</Label>
+              <Input
+                id="org-filter"
+                value={orgFilter}
+                onChange={(event) => {
+                  setOrgFilter(event.target.value);
+                  setOrganizationId("");
+                }}
+                placeholder="Nome da organização"
+                autoComplete="off"
+                className="shadow-none"
+              />
+              {orgFilter.trim().length >= 2 && organizationId === "" && (
+                <div className="max-h-52 overflow-auto border-t">
+                  {filteredOrganizations.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">Nenhuma empresa com esse nome.</p>
+                  ) : (
+                    filteredOrganizations.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        className="block w-full border-b py-2.5 text-left text-sm hover:text-foreground/70"
+                        onClick={() => chooseOrganization(org)}
+                      >
+                        {org.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {selectedOrganization ? <>Escolhida: {selectedOrganization.name}</> : "Digite pelo menos 2 letras e clique no nome."}
               </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhuma empresa escolhida ainda.</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="account-id">2. Número da conta no Chatwoot</Label>
-            <p className="text-xs text-muted-foreground">
-              Só o número da URL <code>/app/accounts/NUMERO/</code>. O nome logo abaixo serve para confirmar que esse número é a conta certa.
-            </p>
-            <Input
-              id="account-id"
-              inputMode="numeric"
-              value={accountId}
-              onChange={(event) => setAccountId(event.target.value.replace(/\D/g, ""))}
-              placeholder="Somente o número, por exemplo 1"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="account-name">Nome da conta no Chatwoot</Label>
-            <p className="text-xs text-muted-foreground">
-              O nome que aparece nessa conta do Chatwoot, para conferir o número. Exemplo: chatagilize.
-            </p>
-            <Input
-              id="account-name"
-              value={accountName}
-              onChange={(event) => setAccountName(event.target.value)}
-              placeholder="Nome da empresa ou da conta no Chatwoot"
-            />
-            {accountId && accountName.trim() && (
-              <p className="rounded-md bg-muted px-3 py-2 text-sm">
-                Confirmação: conta número <strong>{accountId}</strong> — <strong>{accountName.trim()}</strong>
-                {selectedOrganization ? <> no Agilize Flow <strong>{selectedOrganization.name}</strong></> : null}
-              </p>
-            )}
-            {knownAccount && (
-              <p className="text-sm text-muted-foreground">
-                Esse número já está ligado à empresa <strong className="text-foreground">{knownAccount.organization_name}</strong>
-                {knownAccount.chatwoot_account_name ? <> com o nome <strong className="text-foreground">{knownAccount.chatwoot_account_name}</strong></> : " e ainda não tem o nome da conta gravado"}.
-              </p>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <Label htmlFor="enabled">Ligação ativa</Label>
-              <p className="text-xs text-muted-foreground">Desligada, a aba dessa conta do Chatwoot para de gravar nesta organização.</p>
             </div>
-            <Switch id="enabled" checked={enabled} onCheckedChange={setEnabled} />
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" onClick={() => void saveLink()} disabled={saving || loading}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Salvar ligação
-            </Button>
-            <Button type="button" variant="outline" onClick={resetForm}>
-              Limpar
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>O que já está ligado</CardTitle>
-          <CardDescription>Cada linha é uma organização do Flow com o número da conta do Chatwoot dela.</CardDescription>
-        </CardHeader>
-        <CardContent>
+            <div className="grid gap-4 sm:grid-cols-[7rem_1fr]">
+              <div className="space-y-2">
+                <Label htmlFor="account-id" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Número</Label>
+                <Input
+                  id="account-id"
+                  inputMode="numeric"
+                  value={accountId}
+                  onChange={(event) => setAccountId(event.target.value.replace(/\D/g, ""))}
+                  placeholder="1"
+                  className="shadow-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="account-name" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nome no Chatwoot</Label>
+                <Input
+                  id="account-name"
+                  value={accountName}
+                  onChange={(event) => setAccountName(event.target.value)}
+                  placeholder="Nome da conta"
+                  className="shadow-none"
+                />
+              </div>
+            </div>
+
+            {(accountId || accountName.trim() || knownAccount) && (
+              <p className="text-sm text-muted-foreground">
+                {accountId && accountName.trim() ? (
+                  <>
+                    Conta {accountId}, {accountName.trim()}
+                    {selectedOrganization ? <> → {selectedOrganization.name}</> : null}
+                  </>
+                ) : null}
+                {knownAccount ? (
+                  <>
+                    {accountId && accountName.trim() ? " · " : null}
+                    Já ligada a {knownAccount.organization_name}
+                    {knownAccount.chatwoot_account_name ? ` (${knownAccount.chatwoot_account_name})` : ""}.
+                  </>
+                ) : null}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between border-t pt-4">
+              <Label htmlFor="enabled" className="text-sm font-normal">Ligação ativa</Label>
+              <Switch id="enabled" checked={enabled} onCheckedChange={setEnabled} />
+            </div>
+
+            <div className="flex gap-2">
+              <Button type="button" className="shadow-none" onClick={() => void saveLink()} disabled={saving || loading}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Salvar
+              </Button>
+              <Button type="button" variant="ghost" onClick={resetForm}>
+                Limpar
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-sm font-medium">Ligações</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Organização do Flow e a conta correspondente no Chatwoot.</p>
           {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : links.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma conta ligada ainda.</p>
+            <p className="border-t py-6 text-sm text-muted-foreground">Nenhuma conta ligada.</p>
           ) : (
-            <div className="space-y-3">
+            <ul className="mt-4 divide-y border-t">
               {links.map((link) => (
-                <div key={link.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">Agilize Flow: {link.organization_name}</span>
-                      <Badge variant={link.enabled === false ? "secondary" : "default"}>
-                        {link.enabled === false ? "Inativa" : "Ativa"}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Chatwoot: conta número {link.chatwoot_account_id}
-                      {link.chatwoot_account_name ? ` — ${link.chatwoot_account_name}` : " — nome da conta ainda não informado"}
+                <li key={link.id} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm">{link.organization_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {link.chatwoot_account_name || "Sem nome"} · nº {link.chatwoot_account_id}
+                      {link.enabled === false ? " · inativa" : ""}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => fillForm(link)}>
-                      Editar
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => void removeLink(link)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => fillForm(link)}>
+                    Editar
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => void removeLink(link)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      </div>
     </div>
   );
 }
