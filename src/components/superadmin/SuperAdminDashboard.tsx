@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet } from "lucide-react";
+import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet, Link2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
 import { CreateUserDialog } from "./CreateUserDialog";
@@ -350,6 +350,14 @@ export function SuperAdminDashboard() {
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2 shrink-0" />
                 <span className="truncate">Import clientes Agilize</span>
+              </Button>
+              <Button
+                onClick={() => navigate('/superadmin/chatwoot')}
+                variant="secondary"
+                className="w-full justify-start"
+              >
+                <Link2 className="h-4 w-4 mr-2 shrink-0" />
+                <span className="truncate">Chatwoot e Flow</span>
               </Button>
               <Button 
                 onClick={() => setShowPlansManagement(!showPlansManagement)} 
