@@ -203,45 +203,68 @@ export function ChatwootAccountLinksPanel() {
           <h1 className="text-2xl font-bold">Chatwoot e Agilize Flow</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Cada organização do Flow fica ligada a uma conta do Chatwoot. A aba da conversa usa essa ligação.
+          Uma empresa do Agilize Flow conversa com uma conta do Chatwoot. São dois dados, um de cada sistema.
         </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border bg-card p-4 text-sm">
+          <p className="font-semibold">Dado do Agilize Flow</p>
+          <p className="mt-2 text-muted-foreground">
+            O <strong className="text-foreground">nome da organização</strong>, o mesmo que aparece no seletor de empresa no topo do Flow.
+          </p>
+          <p className="mt-2 text-muted-foreground">Não use CNPJ, e-mail nem o nome da conta do Chatwoot.</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4 text-sm">
+          <p className="font-semibold">Dado do Chatwoot</p>
+          <p className="mt-2 text-muted-foreground">
+            Só o <strong className="text-foreground">número da conta</strong>, o que vem depois de <code>/app/accounts/</code> na barra de endereço.
+          </p>
+          <p className="mt-2 text-muted-foreground">
+            Exemplo: <code>acesso.atendimentoagilize.com/app/accounts/5/...</code> → o número é <strong className="text-foreground">5</strong>.
+          </p>
+          <p className="mt-2 text-muted-foreground">Não use o nome da conta, o token nem o e-mail do agente.</p>
+        </div>
       </div>
 
       <Alert>
         <AlertDescription className="space-y-3 text-sm">
-          <p>
-            No Chatwoot da conta, abra <strong>Configurações → Aplicativos → Dashboard Apps</strong> e cole este endereço. É o mesmo para todas as contas.
-          </p>
+          <p className="font-semibold">Antes de ligar, faça isto no Chatwoot</p>
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>Entre na conta do Chatwoot dessa empresa. Não faça isso dentro do Agilize Flow.</li>
+            <li>
+              Abra <strong>Configurações → Aplicativos → Dashboard Apps</strong> e cole o endereço abaixo. Ele é igual para todas as contas. Isso faz a aba aparecer dentro da conversa.
+            </li>
+            <li>Olhe a URL dessa conta e anote só o número depois de <code>/app/accounts/</code>. Esse número entra no formulário daqui.</li>
+          </ol>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input readOnly value={DASHBOARD_APP_URL} className="font-mono text-xs" />
             <Button type="button" variant="secondary" onClick={() => void copyDashboardUrl()}>
               <Copy className="mr-2 h-4 w-4" />
-              Copiar
+              Copiar endereço da aba
             </Button>
           </div>
-          <p>
-            O número da conta está na URL do Chatwoot, em <code>/app/accounts/5/</code>. O 5 é o ID.
-          </p>
         </AlertDescription>
       </Alert>
 
       <Card>
         <CardHeader>
-          <CardTitle>{links.some((link) => link.organization_id === organizationId) ? "Alterar ligação" : "Nova ligação"}</CardTitle>
-          <CardDescription>Escolha a organização do Flow e o número da conta no Chatwoot.</CardDescription>
+          <CardTitle>{links.some((link) => link.organization_id === organizationId) ? "Alterar ligação" : "Ligar os dois sistemas"}</CardTitle>
+          <CardDescription>Preencha um campo com o dado do Flow e o outro com o dado do Chatwoot.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="org-filter">Buscar organização</Label>
+            <Label htmlFor="org-filter">1. Buscar a organização no Agilize Flow</Label>
             <Input
               id="org-filter"
               value={orgFilter}
               onChange={(event) => setOrgFilter(event.target.value)}
-              placeholder="Nome da organização"
+              placeholder="Digite o nome da empresa no Flow"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="organization">Organização do Agilize Flow</Label>
+            <p className="text-xs text-muted-foreground">Nome da empresa neste sistema. Cliente, orçamento e WhatsApp vão para ela.</p>
             <select
               id="organization"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -256,7 +279,7 @@ export function ChatwootAccountLinksPanel() {
                 }
               }}
             >
-              <option value="">Selecione</option>
+              <option value="">Selecione a organização do Flow</option>
               {filteredOrganizations.map((org) => (
                 <option key={org.id} value={org.id}>
                   {org.name}
@@ -265,17 +288,23 @@ export function ChatwootAccountLinksPanel() {
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="account-id">Número da conta no Chatwoot</Label>
+            <Label htmlFor="account-id">2. Número da conta no Chatwoot</Label>
+            <p className="text-xs text-muted-foreground">
+              Só o número da URL <code>/app/accounts/NUMERO/</code>. Se a conta se chama “chatagilize” e a URL tem accounts/1, digite 1.
+            </p>
             <Input
               id="account-id"
               inputMode="numeric"
               value={accountId}
               onChange={(event) => setAccountId(event.target.value.replace(/\D/g, ""))}
-              placeholder="Ex.: 1"
+              placeholder="Somente o número, por exemplo 1"
             />
           </div>
           <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="enabled">Ligação ativa</Label>
+            <div>
+              <Label htmlFor="enabled">Ligação ativa</Label>
+              <p className="text-xs text-muted-foreground">Desligada, a aba dessa conta do Chatwoot para de gravar nesta organização.</p>
+            </div>
             <Switch id="enabled" checked={enabled} onCheckedChange={setEnabled} />
           </div>
           <div className="flex gap-2">
@@ -292,8 +321,8 @@ export function ChatwootAccountLinksPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Ligações atuais</CardTitle>
-          <CardDescription>A aba do Chatwoot só grava dados na organização desta lista.</CardDescription>
+          <CardTitle>O que já está ligado</CardTitle>
+          <CardDescription>Cada linha é uma organização do Flow com o número da conta do Chatwoot dela.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -308,13 +337,13 @@ export function ChatwootAccountLinksPanel() {
                 <div key={link.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{link.organization_name}</span>
+                      <span className="font-medium">Agilize Flow: {link.organization_name}</span>
                       <Badge variant={link.enabled === false ? "secondary" : "default"}>
                         {link.enabled === false ? "Inativa" : "Ativa"}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Conta Chatwoot {link.chatwoot_account_id} · {hostOf(link.chatwoot_base_url)}
+                      Chatwoot: conta número {link.chatwoot_account_id}
                     </p>
                   </div>
                   <div className="flex gap-2">
