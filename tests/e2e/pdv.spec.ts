@@ -343,11 +343,12 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByRole("button", { name: /nova promoção/i })).toBeVisible();
     await expect(page.getByText(/dia dos pais/i)).toBeVisible();
     await human.humanClick(page.getByRole("button", { name: /nova promoção/i }));
-    await expect(page.getByText(/^nome$/i)).toBeVisible();
-    await expect(page.getByText(/^validade$/i)).toBeVisible();
-    await expect(page.getByText(/desconto \(%\)/i)).toBeVisible();
-    await expect(page.getByText(/categorias de produtos/i)).toBeVisible();
-    await human.humanClick(page.getByRole("button", { name: /^cancelar$/i }));
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText(/^nome$/i)).toBeVisible();
+    await expect(dialog.getByText(/^validade$/i)).toBeVisible();
+    await expect(dialog.getByText(/desconto \(%\)/i)).toBeVisible();
+    await expect(dialog.getByText(/categorias de produtos/i)).toBeVisible();
+    await human.humanClick(dialog.getByRole("button", { name: /^cancelar$/i }));
 
     await human.humanNavigate("/pdv");
     await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
@@ -356,7 +357,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await human.humanClick(productBtn);
     await human.humanClick(page.getByRole("combobox").filter({ hasText: /nenhuma/i }));
     await human.humanClick(page.getByRole("option", { name: /dia dos pais/i }));
-    await expect(page.getByText(/10%/)).toBeVisible();
+    await expect(page.getByText(/10% nas categorias/i)).toBeVisible();
     await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
     await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
     await expect(page.getByText(/acréscimo de 3%/i)).toBeVisible({ timeout: 10_000 });
