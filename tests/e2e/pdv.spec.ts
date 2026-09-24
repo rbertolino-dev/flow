@@ -496,6 +496,109 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByRole("button", { name: /excluir venda/i })).toBeVisible();
   });
 
+  test("PDV — todos os campos de configuração na venda @human-behavior @pdv", async ({ page }) => {
+    test.setTimeout(180_000);
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+    const marker = "OBS_PDV_CAMPOS";
+    const restoredNotes = "Garantia de 90 dias. Pagamento conforme combinado.";
+
+    const openSettings = async () => {
+      await human.humanNavigate("/pdv/configuracoes");
+      if (page.url().includes("/login")) test.skip(true, "Sessão E2E inválida");
+      await expect(page.getByRole("heading", { name: /configuração de venda/i })).toBeVisible({
+        timeout: 20_000,
+      });
+    };
+
+    const row = (title: string) =>
+      page.locator("div.border-b").filter({ has: page.getByText(title, { exact: true }) });
+
+    const saveSettings = async () => {
+      const saved = page.waitForResponse(
+        (res) =>
+          res.url().includes("/functions/v1/pos-sales") &&
+          res.request().method() === "POST" &&
+          (res.request().postData() || "").includes("save_pos_settings"),
+        { timeout: 30_000 }
+      );
+      await human.hesitate(300, 600);
+      await human.humanClick(page.getByRole("button", { name: /^salvar$/i }));
+      const response = await saved;
+      expect(response.ok()).toBeTruthy();
+      await expect(page.getByText(/normalizePosSettings is not defined/i)).toHaveCount(0);
+      await expect(page.getByText(/configurações do pdv salvas/i)).toBeVisible({ timeout: 10_000 });
+    };
+
+    await openSettings();
+    await expect(page.getByText(/observações da venda/i)).toBeVisible();
+    await expect(page.getByText(/conta financeira/i)).toBeVisible();
+    await expect(page.getByText(/categoria financeira/i)).toBeVisible();
+    await expect(page.getByText(/cliente padrão/i)).toBeVisible();
+    await expect(page.getByText(/venda simples/i)).toBeVisible();
+    await expect(page.getByText(/comissão de venda obrigatória/i)).toBeVisible();
+    await expect(page.getByText(/registro de meio de pagamento/i)).toBeVisible();
+    await expect(page.getByText(/comissão de venda padrão/i)).toBeVisible();
+    await expect(page.getByText(/código do estoque padrão/i)).toBeVisible();
+    await expect(page.getByText(/bloqueio de produtos em falta/i)).toBeVisible();
+
+    const notes = page.getByPlaceholder("Digite").first();
+    await human.humanType(notes, marker, { clearFirst: true });
+    await human.humanType(row("Conta Financeira").getByRole("textbox"), "Pubdigital", { clearFirst: true });
+    await human.humanClick(row("Categoria Financeira").getByRole("combobox"));
+    await human.humanClick(page.getByRole("option", { name: /^vendas$/i }));
+    await expect(row("Registro de Meio de Pagamento").getByRole("switch")).toBeChecked();
+    await expect(row("Venda Simples").getByRole("switch")).not.toBeChecked();
+    await expect(row("Comissão de Venda Obrigatória").getByRole("switch")).not.toBeChecked();
+    await expect(row("Bloqueio de Produtos Em Falta").getByRole("switch")).not.toBeChecked();
+
+    try {
+      await saveSettings();
+      await page.reload();
+      await expect(page.getByRole("heading", { name: /configuração de venda/i })).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(notes).toHaveValue(new RegExp(marker));
+
+      await human.humanClick(page.getByRole("button", { name: /^descontos$/i }));
+      await expect(page.getByRole("heading", { name: /desconto por forma de pagamento/i })).toBeVisible();
+      await human.humanClick(page.getByRole("button", { name: /^acréscimos$/i }));
+      await expect(page.getByRole("heading", { name: /acréscimo por forma de pagamento/i })).toBeVisible();
+      await expect(page.getByText(/^pix$/i).first()).toBeVisible();
+      await human.humanClick(page.getByRole("button", { name: /^promoções$/i }));
+      await expect(page.getByRole("heading", { name: /^promoções$/i })).toBeVisible();
+      await expect(page.getByText(/dia dos pais/i)).toBeVisible();
+
+      await human.humanNavigate("/pdv");
+      await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
+      await expect(page.getByPlaceholder("Observações")).toHaveValue(new RegExp(marker));
+      await expect(page.getByText(/formas de pagamento/i)).toBeVisible();
+      const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+      await expect(productBtn).toBeVisible({ timeout: 20_000 });
+      await human.humanClick(productBtn);
+      await human.humanClick(page.getByRole("combobox").filter({ hasText: /nenhuma|dia dos pais/i }));
+      await human.humanClick(page.getByRole("option", { name: /dia dos pais/i }));
+      await expect(page.getByText(/10% nas categorias/i)).toBeVisible();
+      await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+      await human.humanClick(page.getByRole("option", { name: /^cheque$/i }));
+      await expect(page.getByText(/11% à vista nesta forma de pagamento/i)).toBeVisible();
+      await human.humanClick(page.getByRole("button", { name: /^finalizar$/i }));
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByText(/confirmar venda/i)).toBeVisible({ timeout: 15_000 });
+      await expect(dialog.getByPlaceholder("Conta")).toHaveValue(/pubdigital/i);
+      await human.humanClick(dialog.getByRole("button", { name: /^cancelar$/i }));
+    } finally {
+      await openSettings();
+      await human.humanType(page.getByPlaceholder("Digite").first(), restoredNotes, { clearFirst: true });
+      await saveSettings();
+    }
+  });
+
   test("PDV — acessibilidade básica @accessibility @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     await human.humanNavigate("/pdv");

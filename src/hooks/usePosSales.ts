@@ -2,19 +2,25 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
-import {
-  normalizePosSettings,
-  type FinalizeSalePayload,
-  type FinalizeSaleResult,
-  type ListSalesOptions,
-  type ListSalesResult,
-  type PosCashConsolidated,
-  type PosCashSession,
-  type PosSettings,
-  type PosSale,
-  type UpdateSaleItemsPayload,
-  type UpdateSalePayload,
+import * as posModel from "@/types/pos";
+import type {
+  FinalizeSalePayload,
+  FinalizeSaleResult,
+  ListSalesOptions,
+  ListSalesResult,
+  PosCashConsolidated,
+  PosCashSession,
+  PosSettings,
+  PosSale,
+  UpdateSaleItemsPayload,
+  UpdateSalePayload,
 } from "@/types/pos";
+
+function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSettings {
+  const normalize = posModel.normalizePosSettings;
+  if (typeof normalize === "function") return normalize(raw);
+  return { ...posModel.DEFAULT_POS_SETTINGS, ...(raw || {}) };
+}
 
 async function getAccessToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
