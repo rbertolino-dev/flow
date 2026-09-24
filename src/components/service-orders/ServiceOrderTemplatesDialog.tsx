@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CheckSquare, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Plus, Star, Trash2 } from 'lucide-react';
+import { CheckSquare, ChevronDown, ChevronUp, FileText, Plus, Star, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   ServiceOrderChecklistTemplateItem,
   ServiceOrderTemplate,
@@ -148,6 +149,23 @@ export function ServiceOrderTemplatesDialog({
     await onTemplatesChanged?.();
   };
 
+  const moveField = async (index: number, direction: -1 | 1) => {
+    if (!selected) return;
+    const list = fieldsForTemplateEditor(selected);
+    const target = index + direction;
+    if (target < 0 || target >= list.length) return;
+    const ordered = list.map((field) => field.id);
+    const [moved] = ordered.splice(index, 1);
+    ordered.splice(target, 0, moved);
+    await reorderTemplateFields(ordered);
+    await refreshTemplates();
+  };
+
+  const editorFields = selected ? fieldsForTemplateEditor(selected) : [];
+  const pdfFields = selected ? fieldsShownOnPdf(selected) : [];
+  const defaultChecklistName =
+    checklists.find((c) => c.id === linked.find((item) => item.isDefault)?.id)?.name || '';
+
   const saveChecklist = async () => {
     if (!clName.trim() || clItems.length === 0) return;
     const items = clItems.map((item) => ({
@@ -197,50 +215,63 @@ export function ServiceOrderTemplatesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${osDialogContentClass} sm:max-w-4xl`}>
-        <DialogHeader>
-          <DialogTitle className="pr-8">Modelos e checklists</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Defina quais campos entram no formulário, quais saem no PDF e em que ordem. O checklist do modelo aparece na prévia.
+      <DialogContent className={`${osDialogContentClass} gap-0 bg-slate-100 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[96vw] sm:max-w-[1400px] sm:p-0`}>
+        <DialogHeader className="border-b bg-white px-5 py-4 sm:px-8 sm:py-5">
+          <DialogTitle className="pr-8 text-xl sm:text-2xl">Modelo de Ordem de Serviço</DialogTitle>
+          <p className="text-sm text-slate-500">
+            Escolha o que aparece na OS, o que sai no PDF e a ordem dos campos.
           </p>
         </DialogHeader>
 
-        <Tabs defaultValue="modelos" className="min-w-0">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="modelos">Modelos</TabsTrigger>
-            <TabsTrigger value="checklists">Checklists</TabsTrigger>
+        <Tabs defaultValue="modelos" className="min-w-0 px-4 py-4 sm:px-8 sm:py-6">
+          <TabsList className="grid h-12 w-full max-w-md grid-cols-2 bg-white p-1">
+            <TabsTrigger value="modelos" className="text-sm">Modelo</TabsTrigger>
+            <TabsTrigger value="checklists" className="text-sm">Checklists</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="modelos" className="mt-4 grid lg:grid-cols-[280px_1fr] gap-4">
-            <div className="space-y-3">
-              <div className="space-y-2 max-h-52 lg:max-h-[420px] overflow-y-auto pr-1">
-                {templates.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedId(t.id)}
-                    className={`w-full text-left rounded-xl border p-3 transition ${
-                      selected?.id === t.id
-                        ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium truncate">{t.name}</span>
-                      {t.is_default && <Badge variant="secondary">Padrão</Badge>}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {fieldsForTemplateEditor(t).filter((f) => f.is_visible).length} campos no formulário
-                      {' · '}
-                      {fieldsShownOnPdf(t).length} no PDF
-                    </p>
-                  </button>
-                ))}
+          <TabsContent value="modelos" className="mt-5 grid items-start gap-5 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {templates.map((t) => {
+                  const active = selected?.id === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedId(t.id)}
+                      className={cn(
+                        'w-full rounded-2xl border bg-white p-4 text-left transition',
+                        active
+                          ? 'border-slate-900 shadow-sm ring-1 ring-slate-900'
+                          : 'border-slate-200 hover:border-slate-400'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-base font-semibold text-slate-900">{t.name}</span>
+                        {t.is_default && (
+                          <span className="shrink-0 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-white">
+                            Padrão
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {fieldsForTemplateEditor(t).filter((f) => f.is_visible).length} na OS
+                        {' · '}
+                        {fieldsShownOnPdf(t).length} no PDF
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
-                <p className="text-sm font-semibold">Novo modelo</p>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome, ex.: Instalação" />
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">Novo modelo</p>
+                <Input
+                  className="h-11"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nome, ex.: Instalação"
+                />
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -248,7 +279,7 @@ export function ServiceOrderTemplatesDialog({
                   placeholder="Quando usar este modelo"
                 />
                 <Select value={copyFrom} onValueChange={setCopyFrom}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="Copiar campos de" />
                   </SelectTrigger>
                   <SelectContent>
@@ -260,288 +291,301 @@ export function ServiceOrderTemplatesDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button className="w-full" onClick={handleCreate} disabled={creating || !name.trim()}>
-                  <Plus className="h-4 w-4 mr-1" />
+                <Button className="h-11 w-full" onClick={handleCreate} disabled={creating || !name.trim()}>
+                  <Plus className="mr-1 h-4 w-4" />
                   Criar modelo
                 </Button>
               </div>
             </div>
 
             {selected ? (
-              <div className="space-y-4 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-semibold">{selected.name}</h3>
-                    {selected.description && (
-                      <p className="text-sm text-muted-foreground">{selected.description}</p>
+              <>
+                <div className="min-w-0 space-y-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-xl font-semibold text-slate-900">{selected.name}</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {selected.description || 'Ligue o campo na OS e marque se ele entra no PDF.'}
+                      </p>
+                    </div>
+                    {!selected.is_default && (
+                      <Button
+                        variant="ghost"
+                        className="shrink-0 text-slate-500 hover:text-red-600"
+                        onClick={async () => {
+                          await deleteTemplate(selected.id);
+                          setSelectedId(null);
+                          onTemplatesChanged?.();
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        Desativar
+                      </Button>
                     )}
                   </div>
-                  {!selected.is_default && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive shrink-0"
-                      onClick={async () => {
-                        await deleteTemplate(selected.id);
-                        setSelectedId(null);
-                        onTemplatesChanged?.();
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Desativar
-                    </Button>
-                  )}
-                </div>
 
-                <div className="rounded-xl border bg-slate-50 px-3 py-2 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
-                  <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> No formulário</span>
-                  <span className="inline-flex items-center gap-1"><EyeOff className="h-3.5 w-3.5" /> Oculto na OS</span>
-                  <span className="inline-flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Sai no PDF</span>
-                  <span>Uso interno = só na tela, fora do PDF</span>
-                </div>
-
-                <div className="rounded-xl border divide-y max-h-80 overflow-y-auto">
-                  {fieldsForTemplateEditor(selected).map((f, index, list) => {
-                    return (
-                      <div key={f.id} className={`px-3 py-2 space-y-2 ${f.is_visible ? '' : 'bg-muted/40'}`}>
-                        <div className="flex items-start gap-2">
-                          <div className="flex flex-col">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              disabled={index === 0}
-                              onClick={async () => {
-                                const ordered = list.map((field) => field.id);
-                                const [moved] = ordered.splice(index, 1);
-                                ordered.splice(index - 1, 0, moved);
-                                await reorderTemplateFields(ordered);
-                                await refreshTemplates();
-                              }}
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              disabled={index === list.length - 1}
-                              onClick={async () => {
-                                const ordered = list.map((field) => field.id);
-                                const [moved] = ordered.splice(index, 1);
-                                ordered.splice(index + 1, 0, moved);
-                                await reorderTemplateFields(ordered);
-                                await refreshTemplates();
-                              }}
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-sm font-medium truncate ${f.is_visible ? '' : 'text-muted-foreground line-through'}`}>
-                              {index + 1}. {f.label}
-                            </p>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              <Badge variant="outline">{f.is_standard ? 'Padrão' : 'Personalizado'}</Badge>
-                              <Badge variant={f.is_visible ? 'secondary' : 'outline'}>
-                                {f.is_visible ? 'No formulário' : 'Oculto'}
-                              </Badge>
-                              <Badge variant={f.include_in_pdf === false ? 'outline' : 'default'}>
-                                {f.include_in_pdf === false ? 'Uso interno' : 'No PDF'}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 pl-9">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              await updateTemplateField(f.id, { is_visible: !f.is_visible });
-                              await refreshTemplates();
-                            }}
-                          >
-                            {f.is_visible ? <EyeOff className="h-3.5 w-3.5 mr-1" /> : <Eye className="h-3.5 w-3.5 mr-1" />}
-                            {f.is_visible ? 'Ocultar' : 'Reativar'}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={f.include_in_pdf === false ? 'outline' : 'secondary'}
-                            onClick={async () => {
-                              await updateTemplateField(f.id, { include_in_pdf: f.include_in_pdf === false });
-                              await refreshTemplates();
-                            }}
-                          >
-                            <FileText className="h-3.5 w-3.5 mr-1" />
-                            {f.include_in_pdf === false ? 'Incluir no PDF' : 'Deixar interno'}
-                          </Button>
-                          {!f.is_standard && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive"
-                              onClick={async () => {
-                                if (!window.confirm(`Excluir o campo "${f.label}" deste modelo?`)) return;
-                                await deleteTemplateField(f.id);
-                                await refreshTemplates();
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-1" />
-                              Excluir
-                            </Button>
-                          )}
-                        </div>
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                      <div>
+                        <p className="font-semibold text-slate-900">Campos</p>
+                        <p className="text-sm text-slate-500">A ordem daqui é a ordem da OS e do PDF.</p>
                       </div>
-                    );
-                  })}
-                </div>
-
-                <div className="grid sm:grid-cols-[1fr_140px_auto] gap-2 items-end">
-                  <Input
-                    placeholder="Novo campo"
-                    value={newFieldLabel}
-                    onChange={(e) => setNewFieldLabel(e.target.value)}
-                  />
-                  <Select value={newFieldType} onValueChange={setNewFieldType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Texto</SelectItem>
-                      <SelectItem value="textarea">Texto longo</SelectItem>
-                      <SelectItem value="number">Número</SelectItem>
-                      <SelectItem value="date">Data</SelectItem>
-                      <SelectItem value="boolean">Sim/Não</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    onClick={async () => {
-                      if (!newFieldLabel.trim()) return;
-                      await addCustomField(selected.id, {
-                        label: newFieldLabel.trim(),
-                        field_type: newFieldType,
-                      });
-                      setNewFieldLabel('');
-                      await refreshTemplates();
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="rounded-xl border p-3 space-y-3">
-                  <div>
-                    <p className="text-sm font-semibold flex items-center gap-2">
-                      <CheckSquare className="h-4 w-4" />
-                      Checklist deste modelo
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Os checklists vinculados entram na nova OS. O padrão é o checklist principal deste modelo.
-                      {' '}
-                      {linked.length === 0
-                        ? 'Nenhum checklist vinculado e nenhum padrão definido.'
-                        : linked.some((item) => item.isDefault)
-                          ? `Padrão: ${checklists.find((c) => c.id === linked.find((item) => item.isDefault)?.id)?.name || 'definido'}.`
-                          : 'Nenhum checklist marcado como padrão.'}
-                    </p>
-                  </div>
-                  {checklists.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Crie um checklist na aba ao lado.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {checklists.map((c) => {
-                        const link = linked.find((item) => item.id === c.id);
-                        const onPdf = c.include_in_pdf !== false;
-                        return (
-                          <div key={c.id} className={`rounded-lg border px-3 py-2 space-y-2 ${link ? 'border-primary/40 bg-primary/5' : ''}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{c.name}</p>
-                                <p className="text-xs text-muted-foreground">{c.items.length} itens</p>
-                              </div>
-                              <div className="flex flex-wrap justify-end gap-1">
-                                <Badge variant={link ? 'default' : 'outline'}>{link ? 'Vinculado' : 'Não vinculado'}</Badge>
-                                {link?.isDefault && (
-                                  <Badge className="bg-amber-500 hover:bg-amber-500">
-                                    <Star className="h-3 w-3 mr-1" />
-                                    Padrão
-                                  </Badge>
-                                )}
-                                <Badge variant={onPdf ? 'secondary' : 'outline'}>{onPdf ? 'No PDF' : 'Fora do PDF'}</Badge>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button type="button" size="sm" variant={link ? 'secondary' : 'outline'} onClick={() => toggleLink(c.id)}>
-                                {link ? 'Desvincular' : 'Vincular ao modelo'}
-                              </Button>
-                              {link && !link.isDefault && (
-                                <Button type="button" size="sm" variant="outline" onClick={() => markDefaultChecklist(c.id)}>
-                                  <Star className="h-3.5 w-3.5 mr-1" />
-                                  Definir como padrão
-                                </Button>
-                              )}
-                              <Button
+                      <p className="text-sm text-slate-500">{editorFields.filter((f) => f.is_visible).length} ativos</p>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {editorFields.map((f, index) => (
+                        <div
+                          key={f.id}
+                          className={cn('flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-5', !f.is_visible && 'bg-slate-50')}
+                        >
+                          <div className="flex items-center gap-3 sm:w-[42%] sm:min-w-0">
+                            <div className="flex flex-col">
+                              <button
                                 type="button"
-                                size="sm"
-                                variant="ghost"
+                                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                                disabled={index === 0}
+                                onClick={() => moveField(index, -1)}
+                                aria-label="Subir campo"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                                disabled={index === editorFields.length - 1}
+                                onClick={() => moveField(index, 1)}
+                                aria-label="Descer campo"
+                              >
+                                <ChevronDown className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="min-w-0">
+                              <p className={cn('truncate text-base font-medium', f.is_visible ? 'text-slate-900' : 'text-slate-400')}>
+                                {f.label}
+                              </p>
+                              <p className="text-xs text-slate-400">{f.is_standard ? 'Campo padrão' : 'Campo personalizado'}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
+                            <label className="flex h-11 min-w-[132px] items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3">
+                              <span className="text-sm font-medium text-slate-700">Na OS</span>
+                              <Switch
+                                checked={f.is_visible}
+                                onCheckedChange={async (checked) => {
+                                  await updateTemplateField(f.id, { is_visible: checked });
+                                  await refreshTemplates();
+                                }}
+                              />
+                            </label>
+                            <label className={cn(
+                              'flex h-11 min-w-[132px] items-center justify-between gap-3 rounded-xl border bg-white px-3',
+                              f.include_in_pdf === false ? 'border-slate-200' : 'border-slate-900'
+                            )}>
+                              <span className="text-sm font-medium text-slate-900">No PDF</span>
+                              <Switch
+                                checked={f.include_in_pdf !== false}
+                                onCheckedChange={async (checked) => {
+                                  await updateTemplateField(f.id, { include_in_pdf: checked });
+                                  await refreshTemplates();
+                                }}
+                              />
+                            </label>
+                            {!f.is_standard && (
+                              <button
+                                type="button"
+                                className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                aria-label="Excluir campo"
                                 onClick={async () => {
-                                  await updateChecklist(c.id, { include_in_pdf: !onPdf });
-                                  await refetchChecklists();
+                                  if (!window.confirm(`Excluir o campo "${f.label}" deste modelo?`)) return;
+                                  await deleteTemplateField(f.id);
+                                  await refreshTemplates();
                                 }}
                               >
-                                <FileText className="h-3.5 w-3.5 mr-1" />
-                                {onPdf ? 'Tirar do PDF' : 'Colocar no PDF'}
-                              </Button>
-                            </div>
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
-                  )}
+                    <div className="grid gap-2 border-t border-slate-100 bg-slate-50 p-4 sm:grid-cols-[1fr_160px_auto]">
+                      <Input
+                        className="h-11 bg-white"
+                        placeholder="Nome do novo campo"
+                        value={newFieldLabel}
+                        onChange={(e) => setNewFieldLabel(e.target.value)}
+                      />
+                      <Select value={newFieldType} onValueChange={setNewFieldType}>
+                        <SelectTrigger className="h-11 bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Texto</SelectItem>
+                          <SelectItem value="textarea">Texto longo</SelectItem>
+                          <SelectItem value="number">Número</SelectItem>
+                          <SelectItem value="date">Data</SelectItem>
+                          <SelectItem value="boolean">Sim/Não</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        className="h-11"
+                        onClick={async () => {
+                          if (!newFieldLabel.trim()) return;
+                          await addCustomField(selected.id, {
+                            label: newFieldLabel.trim(),
+                            field_type: newFieldType,
+                          });
+                          setNewFieldLabel('');
+                          await refreshTemplates();
+                        }}
+                      >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="flex items-center gap-2 font-semibold text-slate-900">
+                          <CheckSquare className="h-4 w-4" />
+                          Checklist
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {linked.length === 0
+                            ? 'Nenhum checklist vinculado a este modelo.'
+                            : defaultChecklistName
+                              ? `Padrão deste modelo: ${defaultChecklistName}.`
+                              : 'Vincule um checklist e marque qual é o padrão.'}
+                        </p>
+                      </div>
+                    </div>
+                    {checklists.length === 0 ? (
+                      <p className="text-sm text-slate-500">Crie um checklist na aba ao lado para vincular aqui.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {checklists.map((c) => {
+                          const link = linked.find((item) => item.id === c.id);
+                          const onPdf = c.include_in_pdf !== false;
+                          return (
+                            <div
+                              key={c.id}
+                              className={cn(
+                                'rounded-2xl border p-4',
+                                link ? 'border-slate-900' : 'border-slate-200'
+                              )}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-base font-medium text-slate-900">{c.name}</p>
+                                  <p className="text-sm text-slate-500">{c.items.length} itens</p>
+                                </div>
+                                {link?.isDefault && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                                    <Star className="h-3.5 w-3.5" />
+                                    Padrão
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-4 flex flex-wrap gap-3">
+                                <label className="flex h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 px-3">
+                                  <span className="text-sm font-medium text-slate-700">Vincular</span>
+                                  <Switch checked={!!link} onCheckedChange={() => toggleLink(c.id)} />
+                                </label>
+                                <label className={cn(
+                                  'flex h-11 items-center justify-between gap-3 rounded-xl border px-3',
+                                  link?.isDefault ? 'border-amber-300 bg-amber-50' : 'border-slate-200',
+                                  !link && 'opacity-50'
+                                )}>
+                                  <span className="text-sm font-medium text-slate-700">Padrão</span>
+                                  <Switch
+                                    checked={!!link?.isDefault}
+                                    disabled={!link}
+                                    onCheckedChange={() => link && markDefaultChecklist(c.id)}
+                                  />
+                                </label>
+                                <label className={cn(
+                                  'flex h-11 items-center justify-between gap-3 rounded-xl border bg-white px-3',
+                                  onPdf ? 'border-slate-900' : 'border-slate-200'
+                                )}>
+                                  <span className="text-sm font-medium text-slate-900">No PDF</span>
+                                  <Switch
+                                    checked={onPdf}
+                                    onCheckedChange={async (checked) => {
+                                      await updateChecklist(c.id, { include_in_pdf: checked });
+                                      await refetchChecklists();
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="rounded-xl border p-3 space-y-2">
-                  <p className="text-sm font-semibold">Prévia do PDF</p>
-                  <ol className="text-sm space-y-1 list-decimal pl-4">
-                    {fieldsShownOnPdf(selected).length === 0 && (
-                      <li className="list-none -ml-4 text-muted-foreground">Nenhum campo marcado para o PDF.</li>
+                <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-0">
+                  <div className="bg-slate-900 px-5 py-5 text-white">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Prévia do PDF</p>
+                    <p className="mt-1 text-lg font-semibold">Ordem de Serviço</p>
+                    <p className="text-sm text-slate-300">{selected.name}</p>
+                  </div>
+                  <div className="space-y-4 p-5">
+                    {pdfFields.length === 0 ? (
+                      <p className="text-sm text-slate-500">Nenhum campo marcado para o PDF.</p>
+                    ) : (
+                      <ol className="space-y-2">
+                        {pdfFields.map((field, index) => (
+                          <li key={field.id} className="flex items-center gap-3 text-sm text-slate-800">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                              {index + 1}
+                            </span>
+                            <span>{field.label}</span>
+                          </li>
+                        ))}
+                      </ol>
                     )}
-                    {fieldsShownOnPdf(selected).map((field) => (
-                      <li key={field.id}>{field.label}</li>
-                    ))}
-                    {linked.map((item) => {
-                      const checklist = checklists.find((c) => c.id === item.id);
-                      if (!checklist) return null;
-                      const onPdf = checklist.include_in_pdf !== false;
-                      return (
-                        <li key={item.id} className={onPdf ? '' : 'text-muted-foreground'}>
-                          Checklist: {checklist.name}
-                          {item.isDefault ? ' (padrão)' : ''}
-                          {onPdf ? '' : ' — uso interno, fora do PDF'}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </div>
-              </div>
+                    <div className="border-t border-slate-100 pt-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Checklist</p>
+                      {linked.length === 0 && <p className="text-sm text-slate-500">Nenhum vinculado.</p>}
+                      <ul className="space-y-2">
+                        {linked.map((item) => {
+                          const checklist = checklists.find((c) => c.id === item.id);
+                          if (!checklist) return null;
+                          const onPdf = checklist.include_in_pdf !== false;
+                          return (
+                            <li key={item.id} className="text-sm text-slate-800">
+                              <span className="font-medium">{checklist.name}</span>
+                              {item.isDefault && <span className="text-amber-700"> · padrão</span>}
+                              <span className={onPdf ? 'text-slate-500' : 'text-slate-400'}>
+                                {onPdf ? ' · entra no PDF' : ' · só na OS'}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </div>
+                </aside>
+              </>
             ) : (
-              <p className="text-sm text-muted-foreground">Selecione um modelo.</p>
+              <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500 xl:col-span-2">
+                Selecione um modelo para editar.
+              </p>
             )}
           </TabsContent>
 
-          <TabsContent value="checklists" className="mt-4 grid lg:grid-cols-2 gap-4">
-            <div className="space-y-2 max-h-[460px] overflow-y-auto">
+          <TabsContent value="checklists" className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+            <div className="space-y-3">
               {checklists.length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhum checklist ainda.</p>
               )}
               {checklists.map((c) => (
-                <div key={c.id} className="rounded-xl border p-3 space-y-2">
+                <div key={c.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-medium">{c.name}</p>
@@ -579,7 +623,7 @@ export function ServiceOrderTemplatesDialog({
               ))}
             </div>
 
-            <div className="rounded-xl border p-4 space-y-3">
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
               <p className="font-semibold">{editingChecklistId ? 'Editar checklist' : 'Novo checklist'}</p>
               <div className="space-y-1">
                 <Label>Nome</Label>
