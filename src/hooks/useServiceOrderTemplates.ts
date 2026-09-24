@@ -435,7 +435,14 @@ export function useServiceOrderTemplates() {
       section?: string;
     }>;
   }) => {
-    if (!activeOrgId) return null;
+    if (!activeOrgId) {
+      toast({
+        title: 'Organização não selecionada',
+        description: 'Entre em uma empresa antes de criar o modelo.',
+        variant: 'destructive',
+      });
+      return null;
+    }
 
     try {
       const {
@@ -592,7 +599,7 @@ export function useServiceOrderTemplates() {
 
   const updateTemplateField = async (
     fieldId: string,
-    patch: { is_visible?: boolean; include_in_pdf?: boolean }
+    patch: { is_visible?: boolean; include_in_pdf?: boolean; field_type?: string }
   ) => {
     try {
       // @ts-expect-error tabela ainda nao tipada no client gerado

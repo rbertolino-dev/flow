@@ -72,6 +72,16 @@ const STANDARD_KEYS = new Set([
 ]);
 
 const DEFAULT_HIDDEN_KEYS = new Set(['equipment_serial', 'equipment_conditions']);
+const SCHEDULE_KEYS = new Set(['is_single_day', 'starts_at', 'ends_at']);
+
+function toLocalDateTimeInput(value?: string) {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 function formatLeadAddress(lead: Lead): string {
   const cep = lead.postalCode
@@ -106,7 +116,7 @@ export function CreateServiceOrderDialog({
   const [leadSearch, setLeadSearch] = useState('');
   const [statusId, setStatusId] = useState(defaultStatus?.id || '');
   const [labelTag, setLabelTag] = useState('');
-  const { checklists, linkedIdsForTemplate, itemsForTemplates } = useServiceOrderChecklists();
+  const { checklists, linkedIdsForTemplate, itemsForTemplates, refetch: refetchChecklists } = useServiceOrderChecklists();
   const appliedChecklistKey = useRef<string | null>(null);
   const { activeOrgId } = useActiveOrganization();
   const { activeServices } = useServices();
@@ -216,20 +226,27 @@ export function CreateServiceOrderDialog({
     setNewCheckItem('');
   }, [open, editingOrder, defaultTemplate?.id, defaultStatus?.id]);
 
+  const checklistStamp = checklists.map((c) => `${c.id}:${c.items.length}`).join('|');
+
+  useEffect(() => {
+    if (open) void refetchChecklists();
+  }, [open, refetchChecklists]);
+
   useEffect(() => {
     if (!open) {
       appliedChecklistKey.current = null;
       return;
     }
-    if (editingOrder || !templateId || checklists.length === 0) return;
-    if (appliedChecklistKey.current === templateId) return;
-    appliedChecklistKey.current = templateId;
+    if (editingOrder || !templateId) return;
+    const key = `${templateId}:${checklistStamp}`;
+    if (appliedChecklistKey.current === key) return;
+    appliedChecklistKey.current = key;
     linkedIdsForTemplate(templateId).then((ids) => {
       const rows = itemsForTemplates(ids);
       if (rows.length > 0) setChecklist(rows);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editingOrder, templateId, checklists.length]);
+  }, [open, editingOrder, templateId, checklistStamp]);
 
   const setField = (key: string, value: unknown, isCustom: boolean) => {
     if (isCustom) {
@@ -263,9 +280,92 @@ export function CreateServiceOrderDialog({
       .slice(0, 20);
   }, [leads, leadSearch]);
 
+  const renderSchedule = (field: ServiceOrderTemplateField) => {
+    const singleDay = form.is_single_day !== false;
+    const startValue = toLocalDateTimeInput(form.starts_at);
+    const endValue = toLocalDateTimeInput(form.ends_at);
+
+    return (
+      <div key={field.id} className="space-y-3 rounded-xl border p-4 md:col-span-2" data-testid="os-schedule">
+        <div>
+          <Label>Quando será o serviço</Label>
+          <p className="text-xs text-muted-foreground">Escolha uma opção: um dia só ou mais de um dia.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="os-schedule-single"
+            aria-pressed={singleDay}
+            className={`rounded-xl border px-3 py-3 text-sm font-medium ${
+              singleDay ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'
+            }`}
+            onClick={() => {
+              setField('is_single_day', true, false);
+              setField('ends_at', '', false);
+            }}
+          >
+            Um dia só
+          </button>
+          <button
+            type="button"
+            data-testid="os-schedule-range"
+            aria-pressed={!singleDay}
+            className={`rounded-xl border px-3 py-3 text-sm font-medium ${
+              !singleDay ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'
+            }`}
+            onClick={() => setField('is_single_day', false, false)}
+          >
+            Mais de um dia
+          </button>
+        </div>
+        {singleDay ? (
+          <div className="space-y-1">
+            <Label htmlFor="os-schedule-start">Dia e horário</Label>
+            <Input
+              id="os-schedule-start"
+              data-testid="os-schedule-start"
+              type="datetime-local"
+              value={startValue}
+              onChange={(e) => setField('starts_at', e.target.value, false)}
+            />
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="os-schedule-start">Data e horário de início</Label>
+              <Input
+                id="os-schedule-start"
+                data-testid="os-schedule-start"
+                type="datetime-local"
+                value={startValue}
+                onChange={(e) => setField('starts_at', e.target.value, false)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="os-schedule-end">Data e horário de fim</Label>
+              <Input
+                id="os-schedule-end"
+                data-testid="os-schedule-end"
+                type="datetime-local"
+                value={endValue}
+                onChange={(e) => setField('ends_at', e.target.value, false)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderField = (field: ServiceOrderTemplateField) => {
     const isCustom = !STANDARD_KEYS.has(field.field_key);
     const value = getFieldValue(field);
+
+    if (SCHEDULE_KEYS.has(field.field_key)) {
+      const first = visibleFields.find((item) => SCHEDULE_KEYS.has(item.field_key));
+      if (first?.id !== field.id) return null;
+      return renderSchedule(field);
+    }
 
     if (field.field_key === 'lead_id' || field.field_type === 'lead') {
       return (
@@ -533,7 +633,7 @@ export function CreateServiceOrderDialog({
     const ok = await onSubmit({
       ...form,
       starts_at: toIso(form.starts_at),
-      ends_at: toIso(form.ends_at),
+      ends_at: form.is_single_day === false ? toIso(form.ends_at) : undefined,
       template_id: templateId,
       status_id: statusId || undefined,
       label_tag: labelTag || undefined,
@@ -565,7 +665,7 @@ export function CreateServiceOrderDialog({
             <div className="space-y-1">
               <Label>Modelo de criação</Label>
               <Select value={templateId} onValueChange={setTemplateId}>
-                <SelectTrigger>
+                <SelectTrigger data-testid="os-model-select">
                   <SelectValue placeholder="Selecione o modelo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -615,12 +715,13 @@ export function CreateServiceOrderDialog({
               )}
               {(form.starts_at || form.ends_at) && (
                 <p className="text-sm text-muted-foreground">
-                  {form.starts_at
-                    ? new Date(form.starts_at).toLocaleDateString('pt-BR')
-                    : '—'}
-                  {form.ends_at
-                    ? ` — ${new Date(form.ends_at).toLocaleDateString('pt-BR')}`
-                    : ''}
+                  {form.is_single_day === false
+                    ? `${form.starts_at ? new Date(form.starts_at).toLocaleString('pt-BR') : '—'} — ${
+                        form.ends_at ? new Date(form.ends_at).toLocaleString('pt-BR') : '—'
+                      }`
+                    : form.starts_at
+                      ? new Date(form.starts_at).toLocaleString('pt-BR')
+                      : ''}
                 </p>
               )}
             </div>

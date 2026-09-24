@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { HumanBehavior } from "../helpers/human-behavior";
-import { hasE2ECredentials } from "../helpers/auth";
+import { hasE2ECredentials, loginAsTestUser } from "../helpers/auth";
 import { loadE2eEnvSecure } from "../helpers/loadE2eEnv";
 
 /**
@@ -103,5 +103,156 @@ test.describe("Ordem de Serviço — etapas e criação @human-behavior @service
 
     // Listagem deve refletir a nova OS ou ao menos permanecer funcional
     await expect(page.getByTestId("os-criar-btn")).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("deve criar modelo de prestação de serviço, checklist e ordem completa @human-behavior", async ({
+    page,
+  }) => {
+    test.setTimeout(300_000);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+    const logged = await loginAsTestUser(page);
+    test.skip(!logged, "Sessão E2E inválida");
+
+    const human = new HumanBehavior(page);
+    const stamp = Date.now().toString().slice(-6);
+    const modelName = `Manutenção residencial ${stamp}`;
+    const checklistName = `Vistoria da visita ${stamp}`;
+    const customField = `Observação do técnico ${stamp}`;
+
+    await human.humanNavigate("/service-orders");
+    await expect(page.getByTestId("os-org-ready")).toBeVisible({ timeout: 45_000 });
+
+    await human.humanClick(page.getByTestId("os-modelos-btn"));
+    await expect(page.getByText("Modelo de Ordem de Serviço")).toBeVisible({ timeout: 15_000 });
+
+    await human.humanType(page.getByTestId("os-template-name"), modelName);
+    await human.hesitate(300, 600);
+    await human.humanClick(page.getByTestId("os-template-create"));
+    await expect(page.getByRole("heading", { name: modelName })).toBeVisible({ timeout: 20_000 });
+
+    const newField = page.getByTestId("os-template-new-field");
+    await newField.scrollIntoViewIfNeeded();
+    await human.humanType(newField, customField);
+    await human.humanClick(page.getByTestId("os-template-add-field"));
+    const typeSelect = page.getByTestId(/os-field-type-custom/).last();
+    await expect(typeSelect).toBeVisible({ timeout: 15_000 });
+    await typeSelect.scrollIntoViewIfNeeded();
+    await human.humanClick(typeSelect);
+    await human.humanClick(page.getByRole("option", { name: "Texto longo" }));
+    await expect(typeSelect).toContainText("Texto longo");
+
+    await human.humanClick(page.getByRole("tab", { name: "Checklists" }));
+    await human.humanType(page.getByTestId("os-checklist-name"), checklistName);
+    const checklistItem = page.getByTestId("os-checklist-item");
+    await checklistItem.scrollIntoViewIfNeeded();
+    await human.humanType(checklistItem, "Conferir o local antes de iniciar");
+    await human.humanClick(page.getByTestId("os-checklist-add-item"));
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: "Checkpoint" }));
+    await human.humanClick(page.getByRole("option", { name: "Escrever" }));
+    const writtenItem = page.getByTestId("os-checklist-item");
+    await expect(writtenItem).toBeVisible();
+    await human.humanType(writtenItem, "Descrever o que foi encontrado");
+    await human.humanClick(page.getByTestId("os-checklist-add-item"));
+    await human.hesitate(200, 400);
+    await human.humanClick(page.getByTestId("os-checklist-save"));
+    await expect(page.getByText(checklistName).first()).toBeVisible({ timeout: 15_000 });
+
+    await human.humanClick(page.getByRole("tab", { name: "Modelo" }));
+    await human.humanClick(page.getByRole("button", { name: modelName }));
+    const checklistCard = page.locator("div.rounded-2xl").filter({ hasText: checklistName }).last();
+    await checklistCard.scrollIntoViewIfNeeded();
+    await human.humanClick(checklistCard.getByText("Vincular", { exact: true }));
+    await expect(checklistCard.locator(".bg-amber-100")).toBeVisible({ timeout: 15_000 });
+
+    await human.humanClick(page.getByRole("button", { name: "Close" }));
+
+    await human.humanClick(page.getByTestId("os-criar-btn"));
+    await expect(page.getByText(/nova ordem de serviço/i)).toBeVisible({ timeout: 15_000 });
+    await human.humanClick(page.getByTestId("os-model-select"));
+    await human.humanClick(page.getByRole("option", { name: new RegExp(modelName) }));
+
+    const clientSearch = page.getByPlaceholder("Buscar cliente...");
+    await human.humanType(clientSearch, "a");
+    const client = page.getByRole("dialog").locator("button.w-full").filter({ hasText: "—" }).first();
+    await expect(client).toBeVisible({ timeout: 10_000 });
+    await human.humanClick(client);
+
+    await expect(page.getByTestId("os-schedule")).toBeVisible();
+    await human.humanClick(page.getByTestId("os-schedule-single"));
+    await expect(page.getByTestId("os-schedule-end")).toHaveCount(0);
+    await page.getByTestId("os-schedule-start").fill("2026-09-24T09:30");
+    await human.humanClick(page.getByTestId("os-schedule-range"));
+    await expect(page.getByTestId("os-schedule-end")).toBeVisible();
+    await page.getByTestId("os-schedule-start").fill("2026-09-24T09:30");
+    await page.getByTestId("os-schedule-end").fill("2026-09-26T18:00");
+
+    for (const [placeholder, value] of [
+      ["Relato do cliente", "Cliente pediu manutenção preventiva do ar-condicionado."],
+      ["Diagnóstico/Problema", "Filtro saturado e dreno obstruído."],
+      ["Solução/Instrução", "Limpeza completa e teste de funcionamento."],
+      ["Termo de garantia (opcional)", "Garantia de 90 dias sobre o serviço executado."],
+      [customField, "Acesso pelo portão lateral."],
+    ] as const) {
+      const field = page.getByPlaceholder(placeholder);
+      await field.scrollIntoViewIfNeeded();
+      await expect(field).toBeVisible();
+      await human.humanType(field, value);
+    }
+
+    const address = page.getByPlaceholder("Endereço");
+    await address.scrollIntoViewIfNeeded();
+    await human.humanType(address, "Rua das Acácias, 120, Centro");
+
+    for (let i = 0; i < 2; i++) {
+      const userSelect = page.getByText("Selecione um usuário da organização").first();
+      if (!(await userSelect.isVisible().catch(() => false))) break;
+      await userSelect.scrollIntoViewIfNeeded();
+      await human.humanClick(userSelect);
+      const option = page.getByRole("option").first();
+      if (!(await option.isVisible().catch(() => false))) {
+        await page.keyboard.press("Escape");
+        break;
+      }
+      await human.humanClick(option);
+    }
+
+    const serviceSelect = page.getByText("Selecione um serviço");
+    if (await serviceSelect.isVisible().catch(() => false)) {
+      await serviceSelect.scrollIntoViewIfNeeded();
+      await human.humanClick(serviceSelect);
+      const serviceOption = page.getByRole("option").first();
+      if (await serviceOption.isVisible().catch(() => false)) {
+        await human.humanClick(serviceOption);
+      } else {
+        await page.keyboard.press("Escape");
+      }
+    }
+
+    const commission = page.getByText(/empresa comissionada/i);
+    if (await commission.isVisible().catch(() => false)) {
+      await commission.scrollIntoViewIfNeeded();
+      await human.humanClick(commission);
+      const commissionValue = page.getByRole("spinbutton").first();
+      if (await commissionValue.isVisible().catch(() => false)) {
+        await commissionValue.fill("150");
+      }
+    }
+
+    await human.hesitate(400, 700);
+    await human.humanClick(page.getByRole("button", { name: /^próximo$/i }));
+    await human.humanClick(page.getByRole("button", { name: /^próximo$/i }));
+
+    await expect(
+      page.getByText(checklistName).or(page.getByText("Conferir o local antes de iniciar")).first()
+    ).toBeVisible({ timeout: 15_000 });
+
+    await human.hesitate(400, 800);
+    await human.humanClick(page.getByRole("button", { name: /^finalizar$/i }));
+    await expect(page.getByTestId("os-criar-btn")).toBeVisible({ timeout: 30_000 });
   });
 });

@@ -347,7 +347,7 @@ export default function ServiceOrders() {
     <CRMLayout activeView="service-orders" onViewChange={() => {}}>
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-testid={activeOrgId ? 'os-org-ready' : undefined}>
             <ClipboardList className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Ordem de Serviço</h1>
           </div>

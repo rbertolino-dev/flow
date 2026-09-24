@@ -233,8 +233,17 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
 
   if (pdfFields.length > 0) {
     const printable = pdfFields
+      .filter((field) => field.field_key !== 'is_single_day')
+      .filter((field) => !(field.field_key === 'ends_at' && order.is_single_day))
       .map((field) => ({
-        label: field.label,
+        label:
+          field.field_key === 'starts_at'
+            ? order.is_single_day
+              ? 'Dia e horário'
+              : 'Início'
+            : field.field_key === 'ends_at'
+              ? 'Fim'
+              : field.label,
         value: valueForTemplateField(order, field, includeValues),
         wide: field.field_type === 'textarea' || field.field_key === 'address',
       }))
@@ -278,14 +287,19 @@ export async function generateServiceOrderPDF(options: ServiceOrderPdfOptions): 
     ['Serviço', order.service_name || '—'],
     ['Etiqueta', order.label_tag || '—']
   );
-  fieldPair(
-    ['Data início', formatDateTime(order.starts_at)],
-    ['Data fim', formatDateTime(order.ends_at)]
-  );
-  fieldPair(
-    ['Período', order.is_single_day ? 'Um dia só' : 'Mais de um dia'],
-    ['Modelo', order.template?.name || '—']
-  );
+  if (order.is_single_day) {
+    fieldPair(
+      ['Dia e horário', formatDateTime(order.starts_at)],
+      ['Modelo', order.template?.name || '—']
+    );
+  } else {
+    fieldPair(
+      ['Início', formatDateTime(order.starts_at)],
+      ['Fim', formatDateTime(order.ends_at)]
+    );
+    const h = field('Modelo', order.template?.name || '—', true);
+    y += h;
+  }
   if (order.address) {
     const h = field('Endereço', order.address, true);
     y += h;

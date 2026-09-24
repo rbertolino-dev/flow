@@ -31,6 +31,25 @@ import { useServiceOrderTemplates } from '@/hooks/useServiceOrderTemplates';
 import { useServiceOrderChecklists } from '@/hooks/useServiceOrderChecklists';
 import { osDialogContentClass } from './osResponsive';
 
+const FIELD_DATA_TYPES = [
+  { value: 'text', label: 'Texto' },
+  { value: 'textarea', label: 'Texto longo' },
+  { value: 'number', label: 'Número' },
+  { value: 'date', label: 'Data' },
+  { value: 'datetime', label: 'Data e hora' },
+  { value: 'boolean', label: 'Sim/Não' },
+] as const;
+
+const LOCKED_FIELD_TYPES = new Set([
+  'lead_id',
+  'responsible_name',
+  'collaborator_name',
+  'service_name',
+  'is_single_day',
+  'starts_at',
+  'ends_at',
+]);
+
 interface ServiceOrderTemplatesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -112,7 +131,7 @@ export function ServiceOrderTemplatesDialog({
       setDescription('');
       setSelectedId(created.id);
       await refetch();
-      onTemplatesChanged?.();
+      await onTemplatesChanged?.();
     }
   };
 
@@ -271,6 +290,7 @@ export function ServiceOrderTemplatesDialog({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Nome, ex.: Instalação"
+                  data-testid="os-template-name"
                 />
                 <Textarea
                   value={description}
@@ -291,7 +311,7 @@ export function ServiceOrderTemplatesDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button className="h-11 w-full" onClick={handleCreate} disabled={creating || !name.trim()}>
+                <Button className="h-11 w-full" onClick={handleCreate} disabled={creating || !name.trim()} data-testid="os-template-create">
                   <Plus className="mr-1 h-4 w-4" />
                   Criar modelo
                 </Button>
@@ -364,6 +384,33 @@ export function ServiceOrderTemplatesDialog({
                                 {f.label}
                               </p>
                               <p className="text-xs text-slate-400">{f.is_standard ? 'Campo padrão' : 'Campo personalizado'}</p>
+                              {LOCKED_FIELD_TYPES.has(f.field_key) ? (
+                                <p className="text-xs text-slate-500">
+                                  Tipo: {FIELD_DATA_TYPES.find((t) => t.value === f.field_type)?.label || f.field_type}
+                                </p>
+                              ) : (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <span className="text-xs text-slate-500">Tipo</span>
+                                  <Select
+                                    value={FIELD_DATA_TYPES.some((t) => t.value === f.field_type) ? f.field_type : 'text'}
+                                    onValueChange={async (value) => {
+                                      await updateTemplateField(f.id, { field_type: value });
+                                      await refreshTemplates();
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-9 w-[150px] bg-white" data-testid={`os-field-type-${f.field_key}`}>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {FIELD_DATA_TYPES.map((type) => (
+                                        <SelectItem key={type.value} value={type.value}>
+                                          {type.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
@@ -414,22 +461,24 @@ export function ServiceOrderTemplatesDialog({
                         placeholder="Nome do novo campo"
                         value={newFieldLabel}
                         onChange={(e) => setNewFieldLabel(e.target.value)}
+                        data-testid="os-template-new-field"
                       />
                       <Select value={newFieldType} onValueChange={setNewFieldType}>
                         <SelectTrigger className="h-11 bg-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="text">Texto</SelectItem>
-                          <SelectItem value="textarea">Texto longo</SelectItem>
-                          <SelectItem value="number">Número</SelectItem>
-                          <SelectItem value="date">Data</SelectItem>
-                          <SelectItem value="boolean">Sim/Não</SelectItem>
+                          {FIELD_DATA_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <Button
                         type="button"
                         className="h-11"
+                        data-testid="os-template-add-field"
                         onClick={async () => {
                           if (!newFieldLabel.trim()) return;
                           await addCustomField(selected.id, {
@@ -627,7 +676,7 @@ export function ServiceOrderTemplatesDialog({
               <p className="font-semibold">{editingChecklistId ? 'Editar checklist' : 'Novo checklist'}</p>
               <div className="space-y-1">
                 <Label>Nome</Label>
-                <Input value={clName} onChange={(e) => setClName(e.target.value)} placeholder="Ex.: Vistoria" />
+                <Input value={clName} onChange={(e) => setClName(e.target.value)} placeholder="Ex.: Vistoria" data-testid="os-checklist-name" />
               </div>
               <div className="space-y-1">
                 <Label>Descrição</Label>
@@ -640,6 +689,7 @@ export function ServiceOrderTemplatesDialog({
               <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   placeholder="Ação do checklist"
+                  data-testid="os-checklist-item"
                   value={clItem}
                   onChange={(e) => setClItem(e.target.value)}
                   onKeyDown={(e) => {
@@ -662,6 +712,8 @@ export function ServiceOrderTemplatesDialog({
                 <Button
                   type="button"
                   variant="secondary"
+                  aria-label="Adicionar ação"
+                  data-testid="os-checklist-add-item"
                   onClick={() => {
                     if (!clItem.trim()) return;
                     setClItems((prev) => [...prev, { title: clItem.trim(), response_type: clItemType }]);
@@ -692,7 +744,7 @@ export function ServiceOrderTemplatesDialog({
                 ))}
               </ul>
               <div className="flex gap-2">
-                <Button className="flex-1" onClick={saveChecklist} disabled={!clName.trim() || clItems.length === 0}>
+                <Button className="flex-1" onClick={saveChecklist} disabled={!clName.trim() || clItems.length === 0} data-testid="os-checklist-save">
                   Salvar checklist
                 </Button>
                 {editingChecklistId && (
