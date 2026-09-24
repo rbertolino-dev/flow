@@ -180,6 +180,7 @@ def main() -> int:
         fail("Cliente padrão indisponível")
         return 1
     ok(f"Cliente: {lead.get('name')}")
+    only_discounts = "--so-descontos" in sys.argv
 
     def save_settings(payload: dict, label: str) -> None:
         body = {
@@ -197,6 +198,8 @@ def main() -> int:
             "stock_code_field": payload.get("stock_code_field", "sku"),
             "block_out_of_stock": bool(payload.get("block_out_of_stock")),
         }
+        if "payment_discounts" in payload:
+            body["payment_discounts"] = payload["payment_discounts"]
         status, saved = api.call("/functions/v1/pos-sales", "POST", body)
         data = (saved or {}).get("data") or {}
         if status != 200:
@@ -226,83 +229,26 @@ def main() -> int:
             mismatches.append("commission_value")
         if body["default_lead_id"] and str(data.get("default_lead_id") or "") != str(body["default_lead_id"]):
             mismatches.append("default_lead_id")
+        if "payment_discounts" in body:
+            got_discounts = data.get("payment_discounts") or []
+            if isinstance(got_discounts, str):
+                got_discounts = json.loads(got_discounts)
+            expected_pairs = {
+                (item["method"], round(float(item["percent"]), 2)) for item in body["payment_discounts"]
+            }
+            got_pairs = {
+                (item.get("method"), round(float(item.get("percent") or 0), 2)) for item in got_discounts
+            }
+            if got_pairs != expected_pairs:
+                mismatches.append(f"payment_discounts={got_pairs!r}")
         if mismatches:
             fail(f"{label}: divergiu {', '.join(mismatches)}")
         else:
             ok(label)
 
-    info("Configurações — um cenário por vez, conferindo a gravação")
-    save_settings(
-        {
-            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
-            "financial_account": "Pubdigital",
-            "financial_category": "vendas",
-        },
-        "Observações, conta Pubdigital e categoria vendas",
-    )
-    save_settings(
-        {
-            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
-            "financial_account": "Pubdigital",
-            "financial_category": "vendas",
-            "default_lead_id": lead["id"],
-            "default_lead_name": lead["name"],
-        },
-        "Cliente padrão",
-    )
-    save_settings(
-        {
-            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
-            "financial_account": "Pubdigital",
-            "financial_category": "vendas",
-            "default_lead_id": lead["id"],
-            "default_lead_name": lead["name"],
-            "simple_sale": True,
-        },
-        "Venda simples",
-    )
-    save_settings(
-        {
-            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
-            "financial_account": "Pubdigital",
-            "financial_category": "vendas",
-            "default_lead_id": lead["id"],
-            "default_lead_name": lead["name"],
-            "commission_required": True,
-            "commission_type": "percent",
-            "commission_value": 10,
-        },
-        "Comissão obrigatória de 10%",
-    )
-    save_settings(
-        {
-            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
-            "financial_account": "Pubdigital",
-            "financial_category": "vendas",
-            "default_lead_id": lead["id"],
-            "default_lead_name": lead["name"],
-            "show_payment_method": False,
-        },
-        "Ocultar meio de pagamento",
-    )
-    save_settings(
-        {
-            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
-            "financial_account": "Pubdigital",
-            "financial_category": "vendas",
-            "default_lead_id": lead["id"],
-            "default_lead_name": lead["name"],
-            "stock_code_field": "barcode",
-            "block_out_of_stock": True,
-            "commission_type": "fixed",
-            "commission_value": 15,
-        },
-        "Código de barras, bloqueio de falta e comissão fixa",
-    )
-
-    info("Configuração que permanece no PDV da Pubdigital")
-    save_settings(
-        {
+    def payment_discounts_scenarios() -> None:
+        info("Desconto por forma de pagamento")
+        base = {
             "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
             "financial_account": "Pubdigital",
             "financial_category": "vendas",
@@ -315,9 +261,183 @@ def main() -> int:
             "commission_value": 0,
             "stock_code_field": "sku",
             "block_out_of_stock": False,
+        }
+        status, filtered = api.call(
+            "/functions/v1/pos-sales",
+            "POST",
+            {
+                "action": "save_pos_settings",
+                **base,
+                "payment_discounts": [
+                    {"method": "pix", "percent": 10},
+                    {"method": "metodo_invalido", "percent": 20},
+                    {"method": "dinheiro", "percent": 150},
+                    {"method": "boleto", "percent": 0},
+                    {"method": "dinheiro", "percent": 5},
+                ],
+            },
+        )
+        stored = ((filtered or {}).get("data") or {}).get("payment_discounts") or []
+        if isinstance(stored, str):
+            stored = json.loads(stored)
+        stored_pairs = {
+            (item.get("method"), round(float(item.get("percent") or 0), 2)) for item in stored
+        }
+        if status != 200 or stored_pairs != {("pix", 10.0), ("dinheiro", 5.0)}:
+            fail(f"Filtro de desconto inválido: HTTP {status} {stored_pairs}")
+        else:
+            ok("Ignora método inválido, percentual acima de 100 e desconto zero")
+        rules = [
+            {"method": "pix", "percent": 10},
+            {"method": "cheque", "percent": 11},
+            {"method": "permuta", "percent": 10},
+            {"method": "crediario", "percent": 10},
+        ]
+        save_settings(
+            {**base, "payment_discounts": rules},
+            "Pix 10%, Cheque 11%, Permuta 10% e Crediário 10%",
+        )
+        status, loaded = api.call("/functions/v1/pos-sales?action=pos_settings")
+        loaded_rows = ((loaded or {}).get("data") or {}).get("payment_discounts") or []
+        if isinstance(loaded_rows, str):
+            loaded_rows = json.loads(loaded_rows)
+        loaded_pairs = {
+            (item.get("method"), round(float(item.get("percent") or 0), 2)) for item in loaded_rows
+        }
+        expected_pairs = {(item["method"], float(item["percent"])) for item in rules}
+        if status != 200 or loaded_pairs != expected_pairs:
+            fail(f"Leitura dos descontos: HTTP {status} {loaded_pairs}")
+        else:
+            ok("Leitura dos descontos confere com o que foi salvo")
+
+        def discounted_total(percent: float) -> tuple[float, float]:
+            amount = round(price * percent / 100, 2)
+            return amount, round(price - amount, 2)
+
+        for label, method, percent in (
+            ("Desconto Pix 10%", "pix", 10),
+            ("Desconto Cheque 11%", "cheque", 11),
+            ("Desconto Permuta 10%", "permuta", 10),
+            ("Desconto Crediário 10%", "crediario", 10),
+        ):
+            discount_amount, total = discounted_total(percent)
+            sale = sell(
+                label,
+                total=total,
+                discount_amount=discount_amount,
+                items=[product_item()],
+                payments=[{"method": method, "amount": total}],
+            )
+            if sale is not None and abs(float(sale.get("discount_amount") or 0) - discount_amount) > 0.05:
+                fail(f"{label}: desconto gravado {sale.get('discount_amount')} ≠ {discount_amount}")
+
+        sell(
+            "Boleto sem desconto",
+            total=price,
+            discount_amount=0,
+            items=[product_item()],
+            payments=[{"method": "boleto", "amount": price}],
+        )
+        save_settings(
+            {
+                **base,
+                "payment_discounts": [
+                    {"method": "cheque", "percent": 11},
+                    {"method": "permuta", "percent": 10},
+                    {"method": "crediario", "percent": 10},
+                ],
+            },
+            "Descontos ativos: Cheque 11%, Permuta 10% e Crediário 10%",
+        )
+
+    if not only_discounts:
+        info("Configurações — um cenário por vez, conferindo a gravação")
+        save_settings(
+        {
+            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+            "financial_account": "Pubdigital",
+            "financial_category": "vendas",
         },
-        "Configuração ativa: conta Pubdigital, cliente padrão, pagamento visível",
+        "Observações, conta Pubdigital e categoria vendas",
     )
+        save_settings(
+            {
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+            },
+            "Cliente padrão",
+        )
+        save_settings(
+            {
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+                "simple_sale": True,
+            },
+            "Venda simples",
+        )
+        save_settings(
+            {
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+                "commission_required": True,
+                "commission_type": "percent",
+                "commission_value": 10,
+            },
+            "Comissão obrigatória de 10%",
+        )
+        save_settings(
+            {
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+                "show_payment_method": False,
+            },
+            "Ocultar meio de pagamento",
+        )
+        save_settings(
+            {
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+                "stock_code_field": "barcode",
+                "block_out_of_stock": True,
+                "commission_type": "fixed",
+                "commission_value": 15,
+            },
+            "Código de barras, bloqueio de falta e comissão fixa",
+        )
+
+        info("Configuração que permanece no PDV da Pubdigital")
+        save_settings(
+            {
+                "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+                "financial_account": "Pubdigital",
+                "financial_category": "vendas",
+                "default_lead_id": lead["id"],
+                "default_lead_name": lead["name"],
+                "simple_sale": False,
+                "commission_required": False,
+                "show_payment_method": True,
+                "commission_type": "percent",
+                "commission_value": 0,
+                "stock_code_field": "sku",
+                "block_out_of_stock": False,
+            },
+            "Configuração ativa: conta Pubdigital, cliente padrão, pagamento visível",
+        )
 
     def sell(label: str, **extra) -> dict | None:
         total = float(extra.pop("total"))
@@ -363,99 +483,101 @@ def main() -> int:
             "discount_amount": 0,
         }
 
-    info("Vendas cadastradas na Pubdigital")
-    half = round(price / 2, 2)
-    rest = round(price - half, 2)
-    sell(
-        "PIX",
-        total=price,
-        items=[product_item()],
-        payments=[{"method": "pix", "amount": price}],
-    )
-    sell(
-        "Dinheiro",
-        total=price,
-        items=[product_item()],
-        payments=[{"method": "dinheiro", "amount": price}],
-    )
-    sell(
-        "Cartão de crédito",
-        total=price,
-        items=[product_item()],
-        payments=[{"method": "cartao_credito", "amount": price}],
-    )
-    sell(
-        "Cartão de débito",
-        total=price,
-        items=[product_item()],
-        payments=[{"method": "cartao_debito", "amount": price}],
-    )
-    sell(
-        "PIX + dinheiro",
-        total=price,
-        items=[product_item()],
-        payments=[
-            {"method": "pix", "amount": half},
-            {"method": "dinheiro", "amount": rest},
-        ],
-    )
-    discounted = round(price * 0.9, 2)
-    sell(
-        "Com desconto",
-        total=discounted,
-        discount_amount=round(price - discounted, 2),
-        items=[product_item()],
-        payments=[{"method": "pix", "amount": discounted}],
-    )
-    commission_sale = sell(
-        "Comissão 10%",
-        total=price,
-        items=[product_item()],
-        payments=[{"method": "pix", "amount": price}],
-        add_commission=True,
-        commission_user_id=seller_id,
-        commission_user_name=seller_name,
-        default_commission_type="percent",
-        default_commission_value=10,
-    )
-    if commission_sale is not None:
-        amount = float(commission_sale.get("commission_amount") or 0)
-        if amount <= 0:
-            fail("Comissão 10% não gerou valor")
-        else:
-            ok(f"Comissão calculada: R$ {amount:.2f}")
-
-    sell(
-        "Comissão fixa",
-        total=price,
-        items=[product_item()],
-        payments=[{"method": "pix", "amount": price}],
-        add_commission=True,
-        commission_user_id=seller_id,
-        commission_user_name=seller_name,
-        default_commission_type="fixed",
-        default_commission_value=15,
-    )
-
-    if service:
-        service_price = float(service.get("price") or 0)
+        info("Vendas cadastradas na Pubdigital")
+        half = round(price / 2, 2)
+        rest = round(price - half, 2)
         sell(
-            "Serviço",
-            total=service_price,
-            financial_category="servicos",
-            items=[
-                {
-                    "item_type": "service",
-                    "item_id": service["id"],
-                    "name": service.get("name") or "Serviço",
-                    "unit": "un",
-                    "quantity": 1,
-                    "unit_price": service_price,
-                    "discount_amount": 0,
-                }
-            ],
-            payments=[{"method": "pix", "amount": service_price}],
+            "PIX",
+            total=price,
+            items=[product_item()],
+            payments=[{"method": "pix", "amount": price}],
         )
+        sell(
+            "Dinheiro",
+            total=price,
+            items=[product_item()],
+            payments=[{"method": "dinheiro", "amount": price}],
+        )
+        sell(
+            "Cartão de crédito",
+            total=price,
+            items=[product_item()],
+            payments=[{"method": "cartao_credito", "amount": price}],
+        )
+        sell(
+            "Cartão de débito",
+            total=price,
+            items=[product_item()],
+            payments=[{"method": "cartao_debito", "amount": price}],
+        )
+        sell(
+            "PIX + dinheiro",
+            total=price,
+            items=[product_item()],
+            payments=[
+                {"method": "pix", "amount": half},
+                {"method": "dinheiro", "amount": rest},
+            ],
+        )
+        discounted = round(price * 0.9, 2)
+        sell(
+            "Com desconto",
+            total=discounted,
+            discount_amount=round(price - discounted, 2),
+            items=[product_item()],
+            payments=[{"method": "pix", "amount": discounted}],
+        )
+        commission_sale = sell(
+            "Comissão 10%",
+            total=price,
+            items=[product_item()],
+            payments=[{"method": "pix", "amount": price}],
+            add_commission=True,
+            commission_user_id=seller_id,
+            commission_user_name=seller_name,
+            default_commission_type="percent",
+            default_commission_value=10,
+        )
+        if commission_sale is not None:
+            amount = float(commission_sale.get("commission_amount") or 0)
+            if amount <= 0:
+                fail("Comissão 10% não gerou valor")
+            else:
+                ok(f"Comissão calculada: R$ {amount:.2f}")
+
+        sell(
+            "Comissão fixa",
+            total=price,
+            items=[product_item()],
+            payments=[{"method": "pix", "amount": price}],
+            add_commission=True,
+            commission_user_id=seller_id,
+            commission_user_name=seller_name,
+            default_commission_type="fixed",
+            default_commission_value=15,
+        )
+
+        if service:
+            service_price = float(service.get("price") or 0)
+            sell(
+                "Serviço",
+                total=service_price,
+                financial_category="servicos",
+                items=[
+                    {
+                        "item_type": "service",
+                        "item_id": service["id"],
+                        "name": service.get("name") or "Serviço",
+                        "unit": "un",
+                        "quantity": 1,
+                        "unit_price": service_price,
+                        "discount_amount": 0,
+                    }
+                ],
+                payments=[{"method": "pix", "amount": service_price}],
+            )
+
+    payment_discounts_scenarios()
 
     info("Caixa consolidado enxerga as vendas do mês")
     from datetime import datetime

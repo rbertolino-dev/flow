@@ -268,6 +268,53 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByRole("option", { name: /^pix$/i })).toBeVisible();
     await expect(page.getByRole("option", { name: /^permuta$/i })).toBeVisible();
     await expect(page.getByRole("option", { name: /^crediário$/i })).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+
+  test("PDV — desconto à vista aplicado na venda @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
+    await human.humanNavigate("/pdv/configuracoes");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+    await human.humanClick(page.getByRole("button", { name: /^descontos$/i }));
+    await expect(page.getByRole("heading", { name: /desconto por forma de pagamento/i })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await human.humanClick(page.getByRole("combobox").first());
+    await human.humanClick(page.getByRole("option", { name: /^dinheiro$/i }));
+    await human.humanType(page.getByPlaceholder("Desconto"), "5");
+    const saved = page.waitForResponse(
+      (res) =>
+        res.url().includes("/functions/v1/pos-sales") &&
+        res.request().method() === "POST" &&
+        res.ok(),
+      { timeout: 30_000 }
+    );
+    await human.hesitate(300, 600);
+    await human.humanClick(page.getByRole("button", { name: /^adicionar$/i }));
+    expect((await saved).ok()).toBeTruthy();
+    await expect(page.getByText(/normalizePosSettings is not defined/i)).toHaveCount(0);
+    await expect(page.getByText("5%").first()).toBeVisible({ timeout: 15_000 });
+
+    await human.humanNavigate("/pdv");
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
+    const productBtn = page.locator("ul.divide-y li button").first();
+    await expect(productBtn).toBeVisible({ timeout: 20_000 });
+    await human.humanClick(productBtn);
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+    await human.humanClick(page.getByRole("option", { name: /^cheque$/i }));
+    await expect(page.getByText(/11% à vista nesta forma de pagamento/i)).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("PDV histórico — caixa consolidado @human-behavior @pdv", async ({ page }) => {
