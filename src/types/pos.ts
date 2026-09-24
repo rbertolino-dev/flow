@@ -64,6 +64,8 @@ export interface PosSale {
   created_at: string;
   items?: PosSaleItem[];
   payments?: PosSalePayment[];
+  /** Valor pago na forma filtrada. Presente só quando o histórico filtra por forma de pagamento. */
+  payment_amount?: number;
 }
 
 export interface PosSalesSummary {

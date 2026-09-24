@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PosCashConsolidatedDialog } from "@/components/pos/PosCashConsolidatedDialog";
+import { PAYMENT_METHODS } from "@/lib/paymentMethods";
 import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
@@ -89,6 +90,11 @@ function toIsoLocal(date: string, time: string, endOfMinute = false): string {
   return dt.toISOString();
 }
 
+function saleListAmount(sale: PosSale, paymentMethod: string): number {
+  if (paymentMethod && sale.payment_amount != null) return Number(sale.payment_amount);
+  return Number(sale.total);
+}
+
 function itemsLabel(sale: PosSale): string {
   const items = sale.items || [];
   if (!items.length) return "—";
@@ -111,7 +117,7 @@ function exportCsv(sales: PosSale[]) {
   const rows = sales.map((s) => [
     String(s.sale_number),
     formatDateTime(s.created_at),
-    Number(s.total).toFixed(2).replace(".", ","),
+    Number(s.payment_amount ?? s.total).toFixed(2).replace(".", ","),
     Number(s.discount_amount).toFixed(2).replace(".", ","),
     itemsLabel(s).replace(/\n/g, " | "),
     s.customer_name || "",
@@ -451,7 +457,14 @@ export default function PosSalesHistory() {
               <p className="text-2xl font-bold tabular-nums">{summary.sales_count}</p>
             </div>
             <div className="rounded-lg bg-slate-800 px-5 py-4 text-white shadow">
-              <p className="text-sm opacity-90">Total das vendas:</p>
+              <p className="text-sm opacity-90">
+                {advancedFilters.paymentMethod
+                  ? `Total em ${
+                      PAYMENT_METHODS.find((item) => item.value === advancedFilters.paymentMethod)
+                        ?.label || "forma de pagamento"
+                    }:`
+                  : "Total das vendas:"}
+              </p>
               <p className="text-2xl font-bold tabular-nums">
                 {summary.sales_total.toLocaleString("pt-BR", {
                   minimumFractionDigits: 2,
@@ -510,7 +523,7 @@ export default function PosSalesHistory() {
                           {formatDateTime(sale.sold_at || sale.created_at)}
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums">
-                          {formatMoney(Number(sale.total))}
+                          {formatMoney(saleListAmount(sale, advancedFilters.paymentMethod))}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {formatMoney(Number(sale.discount_amount || 0))}

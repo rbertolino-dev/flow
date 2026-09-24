@@ -363,8 +363,10 @@ serve(async (req) => {
         params.push(soldBy);
       }
 
+      let paymentMethodIdx = 0;
       if (paymentMethod) {
         p++;
+        paymentMethodIdx = p;
         where.push(`EXISTS (
           SELECT 1 FROM pos_sale_payments sp
           WHERE sp.sale_id = s.id
@@ -410,16 +412,24 @@ serve(async (req) => {
 
       const whereSql = where.join(" AND ");
 
+      const summarySql = paymentMethodIdx
+        ? `SELECT COUNT(DISTINCT s.id)::bigint AS sales_count,
+                  COALESCE(SUM(sp.amount), 0)::numeric AS sales_total
+           FROM pos_sales s
+           JOIN pos_sale_payments sp
+             ON sp.sale_id = s.id
+            AND sp.organization_id = s.organization_id
+            AND sp.method = $${paymentMethodIdx}
+           WHERE ${whereSql}`
+        : `SELECT COUNT(*)::bigint AS sales_count,
+                  COALESCE(SUM(s.total), 0)::numeric AS sales_total
+           FROM pos_sales s
+           WHERE ${whereSql}`;
+
       const summaryResult = await pg.queryObject<{
         sales_count: string | number;
         sales_total: string | number | null;
-      }>(
-        `SELECT COUNT(*)::bigint AS sales_count,
-                COALESCE(SUM(s.total), 0)::numeric AS sales_total
-         FROM pos_sales s
-         WHERE ${whereSql}`,
-        params
-      );
+      }>(summarySql, params);
 
       const listParams = [...params];
       p++;
@@ -429,8 +439,17 @@ serve(async (req) => {
       listParams.push(offset);
       const offsetIdx = p;
 
+      const paymentAmountSql = paymentMethodIdx
+        ? `, (SELECT COALESCE(SUM(sp.amount), 0)
+              FROM pos_sale_payments sp
+              WHERE sp.sale_id = s.id
+                AND sp.organization_id = s.organization_id
+                AND sp.method = $${paymentMethodIdx}) AS payment_amount`
+        : "";
+
       const sales = await pg.queryObject(
-        `SELECT s.* FROM pos_sales s
+        `SELECT s.* ${paymentAmountSql}
+         FROM pos_sales s
          WHERE ${whereSql}
          ORDER BY COALESCE(s.sold_at, s.created_at) DESC
          LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
