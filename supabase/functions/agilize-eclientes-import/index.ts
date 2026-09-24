@@ -218,10 +218,12 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
 type Existing = {
   id: number;
   nome: string;
+  display: string;
   keyDoc: string;
   keyPhone: string;
   keyEmail: string;
   uniqueid: string;
+  fromThisImport?: boolean;
 };
 
 async function loadExisting(tipo: Tipo, empresaId: string): Promise<Existing[]> {
@@ -248,6 +250,7 @@ async function loadExisting(tipo: Tipo, empresaId: string): Promise<Existing[]> 
       all.push({
         id: Number(row.ID),
         nome: norm(row.nome),
+        display: String(row.nome ?? ""),
         keyDoc: doc.length >= 11 ? doc : "",
         keyPhone: digits(row.telefone).length >= 8 ? digits(row.telefone) : "",
         keyEmail: email.includes("@") ? email : "",
@@ -284,6 +287,31 @@ function matchExisting(row: Record<string, unknown>, tipo: Tipo, index: Existing
     if (nome && ex.nome && nome === ex.nome) return { ex, by: "nome" };
   }
   return null;
+}
+
+function skipReason(
+  by: string,
+  ex: Existing
+): string {
+  const where = ex.fromThisImport
+    ? "repetido na própria planilha"
+    : "já existe nesta empresa";
+  return `${where} pelo ${by}: ${ex.display || "registro " + ex.id}`;
+}
+
+function remember(index: Existing[], tipo: Tipo, data: Record<string, unknown>, id: number, uniqueid: string) {
+  const doc = tipo === "empresa" ? digits(data.cnpj) : digits(data["cnpj ou cpf"]);
+  const email = norm(tipo === "empresa" ? data.email : data.Email);
+  index.push({
+    id,
+    nome: norm(data.nome),
+    display: String(data.nome ?? ""),
+    keyDoc: doc.length >= 11 ? doc : "",
+    keyPhone: digits(data.telefone).length >= 8 ? digits(data.telefone) : "",
+    keyEmail: email.includes("@") ? email : "",
+    uniqueid,
+    fromThisImport: true,
+  });
 }
 
 function sanitize(tipo: Tipo, raw: Row): { ok: true; data: Record<string, unknown> } | { ok: false; error: string } {
@@ -384,11 +412,10 @@ async function dryRun(
   const index = await loadExisting(tipo, empresaId);
   const valid: Array<{ row: number; data: Record<string, unknown> }> = [];
   const invalid: Array<{ row: number; error: string }> = [];
-  const duplicates: Array<{ row: number; nome: string; matchBy: string; existingId: number }> = [];
-  const willUpdate: Array<{ row: number; nome: string; matchBy: string; existingId: number }> = [];
+  const duplicates: Array<{ row: number; nome: string; matchBy: string; existingId: number; reason: string }> = [];
+  const willUpdate: Array<{ row: number; nome: string; matchBy: string; existingId: number; reason: string }> = [];
   const warnings: Array<{ row: number; warning: string }> = [];
 
-  const seen = new Set<string>();
   for (const raw of rows) {
     const rowNum = Number(raw._row) || 0;
     const parsed = sanitize(tipo, raw);
@@ -396,15 +423,6 @@ async function dryRun(
       invalid.push({ row: rowNum, error: parsed.error });
       continue;
     }
-    const localKey = [
-      norm(parsed.data.nome),
-      digits(parsed.data.telefone || parsed.data.cnpj || parsed.data["cnpj ou cpf"]),
-    ].join("|");
-    if (seen.has(localKey)) {
-      invalid.push({ row: rowNum, error: "Linha repetida na própria planilha" });
-      continue;
-    }
-    seen.add(localKey);
 
     const hit = matchExisting(parsed.data, tipo, index);
     if (hit) {
@@ -413,11 +431,17 @@ async function dryRun(
         nome: String(parsed.data.nome),
         matchBy: hit.by,
         existingId: hit.ex.id,
+        reason: skipReason(hit.by, hit.ex),
       };
-      if (duplicateMode === "overwrite") willUpdate.push(item);
+      if (duplicateMode === "overwrite" && !hit.ex.fromThisImport) willUpdate.push(item);
       else duplicates.push(item);
+      if (!hit.ex.fromThisImport && duplicateMode === "overwrite") {
+        valid.push({ row: rowNum, data: parsed.data });
+      }
+      continue;
     }
     valid.push({ row: rowNum, data: parsed.data });
+    remember(index, tipo, parsed.data, 0, "");
   }
 
   return {
@@ -463,7 +487,8 @@ async function importBatch(
 
   let inserted = 0;
   let updated = 0;
-  let skipped = 0;
+  const skipped: Array<{ row: number; nome: string; reason: string }> = [];
+  const insertedRows: Array<{ row: number; nome: string; id: number }> = [];
   const errors: Array<{ row: number; error: string }> = [];
 
   for (const raw of rows) {
@@ -487,8 +512,12 @@ async function importBatch(
     }
 
     const hit = matchExisting(data, tipo, index);
-    if (hit && duplicateMode === "skip") {
-      skipped++;
+    if (hit && (duplicateMode === "skip" || hit.ex.fromThisImport)) {
+      skipped.push({
+        row: rowNum,
+        nome: String(data.nome ?? ""),
+        reason: skipReason(hit.by, hit.ex),
+      });
       continue;
     }
 
@@ -529,30 +558,22 @@ async function importBatch(
     }
     const created = await res.json();
     const id = Number(created?.[0]?.ID);
-    index.push({
-      id,
-      nome: norm(data.nome),
-      keyDoc:
-        tipo === "empresa"
-          ? digits(data.cnpj).length >= 11
-            ? digits(data.cnpj)
-            : ""
-          : digits(data["cnpj ou cpf"]).length >= 11
-            ? digits(data["cnpj ou cpf"])
-            : "",
-      keyPhone: digits(data.telefone).length >= 8 ? digits(data.telefone) : "",
-      keyEmail: norm(tipo === "empresa" ? data.email : data.Email).includes("@")
-        ? norm(tipo === "empresa" ? data.email : data.Email)
-        : "",
-      uniqueid: String(payload.uniqueid),
-    });
+    remember(index, tipo, data, id, String(payload.uniqueid));
+    insertedRows.push({ row: rowNum, nome: String(data.nome ?? ""), id });
     if (tipo === "empresa" && payload.uniqueid) {
       empresaNomes.set(norm(data.nome), String(payload.uniqueid));
     }
     inserted++;
   }
 
-  return { ok: true, inserted, updated, skipped, errors: errors.length, details: { errors } };
+  return {
+    ok: true,
+    inserted,
+    updated,
+    skipped: skipped.length,
+    errors: errors.length,
+    details: { errors, skipped, inserted: insertedRows },
+  };
 }
 
 serve(async (req) => {

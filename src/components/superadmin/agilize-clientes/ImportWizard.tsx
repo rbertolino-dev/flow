@@ -316,8 +316,17 @@ export function AgilizeClientesImportWizard() {
           )}
           {dry && dry.invalid.length > 0 && (
             <ul className="text-sm text-destructive">
-              {dry.invalid.slice(0, 8).map((item) => (
+              {dry.invalid.map((item) => (
                 <li key={`${item.row}-${item.error}`}>Linha {item.row}: {item.error}</li>
+              ))}
+            </ul>
+          )}
+          {dry && dry.duplicates.length > 0 && (
+            <ul className="max-h-48 overflow-auto text-sm">
+              {dry.duplicates.map((item) => (
+                <li key={`${item.row}-${item.nome}`}>
+                  Ignorado linha {item.row} — {item.nome}: {item.reason || item.matchBy}
+                </li>
               ))}
             </ul>
           )}
@@ -332,7 +341,16 @@ export function AgilizeClientesImportWizard() {
               ignorados {progress.skipped} · erros {progress.errors}
             </p>
           )}
-          {progress.logs.slice(-6).map((log) => (
+          {progress.skippedItems.length > 0 && (
+            <ul className="max-h-48 overflow-auto text-sm">
+              {progress.skippedItems.map((item) => (
+                <li key={`${item.row}-${item.nome}`}>
+                  Ignorado linha {item.row} — {item.nome}: {item.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+          {progress.logs.slice(-8).map((log) => (
             <p key={log} className="text-xs text-muted-foreground">{log}</p>
           ))}
         </CardContent>

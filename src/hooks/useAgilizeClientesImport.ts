@@ -33,8 +33,8 @@ export interface ClienteDryRunResult {
   };
   preview: Record<string, unknown>[];
   invalid: Array<{ row: number; error: string }>;
-  duplicates: Array<{ row: number; nome: string; matchBy: string; existingId: number }>;
-  willUpdate: Array<{ row: number; nome: string; matchBy: string; existingId: number }>;
+  duplicates: Array<{ row: number; nome: string; matchBy: string; existingId: number; reason?: string }>;
+  willUpdate: Array<{ row: number; nome: string; matchBy: string; existingId: number; reason?: string }>;
   sessionToken: string;
 }
 
@@ -47,6 +47,8 @@ export interface ClienteImportProgress {
   skipped: number;
   errors: number;
   logs: string[];
+  skippedItems: Array<{ row: number; nome: string; reason: string }>;
+  insertedItems: Array<{ row: number; nome: string; id: number }>;
 }
 
 const EMPTY: ClienteImportProgress = {
@@ -58,6 +60,8 @@ const EMPTY: ClienteImportProgress = {
   skipped: 0,
   errors: 0,
   logs: [],
+  skippedItems: [],
+  insertedItems: [],
 };
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
@@ -205,6 +209,8 @@ export function useAgilizeClientesImport() {
       let skipped = 0;
       let errors = 0;
       const logs: string[] = [];
+      const skippedItems: Array<{ row: number; nome: string; reason: string }> = [];
+      const insertedItems: Array<{ row: number; nome: string; id: number }> = [];
       for (let i = 0; i < rows.length; i += CLIENTE_BATCH_SIZE) {
         const batch = rows.slice(i, i + CLIENTE_BATCH_SIZE);
         const result = await invoke<{
@@ -212,7 +218,11 @@ export function useAgilizeClientesImport() {
           updated: number;
           skipped: number;
           errors: number;
-          details?: { errors?: Array<{ row: number; error: string }> };
+          details?: {
+            errors?: Array<{ row: number; error: string }>;
+            skipped?: Array<{ row: number; nome: string; reason: string }>;
+            inserted?: Array<{ row: number; nome: string; id: number }>;
+          };
         }>({
           action: "import_batch",
           empresaId,
@@ -225,6 +235,11 @@ export function useAgilizeClientesImport() {
         updated += result.updated;
         skipped += result.skipped;
         errors += result.errors;
+        for (const item of result.details?.skipped || []) {
+          skippedItems.push(item);
+          logs.push(`Ignorado linha ${item.row} — ${item.nome}: ${item.reason}`);
+        }
+        for (const item of result.details?.inserted || []) insertedItems.push(item);
         for (const err of result.details?.errors || []) {
           logs.push(`Linha ${err.row}: ${err.error}`);
         }
@@ -240,6 +255,8 @@ export function useAgilizeClientesImport() {
           skipped,
           errors,
           logs: [...logs],
+          skippedItems: [...skippedItems],
+          insertedItems: [...insertedItems],
         });
         if (i + CLIENTE_BATCH_SIZE < rows.length) {
           await new Promise((r) => setTimeout(r, CLIENTE_BATCH_DELAY_MS));
