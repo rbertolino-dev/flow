@@ -2,18 +2,18 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { useToast } from "@/hooks/use-toast";
-import type {
-  FinalizeSalePayload,
-  FinalizeSaleResult,
-  ListSalesOptions,
-  ListSalesResult,
-  PosCashConsolidated,
-  PosCashSession,
-  PosSettings,
+import {
   normalizePosSettings,
-  PosSale,
-  UpdateSaleItemsPayload,
-  UpdateSalePayload,
+  type FinalizeSalePayload,
+  type FinalizeSaleResult,
+  type ListSalesOptions,
+  type ListSalesResult,
+  type PosCashConsolidated,
+  type PosCashSession,
+  type PosSettings,
+  type PosSale,
+  type UpdateSaleItemsPayload,
+  type UpdateSalePayload,
 } from "@/types/pos";
 
 async function getAccessToken(): Promise<string | null> {
