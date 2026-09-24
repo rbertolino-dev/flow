@@ -4,6 +4,7 @@ import { classifyBroadcastError } from "../_shared/broadcast-error-classify.ts";
 import { applyRampProcessingCap } from "../_shared/broadcast-ramp-cap.ts";
 import { isInstanceReadyToSend } from "../_shared/evolution-fetch-instances.ts";
 import { validateEvolutionSendResponse } from "../_shared/evolution-send-response.ts";
+import { resolveBroadcastSendNumber } from "../_shared/broadcast-send-number.ts";
 
 function isConnectionClosedMessage(text: string): boolean {
   const lower = text.toLowerCase();
@@ -412,8 +413,9 @@ serve(async (req) => {
           console.log(`🌎 Número LATAM detectado (${formattedPhone.substring(0, 3)}), preservando código do país original`);
         }
         
-        // Formatar para WhatsApp (adicionar @s.whatsapp.net se não tiver)
-        const whatsappNumber = formattedPhone.includes('@') 
+        // Destino padrão. O JID canônico (sem nono dígito) só substitui isto depois
+        // que a instância estiver pronta e a Evolution devolver esse JID.
+        let whatsappNumber = formattedPhone.includes('@') 
           ? formattedPhone 
           : `${formattedPhone}@s.whatsapp.net`;
 
@@ -424,7 +426,6 @@ serve(async (req) => {
         }
         
         const evolutionUrl = `${baseUrl}/message/sendText/${instance.instance_name}`;
-        console.log(`📤 Enviando para ${whatsappNumber} via ${instance.instance_name} (${evolutionUrl})`);
 
         const readyCheck = await isInstanceReadyToSend(
           instance.api_url,
@@ -467,6 +468,23 @@ serve(async (req) => {
             `Instância "${instance.instance_name}" sem confirmação de connectionState=open após ${TRANSIENT_READY_RETRY_LIMIT} tentativas. Envio bloqueado para evitar falso positivo.`,
           );
         }
+
+        if (!formattedPhone.includes("@")) {
+          const resolved = await resolveBroadcastSendNumber({
+            apiUrl: instance.api_url,
+            apiKey: instance.api_key,
+            instanceName: instance.instance_name,
+            digits: formattedPhone,
+          });
+          whatsappNumber = resolved.number;
+          if (resolved.rewritten) {
+            console.log(
+              `🔁 JID canônico (nono dígito) para ${item.phone}: ${whatsappNumber}`,
+            );
+          }
+        }
+
+        console.log(`📤 Enviando para ${whatsappNumber} via ${instance.instance_name} (${evolutionUrl})`);
 
         // Obter métricas da instância
         const metrics = getOrCreateMetrics(instance.instance_name);
