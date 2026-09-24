@@ -239,6 +239,14 @@ export function PosCashConsolidatedDialog({
                 {loading ? "Consultando..." : "Nenhuma forma de pagamento no período."}
               </p>
             )}
+            {report?.payments.length ? (
+              <div className="flex items-center justify-between px-3 pt-1 text-sm font-semibold">
+                <span>Total recebido</span>
+                <span className="tabular-nums">
+                  {formatMoney(report.payments.reduce((sum, row) => sum + Number(row.amount), 0))}
+                </span>
+              </div>
+            ) : null}
           </section>
 
           <CategorySection

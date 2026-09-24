@@ -246,43 +246,77 @@ serve(async (req) => {
           params
         );
 
-        const products = await pg.queryObject<{
+        const categories = await pg.queryObject<{
+          item_type: string;
           category: string;
           quantity: string | number;
           amount: string | number;
         }>(
-          `SELECT COALESCE(NULLIF(TRIM(p.category), ''), 'Produtos sem categoria') AS category,
-                  COALESCE(SUM(i.quantity), 0)::numeric AS quantity,
-                  COALESCE(SUM(i.total_price), 0)::numeric AS amount
-           FROM pos_sale_items i
-           JOIN pos_sales s ON s.id = i.sale_id
-           LEFT JOIN products p
-             ON i.item_type = 'product' AND p.id = i.item_id
-           WHERE ${saleWhere}
-             AND i.item_type = 'product'
-           GROUP BY 1
+          `WITH scoped AS (
+             SELECT s.id
+             FROM pos_sales s
+             WHERE ${saleWhere}
+           ),
+           lines AS (
+             SELECT
+               i.sale_id,
+               i.item_type,
+               CASE
+                 WHEN i.item_type = 'service'
+                   THEN COALESCE(NULLIF(TRIM(sv.category), ''), 'Serviços sem categoria')
+                 ELSE COALESCE(NULLIF(TRIM(p.category), ''), 'Produtos sem categoria')
+               END AS category,
+               i.quantity,
+               i.total_price,
+               s.total AS sale_total,
+               SUM(i.total_price) OVER (PARTITION BY i.sale_id) AS items_sum,
+               ROW_NUMBER() OVER (
+                 PARTITION BY i.sale_id
+                 ORDER BY i.total_price DESC, i.id
+               ) AS rn
+             FROM pos_sale_items i
+             JOIN pos_sales s ON s.id = i.sale_id
+             JOIN scoped sc ON sc.id = s.id
+             LEFT JOIN products p
+               ON i.item_type = 'product' AND p.id = i.item_id
+             LEFT JOIN services sv
+               ON i.item_type = 'service' AND sv.id = i.item_id
+           ),
+           shares AS (
+             SELECT
+               *,
+               CASE
+                 WHEN items_sum = 0 THEN 0::numeric
+                 ELSE ROUND((total_price / items_sum) * sale_total, 2)
+               END AS share
+             FROM lines
+           ),
+           adjusted AS (
+             SELECT
+               item_type,
+               category,
+               quantity,
+               share + CASE
+                 WHEN rn = 1 THEN sale_total - SUM(share) OVER (PARTITION BY sale_id)
+                 ELSE 0
+               END AS amount
+             FROM shares
+           )
+           SELECT item_type,
+                  category,
+                  COALESCE(SUM(quantity), 0)::numeric AS quantity,
+                  COALESCE(SUM(amount), 0)::numeric AS amount
+           FROM adjusted
+           GROUP BY item_type, category
            ORDER BY amount DESC, category ASC`,
           params
         );
-
-        const services = await pg.queryObject<{
-          category: string;
-          quantity: string | number;
-          amount: string | number;
-        }>(
-          `SELECT COALESCE(NULLIF(TRIM(sv.category), ''), 'Serviços sem categoria') AS category,
-                  COALESCE(SUM(i.quantity), 0)::numeric AS quantity,
-                  COALESCE(SUM(i.total_price), 0)::numeric AS amount
-           FROM pos_sale_items i
-           JOIN pos_sales s ON s.id = i.sale_id
-           LEFT JOIN services sv
-             ON i.item_type = 'service' AND sv.id = i.item_id
-           WHERE ${saleWhere}
-             AND i.item_type = 'service'
-           GROUP BY 1
-           ORDER BY amount DESC, category ASC`,
-          params
-        );
+        const products = {
+          rows: categories.rows.filter((row) => row.item_type === "product"),
+        };
+        const services = {
+          rows: categories.rows.filter((row) => row.item_type === "service"),
+        };
 
         return json({
           data: {
@@ -382,16 +416,18 @@ serve(async (req) => {
         params.push(origin);
       }
 
-      if (priceMinRaw !== "" && !Number.isNaN(Number(priceMinRaw))) {
+      const priceMin = priceMinRaw === "" ? NaN : Number(priceMinRaw);
+      const priceMax = priceMaxRaw === "" ? NaN : Number(priceMaxRaw);
+      if (Number.isFinite(priceMin) && priceMin > 0) {
         p++;
-        where.push(`s.total >= $${p}::numeric`);
-        params.push(Number(priceMinRaw));
+        where.push(`s.total > $${p}::numeric`);
+        params.push(priceMin);
       }
 
-      if (priceMaxRaw !== "" && !Number.isNaN(Number(priceMaxRaw))) {
+      if (Number.isFinite(priceMax) && priceMax < 500000) {
         p++;
-        where.push(`s.total <= $${p}::numeric`);
-        params.push(Number(priceMaxRaw));
+        where.push(`s.total < $${p}::numeric`);
+        params.push(priceMax);
       }
 
       if (withInvoice) {

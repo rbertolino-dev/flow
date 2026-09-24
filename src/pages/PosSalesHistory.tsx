@@ -121,13 +121,13 @@ function exportCsv(sales: PosSale[]) {
   ];
   const rows = sales.map((s) => [
     String(s.sale_number),
-    formatDateTime(s.created_at),
+    formatDateTime(s.sold_at || s.created_at),
     Number(s.payment_amount ?? s.total).toFixed(2).replace(".", ","),
     Number(s.discount_amount).toFixed(2).replace(".", ","),
     itemsLabel(s).replace(/\n/g, " | "),
     s.customer_name || "",
     s.sold_by_name || "",
-    "Sem nota",
+    (s as PosSale & { invoice_number?: string | null }).invoice_number || "Sem nota",
   ]);
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const csv = [header, ...rows].map((r) => r.map(escape).join(";")).join("\n");
@@ -215,10 +215,8 @@ export default function PosSalesHistory() {
         sold_by: advancedFilters.soldByUserId || undefined,
         payment_method: advancedFilters.paymentMethod || undefined,
         origin: advancedFilters.origin || undefined,
-        price_min:
-          priceMin != null && !Number.isNaN(priceMin) ? priceMin : undefined,
-        price_max:
-          priceMax != null && !Number.isNaN(priceMax) ? priceMax : undefined,
+        price_min: priceMin != null && priceMin > 0 ? priceMin : undefined,
+        price_max: priceMax != null && priceMax < 500000 ? priceMax : undefined,
         with_invoice: advancedFilters.withInvoice || undefined,
       });
       setSales(result.data);
@@ -486,6 +484,13 @@ export default function PosSalesHistory() {
             </div>
           </div>
 
+          {summary.sales_count > sales.length ? (
+            <p className="text-sm text-muted-foreground">
+              A lista mostra {sales.length} de {summary.sales_count} vendas. O total acima considera
+              todas.
+            </p>
+          ) : null}
+
           {/* Tabela */}
           <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
             <div className="overflow-x-auto">
@@ -657,10 +662,8 @@ export default function PosSalesHistory() {
                 sold_by: filters.soldByUserId || undefined,
                 payment_method: filters.paymentMethod || undefined,
                 origin: filters.origin || undefined,
-                price_min:
-                  priceMin != null && !Number.isNaN(priceMin) ? priceMin : undefined,
-                price_max:
-                  priceMax != null && !Number.isNaN(priceMax) ? priceMax : undefined,
+                price_min: priceMin != null && priceMin > 0 ? priceMin : undefined,
+                price_max: priceMax != null && priceMax < 500000 ? priceMax : undefined,
                 with_invoice: filters.withInvoice || undefined,
               });
               setSales(result.data);
