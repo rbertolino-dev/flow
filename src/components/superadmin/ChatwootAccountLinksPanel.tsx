@@ -23,6 +23,7 @@ interface ChatwootLink {
   id: string;
   organization_id: string;
   chatwoot_account_id: number;
+  chatwoot_account_name: string | null;
   chatwoot_base_url: string;
   enabled: boolean | null;
   organization_name: string;
@@ -66,6 +67,7 @@ export function ChatwootAccountLinksPanel() {
   const [orgFilter, setOrgFilter] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [enabled, setEnabled] = useState(true);
 
   const load = useCallback(async () => {
@@ -75,7 +77,7 @@ export function ChatwootAccountLinksPanel() {
         fetchAllOrganizations(),
         supabase
           .from("chatwoot_configs")
-          .select("id, organization_id, chatwoot_account_id, chatwoot_base_url, enabled")
+          .select("*")
           .order("chatwoot_account_id", { ascending: true }),
       ]);
       const { data: configs, error: configError } = configsResult;
@@ -83,8 +85,9 @@ export function ChatwootAccountLinksPanel() {
       const names = new Map(orgRows.map((org) => [org.id, org.name]));
       setOrganizations(orgRows);
       setLinks(
-        ((configs || []) as Omit<ChatwootLink, "organization_name">[]).map((row) => ({
+        ((configs || []) as unknown as Omit<ChatwootLink, "organization_name">[]).map((row) => ({
           ...row,
+          chatwoot_account_name: row.chatwoot_account_name || null,
           organization_name: names.get(row.organization_id) || "Organização removida",
         })),
       );
@@ -104,6 +107,7 @@ export function ChatwootAccountLinksPanel() {
   }, [load]);
 
   const selectedOrganization = organizations.find((org) => org.id === organizationId);
+  const knownAccount = links.find((link) => String(link.chatwoot_account_id) === accountId && accountId !== "") || null;
 
   const filteredOrganizations = useMemo(() => {
     const term = foldName(orgFilter.trim());
@@ -117,6 +121,7 @@ export function ChatwootAccountLinksPanel() {
     const current = links.find((link) => link.organization_id === org.id);
     if (current) {
       setAccountId(String(current.chatwoot_account_id));
+      setAccountName(current.chatwoot_account_name || "");
       setEnabled(current.enabled !== false);
     }
   }
@@ -124,6 +129,7 @@ export function ChatwootAccountLinksPanel() {
   function fillForm(link: ChatwootLink) {
     setOrganizationId(link.organization_id);
     setAccountId(String(link.chatwoot_account_id));
+    setAccountName(link.chatwoot_account_name || "");
     setEnabled(link.enabled !== false);
     setOrgFilter(link.organization_name);
   }
@@ -131,6 +137,7 @@ export function ChatwootAccountLinksPanel() {
   function resetForm() {
     setOrganizationId("");
     setAccountId("");
+    setAccountName("");
     setEnabled(true);
     setOrgFilter("");
   }
@@ -143,6 +150,11 @@ export function ChatwootAccountLinksPanel() {
     }
     if (!Number.isInteger(account) || account <= 0) {
       toast({ title: "Informe o número da conta do Chatwoot", variant: "destructive" });
+      return;
+    }
+    const chatwootAccountName = accountName.trim();
+    if (!chatwootAccountName) {
+      toast({ title: "Escreva o nome da conta no Chatwoot para confirmar", variant: "destructive" });
       return;
     }
     const expectedHost = hostOf(CHATWOOT_BASE_URL);
@@ -170,8 +182,9 @@ export function ChatwootAccountLinksPanel() {
           .update({
             chatwoot_base_url: CHATWOOT_BASE_URL,
             chatwoot_account_id: account,
+            chatwoot_account_name: chatwootAccountName,
             enabled,
-          })
+          } as never)
           .eq("id", current.id);
         if (error) throw error;
       } else {
@@ -179,9 +192,10 @@ export function ChatwootAccountLinksPanel() {
           organization_id: organizationId,
           chatwoot_base_url: CHATWOOT_BASE_URL,
           chatwoot_account_id: account,
+          chatwoot_account_name: chatwootAccountName,
           chatwoot_api_access_token: "aba-chatwoot",
           enabled,
-        });
+        } as never);
         if (error) throw error;
       }
       toast({ title: "Ligação salva" });
@@ -326,7 +340,7 @@ export function ChatwootAccountLinksPanel() {
           <div className="space-y-2">
             <Label htmlFor="account-id">2. Número da conta no Chatwoot</Label>
             <p className="text-xs text-muted-foreground">
-              Só o número da URL <code>/app/accounts/NUMERO/</code>. Se a conta se chama “chatagilize” e a URL tem accounts/1, digite 1.
+              Só o número da URL <code>/app/accounts/NUMERO/</code>. O nome logo abaixo serve para confirmar que esse número é a conta certa.
             </p>
             <Input
               id="account-id"
@@ -335,6 +349,30 @@ export function ChatwootAccountLinksPanel() {
               onChange={(event) => setAccountId(event.target.value.replace(/\D/g, ""))}
               placeholder="Somente o número, por exemplo 1"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="account-name">Nome da conta no Chatwoot</Label>
+            <p className="text-xs text-muted-foreground">
+              O nome que aparece nessa conta do Chatwoot, para conferir o número. Exemplo: chatagilize.
+            </p>
+            <Input
+              id="account-name"
+              value={accountName}
+              onChange={(event) => setAccountName(event.target.value)}
+              placeholder="Nome da empresa ou da conta no Chatwoot"
+            />
+            {accountId && accountName.trim() && (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm">
+                Confirmação: conta número <strong>{accountId}</strong> — <strong>{accountName.trim()}</strong>
+                {selectedOrganization ? <> no Agilize Flow <strong>{selectedOrganization.name}</strong></> : null}
+              </p>
+            )}
+            {knownAccount && (
+              <p className="text-sm text-muted-foreground">
+                Esse número já está ligado à empresa <strong className="text-foreground">{knownAccount.organization_name}</strong>
+                {knownAccount.chatwoot_account_name ? <> com o nome <strong className="text-foreground">{knownAccount.chatwoot_account_name}</strong></> : " e ainda não tem o nome da conta gravado"}.
+              </p>
+            )}
           </div>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -380,6 +418,7 @@ export function ChatwootAccountLinksPanel() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Chatwoot: conta número {link.chatwoot_account_id}
+                      {link.chatwoot_account_name ? ` — ${link.chatwoot_account_name}` : " — nome da conta ainda não informado"}
                     </p>
                   </div>
                   <div className="flex gap-2">
