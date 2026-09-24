@@ -95,6 +95,11 @@ function saleListAmount(sale: PosSale, paymentMethod: string): number {
   return Number(sale.total);
 }
 
+function isSplitPayment(sale: PosSale, paymentMethod: string): boolean {
+  if (!paymentMethod || sale.payment_amount == null) return false;
+  return Math.abs(Number(sale.payment_amount) - Number(sale.total)) > 0.009;
+}
+
 function itemsLabel(sale: PosSale): string {
   const items = sale.items || [];
   if (!items.length) return "—";
@@ -471,6 +476,13 @@ export default function PosSalesHistory() {
                   maximumFractionDigits: 2,
                 })}
               </p>
+              {advancedFilters.paymentMethod &&
+              sales.some((sale) => isSplitPayment(sale, advancedFilters.paymentMethod)) ? (
+                <p className="mt-2 text-xs leading-snug text-white/80">
+                  Venda paga em mais de uma forma entra só com a parte deste filtro. O caixa
+                  consolidado usa a mesma conta.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -482,7 +494,9 @@ export default function PosSalesHistory() {
                   <TableRow className="bg-muted/50">
                     <TableHead className="whitespace-nowrap">Código</TableHead>
                     <TableHead className="whitespace-nowrap">Data e hora</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Total</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">
+                      {advancedFilters.paymentMethod ? "Nesta forma" : "Total"}
+                    </TableHead>
                     <TableHead className="whitespace-nowrap text-right">Desconto</TableHead>
                     <TableHead className="min-w-[180px]">Serviço/Produto</TableHead>
                     <TableHead className="min-w-[140px]">Cliente</TableHead>
@@ -523,7 +537,12 @@ export default function PosSalesHistory() {
                           {formatDateTime(sale.sold_at || sale.created_at)}
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums">
-                          {formatMoney(saleListAmount(sale, advancedFilters.paymentMethod))}
+                          <div>{formatMoney(saleListAmount(sale, advancedFilters.paymentMethod))}</div>
+                          {isSplitPayment(sale, advancedFilters.paymentMethod) ? (
+                            <div className="text-xs font-normal text-muted-foreground">
+                              venda {formatMoney(Number(sale.total))}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {formatMoney(Number(sale.discount_amount || 0))}

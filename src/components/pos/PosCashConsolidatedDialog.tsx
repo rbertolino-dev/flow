@@ -220,6 +220,10 @@ export function PosCashConsolidatedDialog({
 
           <section className="space-y-2">
             <h3 className="text-base font-medium">Formas de Pagamento</h3>
+            <p className="text-sm text-muted-foreground">
+              Valor recebido em cada forma. Venda paga em mais de uma entra dividida, igual ao
+              filtro do histórico.
+            </p>
             {report?.payments.length ? (
               report.payments.map((row) => (
                 <div
