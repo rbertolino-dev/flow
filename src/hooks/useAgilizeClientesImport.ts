@@ -242,14 +242,14 @@ export function useAgilizeClientesImport() {
         errors += result.errors;
         for (const item of result.details?.skipped || []) {
           skippedItems.push(item);
-          logs.push(`Ignorado linha ${item.row} — ${item.nome}: ${item.reason}`);
+          logs.push(`Já existe, não subiu — linha ${item.row}, ${item.nome}: ${item.reason}`);
         }
         for (const item of result.details?.inserted || []) insertedItems.push(item);
         for (const err of result.details?.errors || []) {
           logs.push(`Linha ${err.row}: ${err.error}`);
         }
         logs.push(
-          `Lote ${Math.floor(i / CLIENTE_BATCH_SIZE) + 1}: +${result.inserted} novos, ${result.updated} atualizados, ${result.skipped} ignorados`
+          `Lote ${Math.floor(i / CLIENTE_BATCH_SIZE) + 1}: ${result.inserted} novos nesta empresa, ${result.updated} atualizados, ${result.skipped} já existiam e não subiram`
         );
         setProgress({
           status: "running",

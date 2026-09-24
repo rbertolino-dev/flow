@@ -4,9 +4,15 @@ export type ClienteImportTipo = "contato" | "empresa";
 export type ClienteDestino = "lead" | "cliente_contato" | "cliente_empresa";
 
 export const CLIENTE_DESTINO_LABEL: Record<ClienteDestino, string> = {
-  lead: "Lead → oportunidades",
-  cliente_contato: "Cliente → CRM como contato",
-  cliente_empresa: "Cliente → CRM como empresa",
+  lead: "Lead (oportunidades)",
+  cliente_contato: "Cliente como contato",
+  cliente_empresa: "Cliente como empresa",
+};
+
+export const CLIENTE_DESTINO_HELP: Record<ClienteDestino, string> = {
+  lead: "Entra na lista de oportunidades desta empresa.",
+  cliente_contato: "Entra no CRM de clientes, como pessoa de contato.",
+  cliente_empresa: "Entra no CRM de clientes, como empresa.",
 };
 
 export const CLIENTE_CATEGORIAS = [
