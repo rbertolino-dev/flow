@@ -28,6 +28,27 @@ interface ChatwootLink {
   organization_name: string;
 }
 
+function foldName(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+async function fetchAllOrganizations() {
+  const pageSize = 1000;
+  const rows: OrganizationOption[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("organizations")
+      .select("id, name")
+      .order("name", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data || []) as OrganizationOption[];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
 function hostOf(value: string) {
   try {
     return new URL(value).host.toLowerCase();
@@ -50,16 +71,15 @@ export function ChatwootAccountLinksPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: orgs, error: orgError }, { data: configs, error: configError }] = await Promise.all([
-        supabase.from("organizations").select("id, name").order("name", { ascending: true }),
+      const [orgRows, configsResult] = await Promise.all([
+        fetchAllOrganizations(),
         supabase
           .from("chatwoot_configs")
           .select("id, organization_id, chatwoot_account_id, chatwoot_base_url, enabled")
           .order("chatwoot_account_id", { ascending: true }),
       ]);
-      if (orgError) throw orgError;
+      const { data: configs, error: configError } = configsResult;
       if (configError) throw configError;
-      const orgRows = (orgs || []) as OrganizationOption[];
       const names = new Map(orgRows.map((org) => [org.id, org.name]));
       setOrganizations(orgRows);
       setLinks(
@@ -83,27 +103,36 @@ export function ChatwootAccountLinksPanel() {
     void load();
   }, [load]);
 
+  const selectedOrganization = organizations.find((org) => org.id === organizationId);
+
   const filteredOrganizations = useMemo(() => {
-    const term = orgFilter.trim().toLowerCase();
-    const matched = term
-      ? organizations.filter((org) => org.name.toLowerCase().includes(term))
-      : organizations;
-    if (!organizationId || matched.some((org) => org.id === organizationId)) return matched;
-    const selected = organizations.find((org) => org.id === organizationId);
-    return selected ? [selected, ...matched] : matched;
-  }, [orgFilter, organizationId, organizations]);
+    const term = foldName(orgFilter.trim());
+    if (term.length < 2) return [];
+    return organizations.filter((org) => foldName(org.name).includes(term)).slice(0, 20);
+  }, [orgFilter, organizations]);
+
+  function chooseOrganization(org: OrganizationOption) {
+    setOrganizationId(org.id);
+    setOrgFilter(org.name);
+    const current = links.find((link) => link.organization_id === org.id);
+    if (current) {
+      setAccountId(String(current.chatwoot_account_id));
+      setEnabled(current.enabled !== false);
+    }
+  }
 
   function fillForm(link: ChatwootLink) {
     setOrganizationId(link.organization_id);
     setAccountId(String(link.chatwoot_account_id));
     setEnabled(link.enabled !== false);
-    setOrgFilter("");
+    setOrgFilter(link.organization_name);
   }
 
   function resetForm() {
     setOrganizationId("");
     setAccountId("");
     setEnabled(true);
+    setOrgFilter("");
   }
 
   async function saveLink() {
@@ -254,38 +283,45 @@ export function ChatwootAccountLinksPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="org-filter">1. Buscar a organização no Agilize Flow</Label>
+            <Label htmlFor="org-filter">1. Nome da empresa no Agilize Flow</Label>
+            <p className="text-xs text-muted-foreground">
+              Digite pelo menos 2 letras. A lista aparece aqui embaixo. Clique no nome para escolher.
+            </p>
             <Input
               id="org-filter"
               value={orgFilter}
-              onChange={(event) => setOrgFilter(event.target.value)}
-              placeholder="Digite o nome da empresa no Flow"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="organization">Organização do Agilize Flow</Label>
-            <p className="text-xs text-muted-foreground">Nome da empresa neste sistema. Cliente, orçamento e WhatsApp vão para ela.</p>
-            <select
-              id="organization"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={organizationId}
               onChange={(event) => {
-                const nextId = event.target.value;
-                setOrganizationId(nextId);
-                const current = links.find((link) => link.organization_id === nextId);
-                if (current) {
-                  setAccountId(String(current.chatwoot_account_id));
-                  setEnabled(current.enabled !== false);
-                }
+                setOrgFilter(event.target.value);
+                setOrganizationId("");
               }}
-            >
-              <option value="">Selecione a organização do Flow</option>
-              {filteredOrganizations.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </select>
+              placeholder="Ex.: guilherme"
+              autoComplete="off"
+            />
+            {orgFilter.trim().length >= 2 && organizationId === "" && (
+              <div className="max-h-56 overflow-auto rounded-md border bg-background">
+                {filteredOrganizations.length === 0 ? (
+                  <p className="p-3 text-sm text-muted-foreground">Nenhuma empresa com esse nome.</p>
+                ) : (
+                  filteredOrganizations.map((org) => (
+                    <button
+                      key={org.id}
+                      type="button"
+                      className="block w-full border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
+                      onClick={() => chooseOrganization(org)}
+                    >
+                      {org.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {selectedOrganization ? (
+              <p className="text-sm">
+                Empresa escolhida: <strong>{selectedOrganization.name}</strong>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhuma empresa escolhida ainda.</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="account-id">2. Número da conta no Chatwoot</Label>
