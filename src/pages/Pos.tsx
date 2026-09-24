@@ -20,6 +20,7 @@ import { usePosSales } from "@/hooks/usePosSales";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
+import { isPromotionValid, quotePosSale } from "@/lib/posAdjustments";
 import {
   DEFAULT_POS_SETTINGS,
   type FinalizeSaleResult,
@@ -122,6 +123,8 @@ export default function Pos() {
   const [commissionUserId, setCommissionUserId] = useState("");
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
   const [paymentMethodDraft, setPaymentMethodDraft] = useState<string>("");
+  const [installments, setInstallments] = useState(1);
+  const [promotionId, setPromotionId] = useState("");
 
   const [leadQuery, setLeadQuery] = useState("");
   const [leadOptions, setLeadOptions] = useState<LeadOption[]>([]);
@@ -314,17 +317,39 @@ export default function Pos() {
     () => cart.reduce((s, i) => s + i.quantity * i.unit_price - i.discount_amount, 0),
     [cart]
   );
-  const total = Math.max(0, subtotal - discount);
   const activePaymentMethod = payments[0]?.method || paymentMethodDraft;
-  const activePaymentDiscount = posSettings.payment_discounts.find(
-    (item) => item.method === activePaymentMethod
+  const selectedPromotion =
+    posSettings.promotions.find((item) => item.id === promotionId && isPromotionValid(item)) || null;
+  const quote = useMemo(
+    () =>
+      quotePosSale({
+        subtotal,
+        manualDiscount: discount,
+        promotion: selectedPromotion,
+        cart,
+        paymentDiscounts: posSettings.payment_discounts,
+        paymentSurcharges: posSettings.payment_surcharges,
+        method: activePaymentMethod,
+        installments,
+      }),
+    [
+      subtotal,
+      discount,
+      selectedPromotion,
+      cart,
+      posSettings.payment_discounts,
+      posSettings.payment_surcharges,
+      activePaymentMethod,
+      installments,
+    ]
   );
+  const total = quote.total;
+  const activePaymentDiscount = quote.paymentRule;
 
   useEffect(() => {
-    if (!activePaymentDiscount) return;
-    const next = Math.round(subtotal * (activePaymentDiscount.percent / 100) * 100) / 100;
-    setDiscount((current) => (Math.abs(current - next) < 0.009 ? current : next));
-  }, [activePaymentDiscount, subtotal]);
+    if (!selectedPromotion && !activePaymentDiscount) return;
+    setDiscount((current) => (Math.abs(current - quote.discount) < 0.009 ? current : quote.discount));
+  }, [selectedPromotion, activePaymentDiscount, quote.discount]);
   const paymentsSum = payments.reduce((s, p) => s + p.amount, 0);
 
   const commissionUserName = useMemo(() => {
@@ -353,6 +378,7 @@ export default function Pos() {
           unit: product.unit || "un",
           quantity: 1,
           unit_price: Number(product.price),
+          category: product.category || null,
           discount_amount: 0,
           stock_quantity: product.stock_quantity,
         },
@@ -365,6 +391,7 @@ export default function Pos() {
     name: string;
     sku?: string | null;
     unit?: string | null;
+    category?: string | null;
     price: number;
     stock_quantity?: number | null;
   }) => {
@@ -384,6 +411,7 @@ export default function Pos() {
           name: product.name,
           sku: product.sku,
           unit: product.unit || "un",
+          category: product.category || null,
           quantity: 1,
           unit_price: Number(product.price),
           discount_amount: 0,
@@ -490,6 +518,7 @@ export default function Pos() {
       name: product.name,
       sku: product.sku,
       unit: product.unit,
+      category: product.category,
       price: Number(product.price),
       stock_quantity: product.stock_quantity,
     });
@@ -523,6 +552,8 @@ export default function Pos() {
     setCommissionUserId("");
     setPayments([]);
     setPaymentMethodDraft("");
+    setInstallments(1);
+    setPromotionId("");
     setSelectedLead(defaultLead);
     setLeadQuery("");
     setSearch("");
@@ -653,13 +684,19 @@ export default function Pos() {
   ) => {
     const methodForDiscount =
       values.paymentMethod || paymentMethodDraft || payments[0]?.method || "";
-    const discountRule = posSettings.payment_discounts.find(
-      (item) => item.method === methodForDiscount
-    );
-    const saleDiscount = discountRule
-      ? Math.round(subtotal * (discountRule.percent / 100) * 100) / 100
-      : discount;
-    const saleTotal = Math.max(0, subtotal - saleDiscount);
+    const confirmedQuote = quotePosSale({
+      subtotal,
+      manualDiscount: discount,
+      promotion: selectedPromotion,
+      cart,
+      paymentDiscounts: posSettings.payment_discounts,
+      paymentSurcharges: posSettings.payment_surcharges,
+      method: methodForDiscount,
+      installments: methodForDiscount === "cartao_credito" ? installments : 1,
+    });
+    const saleDiscount = confirmedQuote.discount;
+    const saleSurcharge = confirmedQuote.surcharge;
+    const saleTotal = confirmedQuote.total;
 
     // Prefer payments already added in sidebar; otherwise use confirm dialog method
     let finalPayments = [...payments];
@@ -714,6 +751,8 @@ export default function Pos() {
         })),
         payments: finalPayments.map((p) => ({ method: p.method, amount: p.amount })),
         discount_amount: saleDiscount,
+        surcharge_amount: saleSurcharge,
+        promotion_name: selectedPromotion?.name || null,
         notes: notes || values.paymentNotes || null,
         add_commission: addCommission,
         commission_user_id: addCommission ? commissionUserId : null,
@@ -1147,10 +1186,44 @@ export default function Pos() {
               )}
 
               <div className="space-y-1">
+                <Label className="text-sm text-muted-foreground">Promoção</Label>
+                <Select
+                  value={promotionId || "__none__"}
+                  onValueChange={(value) => setPromotionId(value === "__none__" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhuma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
+                    {posSettings.promotions.filter((item) => isPromotionValid(item)).map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name} ({item.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedPromotion ? (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedPromotion.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+                    {selectedPromotion.categories.length
+                      ? ` nas categorias ${selectedPromotion.categories.join(", ")}`
+                      : " em todos os produtos"}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1">
                 <Label className="text-sm text-muted-foreground">Desconto geral</Label>
                 {activePaymentDiscount ? (
                   <p className="text-xs text-muted-foreground">
                     {activePaymentDiscount.percent}% à vista nesta forma de pagamento
+                  </p>
+                ) : null}
+                {quote.surchargeRule ? (
+                  <p className="text-xs text-muted-foreground">
+                    Acréscimo de {quote.surchargeRule.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+                    {activePaymentMethod === "cartao_credito" ? ` em ${installments}x` : " à vista"}
                   </p>
                 ) : null}
                 <Input
@@ -1184,6 +1257,18 @@ export default function Pos() {
                     </div>
                   </div>
                 ))}
+                {activePaymentMethod === "cartao_credito" ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Parcelas</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={48}
+                      value={installments}
+                      onChange={(e) => setInstallments(Math.min(48, Math.max(1, Number(e.target.value) || 1)))}
+                    />
+                  </div>
+                ) : null}
                 <div className="flex gap-2">
                   <Select value={paymentMethodDraft} onValueChange={setPaymentMethodDraft}>
                     <SelectTrigger ref={paymentTriggerRef} className="flex-1">

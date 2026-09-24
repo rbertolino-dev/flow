@@ -495,12 +495,77 @@ serve(async (req) => {
             seenMethods.add(item.method);
             return true;
           });
+        const hasPaymentSurcharges = Array.isArray(body.payment_surcharges);
+        const surchargeSeen = new Set<string>();
+        const paymentSurcharges = (hasPaymentSurcharges ? body.payment_surcharges : [])
+          .map((item: {
+            id?: string;
+            method?: string;
+            percent?: number;
+            installments_from?: number | null;
+            installments_to?: number | null;
+          }) => {
+            const method = String(item?.method || "").trim();
+            const isCard = method === "cartao_credito";
+            const bound = (value: number | null | undefined) => {
+              if (!isCard || value == null || value === ("" as unknown)) return null;
+              const parsed = Number(value);
+              if (!Number.isFinite(parsed) || parsed < 1 || parsed > 48) return null;
+              return Math.round(parsed);
+            };
+            return {
+              id: String(item?.id || crypto.randomUUID()),
+              method,
+              percent: Number(item?.percent || 0),
+              installments_from: bound(item?.installments_from),
+              installments_to: bound(item?.installments_to),
+            };
+          })
+          .filter((item: {
+            method: string;
+            percent: number;
+            installments_from: number | null;
+            installments_to: number | null;
+          }) => {
+            if (!allowedMethods.has(item.method) || item.percent <= 0 || item.percent > 100) return false;
+            if (
+              item.installments_from != null &&
+              item.installments_to != null &&
+              item.installments_from > item.installments_to
+            ) return false;
+            const key = `${item.method}|${item.installments_from ?? ""}|${item.installments_to ?? ""}`;
+            if (surchargeSeen.has(key)) return false;
+            surchargeSeen.add(key);
+            return true;
+          });
+        const hasPromotions = Array.isArray(body.promotions);
+        const promotions = (hasPromotions ? body.promotions : [])
+          .map((item: {
+            id?: string;
+            name?: string;
+            valid_until?: string | null;
+            percent?: number;
+            categories?: string[];
+          }) => {
+            const validUntil = String(item?.valid_until || "").slice(0, 10);
+            const categories = Array.isArray(item?.categories)
+              ? [...new Set(item.categories.map((category: string) => String(category || "").trim()).filter(Boolean))].slice(0, 30)
+              : [];
+            return {
+              id: String(item?.id || crypto.randomUUID()),
+              name: String(item?.name || "").trim().slice(0, 80),
+              valid_until: /^\d{4}-\d{2}-\d{2}$/.test(validUntil) ? validUntil : null,
+              percent: Number(item?.percent || 0),
+              categories,
+            };
+          })
+          .filter((item: { name: string; percent: number }) => item.name && item.percent > 0 && item.percent <= 100);
         const saved = await pg.queryObject`
           INSERT INTO pos_settings (
             organization_id, sale_notes, financial_account, financial_category,
             default_lead_id, default_lead_name, simple_sale, commission_required,
             show_payment_method, commission_type, commission_value, stock_code_field,
-            block_out_of_stock, payment_discounts, updated_at
+            block_out_of_stock, payment_discounts, payment_surcharges, promotions, updated_at
           ) VALUES (
             ${organizationId},
             ${body.sale_notes || ""},
@@ -516,6 +581,8 @@ serve(async (req) => {
             ${stockCode},
             ${Boolean(body.block_out_of_stock)},
             ${hasPaymentDiscounts ? JSON.stringify(paymentDiscounts) : "[]"}::jsonb,
+            ${hasPaymentSurcharges ? JSON.stringify(paymentSurcharges) : "[]"}::jsonb,
+            ${hasPromotions ? JSON.stringify(promotions) : "[]"}::jsonb,
             now()
           )
           ON CONFLICT (organization_id) DO UPDATE SET
@@ -534,6 +601,14 @@ serve(async (req) => {
             payment_discounts = CASE
               WHEN ${hasPaymentDiscounts} THEN EXCLUDED.payment_discounts
               ELSE pos_settings.payment_discounts
+            END,
+            payment_surcharges = CASE
+              WHEN ${hasPaymentSurcharges} THEN EXCLUDED.payment_surcharges
+              ELSE pos_settings.payment_surcharges
+            END,
+            promotions = CASE
+              WHEN ${hasPromotions} THEN EXCLUDED.promotions
+              ELSE pos_settings.promotions
             END,
             updated_at = now()
           RETURNING *
@@ -606,6 +681,7 @@ serve(async (req) => {
         }
 
         const discountAmount = Math.max(0, Number(body.discount_amount || 0));
+        const surchargeAmount = Math.max(0, Number(body.surcharge_amount || 0));
         const addCommission = Boolean(body.add_commission);
         const applyStock = body.apply_stock !== false;
         const generateFinancial = Boolean(body.generate_financial);
@@ -636,7 +712,7 @@ serve(async (req) => {
           };
         });
 
-        const total = Math.max(0, subtotal - discountAmount);
+        const total = Math.max(0, subtotal - discountAmount + surchargeAmount);
         const paymentsTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
         if (Math.abs(paymentsTotal - total) > 0.05) {
           return json({
@@ -715,7 +791,7 @@ serve(async (req) => {
             INSERT INTO pos_sales (
               organization_id, sale_number, cash_session_id,
               lead_id, customer_name, customer_phone,
-              status, subtotal, discount_amount, total,
+              status, subtotal, discount_amount, surcharge_amount, total,
               notes, add_commission, commission_amount,
               commission_user_id, commission_user_name,
               sold_by, sold_by_name, sold_at, supplier_name,
@@ -725,7 +801,7 @@ serve(async (req) => {
             ) VALUES (
               ${organizationId}, ${saleNumber}, ${cashSessionId},
               ${body.lead_id || null}, ${body.customer_name || null}, ${body.customer_phone || null},
-              'completed', ${subtotal}, ${discountAmount}, ${total},
+              'completed', ${subtotal}, ${discountAmount}, ${surchargeAmount}, ${total},
               ${body.notes || null}, ${addCommission}, ${commissionAmount},
               ${commissionUserId}, ${commissionUserName},
               ${user.id}, ${userName}, ${soldAt}, ${body.supplier_name || null},
@@ -799,6 +875,7 @@ serve(async (req) => {
               total,
               subtotal,
               discount_amount: discountAmount,
+              surcharge_amount: surchargeAmount,
               commission_amount: commissionAmount,
               cash_session_id: cashSessionId,
               customer_name: body.customer_name || null,
@@ -993,8 +1070,9 @@ serve(async (req) => {
             id: string;
             status: string;
             discount_amount: number;
+            surcharge_amount: number;
           }>`
-            SELECT id, status, discount_amount FROM pos_sales
+            SELECT id, status, discount_amount, surcharge_amount FROM pos_sales
             WHERE id = ${saleId} AND organization_id = ${organizationId}
             FOR UPDATE
           `;
@@ -1116,7 +1194,8 @@ serve(async (req) => {
           `;
           const subtotal = Number(totals.rows[0]?.subtotal || 0);
           const discountAmount = Number(sale.rows[0].discount_amount || 0);
-          const total = Math.max(0, subtotal - discountAmount);
+          const surchargeAmount = Number(sale.rows[0].surcharge_amount || 0);
+          const total = Math.max(0, subtotal - discountAmount + surchargeAmount);
 
           const remaining = await pg.queryObject<{ cnt: string }>`
             SELECT COUNT(*)::text AS cnt FROM pos_sale_items

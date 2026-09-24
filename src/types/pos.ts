@@ -7,6 +7,7 @@ export interface PosCartItem {
   name: string;
   sku?: string | null;
   unit?: string | null;
+  category?: string | null;
   quantity: number;
   unit_price: number;
   discount_amount: number;
@@ -124,6 +125,22 @@ export interface PosPaymentDiscount {
   percent: number;
 }
 
+export interface PosPaymentSurcharge {
+  id: string;
+  method: string;
+  percent: number;
+  installments_from: number | null;
+  installments_to: number | null;
+}
+
+export interface PosPromotion {
+  id: string;
+  name: string;
+  valid_until: string | null;
+  percent: number;
+  categories: string[];
+}
+
 export interface PosSettings {
   sale_notes: string;
   financial_account: string;
@@ -138,6 +155,8 @@ export interface PosSettings {
   stock_code_field: PosStockCodeField;
   block_out_of_stock: boolean;
   payment_discounts: PosPaymentDiscount[];
+  payment_surcharges: PosPaymentSurcharge[];
+  promotions: PosPromotion[];
 }
 
 export const DEFAULT_POS_SETTINGS: PosSettings = {
@@ -154,6 +173,8 @@ export const DEFAULT_POS_SETTINGS: PosSettings = {
   stock_code_field: "sku",
   block_out_of_stock: false,
   payment_discounts: [],
+  payment_surcharges: [],
+  promotions: [],
 };
 
 export function normalizePaymentDiscounts(raw: unknown): PosPaymentDiscount[] {
@@ -169,6 +190,71 @@ export function normalizePaymentDiscounts(raw: unknown): PosPaymentDiscount[] {
     discounts.push({ method, percent });
   }
   return discounts;
+}
+
+function optionalInstallment(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 48) return null;
+  return Math.round(parsed);
+}
+
+export function normalizePaymentSurcharges(raw: unknown): PosPaymentSurcharge[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const seen = new Set<string>();
+  const surcharges: PosPaymentSurcharge[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Partial<PosPaymentSurcharge>;
+    const method = String(row.method || "").trim();
+    const percent = Number(row.percent || 0);
+    if (!method || percent <= 0 || percent > 100) continue;
+    const isCard = method === "cartao_credito";
+    const installmentsFrom = isCard ? optionalInstallment(row.installments_from) : null;
+    const installmentsTo = isCard ? optionalInstallment(row.installments_to) : null;
+    if (
+      installmentsFrom != null &&
+      installmentsTo != null &&
+      installmentsFrom > installmentsTo
+    ) {
+      continue;
+    }
+    const key = `${method}|${installmentsFrom ?? ""}|${installmentsTo ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    surcharges.push({
+      id: String(row.id || key),
+      method,
+      percent,
+      installments_from: installmentsFrom,
+      installments_to: installmentsTo,
+    });
+  }
+  return surcharges;
+}
+
+export function normalizePromotions(raw: unknown): PosPromotion[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const promotions: PosPromotion[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Partial<PosPromotion>;
+    const name = String(row.name || "").trim();
+    const percent = Number(row.percent || 0);
+    if (!name || percent <= 0 || percent > 100) continue;
+    const validUntil = String(row.valid_until || "").slice(0, 10);
+    const categories = Array.isArray(row.categories)
+      ? [...new Set(row.categories.map((category) => String(category || "").trim()).filter(Boolean))]
+      : [];
+    promotions.push({
+      id: String(row.id || `${name}-${promotions.length}`),
+      name,
+      valid_until: /^\d{4}-\d{2}-\d{2}$/.test(validUntil) ? validUntil : null,
+      percent,
+      categories,
+    });
+  }
+  return promotions;
 }
 
 export function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSettings {
@@ -190,6 +276,8 @@ export function normalizePosSettings(raw?: Partial<PosSettings> | null): PosSett
     stock_code_field: stockCode,
     block_out_of_stock: Boolean(raw?.block_out_of_stock),
     payment_discounts: normalizePaymentDiscounts(raw?.payment_discounts),
+    payment_surcharges: normalizePaymentSurcharges(raw?.payment_surcharges),
+    promotions: normalizePromotions(raw?.promotions),
   };
 }
 
@@ -217,6 +305,8 @@ export interface FinalizeSalePayload {
   }>;
   payments: Array<{ method: string; amount: number }>;
   discount_amount?: number;
+  surcharge_amount?: number;
+  promotion_name?: string | null;
   notes?: string | null;
   add_commission?: boolean;
   commission_user_id?: string | null;

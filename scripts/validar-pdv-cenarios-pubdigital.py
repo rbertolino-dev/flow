@@ -180,7 +180,7 @@ def main() -> int:
         fail("Cliente padrão indisponível")
         return 1
     ok(f"Cliente: {lead.get('name')}")
-    only_discounts = "--so-descontos" in sys.argv
+    only_discounts = "--so-descontos" in sys.argv or "--so-ajustes" in sys.argv
 
     def save_settings(payload: dict, label: str) -> None:
         body = {
@@ -241,6 +241,47 @@ def main() -> int:
             }
             if got_pairs != expected_pairs:
                 mismatches.append(f"payment_discounts={got_pairs!r}")
+        for field in ("payment_surcharges", "promotions"):
+            if field not in body:
+                continue
+            got_rows = data.get(field) or []
+            if isinstance(got_rows, str):
+                got_rows = json.loads(got_rows)
+            if field == "payment_surcharges":
+                expected_rows = {
+                    (
+                        item["method"],
+                        round(float(item["percent"]), 2),
+                        item.get("installments_from"),
+                        item.get("installments_to"),
+                    )
+                    for item in body[field]
+                }
+                actual_rows = {
+                    (
+                        item.get("method"),
+                        round(float(item.get("percent") or 0), 2),
+                        item.get("installments_from"),
+                        item.get("installments_to"),
+                    )
+                    for item in got_rows
+                }
+            else:
+                expected_rows = {
+                    (item["name"], item.get("valid_until"), round(float(item["percent"]), 2), tuple(item.get("categories") or []))
+                    for item in body[field]
+                }
+                actual_rows = {
+                    (
+                        item.get("name"),
+                        item.get("valid_until"),
+                        round(float(item.get("percent") or 0), 2),
+                        tuple(item.get("categories") or []),
+                    )
+                    for item in got_rows
+                }
+            if actual_rows != expected_rows:
+                mismatches.append(f"{field}={actual_rows!r}")
         if mismatches:
             fail(f"{label}: divergiu {', '.join(mismatches)}")
         else:
@@ -468,6 +509,9 @@ def main() -> int:
         if abs(float(data.get("total") or 0) - total) > 0.05:
             fail(f"Venda {label}: total {data.get('total')} ≠ {total}")
             return None
+        if "surcharge_amount" in body and abs(float(data.get("surcharge_amount") or 0) - float(body["surcharge_amount"])) > 0.05:
+            fail(f"Venda {label}: acréscimo {data.get('surcharge_amount')} ≠ {body['surcharge_amount']}")
+            return None
         ok(f"Venda #{data.get('sale_number')} — {label} — R$ {float(data.get('total') or 0):.2f}")
         return data
 
@@ -577,7 +621,124 @@ def main() -> int:
                 payments=[{"method": "pix", "amount": service_price}],
             )
 
-    payment_discounts_scenarios()
+    def adjustment_scenarios() -> None:
+        info("Acréscimos e promoções")
+        category = str(product.get("category") or "").strip()
+        categories = [category] if category else []
+        base = {
+            "sale_notes": "Garantia de 90 dias. Pagamento conforme combinado.",
+            "financial_account": "Pubdigital",
+            "financial_category": "vendas",
+            "default_lead_id": lead["id"],
+            "default_lead_name": lead["name"],
+            "simple_sale": False,
+            "commission_required": False,
+            "show_payment_method": True,
+            "commission_type": "percent",
+            "commission_value": 0,
+            "stock_code_field": "sku",
+            "block_out_of_stock": False,
+        }
+        status, filtered = api.call(
+            "/functions/v1/pos-sales",
+            "POST",
+            {
+                "action": "save_pos_settings",
+                **base,
+                "payment_surcharges": [
+                    {"method": "pix", "percent": 3},
+                    {"method": "metodo_invalido", "percent": 4},
+                    {"method": "dinheiro", "percent": 150},
+                    {"method": "cartao_credito", "percent": 8, "installments_from": 5, "installments_to": 2},
+                    {"method": "cartao_credito", "percent": 1, "installments_from": 1, "installments_to": 2},
+                ],
+                "promotions": [
+                    {"name": "", "percent": 10},
+                    {"name": "acima de 100", "percent": 120},
+                    {"name": "dia dos pais", "percent": 10, "valid_until": "2026-12-31", "categories": categories},
+                ],
+            },
+        )
+        stored = (filtered or {}).get("data") or {}
+        surcharges = stored.get("payment_surcharges") or []
+        promotions = stored.get("promotions") or []
+        surcharge_pairs = {
+            (item.get("method"), round(float(item.get("percent") or 0), 2), item.get("installments_from"), item.get("installments_to"))
+            for item in surcharges
+        }
+        promo_names = {item.get("name") for item in promotions}
+        if status != 200 or surcharge_pairs != {("pix", 3.0, None, None), ("cartao_credito", 1.0, 1, 2)} or promo_names != {"dia dos pais"}:
+            fail(f"Filtro de acréscimo/promoção: HTTP {status} {surcharge_pairs} {promo_names}")
+        else:
+            ok("Ignora acréscimo inválido, faixa invertida e promoção sem nome")
+
+        rules = [
+            {"method": "pix", "percent": 3, "installments_from": None, "installments_to": None},
+            {"method": "dinheiro", "percent": 5, "installments_from": None, "installments_to": None},
+            {"method": "cartao_debito", "percent": 3, "installments_from": None, "installments_to": None},
+            {"method": "carne", "percent": 2.5, "installments_from": None, "installments_to": None},
+            {"method": "cartao_credito", "percent": 1, "installments_from": 1, "installments_to": 2},
+            {"method": "cartao_credito", "percent": 8, "installments_from": 1, "installments_to": 3},
+            {"method": "cartao_credito", "percent": 3, "installments_from": None, "installments_to": 2},
+            {"method": "cartao_credito", "percent": 8, "installments_from": None, "installments_to": 3},
+            {"method": "cartao_credito", "percent": 3, "installments_from": 1, "installments_to": 1},
+        ]
+        promo_list = [
+            {"name": "dia dos pais", "percent": 10, "valid_until": "2026-12-31", "categories": categories},
+            {"name": "Natal", "percent": 15, "valid_until": "2026-12-25", "categories": categories},
+            {"name": "dia dos namorados", "percent": 25, "valid_until": "2024-06-12", "categories": categories},
+            {"name": "bonificação", "percent": 100, "valid_until": None, "categories": []},
+        ]
+        save_settings(
+            {**base, "payment_surcharges": rules, "promotions": promo_list},
+            "Acréscimos por forma e promoções com validade",
+        )
+
+        pix_surcharge = round(price * 0.03, 2)
+        sell(
+            "Acréscimo Pix 3%",
+            total=round(price + pix_surcharge, 2),
+            discount_amount=0,
+            surcharge_amount=pix_surcharge,
+            items=[product_item()],
+            payments=[{"method": "pix", "amount": round(price + pix_surcharge, 2)}],
+        )
+        promo_discount = round(price * 0.10, 2)
+        sell(
+            "Promoção dia dos pais 10%",
+            total=round(price - promo_discount, 2),
+            discount_amount=promo_discount,
+            surcharge_amount=0,
+            promotion_name="dia dos pais",
+            items=[product_item()],
+            payments=[{"method": "boleto", "amount": round(price - promo_discount, 2)}],
+        )
+        after_promo = round(price - promo_discount, 2)
+        stacked_surcharge = round(after_promo * 0.03, 2)
+        sell(
+            "Promoção 10% + acréscimo Pix 3%",
+            total=round(after_promo + stacked_surcharge, 2),
+            discount_amount=promo_discount,
+            surcharge_amount=stacked_surcharge,
+            promotion_name="dia dos pais",
+            items=[product_item()],
+            payments=[{"method": "pix", "amount": round(after_promo + stacked_surcharge, 2)}],
+        )
+        card_surcharge = round(price * 0.01, 2)
+        sell(
+            "Cartão 2x na faixa de 1%",
+            total=round(price + card_surcharge, 2),
+            discount_amount=0,
+            surcharge_amount=card_surcharge,
+            items=[product_item()],
+            payments=[{"method": "cartao_credito", "amount": round(price + card_surcharge, 2)}],
+        )
+        ok("Promoção vencida fica cadastrada e não entra nessas vendas")
+
+    if "--so-ajustes" in sys.argv:
+        adjustment_scenarios()
+    else:
+        payment_discounts_scenarios()
 
     info("Caixa consolidado enxerga as vendas do mês")
     from datetime import datetime

@@ -317,6 +317,51 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     });
   });
 
+  test("PDV — promoção e acréscimo na venda @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
+    await human.humanNavigate("/pdv/configuracoes");
+    if (page.url().includes("/login")) {
+      test.skip(true, "Sessão E2E inválida");
+    }
+    await human.humanClick(page.getByRole("button", { name: /^acréscimos$/i }));
+    await expect(page.getByRole("heading", { name: /acréscimo por forma de pagamento/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/^pix$/i).first()).toBeVisible();
+    await expect(page.getByText("3%").first()).toBeVisible();
+    await expect(page.getByText(/à vista/i).first()).toBeVisible();
+
+    await human.humanClick(page.getByRole("button", { name: /^promoções$/i }));
+    await expect(page.getByRole("heading", { name: /^promoções$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /nova promoção/i })).toBeVisible();
+    await expect(page.getByText(/dia dos pais/i)).toBeVisible();
+    await human.humanClick(page.getByRole("button", { name: /nova promoção/i }));
+    await expect(page.getByText(/^nome$/i)).toBeVisible();
+    await expect(page.getByText(/^validade$/i)).toBeVisible();
+    await expect(page.getByText(/desconto \(%\)/i)).toBeVisible();
+    await expect(page.getByText(/categorias de produtos/i)).toBeVisible();
+    await human.humanClick(page.getByRole("button", { name: /^cancelar$/i }));
+
+    await human.humanNavigate("/pdv");
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
+    const productBtn = page.locator("ul.divide-y li button").first();
+    await expect(productBtn).toBeVisible({ timeout: 20_000 });
+    await human.humanClick(productBtn);
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /nenhuma/i }));
+    await human.humanClick(page.getByRole("option", { name: /dia dos pais/i }));
+    await expect(page.getByText(/10%/)).toBeVisible();
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+    await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+    await expect(page.getByText(/acréscimo de 3%/i)).toBeVisible({ timeout: 10_000 });
+  });
+
   test("PDV histórico — caixa consolidado @human-behavior @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     const orgId = process.env.E2E_ORG_ID?.trim();
