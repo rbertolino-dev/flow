@@ -138,6 +138,56 @@ function bubbleUniqueId(): string {
   return `${Date.now()}x${rand}`;
 }
 
+async function createBubbleContato(
+  empresaId: string,
+  data: Record<string, unknown>
+): Promise<string> {
+  const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
+  if (!token) {
+    throw new Error("BUBBLE_AGILIZE_KEY não configurada");
+  }
+  const body: Record<string, unknown> = {
+    nome: data.nome,
+    empresa: empresaId,
+    categoria: data.categoria || "Cliente",
+    desativado: data.desativado === true,
+    import: "agilize-import",
+  };
+  const phone = digits(data.telefone);
+  if (phone) body.telefone = Number(phone);
+  for (const field of [
+    "Email",
+    "cnpj ou cpf",
+    "cidade",
+    "estado",
+    "bairro",
+    "CEP",
+    "observações",
+    "cargo",
+    "origem",
+    "rua",
+    "complemento",
+  ]) {
+    if (data[field] != null && String(data[field]).trim() !== "") {
+      body[field] = data[field];
+    }
+  }
+  const res = await fetch("https://app.agilizetotal.com.br/api/1.1/obj/contato", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Bubble HTTP ${res.status}: ${text.slice(0, 180)}`);
+  }
+  const parsed = JSON.parse(text);
+  return String(parsed.id || "");
+}
+
 function tableFor(tipo: Tipo): string {
   return tipo === "empresa" ? "empresa-do-contato" : "contato";
 }
@@ -537,11 +587,24 @@ async function importBatch(
       continue;
     }
 
+    let bubbleId = "";
+    if (tipo === "contato") {
+      try {
+        bubbleId = await createBubbleContato(empresaId, data);
+      } catch (error) {
+        errors.push({
+          row: rowNum,
+          error: error instanceof Error ? error.message : "Falha ao criar contato no Agilize Total",
+        });
+        continue;
+      }
+    }
+
     const payload = {
       ...data,
       empresa: empresaId,
       "Creation Date": new Date().toISOString(),
-      uniqueid: bubbleUniqueId(),
+      uniqueid: bubbleId || bubbleUniqueId(),
       import: "agilize-import",
     };
     const res = await agilizeFetch(tableFor(tipo), {
