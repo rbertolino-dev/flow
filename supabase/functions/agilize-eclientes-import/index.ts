@@ -181,6 +181,9 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
   const empresaContatoCount = await countExact(
     `empresa-do-contato?select=ID&empresa=eq.${encodeURIComponent(id)}&limit=1`
   );
+  const productCount = await countExact(
+    `eprodutos?select=id&empresa=eq.${encodeURIComponent(id)}&limit=1`
+  );
 
   const sampleRes = await agilizeFetch(
     `contato?select=ID,nome,telefone,categoria&empresa=eq.${encodeURIComponent(id)}&order=ID.desc&limit=3`
@@ -199,12 +202,6 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     nameWarning = `Nome informado ("${nameHint}") difere do cadastro ("${empresaCadastro.nome}")`;
   }
 
-  if (!empresaCadastro.found && contatoCount === 0 && empresaContatoCount === 0) {
-    throw new Error(
-      "Unique ID não encontrado em empresas, contatos nem empresas do contato"
-    );
-  }
-
   return {
     ok: true,
     empresaId: id,
@@ -212,6 +209,7 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
     empresaCadastro,
     contatoCount,
     empresaContatoCount,
+    productCount,
     sample,
     nameWarning,
   };

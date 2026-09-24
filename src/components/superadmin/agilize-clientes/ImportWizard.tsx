@@ -58,7 +58,10 @@ export function AgilizeClientesImportWizard() {
     try {
       const result = await validateEmpresa(empresaId.trim(), empresaNome.trim());
       setValidated(result);
-      toast({ title: "Empresa encontrada", description: result.empresaCadastro.nome || empresaId });
+      toast({
+        title: "Empresa validada",
+        description: result.empresaCadastro.nome || empresaId,
+      });
     } catch (error) {
       toast({
         title: "Empresa inválida",
@@ -175,8 +178,13 @@ export function AgilizeClientesImportWizard() {
           {validated && (
             <Alert>
               <AlertDescription>
-                Cadastro: {validated.empresaCadastro.nome || "ID encontrado só pelos registros"} ·{" "}
-                {validated.contatoCount} contatos · {validated.empresaContatoCount} empresas do contato
+                ID {validated.empresaId}
+                {validated.empresaCadastro.found
+                  ? ` · Cadastro: ${validated.empresaCadastro.nome}`
+                  : " · Unique ID não encontrado na tabela empresas (pode existir só em eprodutos)."}
+                {" · "}
+                {validated.productCount} produtos · {validated.contatoCount} contatos ·{" "}
+                {validated.empresaContatoCount} empresas do contato
                 {validated.nameWarning ? ` · ${validated.nameWarning}` : ""}
               </AlertDescription>
             </Alert>

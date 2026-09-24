@@ -16,6 +16,7 @@ export interface ValidateClienteEmpresaResult {
   empresaCadastro: { found: boolean; nome?: string };
   contatoCount: number;
   empresaContatoCount: number;
+  productCount: number;
   sample: Array<{ ID: number; nome: string; telefone?: string; categoria?: string }>;
   nameWarning: string | null;
 }
