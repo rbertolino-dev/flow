@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,11 +24,10 @@ import {
 import {
   CLIENTE_BATCH_DELAY_MS,
   CLIENTE_BATCH_SIZE,
-  CLIENTE_CATEGORIAS,
+  CLIENTE_DESTINO_LABEL,
   CLIENTE_FIELD_LABELS,
-  CONTATO_CAMPOS_FORA_DO_TEMPLATE,
-  EMPRESA_CAMPOS_FORA_DO_TEMPLATE,
   fieldsForTipo,
+  type ClienteDestino,
   type ClienteImportTipo,
 } from "@/lib/agilizeClientesFields";
 
@@ -40,6 +38,7 @@ export function AgilizeClientesImportWizard() {
   const [empresaId, setEmpresaId] = useState("");
   const [validated, setValidated] = useState<ValidateClienteEmpresaResult | null>(null);
   const [tipo, setTipo] = useState<ClienteImportTipo>("contato");
+  const [destino, setDestino] = useState<ClienteDestino>("cliente_contato");
   const [headers, setHeaders] = useState<string[]>([]);
   const [sheetRows, setSheetRows] = useState<Record<string, unknown>[]>([]);
   const [mapping, setMapping] = useState<ClienteColumnMapping>({});
@@ -121,7 +120,7 @@ export function AgilizeClientesImportWizard() {
     if (!validated) return;
     setBusy(true);
     try {
-      const result = await dryRun(validated.empresaId, tipo, mappedRows, duplicateMode);
+      const result = await dryRun(validated.empresaId, tipo, mappedRows, duplicateMode, destino);
       setDry(result);
     } catch (error) {
       toast({
@@ -138,7 +137,7 @@ export function AgilizeClientesImportWizard() {
     if (!validated || !dry) return;
     setBusy(true);
     try {
-      await runImport(validated.empresaId, tipo, mappedRows, dry.sessionToken, duplicateMode);
+      await runImport(validated.empresaId, tipo, mappedRows, dry.sessionToken, duplicateMode, destino);
       toast({ title: "Importação concluída" });
     } catch (error) {
       toast({
@@ -157,8 +156,7 @@ export function AgilizeClientesImportWizard() {
         <CardHeader>
           <CardTitle>Importar clientes no Agilize Total</CardTitle>
           <CardDescription>
-            Grava em <code>contato</code> e <code>empresa-do-contato</code> do banco Agilize Total.
-            O unique ID da empresa é o mesmo da importação de produtos. Nada entra no CRM.
+            Grava no Agilize Total da empresa informada. Duplicata só quando nome e CPF/CNPJ são os dois iguais. Telefone repetido com outro nome entra normal.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -178,14 +176,13 @@ export function AgilizeClientesImportWizard() {
           {validated && (
             <Alert>
               <AlertDescription>
-                ID {validated.empresaId}
-                {validated.empresaCadastro.found
-                  ? ` · Cadastro: ${validated.empresaCadastro.nome}`
-                  : " · Unique ID não encontrado na tabela empresas (pode existir só em eprodutos)."}
-                {" · "}
-                {validated.productCount} produtos · {validated.contatoCount} contatos ·{" "}
-                {validated.empresaContatoCount} empresas do contato
-                {validated.nameWarning ? ` · ${validated.nameWarning}` : ""}
+                <div className="text-base font-medium">
+                  {validated.empresaCadastro.found
+                    ? validated.empresaCadastro.nome
+                    : "Nome não encontrado para este ID"}
+                </div>
+                <div className="mt-1 text-xs break-all">{validated.empresaId}</div>
+                {validated.nameWarning ? <div className="mt-1">{validated.nameWarning}</div> : null}
               </AlertDescription>
             </Alert>
           )}
@@ -194,68 +191,33 @@ export function AgilizeClientesImportWizard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Campos diagnosticados</CardTitle>
+          <CardTitle>Para onde vai</CardTitle>
           <CardDescription>
-            Categorias vistas no banco: {CLIENTE_CATEGORIAS.join(", ")}. Duplicata nesta empresa:
-            documento, senão telefone, senão e-mail, senão nome.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 text-sm">
-          <div>
-            <div className="mb-2 font-medium">Contato — entra no template</div>
-            <div className="flex flex-wrap gap-1">
-              {fieldsForTipo("contato").map((f) => (
-                <Badge key={f} variant="secondary">{CLIENTE_FIELD_LABELS[f] || f}</Badge>
-              ))}
-            </div>
-            <p className="mt-2 text-muted-foreground">
-              Fora do template: {CONTATO_CAMPOS_FORA_DO_TEMPLATE.slice(0, 8).join(", ")} e demais campos de RH.
-            </p>
-          </div>
-          <div>
-            <div className="mb-2 font-medium">Empresa do contato — entra no template</div>
-            <div className="flex flex-wrap gap-1">
-              {fieldsForTipo("empresa").map((f) => (
-                <Badge key={f} variant="secondary">{CLIENTE_FIELD_LABELS[f] || f}</Badge>
-              ))}
-            </div>
-            <p className="mt-2 text-muted-foreground">
-              Fora do template: {EMPRESA_CAMPOS_FORA_DO_TEMPLATE.slice(0, 6).join(", ")}.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Planilha</CardTitle>
-          <CardDescription>
-            Lotes de {CLIENTE_BATCH_SIZE} com intervalo de {CLIENTE_BATCH_DELAY_MS}ms. Importe primeiro as
-            empresas do contato se os contatos apontarem para elas pelo nome.
+            Escolha antes de validar a planilha. Lotes de {CLIENTE_BATCH_SIZE} a cada {CLIENTE_BATCH_DELAY_MS}ms.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant={tipo === "contato" ? "default" : "outline"}
-              onClick={() => {
-                setTipo("contato");
-                setDry(null);
-                if (headers.length) setMapping(autoMapClienteColumns(headers, "contato"));
-              }}
-            >
-              Contatos
-            </Button>
-            <Button
-              variant={tipo === "empresa" ? "default" : "outline"}
-              onClick={() => {
-                setTipo("empresa");
-                setDry(null);
-                if (headers.length) setMapping(autoMapClienteColumns(headers, "empresa"));
-              }}
-            >
-              Empresas do contato
-            </Button>
+            {(
+              [
+                ["lead", "contato"],
+                ["cliente_contato", "contato"],
+                ["cliente_empresa", "empresa"],
+              ] as const
+            ).map(([value, nextTipo]) => (
+              <Button
+                key={value}
+                variant={destino === value ? "default" : "outline"}
+                onClick={() => {
+                  setDestino(value);
+                  setTipo(nextTipo);
+                  setDry(null);
+                  if (headers.length) setMapping(autoMapClienteColumns(headers, nextTipo));
+                }}
+              >
+                {CLIENTE_DESTINO_LABEL[value]}
+              </Button>
+            ))}
             <Button variant="outline" onClick={downloadTemplate}>Baixar template</Button>
           </div>
           <Input
@@ -293,6 +255,35 @@ export function AgilizeClientesImportWizard() {
                   </Select>
                 </div>
               ))}
+              <div className="overflow-auto rounded border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="p-2">Linha</th>
+                      <th className="p-2">Nome</th>
+                      <th className="p-2">Telefone</th>
+                      <th className="p-2">CPF/CNPJ</th>
+                      <th className="p-2">Destino</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mappedRows.slice(0, 12).map((row) => (
+                      <tr key={String(row._row)} className="border-b">
+                        <td className="p-2">{String(row._row ?? "")}</td>
+                        <td className="p-2">{String(row.nome ?? "")}</td>
+                        <td className="p-2">{String(row.telefone ?? "")}</td>
+                        <td className="p-2">{String(row["cnpj ou cpf"] ?? row.cnpj ?? "")}</td>
+                        <td className="p-2">{CLIENTE_DESTINO_LABEL[destino]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {mappedRows.length > 12 && (
+                  <p className="p-2 text-xs text-muted-foreground">
+                    Prévia das 12 primeiras de {mappedRows.length} linhas.
+                  </p>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant={duplicateMode === "skip" ? "default" : "outline"} onClick={() => setDuplicateMode("skip")}>
                   Ignorar duplicados

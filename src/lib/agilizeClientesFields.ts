@@ -1,6 +1,14 @@
 /** Destino: banco Agilize Total (não o CRM). */
 export type ClienteImportTipo = "contato" | "empresa";
 
+export type ClienteDestino = "lead" | "cliente_contato" | "cliente_empresa";
+
+export const CLIENTE_DESTINO_LABEL: Record<ClienteDestino, string> = {
+  lead: "Lead → oportunidades",
+  cliente_contato: "Cliente → CRM como contato",
+  cliente_empresa: "Cliente → CRM como empresa",
+};
+
 export const CLIENTE_CATEGORIAS = [
   "Cliente",
   "Lead",

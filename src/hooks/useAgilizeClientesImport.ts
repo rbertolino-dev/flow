@@ -4,6 +4,7 @@ import {
   CLIENTE_BATCH_DELAY_MS,
   CLIENTE_BATCH_SIZE,
   fieldsForTipo,
+  type ClienteDestino,
   type ClienteImportTipo,
 } from "@/lib/agilizeClientesFields";
 import { normalizeColumnName } from "@/utils/normalizeExcelColumn";
@@ -178,7 +179,8 @@ export function useAgilizeClientesImport() {
       empresaId: string,
       tipo: ClienteImportTipo,
       rows: Record<string, unknown>[],
-      duplicateMode: "skip" | "overwrite"
+      duplicateMode: "skip" | "overwrite",
+      destino: ClienteDestino
     ) => {
       return invoke<ClienteDryRunResult>({
         action: "dry_run",
@@ -186,6 +188,7 @@ export function useAgilizeClientesImport() {
         tipo,
         rows,
         duplicateMode,
+        destino,
       });
     },
     []
@@ -197,7 +200,8 @@ export function useAgilizeClientesImport() {
       tipo: ClienteImportTipo,
       rows: Record<string, unknown>[],
       sessionToken: string,
-      duplicateMode: "skip" | "overwrite"
+      duplicateMode: "skip" | "overwrite",
+      destino: ClienteDestino
     ) => {
       setProgress({
         ...EMPTY,
@@ -230,6 +234,7 @@ export function useAgilizeClientesImport() {
           rows: batch,
           sessionToken,
           duplicateMode,
+          destino,
         });
         inserted += result.inserted;
         updated += result.updated;

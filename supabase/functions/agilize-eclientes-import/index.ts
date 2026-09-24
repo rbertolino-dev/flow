@@ -56,6 +56,7 @@ const CONTATO_FIELDS = [
 ] as const;
 
 type Tipo = "contato" | "empresa";
+type Destino = "lead" | "cliente_contato" | "cliente_empresa";
 type Row = Record<string, unknown> & { _row?: number };
 
 const MAX_BATCH = 50;
@@ -136,6 +137,58 @@ function bubbleUniqueId(): string {
     .toString()
     .padStart(18, "0");
   return `${Date.now()}x${rand}`;
+}
+
+async function bubbleEmpresaNome(id: string): Promise<string | null> {
+  const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
+  if (!token) return null;
+  const res = await fetch(
+    `https://app.agilizetotal.com.br/api/1.1/obj/empresa_principal/${encodeURIComponent(id)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  const row = (data.response || data) as Record<string, unknown>;
+  const nome = row["cad_nome da empresa"];
+  return nome ? String(nome) : null;
+}
+
+async function createBubbleEmpresa(
+  empresaId: string,
+  data: Record<string, unknown>
+): Promise<string> {
+  const token = Deno.env.get("BUBBLE_AGILIZE_KEY");
+  if (!token) throw new Error("BUBBLE_AGILIZE_KEY não configurada");
+  const body: Record<string, unknown> = {
+    nome: data.nome,
+    empresa: empresaId,
+    categoria: "Cliente",
+    desativado: data.desativado === true,
+    import: "agilize-import",
+  };
+  const phone = digits(data.telefone);
+  if (phone) body.telefone = Number(phone);
+  if (data.cnpj) body.cnpj = data.cnpj;
+  for (const field of ["email", "cidade", "estado", "bairro", "cep", "observações", "origem"]) {
+    if (data[field] != null && String(data[field]).trim() !== "") body[field] = data[field];
+  }
+  const res = await fetch("https://app.agilizetotal.com.br/api/1.1/obj/empresadocontato", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (res.status === 404) {
+    throw new Error(
+      "Empresa do contato ainda não está na API ao vivo. Marque empresadocontato em Settings → API e publique de novo."
+    );
+  }
+  if (!res.ok) throw new Error(`Bubble HTTP ${res.status}: ${text.slice(0, 180)}`);
+  const parsed = JSON.parse(text);
+  return String(parsed.id || "");
 }
 
 async function createBubbleContato(
@@ -240,6 +293,11 @@ async function validateEmpresa(empresaId: string, empresaNome?: string) {
   );
   const sample = sampleRes.ok ? await sampleRes.json() : [];
 
+  const nomeBubble = await bubbleEmpresaNome(id);
+  if (nomeBubble) {
+    empresaCadastro = { found: true, nome: nomeBubble };
+  }
+
   const nameHint = empresaNome?.trim() || null;
   let nameWarning: string | null = null;
   if (
@@ -316,25 +374,11 @@ function matchExisting(row: Record<string, unknown>, tipo: Tipo, index: Existing
   const nome = norm(row.nome);
   const doc =
     tipo === "empresa" ? digits(row.cnpj) : digits(row["cnpj ou cpf"]);
-  const phone = digits(row.telefone);
-  const email = norm(tipo === "empresa" ? row.email : row.Email);
+  if (!nome || doc.length < 11) return null;
   for (const ex of index) {
-    if (doc.length >= 11 && ex.keyDoc && doc === ex.keyDoc) {
-      return { ex, by: "documento" };
+    if (ex.nome === nome && ex.keyDoc && ex.keyDoc === doc) {
+      return { ex, by: "nome e CPF/CNPJ" };
     }
-  }
-  for (const ex of index) {
-    if (phone.length >= 8 && ex.keyPhone && phone === ex.keyPhone) {
-      return { ex, by: "telefone" };
-    }
-  }
-  for (const ex of index) {
-    if (email.includes("@") && ex.keyEmail && email === ex.keyEmail) {
-      return { ex, by: "email" };
-    }
-  }
-  for (const ex of index) {
-    if (nome && ex.nome && nome === ex.nome) return { ex, by: "nome" };
   }
   return null;
 }
@@ -364,7 +408,11 @@ function remember(index: Existing[], tipo: Tipo, data: Record<string, unknown>, 
   });
 }
 
-function sanitize(tipo: Tipo, raw: Row): { ok: true; data: Record<string, unknown> } | { ok: false; error: string } {
+function destinoCategoria(destino: Destino): string {
+  return destino === "lead" ? "Lead" : "Cliente";
+}
+
+function sanitize(tipo: Tipo, raw: Row, destino: Destino): { ok: true; data: Record<string, unknown> } | { ok: false; error: string } {
   const allowed = new Set(allowedFor(tipo));
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(raw)) {
@@ -381,7 +429,7 @@ function sanitize(tipo: Tipo, raw: Row): { ok: true; data: Record<string, unknow
   if (!String(out.nome ?? "").trim()) {
     return { ok: false, error: "nome é obrigatório" };
   }
-  if (!out.categoria) out.categoria = "Cliente";
+  out.categoria = destinoCategoria(destino);
   return { ok: true, data: out };
 }
 
@@ -454,7 +502,8 @@ async function dryRun(
   empresaId: string,
   tipo: Tipo,
   rows: Row[],
-  duplicateMode: "skip" | "overwrite"
+  duplicateMode: "skip" | "overwrite",
+  destino: Destino
 ) {
   if (!rows.length) throw new Error("Nenhuma linha para validar");
   if (rows.length > 5000) throw new Error("Máximo de 5000 linhas por validação");
@@ -468,7 +517,7 @@ async function dryRun(
 
   for (const raw of rows) {
     const rowNum = Number(raw._row) || 0;
-    const parsed = sanitize(tipo, raw);
+    const parsed = sanitize(tipo, raw, destino);
     if (!parsed.ok) {
       invalid.push({ row: rowNum, error: parsed.error });
       continue;
@@ -521,7 +570,8 @@ async function importBatch(
   tipo: Tipo,
   rows: Row[],
   sessionToken: string,
-  duplicateMode: "skip" | "overwrite"
+  duplicateMode: "skip" | "overwrite",
+  destino: Destino
 ) {
   if (rows.length > MAX_BATCH) {
     throw new Error(`Máximo de ${MAX_BATCH} linhas por lote`);
@@ -543,7 +593,7 @@ async function importBatch(
 
   for (const raw of rows) {
     const rowNum = Number(raw._row) || 0;
-    const parsed = sanitize(tipo, raw);
+    const parsed = sanitize(tipo, raw, destino);
     if (!parsed.ok) {
       errors.push({ row: rowNum, error: parsed.error });
       continue;
@@ -588,16 +638,17 @@ async function importBatch(
     }
 
     let bubbleId = "";
-    if (tipo === "contato") {
-      try {
-        bubbleId = await createBubbleContato(empresaId, data);
-      } catch (error) {
-        errors.push({
-          row: rowNum,
-          error: error instanceof Error ? error.message : "Falha ao criar contato no Agilize Total",
-        });
-        continue;
-      }
+    try {
+      bubbleId =
+        destino === "cliente_empresa"
+          ? await createBubbleEmpresa(empresaId, data)
+          : await createBubbleContato(empresaId, data);
+    } catch (error) {
+      errors.push({
+        row: rowNum,
+        error: error instanceof Error ? error.message : "Falha ao criar no Agilize Total",
+      });
+      continue;
     }
 
     const payload = {
@@ -670,7 +721,13 @@ serve(async (req) => {
     const body = await req.json();
     const action = String(body?.action || "");
     const empresaId = String(body?.empresaId || "").trim();
-    const tipo: Tipo = body?.tipo === "empresa" ? "empresa" : "contato";
+    const destino: Destino =
+      body?.destino === "lead" || body?.destino === "cliente_empresa" || body?.destino === "cliente_contato"
+        ? body.destino
+        : body?.tipo === "empresa"
+          ? "cliente_empresa"
+          : "cliente_contato";
+    const tipo: Tipo = destino === "cliente_empresa" ? "empresa" : "contato";
     const rows = (Array.isArray(body?.rows) ? body.rows : []) as Row[];
     const duplicateMode = body?.duplicateMode === "overwrite" ? "overwrite" : "skip";
 
@@ -681,12 +738,12 @@ serve(async (req) => {
     }
     if (action === "dry_run") {
       if (!empresaId) return jsonResponse({ error: "empresaId obrigatório" }, 400);
-      return jsonResponse(await dryRun(empresaId, tipo, rows, duplicateMode));
+      return jsonResponse(await dryRun(empresaId, tipo, rows, duplicateMode, destino));
     }
     if (action === "import_batch") {
       if (!empresaId) return jsonResponse({ error: "empresaId obrigatório" }, 400);
       return jsonResponse(
-        await importBatch(empresaId, tipo, rows, String(body?.sessionToken || ""), duplicateMode)
+        await importBatch(empresaId, tipo, rows, String(body?.sessionToken || ""), duplicateMode, destino)
       );
     }
     return jsonResponse(
