@@ -532,7 +532,9 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       const response = await saved;
       expect(response.ok()).toBeTruthy();
       await expect(page.getByText(/normalizePosSettings is not defined/i)).toHaveCount(0);
-      await expect(page.getByText(/configurações do pdv salvas/i)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Configurações do PDV salvas", { exact: true }).first()).toBeVisible({
+        timeout: 10_000,
+      });
     };
 
     await openSettings();
@@ -567,17 +569,44 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
       await human.humanClick(page.getByRole("button", { name: /^descontos$/i }));
       await expect(page.getByRole("heading", { name: /desconto por forma de pagamento/i })).toBeVisible();
+      await human.humanClick(page.getByRole("combobox").first());
+      await human.humanClick(page.getByRole("option", { name: /^cheque$/i }));
+      await human.humanType(page.getByPlaceholder("Desconto"), "11", { clearFirst: true });
+      const discountSaved = page.waitForResponse(
+        (res) =>
+          res.url().includes("/functions/v1/pos-sales") &&
+          res.request().method() === "POST" &&
+          (res.request().postData() || "").includes("save_pos_settings"),
+        { timeout: 30_000 }
+      );
+      await human.hesitate(300, 600);
+      await human.humanClick(page.getByRole("button", { name: /^adicionar$/i }));
+      expect((await discountSaved).ok()).toBeTruthy();
+      await expect(page.getByText(/normalizePosSettings is not defined/i)).toHaveCount(0);
+      await expect(page.getByText("11%").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("À vista").first()).toBeVisible();
+
       await human.humanClick(page.getByRole("button", { name: /^acréscimos$/i }));
       await expect(page.getByRole("heading", { name: /acréscimo por forma de pagamento/i })).toBeVisible();
       await expect(page.getByText(/^pix$/i).first()).toBeVisible();
+      await expect(page.getByText("3%").first()).toBeVisible();
+      await expect(page.getByText("À vista").first()).toBeVisible();
+
       await human.humanClick(page.getByRole("button", { name: /^promoções$/i }));
       await expect(page.getByRole("heading", { name: /^promoções$/i })).toBeVisible();
       await expect(page.getByText(/dia dos pais/i)).toBeVisible();
+      await human.humanClick(page.getByRole("button", { name: /nova promoção/i }));
+      const promoDialog = page.getByRole("dialog");
+      await expect(promoDialog.getByText(/^nome$/i)).toBeVisible();
+      await expect(promoDialog.getByText(/validade/i)).toBeVisible();
+      await expect(promoDialog.getByText(/desconto/i)).toBeVisible();
+      await expect(promoDialog.getByText(/categorias/i)).toBeVisible();
+      await human.humanClick(promoDialog.getByRole("button", { name: /^cancelar$/i }));
 
       await human.humanNavigate("/pdv");
       await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
       await expect(page.getByPlaceholder("Observações")).toHaveValue(new RegExp(marker));
-      await expect(page.getByText(/formas de pagamento/i)).toBeVisible();
+      await expect(page.getByText("Formas de pagamento", { exact: true })).toBeVisible();
       const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
       await expect(productBtn).toBeVisible({ timeout: 20_000 });
       await human.humanClick(productBtn);
@@ -587,7 +616,12 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
       await human.humanClick(page.getByRole("option", { name: /^cheque$/i }));
       await expect(page.getByText(/11% à vista nesta forma de pagamento/i)).toBeVisible();
-      await human.humanClick(page.getByRole("button", { name: /^finalizar$/i }));
+      await expect(page.getByPlaceholder("Buscar cliente da organização...")).toHaveValue(/cliente cenários pdv/i, {
+        timeout: 15_000,
+      });
+      const finalize = page.getByRole("button", { name: "Finalizar F12", exact: true });
+      await finalize.scrollIntoViewIfNeeded();
+      await human.humanClick(finalize);
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText(/confirmar venda/i)).toBeVisible({ timeout: 15_000 });
       await expect(dialog.getByPlaceholder("Conta")).toHaveValue(/pubdigital/i);
