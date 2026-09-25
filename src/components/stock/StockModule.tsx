@@ -38,7 +38,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/types/product";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
+import { todayIsoDate } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
 type StockTab = "cadastro" | "lancamentos" | "categorias" | "marcas" | "compras";
@@ -110,6 +119,8 @@ export function StockModule() {
   const [brandsCatalog, setBrandsCatalog] = useState<CatalogRow[]>([]);
   const [catalogName, setCatalogName] = useState("");
   const [purchaseQty, setPurchaseQty] = useState<Record<string, string>>({});
+  const [expenseOffer, setExpenseOffer] = useState<StockExpenseOffer | null>(null);
+  const [savingExpense, setSavingExpense] = useState(false);
 
   const categories = useMemo(
     () => uniqueNames([...products.map((p) => p.category || ""), ...categoriesCatalog.map((row) => row.name)]),
@@ -296,9 +307,14 @@ export function StockModule() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Não foi possível lançar o estoque");
       toast({ title: "Lançamento registrado", description: "A quantidade em estoque foi atualizada." });
+      const enteredProduct = products.find((item) => item.id === movementProductId);
+      const enteredQty = Number(movementQty);
       setMovementQty("");
       setMovementNotes("");
       await Promise.all([refetch(), loadMovements(), loadSales()]);
+      if (movementKind === "in" && enteredProduct && enteredQty > 0) {
+        setExpenseOffer(buildStockExpenseOffer(enteredProduct, enteredQty));
+      }
     } catch (error: unknown) {
       toast({
         title: "Erro no lançamento",
@@ -339,11 +355,61 @@ export function StockModule() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Não foi possível registrar a compra");
       toast({ title: "Compra registrada", description: "A entrada foi lançada no estoque." });
+      const enteredProduct = products.find((item) => item.id === productId);
       await refetch();
+      if (enteredProduct && quantity > 0) setExpenseOffer(buildStockExpenseOffer(enteredProduct, quantity));
     } catch (error: unknown) {
       toast({ title: "Erro na compra", description: error instanceof Error ? error.message : "Erro desconhecido", variant: "destructive" });
     } finally {
       setPostingMovement(false);
+    }
+  };
+
+  const saveStockExpense = async () => {
+    if (!activeOrgId || !expenseOffer) return;
+    const amount = parseExpenseAmount(expenseOffer.amount);
+    const description = expenseOffer.description.trim();
+    if (!description) {
+      toast({ title: "Descrição obrigatória", description: "Informe a descrição da conta a pagar.", variant: "destructive" });
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast({ title: "Valor obrigatório", description: "Informe o valor da despesa.", variant: "destructive" });
+      return;
+    }
+    setSavingExpense(true);
+    try {
+      const client = supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+      const { data, error } = await client.rpc("upsert_financial_entry", {
+        p_organization_id: activeOrgId,
+        p_direction: "pagar",
+        p_amount: amount,
+        p_due_date: todayIsoDate(),
+        p_source_type: "manual",
+        p_source_id: crypto.randomUUID(),
+        p_status: "open",
+        p_settlement_status: "confirmado",
+        p_description: description,
+        p_contact_name: "Estoque",
+        p_billing_name: "Estoque",
+        p_category: "Fornecedores",
+        p_origin_label: "Estoque",
+        p_competence_date: todayIsoDate(),
+      });
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Não foi possível criar a conta a pagar");
+      toast({ title: "Conta a pagar criada", description: "A despesa entrou no financeiro." });
+      setExpenseOffer(null);
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao gerar despesa",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingExpense(false);
     }
   };
 
@@ -735,7 +801,91 @@ export function StockModule() {
         onOpenChange={setDialogOpen}
         product={editing}
       />
+      <StockEntryExpenseDialog
+        offer={expenseOffer}
+        saving={savingExpense}
+        onChange={setExpenseOffer}
+        onSkip={() => setExpenseOffer(null)}
+        onConfirm={() => void saveStockExpense()}
+      />
     </div>
+  );
+}
+
+interface StockExpenseOffer {
+  description: string;
+  amount: string;
+}
+
+function parseExpenseAmount(value: string) {
+  const raw = value.trim();
+  if (!raw) return Number.NaN;
+  if (raw.includes(",") && raw.includes(".")) return Number(raw.replace(/\./g, "").replace(",", "."));
+  return Number(raw.replace(",", "."));
+}
+
+function buildStockExpenseOffer(product: Product, quantity: number): StockExpenseOffer {
+  const date = new Date().toLocaleDateString("pt-BR");
+  const qty = Number.isInteger(quantity) ? String(quantity) : String(quantity).replace(".", ",");
+  const cost = Number(product.cost ?? 0);
+  return {
+    description: `${product.name} ${date} ${qty}`,
+    amount: cost > 0 ? (cost * quantity).toFixed(2).replace(".", ",") : "",
+  };
+}
+
+function StockEntryExpenseDialog({
+  offer,
+  saving,
+  onChange,
+  onSkip,
+  onConfirm,
+}: {
+  offer: StockExpenseOffer | null;
+  saving: boolean;
+  onChange: (offer: StockExpenseOffer) => void;
+  onSkip: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={!!offer} onOpenChange={(open) => { if (!open && !saving) onSkip(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Gerar conta a pagar?</DialogTitle>
+          <DialogDescription>
+            A entrada já está no estoque. A despesa é opcional e aparece em Contas a pagar.
+          </DialogDescription>
+        </DialogHeader>
+        {offer && (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Descrição</Label>
+              <Input
+                value={offer.description}
+                onChange={(event) => onChange({ ...offer, description: event.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Padrão: nome do produto, data e quantidade. Você pode alterar antes de registrar.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Valor da despesa</Label>
+              <Input
+                inputMode="decimal"
+                value={offer.amount}
+                placeholder="0,00"
+                onChange={(event) => onChange({ ...offer, amount: event.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Se o produto tem custo, o valor sugerido é custo vezes a quantidade.</p>
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onSkip} disabled={saving}>Agora não</Button>
+          <Button onClick={onConfirm} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registrar despesa"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
