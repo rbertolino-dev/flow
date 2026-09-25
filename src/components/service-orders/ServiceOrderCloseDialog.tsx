@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Camera, Loader2, Upload, X } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Camera,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  ImagePlus,
+  Loader2,
+  PenLine,
+  Upload,
+  X,
+} from 'lucide-react';
 import { ServiceOrder, ServiceOrderCloseData } from '@/types/serviceOrder';
 import { SignaturePad, SignaturePadHandle } from './SignaturePad';
 import { supabase } from '@/integrations/supabase/client';
