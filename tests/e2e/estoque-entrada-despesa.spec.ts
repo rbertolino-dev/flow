@@ -140,13 +140,23 @@ async function waitForProductName(page: Page) {
   return name;
 }
 
+async function openSingleEntry(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "Lançamento único" });
+  if (await dialog.isVisible().catch(() => false)) return dialog;
+  await page.getByRole("button", { name: "Novo lançamento" }).click();
+  await page.getByRole("menuitem", { name: "Lançamento único" }).click();
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
 async function selectProduct(
   human: HumanBehavior,
   page: Page,
-  section: ReturnType<Page["locator"]>,
+  _section: ReturnType<Page["locator"]>,
   productName: string
 ) {
-  await human.humanClick(section.getByRole("combobox").first());
+  const dialog = await openSingleEntry(page);
+  await human.humanClick(dialog.getByRole("combobox").first());
   const option = page.getByRole("option", { name: productName, exact: true });
   await expect(option).toBeVisible({ timeout: 15_000 });
   await human.humanClick(option);
@@ -155,11 +165,12 @@ async function selectProduct(
 async function postEntry(
   human: HumanBehavior,
   page: Page,
-  section: ReturnType<Page["locator"]>,
+  _section: ReturnType<Page["locator"]>,
   quantity: string
 ) {
-  await expect(section.getByRole("combobox").nth(1)).toContainText("Entrada");
-  await human.humanFill(section.locator('input[type="number"]'), quantity);
+  const dialog = await openSingleEntry(page);
+  await expect(dialog.getByRole("combobox").nth(1)).toContainText("Entrada");
+  await human.humanFill(dialog.locator('input[type="number"]'), quantity);
   const movement = page.waitForResponse(
     (response) =>
       response.url().includes("/functions/v1/products/movements") &&
@@ -167,7 +178,7 @@ async function postEntry(
     { timeout: 30_000 }
   );
   await human.hesitate(300, 700);
-  await human.humanClick(section.getByRole("button", { name: "Lançar" }));
+  await human.humanClick(dialog.getByRole("button", { name: "Lançar" }));
   const saved = await movement;
   expect(saved.ok(), await responseError(saved)).toBeTruthy();
 }
@@ -179,18 +190,19 @@ async function reverseStock(page: Page, human: HumanBehavior, productName: strin
     has: page.getByRole("heading", { name: "Lançamentos de estoque" }),
   });
   await expect(section).toBeVisible({ timeout: 30_000 });
-  await section.getByRole("combobox").first().click();
+  const dialog = await openSingleEntry(page);
+  await dialog.getByRole("combobox").first().click();
   await page.getByRole("option", { name: productName, exact: true }).click();
-  await section.getByRole("combobox").nth(1).click();
+  await dialog.getByRole("combobox").nth(1).click();
   await page.getByRole("option", { name: "Saída", exact: true }).click();
-  await section.locator('input[type="number"]').fill(quantity);
+  await dialog.locator('input[type="number"]').fill(quantity);
   const movement = page.waitForResponse(
     (response) =>
       response.url().includes("/functions/v1/products/movements") &&
       response.request().method() === "POST",
     { timeout: 30_000 }
   );
-  await section.getByRole("button", { name: "Lançar" }).click();
+  await dialog.getByRole("button", { name: "Lançar" }).click();
   const saved = await movement;
   expect(saved.ok(), await responseError(saved)).toBeTruthy();
 }

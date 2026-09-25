@@ -38,6 +38,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/types/product";
 import { CreateProductDialog } from "@/components/shared/CreateProductDialog";
+import { StockXmlEntryDialog } from "@/components/stock/StockXmlEntryDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +55,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatBRL, getStockStatus, stockNumbers, StockStatus } from "@/lib/stockStatus";
 import { todayIsoDate } from "@/lib/finance";
+import { formatNfeDate, NfeInvoice } from "@/lib/nfeXml";
 import { cn } from "@/lib/utils";
 
 type StockTab = "cadastro" | "lancamentos" | "categorias" | "marcas" | "compras";
@@ -121,6 +129,8 @@ export function StockModule() {
   const [purchaseQty, setPurchaseQty] = useState<Record<string, string>>({});
   const [expenseOffer, setExpenseOffer] = useState<StockExpenseOffer | null>(null);
   const [savingExpense, setSavingExpense] = useState(false);
+  const [singleEntryOpen, setSingleEntryOpen] = useState(false);
+  const [xmlEntryOpen, setXmlEntryOpen] = useState(false);
 
   const categories = useMemo(
     () => uniqueNames([...products.map((p) => p.category || ""), ...categoriesCatalog.map((row) => row.name)]),
@@ -276,6 +286,29 @@ export function StockModule() {
     setDialogOpen(true);
   };
 
+  const submitMovement = async (input: { productId: string; kind: "in" | "out" | "adjust"; quantity: number; notes: string }) => {
+    if (!activeOrgId) throw new Error("Organização não encontrada");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Usuário não autenticado");
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const response = await fetch(`${supabaseUrl}/functions/v1/products/movements`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+        "X-Organization-Id": activeOrgId,
+      },
+      body: JSON.stringify({
+        product_id: input.productId,
+        kind: input.kind,
+        quantity: input.quantity,
+        notes: input.notes,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível lançar o estoque");
+  };
+
   const postMovement = async () => {
     if (!activeOrgId || !movementProductId || movementQty === "") {
       toast({
@@ -287,30 +320,18 @@ export function StockModule() {
     }
     setPostingMovement(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Usuário não autenticado");
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/products/movements`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-          "X-Organization-Id": activeOrgId,
-        },
-        body: JSON.stringify({
-          product_id: movementProductId,
-          kind: movementKind,
-          quantity: Number(movementQty),
-          notes: movementNotes,
-        }),
+      await submitMovement({
+        productId: movementProductId,
+        kind: movementKind,
+        quantity: Number(movementQty),
+        notes: movementNotes,
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Não foi possível lançar o estoque");
       toast({ title: "Lançamento registrado", description: "A quantidade em estoque foi atualizada." });
       const enteredProduct = products.find((item) => item.id === movementProductId);
       const enteredQty = Number(movementQty);
       setMovementQty("");
       setMovementNotes("");
+      setSingleEntryOpen(false);
       await Promise.all([refetch(), loadMovements(), loadSales()]);
       if (movementKind === "in" && enteredProduct && enteredQty > 0) {
         setExpenseOffer(buildStockExpenseOffer(enteredProduct, enteredQty));
@@ -324,6 +345,19 @@ export function StockModule() {
     } finally {
       setPostingMovement(false);
     }
+  };
+
+  const offerXmlExpense = (invoice: NfeInvoice, supplierName: string) => {
+    const supplier = supplierName.trim() || invoice.supplierName || "Fornecedor";
+    setXmlEntryOpen(false);
+    toast({ title: "Entrada por XML registrada", description: "Os produtos entraram no estoque." });
+    setExpenseOffer({
+      description: `NF ${invoice.number || "s/n"} ${formatNfeDate(invoice.issuedAt)} ${supplier}`,
+      amount: invoice.total > 0 ? invoice.total.toFixed(2).replace(".", ",") : "",
+      descriptionHint: "Padrão: número da nota, data e fornecedor. Você pode alterar antes de registrar.",
+      amountHint: "Valor sugerido: total da NF-e.",
+    });
+    void Promise.all([refetch(), loadMovements(), loadSales()]);
   };
 
   const reverseSale = async (sale: PosSale) => {
@@ -566,43 +600,17 @@ export function StockModule() {
 
         {tab === "lancamentos" && (
           <section className="space-y-4 rounded-lg bg-background p-4 shadow-sm">
-            <h2 className="text-lg font-semibold">Lançamentos de estoque</h2>
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className="space-y-1 md:col-span-2">
-                <Label>Produto</Label>
-                <Select value={movementProductId} onValueChange={setMovementProductId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Tipo</Label>
-                <Select value={movementKind} onValueChange={(v) => setMovementKind(v as "in" | "out" | "adjust")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="in">Entrada</SelectItem>
-                    <SelectItem value="out">Saída</SelectItem>
-                    <SelectItem value="adjust">Ajuste (quantidade final)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Quantidade</Label>
-                <Input type="number" min="0" step="0.001" value={movementQty} onChange={(e) => setMovementQty(e.target.value)} />
-              </div>
-              <div className="space-y-1 md:col-span-3">
-                <Label>Observação</Label>
-                <Input value={movementNotes} onChange={(e) => setMovementNotes(e.target.value)} placeholder="Ex.: compra do fornecedor" />
-              </div>
-              <div className="flex items-end">
-                <Button className="w-full" onClick={postMovement} disabled={postingMovement}>
-                  {postingMovement ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lançar"}
-                </Button>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Lançamentos de estoque</h2>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="rounded-full bg-blue-600 hover:bg-blue-700">Novo lançamento</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[180px]">
+                  <DropdownMenuItem onClick={() => setXmlEntryOpen(true)}>Entrada por XML</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSingleEntryOpen(true)}>Lançamento único</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             {movementsLoading ? (
               <p className="text-sm text-muted-foreground">Carregando lançamentos...</p>
@@ -801,6 +809,67 @@ export function StockModule() {
         onOpenChange={setDialogOpen}
         product={editing}
       />
+      <Dialog open={singleEntryOpen} onOpenChange={setSingleEntryOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Lançamento único</DialogTitle>
+            <DialogDescription>Registre uma entrada, saída ou ajuste de um produto.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="space-y-1 md:col-span-2">
+              <Label>Produto</Label>
+              <Select value={movementProductId} onValueChange={setMovementProductId}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Tipo</Label>
+              <Select value={movementKind} onValueChange={(v) => setMovementKind(v as "in" | "out" | "adjust")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in">Entrada</SelectItem>
+                  <SelectItem value="out">Saída</SelectItem>
+                  <SelectItem value="adjust">Ajuste (quantidade final)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Quantidade</Label>
+              <Input type="number" min="0" step="0.001" value={movementQty} onChange={(e) => setMovementQty(e.target.value)} />
+            </div>
+            <div className="space-y-1 md:col-span-3">
+              <Label>Observação</Label>
+              <Input value={movementNotes} onChange={(e) => setMovementNotes(e.target.value)} placeholder="Ex.: compra do fornecedor" />
+            </div>
+            <div className="flex items-end">
+              <Button className="w-full" onClick={postMovement} disabled={postingMovement}>
+                {postingMovement ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lançar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <StockXmlEntryDialog
+        open={xmlEntryOpen}
+        onOpenChange={setXmlEntryOpen}
+        products={products}
+        posting={postingMovement}
+        onPostEntry={async (entry) => {
+          setPostingMovement(true);
+          try {
+            await submitMovement({ productId: entry.productId, kind: "in", quantity: entry.quantity, notes: entry.notes });
+            await Promise.all([refetch(), loadMovements()]);
+          } finally {
+            setPostingMovement(false);
+          }
+        }}
+        onPosted={offerXmlExpense}
+      />
       <StockEntryExpenseDialog
         offer={expenseOffer}
         saving={savingExpense}
@@ -815,6 +884,8 @@ export function StockModule() {
 interface StockExpenseOffer {
   description: string;
   amount: string;
+  descriptionHint?: string;
+  amountHint?: string;
 }
 
 function parseExpenseAmount(value: string) {
@@ -864,7 +935,9 @@ function StockEntryExpenseDialog({
                 value={offer.description}
                 onChange={(event) => onChange({ ...offer, description: event.target.value })}
               />
-              <p className="text-xs text-muted-foreground">Padrão: nome do produto, data e quantidade. Você pode alterar antes de registrar.</p>
+              <p className="text-xs text-muted-foreground">
+                {offer.descriptionHint || "Padrão: nome do produto, data e quantidade. Você pode alterar antes de registrar."}
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Valor da despesa</Label>
@@ -874,7 +947,9 @@ function StockEntryExpenseDialog({
                 placeholder="0,00"
                 onChange={(event) => onChange({ ...offer, amount: event.target.value })}
               />
-              <p className="text-xs text-muted-foreground">Se o produto tem custo, o valor sugerido é custo vezes a quantidade.</p>
+              <p className="text-xs text-muted-foreground">
+                {offer.amountHint || "Se o produto tem custo, o valor sugerido é custo vezes a quantidade."}
+              </p>
             </div>
           </div>
         )}

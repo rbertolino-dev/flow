@@ -38,6 +38,12 @@ interface CreateProductDialogProps {
   product?: Product | null;
   defaultCategory?: string;
   autoSelectAfterCreate?: boolean;
+  initialDraft?: {
+    name?: string;
+    sku?: string;
+    unit?: string;
+    cost?: string;
+  } | null;
 }
 
 const emptyForm = {
@@ -63,6 +69,7 @@ export function CreateProductDialog({
   product = null,
   defaultCategory = "",
   autoSelectAfterCreate = false,
+  initialDraft = null,
 }: CreateProductDialogProps) {
   const { activeOrgId } = useActiveOrganization();
   const { createProduct, updateProduct, products } = useProducts();
@@ -99,9 +106,17 @@ export function CreateProductDialog({
       setImagePreview(product.image_url || null);
       return;
     }
-    setForm({ ...emptyForm, category: defaultCategory || "" });
+    setForm({
+      ...emptyForm,
+      category: defaultCategory || "",
+      name: initialDraft?.name || "",
+      sku: initialDraft?.sku || "",
+      unit: initialDraft?.unit || "un",
+      cost: initialDraft?.cost || "",
+      stock_quantity: "0",
+    });
     setImagePreview(null);
-  }, [open, product, defaultCategory]);
+  }, [open, product, defaultCategory, initialDraft]);
 
   const categories = uniqueNames(products.map((item) => item.category || ""));
   const brands = uniqueNames(products.map((item) => item.brand || ""));
