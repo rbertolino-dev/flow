@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Package,
   ArrowLeftRight,
@@ -87,6 +87,8 @@ const TABS: { id: StockTab; label: string; icon: typeof Package }[] = [
   { id: "compras", label: "Lista de Compras", icon: ShoppingCart },
 ];
 
+const PAGE_SIZE = 20;
+
 function movementTypeLabel(type: string, saleNumber?: number | null) {
   const labels: Record<string, string> = {
     in: "Entrada",
@@ -101,9 +103,41 @@ function movementTypeLabel(type: string, saleNumber?: number | null) {
   return saleNumber ? `${label} #${saleNumber}` : label;
 }
 
+function ListPager({
+  page,
+  total,
+  loading,
+  onPage,
+}: {
+  page: number;
+  total: number;
+  loading: boolean;
+  onPage: (page: number) => void;
+}) {
+  if (total <= 0) return null;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const current = Math.min(page, pages - 1);
+  const from = current * PAGE_SIZE + 1;
+  const to = Math.min(total, (current + 1) * PAGE_SIZE);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-sm">
+      <span className="text-muted-foreground">{from}–{to} de {total}</span>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={loading || current <= 0} onClick={() => onPage(current - 1)}>
+          Anterior
+        </Button>
+        <span className="text-muted-foreground">Página {current + 1} de {pages}</span>
+        <Button type="button" variant="outline" size="sm" disabled={loading || current >= pages - 1} onClick={() => onPage(current + 1)}>
+          Próxima
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function StockModule() {
   const { products, loading, refetch } = useProducts();
-  const { listSales, cancelSale } = usePosSales();
+  const { listSalesDetailed, cancelSale } = usePosSales();
   const { activeOrgId } = useActiveOrganization();
   const { toast } = useToast();
   const [tab, setTab] = useState<StockTab>("cadastro");
@@ -117,6 +151,13 @@ export function StockModule() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
+  const [movementPage, setMovementPage] = useState(0);
+  const [movementTotal, setMovementTotal] = useState(0);
+  const [salesPage, setSalesPage] = useState(0);
+  const [salesTotal, setSalesTotal] = useState(0);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const movementRequest = useRef(0);
+  const salesRequest = useRef(0);
   const [movementProductId, setMovementProductId] = useState("");
   const [movementKind, setMovementKind] = useState<"in" | "out" | "adjust">("in");
   const [movementQty, setMovementQty] = useState("");
@@ -187,14 +228,19 @@ export function StockModule() {
       .filter((row) => row.status !== "ideal" && row.missing > 0);
   }, [products]);
 
-  const loadMovements = async () => {
+  const loadMovements = useCallback(async (page: number) => {
     if (!activeOrgId) return;
+    const requestId = ++movementRequest.current;
     setMovementsLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/products/movements`, {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(page * PAGE_SIZE),
+      });
+      const response = await fetch(`${supabaseUrl}/functions/v1/products/movements?${params}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
@@ -202,17 +248,35 @@ export function StockModule() {
         },
       });
       const result = await response.json().catch(() => ({ data: [] as StockMovement[], warning: "resposta inválida" }));
+      if (requestId !== movementRequest.current) return;
       if (!response.ok || result.warning) {
         console.error("Lançamentos indisponíveis:", result.warning || result.error);
         return;
       }
-      setMovements((result.data || []) as StockMovement[]);
+      const rows = (result.data || []) as StockMovement[];
+      setMovements(rows);
+      setMovementTotal(Number(result.total ?? rows.length));
     } catch (error) {
       console.error(error);
     } finally {
-      setMovementsLoading(false);
+      if (requestId === movementRequest.current) setMovementsLoading(false);
     }
-  };
+  }, [activeOrgId]);
+
+  const loadSalesPage = useCallback(async (page: number) => {
+    const requestId = ++salesRequest.current;
+    setSalesLoading(true);
+    try {
+      const result = await listSalesDetailed({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+      if (requestId !== salesRequest.current) return;
+      setSales(result.data);
+      setSalesTotal(result.summary.sales_count);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      if (requestId === salesRequest.current) setSalesLoading(false);
+    }
+  }, [listSalesDetailed]);
 
   const authHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -254,14 +318,12 @@ export function StockModule() {
     }
   };
 
-  const loadSales = async () => {
-    try {
-      setSales(await listSales({ limit: 30, include_items: true }));
-    } catch (error) {
-      console.error(error);
-      setSales([]);
-    }
-  };
+  const reloadLists = useCallback(() => {
+    if (movementPage !== 0) setMovementPage(0);
+    else void loadMovements(0);
+    if (salesPage !== 0) setSalesPage(0);
+    else void loadSalesPage(0);
+  }, [movementPage, salesPage, loadMovements, loadSalesPage]);
 
   useEffect(() => {
     if (!activeOrgId) return;
@@ -272,13 +334,13 @@ export function StockModule() {
 
   useEffect(() => {
     if (tab === "lancamentos") {
-      void loadMovements();
-      void loadSales();
+      void loadMovements(movementPage);
+      void loadSalesPage(salesPage);
     }
     if (tab === "categorias") void loadCatalog("categories");
     if (tab === "marcas") void loadCatalog("brands");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, activeOrgId]);
+  }, [tab, activeOrgId, movementPage, salesPage]);
 
   const openCreate = () => {
     setEditing(null);
@@ -336,7 +398,8 @@ export function StockModule() {
       setMovementQty("");
       setMovementNotes("");
       setSingleEntryOpen(false);
-      await Promise.all([refetch(), loadMovements(), loadSales()]);
+      await refetch();
+      reloadLists();
       if (movementKind === "in" && enteredProduct && enteredQty > 0) {
         setExpenseOffer(buildStockExpenseOffer(enteredProduct, enteredQty));
       }
@@ -364,7 +427,8 @@ export function StockModule() {
         ? "Valor sugerido: soma dos itens que você escolheu lançar."
         : "Valor sugerido: total da NF-e.",
     });
-    void Promise.all([refetch(), loadMovements(), loadSales()]);
+    void refetch();
+    reloadLists();
   };
 
   const reverseSale = async (sale: PosSale) => {
@@ -374,7 +438,8 @@ export function StockModule() {
     try {
       await cancelSale(sale.id);
       toast({ title: "Venda estornada", description: "Os produtos voltaram para o estoque." });
-      await Promise.all([refetch(), loadMovements(), loadSales()]);
+      await refetch();
+      reloadLists();
     } catch {
       // o hook já informa o erro
     } finally {
@@ -619,7 +684,7 @@ export function StockModule() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            {movementsLoading ? (
+            {movementsLoading && !movements.length ? (
               <p className="text-sm text-muted-foreground">Carregando lançamentos...</p>
             ) : (
               <Table>
@@ -658,9 +723,13 @@ export function StockModule() {
                 </TableBody>
               </Table>
             )}
+            <ListPager page={movementPage} total={movementTotal} loading={movementsLoading} onPage={setMovementPage} />
             <div className="space-y-2 border-t pt-4">
               <h3 className="text-base font-semibold">Vendas do PDV</h3>
               <p className="text-sm text-muted-foreground">Estornar devolve os produtos da venda para o estoque e cancela a venda.</p>
+              {salesLoading && !sales.length ? (
+                <p className="text-sm text-muted-foreground">Carregando vendas...</p>
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -697,6 +766,8 @@ export function StockModule() {
                   )}
                 </TableBody>
               </Table>
+              )}
+              <ListPager page={salesPage} total={salesTotal} loading={salesLoading} onPage={setSalesPage} />
             </div>
           </section>
         )}
@@ -870,7 +941,9 @@ export function StockModule() {
           setPostingMovement(true);
           try {
             await submitMovement({ productId: entry.productId, kind: "in", quantity: entry.quantity, notes: entry.notes });
-            await Promise.all([refetch(), loadMovements()]);
+            await refetch();
+            if (movementPage !== 0) setMovementPage(0);
+            else void loadMovements(0);
           } finally {
             setPostingMovement(false);
           }

@@ -387,6 +387,15 @@ serve(async (req) => {
 
     if (isMovementsEndpoint && req.method === 'GET') {
       try {
+        const requestedLimit = Number(url.searchParams.get('limit') || 20);
+        const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 20;
+        const requestedOffset = Number(url.searchParams.get('offset') || 0);
+        const offset = Number.isFinite(requestedOffset) ? Math.max(Math.trunc(requestedOffset), 0) : 0;
+        const countResult = await client.queryObject<{ total: number }>(
+          `SELECT COUNT(*)::float8 AS total FROM pos_stock_movements WHERE organization_id = $1`,
+          [organizationId]
+        );
+        const total = Number(countResult.rows[0]?.total || 0);
         const result = await client.queryObject(`
           SELECT m.id::text AS id,
                  m.product_id::text AS product_id,
@@ -405,8 +414,8 @@ serve(async (req) => {
           LEFT JOIN pos_sales s ON s.id = m.sale_id
           WHERE m.organization_id = $1
           ORDER BY m.created_at DESC
-          LIMIT 300
-        `, [organizationId]);
+          LIMIT $2 OFFSET $3
+        `, [organizationId, limit, offset]);
         const rows = result.rows as Array<Record<string, unknown>>;
         const userIds = [...new Set(rows.map((row) => row.created_by).filter(Boolean).map((id) => String(id)))];
         const names = new Map<string, string>();
@@ -421,6 +430,7 @@ serve(async (req) => {
           }
         }
         return jsonResponse(200, {
+          total,
           data: rows.map((row) => {
             const safe: Record<string, unknown> = {};
             for (const [key, value] of Object.entries(row)) {
