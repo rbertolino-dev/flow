@@ -136,12 +136,12 @@ export function StockModule() {
   const [purchaseQty, setPurchaseQty] = useState<Record<string, string>>({});
 
   const categories = useMemo(
-    () => Array.from(new Set(products.map((p) => (p.category || "").trim()).filter(Boolean))).sort(),
-    [products]
+    () => uniqueNames([...products.map((p) => p.category || ""), ...categoriesCatalog.map((row) => row.name)]),
+    [products, categoriesCatalog]
   );
   const brands = useMemo(
-    () => Array.from(new Set(products.map((p) => (p.brand || "").trim()).filter(Boolean))).sort(),
-    [products]
+    () => uniqueNames([...products.map((p) => p.brand || ""), ...brandsCatalog.map((row) => row.name)]),
+    [products, brandsCatalog]
   );
 
   const totals = useMemo(() => {
@@ -171,8 +171,8 @@ export function StockModule() {
         const barcode = (product.barcode || "").toLowerCase();
         if (!sku.includes(code) && !barcode.includes(code)) return false;
       }
-      if (categoryFilter !== "all" && (product.category || "") !== categoryFilter) return false;
-      if (brandFilter !== "all" && (product.brand || "") !== brandFilter) return false;
+      if (categoryFilter !== "all" && (product.category || "").trim() !== categoryFilter) return false;
+      if (brandFilter !== "all" && (product.brand || "").trim() !== brandFilter) return false;
       if (statusFilter !== "all" && getStockStatus(product) !== statusFilter) return false;
       return true;
     });
@@ -261,6 +261,13 @@ export function StockModule() {
       setSales([]);
     }
   };
+
+  useEffect(() => {
+    if (!activeOrgId) return;
+    void loadCatalog("categories");
+    void loadCatalog("brands");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrgId]);
 
   useEffect(() => {
     if (tab === "lancamentos") {
@@ -691,7 +698,7 @@ export function StockModule() {
           <CatalogPanel
             title="Categorias"
             empty="Nenhuma categoria cadastrada."
-            names={categoriesCatalog.map((row) => row.name)}
+            names={categories}
             products={products}
             field="category"
             draft={catalogName}
@@ -711,7 +718,7 @@ export function StockModule() {
           <CatalogPanel
             title="Marcas"
             empty="Nenhuma marca cadastrada."
-            names={brandsCatalog.map((row) => row.name)}
+            names={brands}
             products={products}
             field="brand"
             draft={catalogName}
@@ -808,8 +815,20 @@ export function StockModule() {
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Nome" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <Field label="Código / SKU" value={form.sku} onChange={(v) => setForm({ ...form, sku: v })} />
-            <Field label="Categoria" value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
-            <Field label="Marca" value={form.brand} onChange={(v) => setForm({ ...form, brand: v })} />
+            <CatalogField
+              label="Categoria"
+              value={form.category}
+              options={categories}
+              newPlaceholder="Nome da nova categoria"
+              onChange={(v) => setForm({ ...form, category: v })}
+            />
+            <CatalogField
+              label="Marca"
+              value={form.brand}
+              options={brands}
+              newPlaceholder="Nome da nova marca"
+              onChange={(v) => setForm({ ...form, brand: v })}
+            />
             <Field label="Custo unitário" type="number" value={form.cost} onChange={(v) => setForm({ ...form, cost: v })} />
             <Field label="Preço de venda" type="number" value={form.price} onChange={(v) => setForm({ ...form, price: v })} />
             <Field label="Limite falta" type="number" value={form.min_stock} onChange={(v) => setForm({ ...form, min_stock: v })} />
@@ -847,6 +866,44 @@ function StatusBadge({ status }: { status: StockStatus }) {
   if (status === "falta") return <Badge className="bg-red-500 hover:bg-red-500">Em falta</Badge>;
   if (status === "baixa") return <Badge className="bg-orange-500 hover:bg-orange-500">Em baixa</Badge>;
   return <Badge className="bg-emerald-500 hover:bg-emerald-500">Ideal</Badge>;
+}
+
+function uniqueNames(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+function CatalogField({
+  label,
+  value,
+  onChange,
+  options,
+  newPlaceholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  newPlaceholder: string;
+}) {
+  const choices = uniqueNames([...options, value]);
+  const selected = choices.includes(value) ? value : "__new__";
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <Select value={selected} onValueChange={(next) => onChange(next === "__new__" ? "" : next)}>
+        <SelectTrigger><SelectValue placeholder={`Selecione a ${label.toLowerCase()}`} /></SelectTrigger>
+        <SelectContent>
+          {choices.map((option) => (
+            <SelectItem key={option} value={option}>{option}</SelectItem>
+          ))}
+          <SelectItem value="__new__">+ Nova {label.toLowerCase()}</SelectItem>
+        </SelectContent>
+      </Select>
+      {selected === "__new__" && (
+        <Input placeholder={newPlaceholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+    </div>
+  );
 }
 
 function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
@@ -906,7 +963,7 @@ function CatalogPanel({
   onDelete: (name: string) => void;
   onOpen: (name: string) => void;
 }) {
-  const rows = names.map((name) => summarizeGroup(products.filter((product) => (product[field] || "") === name), name));
+  const rows = names.map((name) => summarizeGroup(products.filter((product) => (product[field] || "").trim() === name), name));
   return (
     <section className="space-y-3 rounded-lg bg-background p-4 shadow-sm">
       <div className="flex flex-wrap items-end justify-between gap-3">
