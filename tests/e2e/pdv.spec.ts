@@ -36,7 +36,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(page.getByRole("tab", { name: /serviços/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /^finalizar$/i })).toBeVisible();
 
-    const productBtn = page.locator("ul.divide-y li button").first();
+    const productBtn = page.locator("ul[data-pos-catalog] li button").first();
     const emptyMsg = page.getByText(/nenhum produto encontrado/i);
     await expect(productBtn.or(emptyMsg)).toBeVisible({ timeout: 45_000 });
 
@@ -307,7 +307,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     await human.humanNavigate("/pdv");
     await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
-    const productBtn = page.locator("ul.divide-y li button").first();
+    const productBtn = page.locator("ul[data-pos-catalog] li button").first();
     await expect(productBtn).toBeVisible({ timeout: 20_000 });
     await human.humanClick(productBtn);
     await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
@@ -352,7 +352,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     await human.humanNavigate("/pdv");
     await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
-    const productBtn = page.locator("ul.divide-y li button").first();
+    const productBtn = page.locator("ul[data-pos-catalog] li button").first();
     await expect(productBtn).toBeVisible({ timeout: 20_000 });
     await human.humanClick(productBtn);
     await human.humanClick(page.getByRole("combobox").filter({ hasText: /nenhuma/i }));
@@ -607,7 +607,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
       await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
       await expect(page.getByPlaceholder("Observações")).toHaveValue(new RegExp(marker));
       await expect(page.getByText("Formas de pagamento", { exact: true })).toBeVisible();
-      const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+      const productBtn = page.locator("ul[data-pos-catalog] li button").filter({ hasText: /fanta laranja/i }).first();
       await expect(productBtn).toBeVisible({ timeout: 20_000 });
       await human.humanClick(productBtn);
       await human.humanClick(page.getByRole("combobox").filter({ hasText: /nenhuma|dia dos pais/i }));
@@ -651,7 +651,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
 
-    const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+    const productBtn = page.locator("ul[data-pos-catalog] li button").filter({ hasText: /fanta laranja/i }).first();
     await expect(productBtn).toBeVisible({ timeout: 20_000 });
     await human.humanClick(productBtn);
     await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
@@ -679,7 +679,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     await human.humanClick(success.getByRole("button", { name: /nova venda/i }));
     await human.humanClick(page.getByRole("tab", { name: /serviços/i }));
-    const serviceBtn = page.locator('[role="tabpanel"] ul.divide-y li button').first();
+    const serviceBtn = page.locator('[role="tabpanel"] ul[data-pos-catalog="services"] li button').first();
     const emptyServices = page.getByText(/nenhum serviço encontrado/i);
     await expect(serviceBtn.or(emptyServices)).toBeVisible({ timeout: 20_000 });
     if (await emptyServices.isVisible().catch(() => false)) {
@@ -728,7 +728,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     if (page.url().includes("/login")) test.skip(true, "Sessão E2E inválida");
 
     await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
-    const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+    const productBtn = page.locator("ul[data-pos-catalog] li button").filter({ hasText: /fanta laranja/i }).first();
     await expect(productBtn).toBeVisible({ timeout: 20_000 });
     const stockBefore = (await productBtn.locator("p").last().innerText()).trim();
     await human.humanClick(productBtn);
@@ -827,7 +827,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     });
 
     await human.humanNavigate("/pdv");
-    const productAfter = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+    const productAfter = page.locator("ul[data-pos-catalog] li button").filter({ hasText: /fanta laranja/i }).first();
     await expect(productAfter).toBeVisible({ timeout: 20_000 });
     await expect(productAfter.locator("p").last()).toHaveText(stockBefore);
   });

@@ -578,9 +578,11 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           )}
         </div>
         
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {activeView !== "settings" && <VersionBanner />}
-          {children}
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            {children}
+          </div>
         </div>
       </main>
       
