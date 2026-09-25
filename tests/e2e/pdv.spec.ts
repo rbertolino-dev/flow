@@ -708,6 +708,7 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
 
     const osDialog = page.getByTestId("os-detail-dialog");
     await expect(osDialog).toBeVisible({ timeout: 25_000 });
+    await expect(page).toHaveURL(/\/pdv$/);
     await expect(osDialog.getByRole("heading", { name: /^ORDEM \d+/ })).toBeVisible();
     await human.humanClick(osDialog.getByRole("tab", { name: /^vendas$/i }));
     await expect(osDialog.getByText(new RegExp(serviceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))).toBeVisible();
