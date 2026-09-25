@@ -38,6 +38,7 @@ import {
   formatFinanceDate,
   formatFinanceMoney,
   monthRange,
+  paymentTimestamp,
   todayIsoDate,
   type FinanceDirection,
   type FinancialEntry,
@@ -68,13 +69,16 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [payEntry, setPayEntry] = useState<FinancialEntry | null>(null);
+  const [payDate, setPayDate] = useState(todayIsoDate());
   const [form, setForm] = useState({
     amount: '',
     due_date: todayIsoDate(),
+    competence_date: todayIsoDate(),
     description: '',
     contact_name: '',
     billing_name: '',
-    category: '',
+    category_id: '',
     account: '',
   });
 
@@ -139,12 +143,14 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
       setSaving(true);
       await action();
       toast({ title: title, description: success });
+      return true;
     } catch (error) {
       toast({
         title: 'Erro',
         description: error instanceof Error ? error.message : 'Não foi possível concluir',
         variant: 'destructive',
       });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -157,28 +163,32 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
       return;
     }
     if (!form.due_date) {
-      toast({ title: 'Informe o vencimento', variant: 'destructive' });
+      toast({ title: 'Informe a data prevista', variant: 'destructive' });
       return;
     }
+    const selectedCategory = categories.find((category) => category.id === form.category_id);
     await runAction(async () => {
       await createManual({
         direction,
         amount,
         due_date: form.due_date,
+        competence_date: form.competence_date || form.due_date,
         description: form.description.trim() || title,
         contact_name: form.contact_name.trim(),
         billing_name: form.billing_name.trim() || 'Sem contato',
-        category: form.category,
+        category: selectedCategory?.name || '',
+        category_id: form.category_id,
         account: form.account,
       });
       setCreateOpen(false);
       setForm({
         amount: '',
         due_date: todayIsoDate(),
+        competence_date: todayIsoDate(),
         description: '',
         contact_name: '',
         billing_name: '',
-        category: '',
+        category_id: '',
         account: '',
       });
     }, 'Lançamento criado');
@@ -280,7 +290,9 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
                   {direction === 'receber' && <TableHead>Faturamento</TableHead>}
                   <TableHead>{direction === 'receber' ? 'Cliente' : 'Contato/Empresa'}</TableHead>
                   <TableHead>Descrição</TableHead>
-                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Data prevista</TableHead>
+                  <TableHead>Pagamento</TableHead>
+                  <TableHead>Competência</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Conta</TableHead>
                   <TableHead>Status</TableHead>
@@ -289,7 +301,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={direction === 'receber' ? 9 : 8} className="py-8 text-center text-slate-400">
+                    <TableCell colSpan={direction === 'receber' ? 11 : 10} className="py-8 text-center text-slate-400">
                       Nenhum lançamento no período
                     </TableCell>
                   </TableRow>
@@ -300,7 +312,10 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
                     entry={entry}
                     direction={direction}
                     disabled={saving}
-                    onPay={() => void runAction(() => setStatus(entry.id, 'paid'), 'Lançamento baixado')}
+                    onPay={() => {
+                      setPayEntry(entry);
+                      setPayDate(todayIsoDate());
+                    }}
                     onCancel={() => void runAction(() => setStatus(entry.id, 'cancelled'), 'Lançamento cancelado')}
                   />
                 ))}
@@ -360,9 +375,26 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
               <Label>Valor</Label>
               <Input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" />
             </div>
-            <div>
-              <Label>Vencimento</Label>
-              <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>Data prevista</Label>
+                <Input
+                  type="date"
+                  value={form.due_date}
+                  onChange={(e) => {
+                    const dueDate = e.target.value;
+                    setForm((current) => ({
+                      ...current,
+                      due_date: dueDate,
+                      competence_date: current.competence_date === current.due_date ? dueDate : current.competence_date,
+                    }));
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Data de competência</Label>
+                <Input type="date" value={form.competence_date} onChange={(e) => setForm({ ...form, competence_date: e.target.value })} />
+              </div>
             </div>
             <div>
               <Label>{direction === 'receber' ? 'Cliente' : 'Contato/Empresa'}</Label>
@@ -380,12 +412,12 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
             </div>
             <div>
               <Label>Categoria</Label>
-              <Select value={form.category || 'none'} onValueChange={(value) => setForm({ ...form, category: value === 'none' ? '' : value })}>
+              <Select value={form.category_id || 'none'} onValueChange={(value) => setForm({ ...form, category_id: value === 'none' ? '' : value })}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem categoria</SelectItem>
                   {categoryOptions.map((category) => (
-                    <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
+                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -406,6 +438,22 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
             <Button type="button" onClick={() => void submitCreate()} disabled={saving}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!payEntry} onOpenChange={(open) => { if (!open) setPayEntry(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Data de pagamento</DialogTitle></DialogHeader>
+          <div>
+            <Label>Confirme a data em que o valor foi {direction === 'receber' ? 'recebido' : 'pago'}</Label>
+            <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-2" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPayEntry(null)}>Cancelar</Button>
+            <Button type="button" disabled={saving || !payEntry} onClick={() => {
+              if (!payEntry) return;
+              void runAction(() => setStatus(payEntry.id, 'paid', paymentTimestamp(payDate)), 'Lançamento baixado').then((ok) => { if (ok) setPayEntry(null); });
+            }}>Confirmar baixa</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -454,6 +502,8 @@ function EntryRow({
       <TableCell>{entry.contact_name || '—'}</TableCell>
       <TableCell>{entry.description || '—'}</TableCell>
       <TableCell className="whitespace-nowrap">{formatFinanceDate(entry.due_date)}</TableCell>
+      <TableCell className="whitespace-nowrap">{formatFinanceDate(entry.paid_at)}</TableCell>
+      <TableCell className="whitespace-nowrap">{formatFinanceDate(entry.competence_date || entry.due_date)}</TableCell>
       <TableCell>{entry.category || '—'}</TableCell>
       <TableCell>{entry.account || '—'}</TableCell>
       <TableCell>

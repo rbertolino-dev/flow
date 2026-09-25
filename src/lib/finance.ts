@@ -17,11 +17,31 @@ export interface FinancialAccount {
   name: string;
 }
 
+export type DreClass =
+  | 'receita_vendas'
+  | 'receita_servicos'
+  | 'outras_receitas'
+  | 'custo'
+  | 'despesa_operacional'
+  | 'despesa_financeira'
+  | 'impostos';
+
+export const DRE_CLASSES: Array<{ value: DreClass; label: string; direction: FinanceDirection }> = [
+  { value: 'receita_vendas', label: 'Receita de vendas', direction: 'receber' },
+  { value: 'receita_servicos', label: 'Receita de serviços', direction: 'receber' },
+  { value: 'outras_receitas', label: 'Outras receitas', direction: 'receber' },
+  { value: 'custo', label: 'Custo', direction: 'pagar' },
+  { value: 'despesa_operacional', label: 'Despesa operacional', direction: 'pagar' },
+  { value: 'despesa_financeira', label: 'Despesa financeira', direction: 'pagar' },
+  { value: 'impostos', label: 'Impostos', direction: 'pagar' },
+];
+
 export interface FinancialCategory {
   id: string;
   organization_id: string;
   name: string;
   direction: 'receber' | 'pagar' | 'ambos';
+  dre_class: DreClass | null;
 }
 
 export interface FinancialEntry {
@@ -30,6 +50,7 @@ export interface FinancialEntry {
   direction: FinanceDirection;
   amount: number;
   due_date: string;
+  competence_date: string | null;
   paid_at: string | null;
   status: FinanceEntryStatus;
   settlement_status: FinanceSettlement;
@@ -41,6 +62,7 @@ export interface FinancialEntry {
   contact_name: string | null;
   billing_name: string | null;
   category: string | null;
+  category_id: string | null;
   account: string | null;
   origin_label: string;
   created_at: string;
@@ -91,20 +113,38 @@ export function entryBucket(entry: FinancialEntry, today = todayIsoDate()): Fina
   return 'upcoming';
 }
 
-export function entryInPeriod(entry: FinancialEntry, from: string, to: string): boolean {
+export function entryDueInPeriod(entry: FinancialEntry, from: string, to: string): boolean {
   const due = entry.due_date.slice(0, 10);
-  if (due >= from && due <= to) return true;
-  if (entry.status === 'paid' && entry.paid_at) {
-    const paid = entry.paid_at.slice(0, 10);
-    return paid >= from && paid <= to;
-  }
-  return false;
+  return due >= from && due <= to;
+}
+
+export function entryPaidInPeriod(entry: FinancialEntry, from: string, to: string): boolean {
+  if (entry.status !== 'paid' || !entry.paid_at) return false;
+  const paid = entry.paid_at.slice(0, 10);
+  return paid >= from && paid <= to;
+}
+
+export function entryInPeriod(entry: FinancialEntry, from: string, to: string): boolean {
+  return entryDueInPeriod(entry, from, to) || entryPaidInPeriod(entry, from, to);
+}
+
+export function entryInCompetencePeriod(entry: FinancialEntry, from: string, to: string): boolean {
+  const competence = (entry.competence_date || entry.due_date || '').slice(0, 10);
+  return competence >= from && competence <= to;
+}
+
+export function dreClassLabel(value: string | null | undefined): string {
+  return DRE_CLASSES.find((item) => item.value === value)?.label || 'Sem classificação';
+}
+
+export function paymentTimestamp(date: string): string {
+  return `${date}T15:00:00.000Z`;
 }
 
 export function exportFinanceCsv(filename: string, rows: FinancialEntry[], direction: FinanceDirection) {
   const header = direction === 'receber'
-    ? ['Valor', 'Origem', 'Faturamento', 'Cliente', 'Descrição', 'Vencimento', 'Categoria', 'Conta', 'Status']
-    : ['Valor', 'Origem', 'Contato/Empresa', 'Descrição', 'Vencimento', 'Categoria', 'Conta', 'Status'];
+    ? ['Valor', 'Origem', 'Faturamento', 'Cliente', 'Descrição', 'Data prevista', 'Data de pagamento', 'Data de competência', 'Categoria', 'Conta', 'Status']
+    : ['Valor', 'Origem', 'Contato/Empresa', 'Descrição', 'Data prevista', 'Data de pagamento', 'Data de competência', 'Categoria', 'Conta', 'Status'];
 
   const lines = rows.map((row) => {
     const status = row.status === 'paid'
@@ -123,6 +163,8 @@ export function exportFinanceCsv(filename: string, rows: FinancialEntry[], direc
         row.contact_name || '',
         row.description || '',
         formatFinanceDate(row.due_date),
+        formatFinanceDate(row.paid_at),
+        formatFinanceDate(row.competence_date || row.due_date),
         row.category || '',
         row.account || '',
         status,
@@ -133,6 +175,8 @@ export function exportFinanceCsv(filename: string, rows: FinancialEntry[], direc
       row.contact_name || '',
       row.description || '',
       formatFinanceDate(row.due_date),
+      formatFinanceDate(row.paid_at),
+      formatFinanceDate(row.competence_date || row.due_date),
       row.category || '',
       row.account || '',
       status,
@@ -159,8 +203,8 @@ export function exportFinancePdf(title: string, rows: FinancialEntry[], directio
   doc.setFontSize(8);
 
   const headers = direction === 'receber'
-    ? ['Valor', 'Origem', 'Faturamento', 'Cliente', 'Descrição', 'Vencimento', 'Categoria', 'Conta']
-    : ['Valor', 'Origem', 'Contato', 'Descrição', 'Vencimento', 'Categoria', 'Conta'];
+    ? ['Valor', 'Origem', 'Cliente', 'Descrição', 'Prevista', 'Pagamento', 'Competência', 'Categoria']
+    : ['Valor', 'Origem', 'Contato', 'Descrição', 'Prevista', 'Pagamento', 'Competência', 'Categoria'];
 
   let y = 22;
   doc.text(headers.join('  |  '), 14, y);
@@ -171,21 +215,22 @@ export function exportFinancePdf(title: string, rows: FinancialEntry[], directio
       ? [
           formatFinanceMoney(row.amount),
           row.origin_label || 'Normal',
-          row.billing_name || 'Sem contato',
           row.contact_name || '',
-          (row.description || '').slice(0, 28),
+          (row.description || '').slice(0, 24),
           formatFinanceDate(row.due_date),
+          formatFinanceDate(row.paid_at),
+          formatFinanceDate(row.competence_date || row.due_date),
           row.category || '',
-          row.account || '',
         ]
       : [
           formatFinanceMoney(row.amount),
           row.origin_label || 'Normal',
           row.contact_name || '',
-          (row.description || '').slice(0, 36),
+          (row.description || '').slice(0, 28),
           formatFinanceDate(row.due_date),
+          formatFinanceDate(row.paid_at),
+          formatFinanceDate(row.competence_date || row.due_date),
           row.category || '',
-          row.account || '',
         ];
     doc.text(cols.join('  |  '), 14, y);
     y += 5;

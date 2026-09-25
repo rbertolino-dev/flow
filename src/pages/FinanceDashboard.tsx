@@ -6,16 +6,21 @@ import { FinanceSubnav } from '@/components/finance/FinanceSubnav';
 import { Input } from '@/components/ui/input';
 import { useFinancialLedger } from '@/hooks/useFinancialLedger';
 import {
+  dreClassLabel,
   entryBucket,
+  entryDueInPeriod,
+  entryInCompetencePeriod,
   entryInPeriod,
+  entryPaidInPeriod,
   formatFinanceMoney,
   monthRange,
   todayIsoDate,
+  type FinancialCategory,
   type FinancialEntry,
 } from '@/lib/finance';
 
 export default function FinanceDashboard() {
-  const { entries, loading } = useFinancialLedger();
+  const { entries, categories, loading } = useFinancialLedger();
   const initialRange = monthRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
@@ -26,8 +31,12 @@ export default function FinanceDashboard() {
     [entries, from, to]
   );
 
-  const metrics = useMemo(() => summarize(periodEntries, today), [periodEntries, today]);
+  const metrics = useMemo(() => summarize(entries, from, to, today), [entries, from, to, today]);
   const byOrigin = useMemo(() => groupByOrigin(periodEntries), [periodEntries]);
+  const chart = useMemo(() => groupByChart(
+    entries.filter((entry) => entry.settlement_status !== 'previsto' && entryInCompetencePeriod(entry, from, to)),
+    categories
+  ), [entries, categories, from, to]);
 
   return (
     <CRMLayout activeView="finance" onViewChange={() => {}}>
@@ -64,7 +73,7 @@ export default function FinanceDashboard() {
             </div>
 
             <div className="mb-4 rounded-md border bg-white p-4">
-              <p className="text-sm text-slate-500">Saldo do período (recebido − pago)</p>
+              <p className="text-sm text-slate-500">Saldo do período pela data de pagamento (recebido − pago)</p>
               <p className={`text-2xl font-semibold ${metrics.balance >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                 {formatFinanceMoney(metrics.balance)}
               </p>
@@ -101,6 +110,55 @@ export default function FinanceDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="overflow-hidden rounded-md border bg-white">
+                <div className="border-b bg-slate-100 px-4 py-2 text-sm font-medium">Por plano de contas</div>
+                <p className="px-4 pt-3 text-xs text-slate-500">Período pela data de competência</p>
+                <table className="w-full text-sm">
+                  <thead className="text-left text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Categoria</th>
+                      <th className="px-4 py-2 font-medium">Entrada</th>
+                      <th className="px-4 py-2 font-medium">Saída</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chart.categories.length === 0 && (
+                      <tr><td colSpan={3} className="px-4 py-6 text-center text-slate-400">Nenhum lançamento na competência</td></tr>
+                    )}
+                    {chart.categories.map((row) => (
+                      <tr key={row.key} className="border-t">
+                        <td className="px-4 py-2"><p>{row.name}</p><p className="text-xs text-slate-400">{row.dre}</p></td>
+                        <td className="px-4 py-2">{formatFinanceMoney(row.entrada)}</td>
+                        <td className="px-4 py-2">{formatFinanceMoney(row.saida)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="overflow-hidden rounded-md border bg-white">
+                <div className="border-b bg-slate-100 px-4 py-2 text-sm font-medium">Classificação da DRE</div>
+                <table className="w-full text-sm">
+                  <thead className="text-left text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Classificação</th>
+                      <th className="px-4 py-2 font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chart.dre.length === 0 && (
+                      <tr><td colSpan={2} className="px-4 py-6 text-center text-slate-400">Sem classificação no período</td></tr>
+                    )}
+                    {chart.dre.map((row) => (
+                      <tr key={row.key} className="border-t">
+                        <td className="px-4 py-2">{row.label}</td>
+                        <td className={`px-4 py-2 ${row.side === 'receber' ? 'text-green-700' : 'text-red-600'}`}>{formatFinanceMoney(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -108,37 +166,51 @@ export default function FinanceDashboard() {
   );
 }
 
-function summarize(entries: FinancialEntry[], today: string) {
-  const metrics = {
-    receivableOpen: 0,
-    payableOpen: 0,
-    overdue: 0,
-    dueToday: 0,
-    upcoming: 0,
-    received: 0,
-    paidOut: 0,
-    forecast: 0,
-    balance: 0,
-  };
-
+function summarize(entries: FinancialEntry[], from: string, to: string, today: string) {
+  const metrics = { receivableOpen: 0, payableOpen: 0, overdue: 0, dueToday: 0, upcoming: 0, received: 0, paidOut: 0, forecast: 0, balance: 0 };
   entries.forEach((entry) => {
     const amount = Number(entry.amount) || 0;
-    const bucket = entryBucket(entry, today);
-    if (entry.direction === 'receber') {
-      if (entry.status === 'paid') metrics.received += amount;
-      else if (entry.settlement_status === 'previsto') metrics.forecast += amount;
-      else metrics.receivableOpen += amount;
-    } else {
-      if (entry.status === 'paid') metrics.paidOut += amount;
-      else metrics.payableOpen += amount;
+    if (entryDueInPeriod(entry, from, to) && entry.status === 'open') {
+      const bucket = entryBucket(entry, today);
+      if (entry.direction === 'receber') {
+        if (entry.settlement_status === 'previsto') metrics.forecast += amount;
+        else metrics.receivableOpen += amount;
+      } else metrics.payableOpen += amount;
+      if (bucket === 'overdue') metrics.overdue += amount;
+      if (bucket === 'today') metrics.dueToday += amount;
+      if (bucket === 'upcoming') metrics.upcoming += amount;
     }
-    if (entry.status === 'open' && bucket === 'overdue') metrics.overdue += amount;
-    if (entry.status === 'open' && bucket === 'today') metrics.dueToday += amount;
-    if (entry.status === 'open' && bucket === 'upcoming') metrics.upcoming += amount;
+    if (entryPaidInPeriod(entry, from, to)) {
+      if (entry.direction === 'receber') metrics.received += amount;
+      else metrics.paidOut += amount;
+    }
   });
-
   metrics.balance = metrics.received - metrics.paidOut;
   return metrics;
+}
+
+function groupByChart(entries: FinancialEntry[], categories: FinancialCategory[]) {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const categoryRows = new Map<string, { key: string; name: string; dre: string; entrada: number; saida: number }>();
+  const dreRows = new Map<string, { key: string; label: string; side: 'receber' | 'pagar'; total: number }>();
+  entries.forEach((entry) => {
+    const linked = (entry.category_id ? byId.get(entry.category_id) : undefined)
+      || categories.find((category) => category.name === entry.category && (category.direction === entry.direction || category.direction === 'ambos'));
+    const key = linked?.id || entry.category || 'sem-categoria';
+    const row = categoryRows.get(key) || { key, name: linked?.name || entry.category || 'Sem categoria', dre: dreClassLabel(linked?.dre_class), entrada: 0, saida: 0 };
+    const amount = Number(entry.amount) || 0;
+    if (entry.direction === 'receber') row.entrada += amount;
+    else row.saida += amount;
+    categoryRows.set(key, row);
+    const dreKey = `${entry.direction}:${linked?.dre_class || 'sem'}`;
+    const dre = dreRows.get(dreKey) || { key: dreKey, label: dreClassLabel(linked?.dre_class), side: entry.direction, total: 0 };
+    dre.total += amount;
+    dreRows.set(dreKey, dre);
+  });
+  return {
+    categories: Array.from(categoryRows.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+    dre: Array.from(dreRows.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+  };
 }
 
 function groupByOrigin(entries: FinancialEntry[]) {

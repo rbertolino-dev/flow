@@ -9,13 +9,21 @@ import type {
   FinancialEntry,
 } from '@/lib/finance';
 
-interface FinanceQuery {
+interface FinanceResult {
+  data: unknown;
+  error: { message: string } | null;
+  count: number | null;
+}
+
+interface FinanceQuery extends Promise<FinanceResult> {
   select(columns: string, options?: { count?: 'exact'; head?: boolean }): FinanceQuery;
-  insert(values: Record<string, unknown>[]): Promise<{ error: { message: string } | null }>;
-  eq(column: string, value: string): FinanceQuery & Promise<{ data: unknown; error: { message: string } | null; count: number | null }>;
+  insert(values: Record<string, unknown> | Record<string, unknown>[]): FinanceQuery;
+  update(values: Record<string, unknown>): FinanceQuery;
+  delete(): FinanceQuery;
+  eq(column: string, value: string): FinanceQuery;
   neq(column: string, value: string): FinanceQuery;
-  order(column: string, options: { ascending: boolean }): FinanceQuery;
-  limit(count: number): Promise<{ data: unknown; error: { message: string } | null }>;
+  order(column: string, options?: { ascending: boolean }): FinanceQuery;
+  limit(count: number): FinanceQuery;
 }
 
 type RpcClient = {
@@ -42,12 +50,12 @@ async function ensureFinanceDefaults(organizationId: string) {
   ]);
 
   await db().from('financial_categories').insert([
-    { organization_id: organizationId, name: 'Vendas', direction: 'receber' },
-    { organization_id: organizationId, name: 'Serviços', direction: 'receber' },
-    { organization_id: organizationId, name: 'Outros', direction: 'ambos' },
-    { organization_id: organizationId, name: 'Comissão', direction: 'pagar' },
-    { organization_id: organizationId, name: 'Fornecedores', direction: 'pagar' },
-    { organization_id: organizationId, name: 'Despesas', direction: 'pagar' },
+    { organization_id: organizationId, name: 'Vendas', direction: 'receber', dre_class: 'receita_vendas' },
+    { organization_id: organizationId, name: 'Serviços', direction: 'receber', dre_class: 'receita_servicos' },
+    { organization_id: organizationId, name: 'Outros', direction: 'ambos', dre_class: 'outras_receitas' },
+    { organization_id: organizationId, name: 'Comissão', direction: 'pagar', dre_class: 'despesa_operacional' },
+    { organization_id: organizationId, name: 'Fornecedores', direction: 'pagar', dre_class: 'custo' },
+    { organization_id: organizationId, name: 'Despesas', direction: 'pagar', dre_class: 'despesa_operacional' },
   ]);
 }
 
@@ -87,7 +95,7 @@ export function useFinancialLedger() {
           .order('name'),
         db()
           .from('financial_categories')
-          .select('id, organization_id, name, direction')
+          .select('id, organization_id, name, direction, dre_class')
           .eq('organization_id', activeOrgId)
           .order('name'),
       ]);
@@ -119,10 +127,12 @@ export function useFinancialLedger() {
     direction: FinanceDirection;
     amount: number;
     due_date: string;
+    competence_date: string;
     description: string;
     contact_name: string;
     billing_name?: string;
     category: string;
+    category_id: string;
     account: string;
   }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
@@ -141,30 +151,55 @@ export function useFinancialLedger() {
       p_category: input.category || null,
       p_account: input.account || null,
       p_origin_label: 'Normal',
+      p_competence_date: input.competence_date || input.due_date,
+      p_category_id: input.category_id || null,
     });
     if (error) throw new Error(error.message);
     await reload();
   };
 
-  const setStatus = async (entryId: string, status: 'paid' | 'cancelled') => {
+  const setStatus = async (entryId: string, status: 'paid' | 'cancelled', paidAt?: string | null) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     const { error } = await db().rpc('set_financial_entry_status', {
       p_organization_id: activeOrgId,
       p_entry_id: entryId,
       p_status: status,
+      p_paid_at: status === 'paid' ? paidAt || null : null,
     });
     if (error) throw new Error(error.message);
     await reload();
   };
 
-  return {
-    entries,
-    accounts,
-    categories,
-    loading,
-    reload,
-    createManual,
-    setStatus,
-    activeOrgId,
+  const saveCategory = async (input: {
+    id?: string;
+    name: string;
+    direction: FinanceDirection | 'ambos';
+    dre_class: string;
+  }) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    const payload = { name: input.name.trim(), direction: input.direction, dre_class: input.dre_class };
+    if (!payload.name) throw new Error('Informe o nome da categoria');
+    if (input.id) {
+      const updated = await db().from('financial_categories').update(payload).eq('id', input.id).eq('organization_id', activeOrgId);
+      if (updated.error) throw new Error(updated.error.message);
+      const renamed = await db().from('financial_entries').update({ category: payload.name }).eq('category_id', input.id).eq('organization_id', activeOrgId);
+      if (renamed.error) throw new Error(renamed.error.message);
+    } else {
+      const created = await db().from('financial_categories').insert({ organization_id: activeOrgId, ...payload });
+      if (created.error) throw new Error(created.error.message);
+    }
+    await reload();
   };
+
+  const deleteCategory = async (categoryId: string) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    const openEntries = await db().from('financial_entries').select('id', { count: 'exact', head: true }).eq('organization_id', activeOrgId).eq('category_id', categoryId).eq('status', 'open');
+    if (openEntries.error) throw new Error(openEntries.error.message);
+    if ((openEntries.count ?? 0) > 0) throw new Error('Esta categoria ainda tem lançamentos em aberto');
+    const removed = await db().from('financial_categories').delete().eq('id', categoryId).eq('organization_id', activeOrgId);
+    if (removed.error) throw new Error(removed.error.message);
+    await reload();
+  };
+
+  return { entries, accounts, categories, loading, reload, createManual, setStatus, saveCategory, deleteCategory, activeOrgId };
 }

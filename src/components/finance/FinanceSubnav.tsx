@@ -5,6 +5,7 @@ const LINKS = [
   { to: '/financeiro', label: 'Dashboard', end: true },
   { to: '/financeiro/receber', label: 'Contas a receber', end: false },
   { to: '/financeiro/pagar', label: 'Contas a pagar', end: false },
+  { to: '/financeiro/categorias', label: 'Categorias', end: false },
 ];
 
 export function FinanceSubnav() {
