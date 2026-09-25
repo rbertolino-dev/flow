@@ -129,8 +129,6 @@ async function syncPosFinancial(
   const description = input.description || `Venda PDV #${input.saleNumber}`;
   const account = input.account || "Caixa";
   const category = input.category || "Vendas";
-  let coveredBy: string | null = null;
-
   const upsert = async (payload: Record<string, unknown>) => {
     const { data, error } = await supabase.rpc("upsert_financial_entry", payload);
     if (error) throw new Error(error.message);
@@ -138,7 +136,7 @@ async function syncPosFinancial(
   };
 
   if (immediate > 0.009) {
-    coveredBy = await upsert({
+    await upsert({
       p_organization_id: input.organizationId,
       p_direction: "receber",
       p_amount: immediate,
@@ -160,7 +158,7 @@ async function syncPosFinancial(
   }
 
   if (deferred > 0.009) {
-    const deferredId = await upsert({
+    await upsert({
       p_organization_id: input.organizationId,
       p_direction: "receber",
       p_amount: deferred,
@@ -178,7 +176,6 @@ async function syncPosFinancial(
       p_origin_label: "PDV",
       p_created_by: input.userId,
     });
-    coveredBy = coveredBy || deferredId;
   }
 
   if (input.commissionAmount > 0.009) {
@@ -202,15 +199,6 @@ async function syncPosFinancial(
     });
   }
 
-  if (input.leadId) {
-    const { error } = await supabase.rpc("cover_forecast_receivables", {
-      p_organization_id: input.organizationId,
-      p_lead_id: input.leadId,
-      p_budget_id: null,
-      p_covered_by: coveredBy,
-    });
-    if (error) throw new Error(error.message);
-  }
 }
 
 function json(data: unknown, status = 200) {

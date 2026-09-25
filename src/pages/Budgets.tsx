@@ -47,6 +47,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ServiceBulkImport } from '@/components/budgets/ServiceBulkImport';
 import { ServiceCategoriesManager } from '@/components/budgets/ServiceCategoriesManager';
 import { BudgetIndicators } from '@/components/budgets/BudgetIndicators';
+import { BudgetApproveFinanceDialog } from '@/components/budgets/BudgetApproveFinanceDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +76,8 @@ export default function Budgets() {
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [newlyCreatedBudgetId, setNewlyCreatedBudgetId] = useState<string | null>(null);
+  const [approveTargetId, setApproveTargetId] = useState<string | null>(null);
+  const [approvingBudget, setApprovingBudget] = useState(false);
 
   /** Deep link: /budgets?leadId=…&createBudget=1 (ex.: extensão Chrome Sidekick) */
   useEffect(() => {
@@ -750,14 +753,7 @@ export default function Budgets() {
                     setSelectedBudget(budget);
                     setShowEditDialog(true);
                   }}
-                  onApprove={async (budget) => {
-                    try {
-                      await approveBudget(budget.id);
-                      refetch();
-                    } catch (error) {
-                      console.error('Erro ao aprovar orçamento:', error);
-                    }
-                  }}
+                  onApprove={(budget) => setApproveTargetId(budget.id)}
                   onReject={async (budget) => {
                     if (!confirm('Marcar este orçamento como recusado pelo cliente?')) return;
                     try {
@@ -1345,6 +1341,28 @@ export default function Budgets() {
           }}
         />
         
+        <BudgetApproveFinanceDialog
+          budgetId={approveTargetId}
+          open={!!approveTargetId}
+          saving={approvingBudget}
+          onOpenChange={(open) => {
+            if (!open) setApproveTargetId(null);
+          }}
+          onConfirm={async (choice) => {
+            if (!approveTargetId) return;
+            setApprovingBudget(true);
+            try {
+              await approveBudget(approveTargetId, choice);
+              setApproveTargetId(null);
+              refetch();
+            } catch (error) {
+              console.error('Erro ao aprovar orçamento:', error);
+            } finally {
+              setApprovingBudget(false);
+            }
+          }}
+        />
+
         {/* Dialog opcional para aprovar orçamento recém-criado */}
         {newlyCreatedBudgetId && (
           <Dialog open={!!newlyCreatedBudgetId} onOpenChange={(open) => {
@@ -1365,14 +1383,9 @@ export default function Budgets() {
                   Aprovar depois
                 </Button>
                 <Button
-                  onClick={async () => {
-                    try {
-                      await approveBudget(newlyCreatedBudgetId);
-                      setNewlyCreatedBudgetId(null);
-                      refetch();
-                    } catch (error) {
-                      console.error('Erro ao aprovar orçamento:', error);
-                    }
+                  onClick={() => {
+                    setApproveTargetId(newlyCreatedBudgetId);
+                    setNewlyCreatedBudgetId(null);
                   }}
                   className="bg-green-600 hover:bg-green-700"
                 >

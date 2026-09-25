@@ -514,8 +514,9 @@ export function useBudgets(filters?: BudgetFilters) {
     }
   };
 
-  const approveBudget = async (budgetId: string) => {
+  const approveBudget = async (budgetId: string, choice: { received: boolean; date: string }) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
+    if (!choice?.date) throw new Error('Informe a data do lançamento');
 
     try {
       // @ts-ignore - Tabela budgets existe
@@ -538,10 +539,12 @@ export function useBudgets(filters?: BudgetFilters) {
       if (error) throw error;
 
       const { error: financeError } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+        rpc: (fn: string, args: Record<string, string | boolean>) => Promise<{ error: { message: string } | null }>;
       }).rpc('sync_budget_receivable', {
         p_organization_id: activeOrgId,
         p_budget_id: budgetId,
+        p_received: choice.received,
+        p_receive_date: choice.date,
       });
       if (financeError) {
         console.error('Erro ao lançar orçamento no financeiro:', financeError);
@@ -555,8 +558,13 @@ export function useBudgets(filters?: BudgetFilters) {
       broadcastRefreshEvent('update', 'budget');
 
       toast({
-        title: 'Orçamento aprovado',
-        description: 'Orçamento marcado como aprovado com sucesso',
+        title: financeError ? 'Orçamento aprovado sem lançamento' : 'Orçamento aprovado',
+        description: financeError
+          ? `Aprovado, mas o financeiro não recebeu o lançamento: ${financeError.message}`
+          : choice.received
+            ? 'Lançado como recebido no financeiro'
+            : 'Lançado em contas a receber',
+        variant: financeError ? 'destructive' : 'default',
       });
     } catch (error: any) {
       console.error('Erro ao aprovar orçamento:', error);
