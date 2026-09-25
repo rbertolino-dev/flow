@@ -105,6 +105,7 @@ export interface FinancialEntry {
   is_recurring?: boolean | null;
   attachment_name?: string | null;
   notes?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at?: string | null;
 }

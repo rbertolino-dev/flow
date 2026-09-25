@@ -32,7 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FinanceEntryDialog } from '@/components/finance/FinanceEntryDialog';
 import { FinanceReceivablePanel } from '@/components/finance/FinanceReceivablePanel';
 import { useFinancialLedger } from '@/hooks/useFinancialLedger';
-import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
+import { getPaymentMethodLabel, PAYMENT_METHODS, type PaymentMethod } from "@/lib/paymentMethods";
 import {
   entryBucket,
   entryInPeriod,
@@ -51,6 +51,83 @@ interface FinanceLedgerPageProps {
   direction: FinanceDirection;
 }
 
+interface LedgerFilters {
+  status: string;
+  category: string;
+  account: string;
+  clientKind: 'contato' | 'empresa';
+  client: string;
+  billingKind: 'contato' | 'empresa';
+  billing: string;
+  origin: string;
+  paymentMethod: string;
+  minAmount: string;
+  maxAmount: string;
+}
+
+const EMPTY_FILTERS: LedgerFilters = {
+  status: 'all',
+  category: 'all',
+  account: 'all',
+  clientKind: 'contato',
+  client: '',
+  billingKind: 'contato',
+  billing: '',
+  origin: 'all',
+  paymentMethod: 'all',
+  minAmount: '0',
+  maxAmount: '500.000',
+};
+
+function parseFilterAmount(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.includes(',')
+    ? trimmed.replace(/\./g, '').replace(',', '.')
+    : trimmed.replace(/\./g, '');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function entryMatchesFilters(
+  entry: FinancialEntry,
+  filters: LedgerFilters,
+  showPaidOnly: boolean,
+  today: string
+): boolean {
+  if (filters.status === 'paid' || (filters.status === 'all' && showPaidOnly)) {
+    if (entry.status !== 'paid') return false;
+  } else if (filters.status === 'open') {
+    if (entry.status !== 'open' || entry.settlement_status === 'previsto') return false;
+  } else if (filters.status === 'previsto') {
+    if (entry.settlement_status !== 'previsto' || entry.status === 'paid') return false;
+  } else if (filters.status === 'atrasado') {
+    if (entry.status === 'paid' || entry.due_date.slice(0, 10) >= today) return false;
+  } else if (entry.status === 'paid') {
+    return false;
+  }
+
+  if (filters.category !== 'all' && (entry.category || '') !== filters.category) return false;
+  if (filters.account !== 'all' && (entry.account || '') !== filters.account) return false;
+  if (filters.origin !== 'all' && (entry.origin_label || 'Normal') !== filters.origin) return false;
+  if (filters.paymentMethod !== 'all' && (entry.payment_method || '') !== filters.paymentMethod) return false;
+
+  const client = filters.client.trim().toLowerCase();
+  if (client) {
+    const clientField = filters.clientKind === 'empresa' ? entry.billing_name : entry.contact_name;
+    if (!(clientField || '').toLowerCase().includes(client)) return false;
+  }
+  const billing = filters.billing.trim().toLowerCase();
+  if (billing && !(entry.billing_name || '').toLowerCase().includes(billing)) return false;
+
+  const amount = Number(entry.amount) || 0;
+  const minAmount = parseFilterAmount(filters.minAmount);
+  const maxAmount = parseFilterAmount(filters.maxAmount);
+  if (minAmount != null && amount < minAmount) return false;
+  if (maxAmount != null && amount > maxAmount) return false;
+  return true;
+}
+
 const CARD_STYLES = {
   overdue: 'bg-red-500 text-white',
   today: 'bg-orange-500 text-white',
@@ -64,12 +141,12 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const initialRange = monthRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
-  const [showPaid, setShowPaid] = useState(true);
+  const [showPaid, setShowPaid] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [accountFilter, setAccountFilter] = useState('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterDraft, setFilterDraft] = useState<LedgerFilters>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<LedgerFilters | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [payEntry, setPayEntry] = useState<FinancialEntry | null>(null);
@@ -93,25 +170,35 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
     return sums;
   }, [directionEntries, today]);
 
+  const originOptions = useMemo(() => {
+    const names = new Set(directionEntries.map((entry) => entry.origin_label || 'Normal'));
+    return [...names].sort();
+  }, [directionEntries]);
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return directionEntries.filter((entry) => {
       if (!entryInPeriod(entry, from, to)) return false;
-      if (!showPaid && entry.status === 'paid') return false;
-      if (categoryFilter !== 'all' && (entry.category || '') !== categoryFilter) return false;
-      if (accountFilter !== 'all' && (entry.account || '') !== accountFilter) return false;
+      if (appliedFilters && !entryMatchesFilters(entry, appliedFilters, showPaid, today)) return false;
+      if (!appliedFilters) {
+        if (showPaid && entry.status !== 'paid') return false;
+        if (!showPaid && entry.status === 'paid') return false;
+      }
       if (!query) return true;
       const haystack = `${entry.description || ''} ${entry.contact_name || ''} ${entry.origin_label || ''}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [directionEntries, from, to, showPaid, search, categoryFilter, accountFilter]);
+  }, [directionEntries, from, to, showPaid, search, appliedFilters, today]);
 
   const totals = useMemo(() => {
     const query = search.trim().toLowerCase();
     const inRange = directionEntries.filter((entry) => {
       if (!entryInPeriod(entry, from, to)) return false;
-      if (categoryFilter !== 'all' && (entry.category || '') !== categoryFilter) return false;
-      if (accountFilter !== 'all' && (entry.account || '') !== accountFilter) return false;
+      if (appliedFilters && !entryMatchesFilters(entry, appliedFilters, showPaid, today)) return false;
+      if (!appliedFilters) {
+        if (showPaid && entry.status !== 'paid') return false;
+        if (!showPaid && entry.status === 'paid') return false;
+      }
       if (!query) return true;
       const haystack = `${entry.description || ''} ${entry.contact_name || ''}`.toLowerCase();
       return haystack.includes(query);
@@ -126,7 +213,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
       },
       { open: 0, forecast: 0, settled: 0 }
     );
-  }, [directionEntries, from, to, search, categoryFilter, accountFilter]);
+  }, [directionEntries, from, to, search, appliedFilters, showPaid, today]);
 
   const selectedEntry = direction === 'receber'
     ? directionEntries.find((entry) => entry.id === selectedId) || null
@@ -287,17 +374,30 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
       </div>
 
       <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto [&>button]:text-red-600">
           <DialogHeader>
-            <DialogTitle>Filtros</DialogTitle>
+            <DialogTitle className="text-2xl">Filtros</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Categoria</Label>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Status:</Label>
+              <Select value={filterDraft.status} onValueChange={(value) => setFilterDraft({ ...filterDraft, status: value })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">Selecione</SelectItem>
+                  <SelectItem value="open">Em aberto</SelectItem>
+                  <SelectItem value="paid">{direction === 'receber' ? 'Recebido' : 'Pago'}</SelectItem>
+                  <SelectItem value="previsto">Previsto</SelectItem>
+                  <SelectItem value="atrasado">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Categorias:</Label>
+              <Select value={filterDraft.category} onValueChange={(value) => setFilterDraft({ ...filterDraft, category: value })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Selecione</SelectItem>
                   {categoryOptions.map((category) => (
                     <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
                   ))}
@@ -305,23 +405,119 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
               </Select>
             </div>
             <div>
-              <Label>Conta</Label>
-              <Select value={accountFilter} onValueChange={setAccountFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Contas:</Label>
+              <Select value={filterDraft.account} onValueChange={(value) => setFilterDraft({ ...filterDraft, account: value })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">Selecione</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.name}>{account.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Cliente:</Label>
+              <div className="flex gap-2">
+                <Select value={filterDraft.clientKind} onValueChange={(value: 'contato' | 'empresa') => setFilterDraft({ ...filterDraft, clientKind: value })}>
+                  <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contato">Contato</SelectItem>
+                    <SelectItem value="empresa">Empresa</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Contato"
+                  value={filterDraft.client}
+                  onChange={(event) => setFilterDraft({ ...filterDraft, client: event.target.value })}
+                />
+              </div>
+            </div>
+            {direction === 'receber' && (
+              <div>
+                <Label>Faturamento:</Label>
+                <div className="flex gap-2">
+                  <Select value={filterDraft.billingKind} onValueChange={(value: 'contato' | 'empresa') => setFilterDraft({ ...filterDraft, billingKind: value })}>
+                    <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contato">Contato</SelectItem>
+                      <SelectItem value="empresa">Empresa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Contato"
+                    value={filterDraft.billing}
+                    onChange={(event) => setFilterDraft({ ...filterDraft, billing: event.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+            <div>
+              <Label>Origem</Label>
+              <Select value={filterDraft.origin} onValueChange={(value) => setFilterDraft({ ...filterDraft, origin: value })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Selecione</SelectItem>
+                  {originOptions.map((origin) => (
+                    <SelectItem key={origin} value={origin}>{origin}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Forma de Pagamento</Label>
+              <Select value={filterDraft.paymentMethod} onValueChange={(value) => setFilterDraft({ ...filterDraft, paymentMethod: value })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Selecione</SelectItem>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Valor</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 text-sm text-slate-600">Acima de</p>
+                  <Input
+                    value={filterDraft.minAmount}
+                    onChange={(event) => setFilterDraft({ ...filterDraft, minAmount: event.target.value })}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1 text-sm text-slate-600">Abaixo de</p>
+                  <Input
+                    value={filterDraft.maxAmount}
+                    onChange={(event) => setFilterDraft({ ...filterDraft, maxAmount: event.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setCategoryFilter('all'); setAccountFilter('all'); }}>
-              Limpar
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              type="button"
+              className="bg-slate-500 text-white hover:bg-slate-600"
+              onClick={() => {
+                setFilterDraft(EMPTY_FILTERS);
+                setAppliedFilters(null);
+                setFiltersOpen(false);
+              }}
+            >
+              Limpar filtros
             </Button>
-            <Button type="button" onClick={() => setFiltersOpen(false)}>Aplicar</Button>
+            <Button
+              type="button"
+              className="bg-green-600 text-white hover:bg-green-700"
+              onClick={() => {
+                setAppliedFilters({ ...filterDraft });
+                setFiltersOpen(false);
+              }}
+            >
+              Filtrar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

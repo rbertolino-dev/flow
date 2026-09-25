@@ -145,6 +145,7 @@ export function useFinancialLedger() {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     if (!input.lead_id) throw new Error('Vincule um contato do CRM');
     const realized = Boolean(input.realized);
+    const { data: userData } = await supabase.auth.getUser();
     const { data, error } = await db().rpc('upsert_financial_entry', {
       p_organization_id: activeOrgId,
       p_direction: input.direction,
@@ -164,21 +165,12 @@ export function useFinancialLedger() {
       p_paid_at: realized ? paymentTimestamp(todayIsoDate()) : null,
       p_competence_date: input.competence_date || input.due_date,
       p_category_id: input.category_id || null,
+      p_created_by: userData.user?.id || null,
+      p_payment_method: input.payment_method || null,
+      p_attachment_name: input.attachment_name || null,
+      p_is_recurring: Boolean(input.is_recurring),
     });
     if (error) throw new Error(error.message);
-    const entryId = typeof data === 'string' ? data : null;
-    if (entryId) {
-      const extra = await db()
-        .from('financial_entries')
-        .update({
-          payment_method: input.payment_method || null,
-          is_recurring: Boolean(input.is_recurring),
-          attachment_name: input.attachment_name || null,
-        })
-        .eq('id', entryId)
-        .eq('organization_id', activeOrgId);
-      if (extra.error) throw new Error(extra.error.message);
-    }
     await reload();
   };
 

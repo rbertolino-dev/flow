@@ -93,15 +93,33 @@ export function FinanceReceivablePanel({
 }: FinanceReceivablePanelProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [logs, setLogs] = useState<FinanceLogLine[]>([]);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<SaleItem[]>([]);
 
   useEffect(() => {
+    setNotes(entry?.notes || '');
+  }, [entry?.id, entry?.notes]);
+
+  useEffect(() => {
     setEditOpen(false);
     setLogsOpen(false);
-    setNotes(entry?.notes || '');
     setItems([]);
-  }, [entry?.id, entry?.notes]);
+    setLogs([]);
+  }, [entry?.id]);
+
+  useEffect(() => {
+    if (!entry) return;
+    let cancelled = false;
+    void loadFinanceLogs(entry).then((rows) => {
+      if (!cancelled) setLogs(rows);
+    }).catch(() => {
+      if (!cancelled) setLogs([]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry]);
 
   useEffect(() => {
     if (!entry || entry.source_type !== 'pdv') return;
@@ -218,11 +236,24 @@ export function FinanceReceivablePanel({
           </Button>
           <Button
             type="button"
-            className="h-10 w-full bg-slate-200 text-slate-700 hover:bg-slate-300"
-            onClick={() => setLogsOpen(true)}
+            className="h-10 w-full rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300"
+            onClick={() => setLogsOpen((open) => !open)}
           >
             Ver Logs
           </Button>
+          {logsOpen && (
+            <ol className="space-y-2 rounded-md border px-3 py-2 text-sm text-slate-700">
+              {logs.length === 0 ? (
+                <li>Nenhum log deste lançamento</li>
+              ) : (
+                logs.map((line, index) => (
+                  <li key={`${line.at}-${index}`}>
+                    {index + 1}. {line.text}
+                  </li>
+                ))
+              )}
+            </ol>
+          )}
         </div>
       </aside>
 
@@ -236,19 +267,6 @@ export function FinanceReceivablePanel({
         onSave={onSave}
       />
 
-      <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Logs</DialogTitle>
-          </DialogHeader>
-          <ul className="space-y-2 text-sm text-slate-700">
-            <li>Lançamento criado em {panelDate(entry.created_at) || '—'}</li>
-            {entry.updated_at && <li>Atualizado em {panelDate(entry.updated_at)}</li>}
-            {entry.status === 'paid' && <li>Recebido em {panelDate(entry.paid_at) || '—'}</li>}
-            <li>Situação: {entry.status === 'paid' ? 'Recebido' : 'Em aberto'}</li>
-          </ul>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
@@ -457,6 +475,134 @@ function FinanceReceivableEditDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+interface FinanceLogLine {
+  at: string;
+  text: string;
+}
+
+interface FinanceLogChange {
+  field: string;
+  from: unknown;
+  to: unknown;
+}
+
+const LOG_LABELS: Record<string, string> = {
+  description: 'Descrição',
+  amount: 'Valor',
+  due_date: 'Data de vencimento',
+  competence_date: 'Data de competência',
+  paid_at: 'Data de pagamento',
+  status: 'Status',
+  account: 'Conta',
+  category: 'Categoria',
+  contact_name: 'Cliente',
+  billing_name: 'Faturamento',
+  payment_method: 'Forma de pagamento',
+  is_recurring: 'Recorrência',
+  attachment_name: 'Anexo',
+  notes: 'Observações',
+};
+
+function logMoney(value: number): string {
+  const text = (Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `R$${text}`;
+}
+
+function logDateTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date).replace(',', '');
+}
+
+function logValue(field: string, value: unknown, direction: string): string {
+  if (value == null || value === '') return 'vazio';
+  if (field === 'amount') return logMoney(Number(value));
+  if (field === 'is_recurring') return value === true || value === 'true' ? 'Sim' : 'Não';
+  if (field === 'status') {
+    if (value === 'paid') return direction === 'receber' ? 'Recebido' : 'Pago';
+    if (value === 'cancelled') return 'Cancelado';
+    return 'Em aberto';
+  }
+  if (field === 'payment_method') return getPaymentMethodLabel(String(value) as PaymentMethod);
+  if (field === 'due_date' || field === 'competence_date') return panelDate(String(value)) || 'vazio';
+  if (field === 'paid_at') return logDateTime(String(value)) || 'vazio';
+  return String(value);
+}
+
+async function loadFinanceLogs(entry: FinancialEntry): Promise<FinanceLogLine[]> {
+  const client = supabase as unknown as {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          order: (column: string, options?: { ascending: boolean }) => Promise<{
+            data: Array<{
+              event_type: string;
+              actor_name: string | null;
+              amount: number | null;
+              changes: FinanceLogChange[] | null;
+              created_at: string;
+            }> | null;
+          }>;
+          maybeSingle: () => Promise<{ data: { full_name: string | null } | null }>;
+        };
+      };
+    };
+  };
+
+  let creator = 'Sistema';
+  if (entry.created_by) {
+    const profile = await client.from('profiles').select('full_name').eq('id', entry.created_by).maybeSingle();
+    creator = profile.data?.full_name || creator;
+  }
+
+  const loaded = await client
+    .from('financial_entry_logs')
+    .select('event_type, actor_name, amount, changes, created_at')
+    .eq('entry_id', entry.id)
+    .order('created_at', { ascending: true });
+
+  const rows = loaded.data || [];
+  const lines: FinanceLogLine[] = [];
+  const created = rows.find((row) => row.event_type === 'created');
+  if (created) {
+    lines.push({
+      at: created.created_at,
+      text: `Lançamento criado por ${created.actor_name || creator} no valor de ${logMoney(Number(created.amount ?? entry.amount))} em ${logDateTime(created.created_at)}`,
+    });
+  } else {
+    lines.push({
+      at: entry.created_at,
+      text: `Lançamento criado por ${creator} no valor de ${logMoney(Number(entry.amount))} em ${logDateTime(entry.created_at)}`,
+    });
+  }
+
+  rows.filter((row) => row.event_type === 'edited').forEach((row) => {
+    const changes = Array.isArray(row.changes) ? row.changes : [];
+    const detail = changes
+      .map((change) => {
+        const label = LOG_LABELS[change.field] || change.field;
+        return `${label} de ${logValue(change.field, change.from, entry.direction)} para ${logValue(change.field, change.to, entry.direction)}`;
+      })
+      .join('; ');
+    lines.push({
+      at: row.created_at,
+      text: `Editado por ${row.actor_name || 'Sistema'} em ${logDateTime(row.created_at)}${detail ? `: ${detail}` : ''}`,
+    });
+  });
+
+  return lines;
 }
 
 async function loadSaleItems(saleId: string): Promise<SaleItem[]> {
