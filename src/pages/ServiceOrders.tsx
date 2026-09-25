@@ -223,23 +223,55 @@ export default function ServiceOrders() {
     setShowDetail(true);
   };
 
+  const handleStatusChange = (order: ServiceOrder, statusId: string) => {
+    if (statusId === order.status_id) return;
+    const next = statuses.find((status) => status.id === statusId);
+    if (next?.is_final) {
+      setSelectedOrder(order);
+      setShowClose(true);
+      return;
+    }
+    if (order.is_closed) {
+      void updateOrder(order.id, { status_id: statusId, is_closed: false });
+      return;
+    }
+    void updateOrder(order.id, { status_id: statusId });
+  };
+
   const handleCreateOrUpdate = async (data: ServiceOrderFormData) => {
     if (editingOrder) {
+      const finalStatus = statuses.find((status) => status.is_final);
+      const wantsClose = !!finalStatus && data.status_id === finalStatus.id && !editingOrder.is_closed;
       const ok = await updateOrder(editingOrder.id, {
         ...data,
         template_id: data.template_id || editingOrder.template_id,
-        status_id: data.status_id || editingOrder.status_id,
+        status_id: wantsClose ? editingOrder.status_id : data.status_id || editingOrder.status_id,
       });
       if (ok) {
         setEditingOrder(null);
         setShowCreate(false);
+        if (wantsClose) {
+          setSelectedOrder(editingOrder);
+          setShowClose(true);
+        }
         return true;
       }
       return false;
     }
 
-    const created = await createOrder(data);
+    const finalStatus = statuses.find((status) => status.is_final);
+    const wantsClose = !!finalStatus && data.status_id === finalStatus.id;
+    const openStatus =
+      statuses.find((status) => status.is_default && !status.is_final) ||
+      statuses.find((status) => !status.is_final);
+    const created = await createOrder(
+      wantsClose ? { ...data, status_id: openStatus?.id } : data
+    );
     if (created) {
+      if (wantsClose) {
+        setSelectedOrder(created);
+        setShowClose(true);
+      }
       const code = await peekNextCode();
       setNextCode(code);
       try {
@@ -551,7 +583,7 @@ export default function ServiceOrders() {
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={order.status_id || undefined}
-                        onValueChange={(statusId) => updateOrder(order.id, { status_id: statusId })}
+                        onValueChange={(statusId) => handleStatusChange(order, statusId)}
                       >
                         <SelectTrigger
                           className="flex-1 h-10 border-0 text-white font-medium"
@@ -619,7 +651,7 @@ export default function ServiceOrders() {
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={order.status_id || undefined}
-                        onValueChange={(statusId) => updateOrder(order.id, { status_id: statusId })}
+                        onValueChange={(statusId) => handleStatusChange(order, statusId)}
                       >
                         <SelectTrigger
                           className="w-[160px] h-8 border-0 text-white font-medium"

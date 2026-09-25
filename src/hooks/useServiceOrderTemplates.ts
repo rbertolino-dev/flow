@@ -33,21 +33,66 @@ export function useServiceOrderStatuses() {
       // @ts-expect-error tabela ainda nao tipada no client gerado
       const { data, error } = await supabase
         .from('service_order_statuses')
-        .select('id')
-        .eq('organization_id', activeOrgId)
-        .limit(1);
+        .select('id, name, is_final, sort_order')
+        .eq('organization_id', activeOrgId);
 
       if (error) throw error;
-      if (data && data.length > 0) return;
+      const rows = (data || []) as Array<{
+        id: string;
+        name: string;
+        is_final: boolean;
+        sort_order: number;
+      }>;
 
-      const rows = DEFAULT_STATUSES.map((s) => ({
-        organization_id: activeOrgId,
-        ...s,
-      }));
+      if (rows.length === 0) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { error: insertError } = await supabase.from('service_order_statuses').insert(
+          DEFAULT_STATUSES.map((s) => ({
+            organization_id: activeOrgId,
+            ...s,
+          }))
+        );
+        if (insertError && !insertError.message?.includes('duplicate')) throw insertError;
+        return;
+      }
 
-      // @ts-expect-error tabela ainda nao tipada no client gerado
-      const { error: insertError } = await supabase.from('service_order_statuses').insert(rows);
-      if (insertError && !insertError.message?.includes('duplicate')) throw insertError;
+      const finalizado = rows.find((row) => row.name.trim().toLowerCase() === 'finalizado');
+      let finalId = finalizado?.id;
+      if (!finalizado) {
+        const maxOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0);
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        const { data: inserted, error: insertError } = await supabase
+          .from('service_order_statuses')
+          .insert({
+            organization_id: activeOrgId,
+            name: 'Finalizado',
+            color: '#22c55e',
+            sort_order: maxOrder + 10,
+            is_final: true,
+            is_default: false,
+          })
+          .select('id')
+          .single();
+        if (insertError && !insertError.message?.includes('duplicate')) throw insertError;
+        finalId = inserted?.id;
+      } else if (!finalizado.is_final) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        await supabase
+          .from('service_order_statuses')
+          .update({ is_final: true, name: 'Finalizado' })
+          .eq('id', finalizado.id)
+          .eq('organization_id', activeOrgId);
+      }
+
+      if (finalId) {
+        // @ts-expect-error tabela ainda nao tipada no client gerado
+        await supabase
+          .from('service_order_statuses')
+          .update({ is_final: false })
+          .eq('organization_id', activeOrgId)
+          .neq('id', finalId)
+          .eq('is_final', true);
+      }
     })().finally(() => {
       statusInitPromises.delete(activeOrgId);
     });
@@ -118,7 +163,7 @@ export function useServiceOrderStatuses() {
           organization_id: activeOrgId,
           name: input.name.trim(),
           color: input.color || '#64748b',
-          is_final: input.is_final || false,
+          is_final: false,
           is_default: input.is_default || false,
           sort_order: maxOrder + 10,
         })
@@ -152,6 +197,25 @@ export function useServiceOrderStatuses() {
   ) => {
     if (!activeOrgId) return false;
     try {
+      const current = statuses.find((s) => s.id === id);
+      if (current?.is_final) {
+        if (patch.is_final === false || (patch.name && patch.name.trim().toLowerCase() !== 'finalizado')) {
+          toast({
+            title: 'Etapa obrigatória',
+            description: 'Finalizado fecha a ordem de serviço e não pode ser renomeado nem deixar de ser a etapa final.',
+            variant: 'destructive',
+          });
+          return false;
+        }
+      } else if (patch.is_final) {
+        toast({
+          title: 'Etapa final já definida',
+          description: 'Somente Finalizado encerra a ordem de serviço.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       if (patch.is_default) {
         // @ts-expect-error tabela ainda nao tipada no client gerado
         await supabase
@@ -192,6 +256,16 @@ export function useServiceOrderStatuses() {
   const deleteStatus = async (id: string) => {
     if (!activeOrgId) return false;
     try {
+      const current = statuses.find((s) => s.id === id);
+      if (current?.is_final || current?.name.trim().toLowerCase() === 'finalizado') {
+        toast({
+          title: 'Etapa obrigatória',
+          description: 'Finalizado existe em toda organização e não pode ser excluído.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       if (statuses.length <= 1) {
         toast({
           title: 'Não permitido',

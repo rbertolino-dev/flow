@@ -64,7 +64,6 @@ export function ServiceOrderStatusesDialog({
 }: ServiceOrderStatusesDialogProps) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3b82f6');
-  const [isFinal, setIsFinal] = useState(false);
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -76,7 +75,6 @@ export function ServiceOrderStatusesDialog({
   const resetForm = () => {
     setName('');
     setColor('#3b82f6');
-    setIsFinal(false);
     setIsDefault(false);
   };
 
@@ -86,7 +84,6 @@ export function ServiceOrderStatusesDialog({
     const created = await createStatus({
       name: name.trim(),
       color,
-      is_final: isFinal,
       is_default: isDefault,
     });
     setSaving(false);
@@ -118,8 +115,8 @@ export function ServiceOrderStatusesDialog({
         <DialogHeader>
           <DialogTitle>Etapas da Ordem de Serviço</DialogTitle>
           <DialogDescription>
-            Cada organização define suas próprias etapas (status). Elas aparecem nos cards
-            coloridos e podem ser selecionadas em cada OS.
+            Cada organização define suas etapas. Finalizado é obrigatória e fica ligada a
+            fechar a ordem de serviço.
           </DialogDescription>
         </DialogHeader>
 
@@ -135,6 +132,7 @@ export function ServiceOrderStatusesDialog({
                   <Input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
+                    disabled={statuses.find((row) => row.id === editingId)?.is_final}
                     data-testid="os-status-edit-name"
                   />
                   <div className="flex flex-wrap gap-1">
@@ -150,10 +148,11 @@ export function ServiceOrderStatusesDialog({
                       />
                     ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={editFinal} onCheckedChange={setEditFinal} />
-                    <Label>Etapa final</Label>
-                  </div>
+                  {statuses.find((row) => row.id === editingId)?.is_final ? (
+                    <p className="text-xs text-muted-foreground">
+                      Finalizado é obrigatório e encerra a ordem de serviço.
+                    </p>
+                  ) : null}
                   <div className="flex gap-2">
                     <Button size="sm" onClick={saveEdit} disabled={saving}>
                       <Check className="h-4 w-4 mr-1" />
@@ -175,7 +174,7 @@ export function ServiceOrderStatusesDialog({
                     <p className="font-medium truncate">{s.name}</p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {s.is_default && <Badge variant="secondary">Padrão</Badge>}
-                      {s.is_final && <Badge>Final</Badge>}
+                      {s.is_final && <Badge>Finalizado · fecha a OS</Badge>}
                       <span className="text-xs text-muted-foreground">ordem {idx + 1}</span>
                     </div>
                   </div>
@@ -219,16 +218,19 @@ export function ServiceOrderStatusesDialog({
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => deleteStatus(s.id)}
-                      data-testid={`os-status-delete-${s.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!s.is_final && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        aria-label="Excluir etapa"
+                        onClick={() => deleteStatus(s.id)}
+                        data-testid={`os-status-delete-${s.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </>
               )}
@@ -265,10 +267,6 @@ export function ServiceOrderStatusesDialog({
             </div>
           </div>
           <div className="flex flex-wrap gap-4">
-            <div className="flex items-center gap-2">
-              <Switch checked={isFinal} onCheckedChange={setIsFinal} id="os-status-final" />
-              <Label htmlFor="os-status-final">Etapa final</Label>
-            </div>
             <div className="flex items-center gap-2">
               <Switch checked={isDefault} onCheckedChange={setIsDefault} id="os-status-default" />
               <Label htmlFor="os-status-default">Usar como padrão ao criar OS</Label>

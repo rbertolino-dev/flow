@@ -294,5 +294,13 @@ test.describe("Ordem de Serviço — etapas e criação @human-behavior @service
     await expect(page.getByText("Modelo de Ordem de Serviço")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/empresa comissionada/i)).toHaveCount(0);
     await expect(page.getByTestId("os-field-delete-warranty_terms")).toBeVisible({ timeout: 15_000 });
+    await human.humanClick(page.getByRole("button", { name: "Close" }));
+
+    await human.humanClick(page.getByTestId("os-etapas-gear-btn"));
+    await expect(page.getByTestId("os-statuses-dialog")).toBeVisible({ timeout: 15_000 });
+    const finalRow = page.locator("[data-testid^='os-status-row-']").filter({ hasText: "Finalizado" });
+    await expect(finalRow).toBeVisible();
+    await expect(finalRow.getByText(/fecha a OS/i)).toBeVisible();
+    await expect(finalRow.getByRole("button", { name: "Excluir etapa" })).toHaveCount(0);
   });
 });

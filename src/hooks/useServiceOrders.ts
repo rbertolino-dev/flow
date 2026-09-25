@@ -259,7 +259,7 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
 
   const updateOrder = async (
     id: string,
-    patch: Partial<ServiceOrderFormData> & { status_id?: string; label_tag?: string }
+    patch: Partial<ServiceOrderFormData> & { status_id?: string; label_tag?: string; is_closed?: boolean }
   ) => {
     if (!activeOrgId) return false;
 
@@ -295,6 +295,11 @@ export function useServiceOrders(filters?: ServiceOrderFilters) {
         'add_to_google_calendar',
         'reference_images',
       ];
+
+      if (patch.is_closed === false) {
+        updatePayload.is_closed = false;
+        updatePayload.closed_at = null;
+      }
 
       keys.forEach((k) => {
         if (patch[k] !== undefined) updatePayload[k] = patch[k];

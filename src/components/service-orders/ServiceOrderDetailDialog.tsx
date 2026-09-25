@@ -324,7 +324,7 @@ export function ServiceOrderDetailDialog({
             data-testid="os-detail-close-btn"
           >
             <XCircle className="h-4 w-4 mr-1" />
-            Fechar
+            Fechar OS
           </Button>
           <Button className="bg-violet-600 hover:bg-violet-700 text-white min-h-11 text-sm" onClick={loadLogs}>
             Logs da O.S.

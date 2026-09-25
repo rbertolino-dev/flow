@@ -327,6 +327,9 @@ export function ServiceOrderCloseDialog({
           <DialogTitle className="text-center tracking-wide text-base sm:text-lg pr-6">
             ENCERRAR ORDEM DE SERVIÇO
           </DialogTitle>
+          <p className="text-center text-sm text-muted-foreground">
+            Ao encerrar, a etapa passa para Finalizado.
+          </p>
         </DialogHeader>
 
         <div className="space-y-4">
