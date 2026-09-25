@@ -338,6 +338,12 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               )}
+              onMouseEnter={() => {
+                if (item.id === "superadmin") void import("@/pages/SuperAdmin");
+              }}
+              onFocus={() => {
+                if (item.id === "superadmin") void import("@/pages/SuperAdmin");
+              }}
               onClick={handleClick}
             >
               <item.icon className="h-5 w-5 shrink-0" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,16 +6,59 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Users, Loader2, ShieldAlert, Crown, Plus, Eye, TrendingUp, Trash2, Package, Sparkles, MessageSquare, GitBranch, Database, Image, FileSpreadsheet, Link2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CreateOrganizationDialog } from "./CreateOrganizationDialog";
-import { CreateUserDialog } from "./CreateUserDialog";
-import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
-import { OrganizationDetailPanel } from "./OrganizationDetailPanel";
-import { PlansManagementPanel } from "./PlansManagementPanel";
-import { AssistantConfigPanel } from "./AssistantConfigPanel";
-import { EvolutionProvidersPanel } from "./EvolutionProvidersPanel";
-import { ContractStorageConfig } from "./ContractStorageConfig";
-import { LogoUploader } from "@/components/admin/LogoUploader";
 import { useNavigate } from "react-router-dom";
+
+const CreateOrganizationDialog = lazy(() =>
+  import("./CreateOrganizationDialog").then((m) => ({ default: m.CreateOrganizationDialog }))
+);
+const CreateUserDialog = lazy(() =>
+  import("./CreateUserDialog").then((m) => ({ default: m.CreateUserDialog }))
+);
+const DeleteOrganizationDialog = lazy(() =>
+  import("./DeleteOrganizationDialog").then((m) => ({ default: m.DeleteOrganizationDialog }))
+);
+const OrganizationDetailPanel = lazy(() =>
+  import("./OrganizationDetailPanel").then((m) => ({ default: m.OrganizationDetailPanel }))
+);
+const PlansManagementPanel = lazy(() =>
+  import("./PlansManagementPanel").then((m) => ({ default: m.PlansManagementPanel }))
+);
+const AssistantConfigPanel = lazy(() =>
+  import("./AssistantConfigPanel").then((m) => ({ default: m.AssistantConfigPanel }))
+);
+const EvolutionProvidersPanel = lazy(() =>
+  import("./EvolutionProvidersPanel").then((m) => ({ default: m.EvolutionProvidersPanel }))
+);
+const ContractStorageConfig = lazy(() =>
+  import("./ContractStorageConfig").then((m) => ({ default: m.ContractStorageConfig }))
+);
+const LogoUploader = lazy(() =>
+  import("@/components/admin/LogoUploader").then((m) => ({ default: m.LogoUploader }))
+);
+
+const PAGE_SIZE = 1000;
+const IN_CHUNK = 60;
+
+function chunkIds<T>(ids: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  return chunks;
+}
+
+async function selectAllPages<T>(
+  queryPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await queryPage(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+    from += PAGE_SIZE;
+  }
+}
 
 interface OrganizationWithMembers {
   id: string;
@@ -34,6 +77,14 @@ interface OrganizationWithMembers {
       role: string;
     }>;
   }>;
+}
+
+function PanelSpinner() {
+  return (
+    <div className="h-full flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
 }
 
 export function SuperAdminDashboard() {
@@ -61,26 +112,25 @@ export function SuperAdminDashboard() {
 
   const checkPermissions = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return;
 
-      // Check if user is admin
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .maybeSingle();
+      const [{ data: roleData }, { data: isPubdigFn }] = await Promise.all([
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'admin')
+          .maybeSingle(),
+        supabase.rpc('is_pubdigital_user', { _user_id: user.id }),
+      ]);
 
       const hasAdminRole = !!roleData;
-      setIsAdmin(hasAdminRole);
-
-      // Check if user is pubdigital via DB function
-      const { data: isPubdigFn } = await supabase.rpc('is_pubdigital_user', { _user_id: user.id });
       const isPubdig = !!isPubdigFn;
+      setIsAdmin(hasAdminRole);
       setIsPubdigitalUser(isPubdig);
 
-      // Only fetch all orgs if user is admin or pubdigital
       if (hasAdminRole || isPubdig) {
         await fetchAllOrganizations();
       } else {
@@ -97,86 +147,104 @@ export function SuperAdminDashboard() {
     }
   };
 
-  const fetchAllOrganizations = async () => {
+  const fetchAllOrganizations = async (): Promise<OrganizationWithMembers[] | null> => {
     try {
       setLoading(true);
-      
-      // Buscar todas as organizações diretamente da tabela
-      // As políticas RLS permitem que admins e pubdigital vejam todas
-      const { data: orgsData, error: orgsError } = await supabase
-        .from('organizations')
-        .select('id, name, created_at')
-        .order('created_at', { ascending: false });
 
-      if (orgsError) {
-        console.error('Erro ao buscar organizações:', orgsError);
-        throw orgsError;
-      }
+      const orgsData = await selectAllPages<{ id: string; name: string | null; created_at: string }>((from, to) =>
+        supabase
+          .from('organizations')
+          .select('id, name, created_at')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, to)
+      );
 
-      if (!orgsData || orgsData.length === 0) {
+      if (orgsData.length === 0) {
         setOrganizations([]);
-        return;
+        return [];
       }
 
-      // Para cada organização, buscar membros
-      const orgsWithMembers: OrganizationWithMembers[] = [];
-      
-      for (const org of orgsData) {
-        // Buscar membros da organização
-        const { data: membersData, error: membersError } = await supabase
-          .from('organization_members')
-          .select('user_id, role, created_at')
-          .eq('organization_id', org.id);
+      const orgIds = orgsData.map((org) => org.id);
+      const memberChunks = await Promise.all(
+        chunkIds(orgIds, IN_CHUNK).map((ids) =>
+          selectAllPages<{
+            organization_id: string;
+            user_id: string;
+            role: string;
+            created_at: string;
+          }>((from, to) =>
+            supabase
+              .from('organization_members')
+              .select('organization_id, user_id, role, created_at')
+              .in('organization_id', ids)
+              .order('created_at', { ascending: true })
+              .order('user_id', { ascending: true })
+              .range(from, to)
+          )
+        )
+      );
+      const memberRows = memberChunks.flat();
 
-        if (membersError) {
-          console.warn(`Erro ao buscar membros da org ${org.id}:`, membersError);
+      const userIds = [...new Set(memberRows.map((member) => member.user_id))];
+      const profilesById = new Map<string, { email: string | null; full_name: string | null }>();
+      const rolesByUser = new Map<string, Array<{ role: string }>>();
+
+      if (userIds.length > 0) {
+        const [profileRows, roleRows] = await Promise.all([
+          Promise.all(
+            chunkIds(userIds, IN_CHUNK).map((ids) =>
+              selectAllPages<{ id: string; email: string | null; full_name: string | null }>((from, to) =>
+                supabase.from('profiles').select('id, email, full_name').in('id', ids).range(from, to)
+              )
+            )
+          ),
+          Promise.all(
+            chunkIds(userIds, IN_CHUNK).map((ids) =>
+              selectAllPages<{ user_id: string; role: string }>((from, to) =>
+                supabase.from('user_roles').select('user_id, role').in('user_id', ids).range(from, to)
+              )
+            )
+          ),
+        ]);
+
+        for (const profile of profileRows.flat()) {
+          profilesById.set(profile.id, profile);
         }
-
-        const members = [];
-        
-        // Para cada membro, buscar perfil e roles
-        for (const member of membersData || []) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('email, full_name')
-            .eq('id', member.user_id)
-            .maybeSingle();
-
-          const { data: rolesData } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', member.user_id);
-
-          members.push({
-            user_id: member.user_id,
-            role: member.role,
-            created_at: member.created_at,
-            profiles: {
-              email: profileData?.email || '',
-              full_name: profileData?.full_name || null,
-            },
-            user_roles: (rolesData || []).map((r: { role: string }) => ({ role: r.role })),
-          });
+        for (const role of roleRows.flat()) {
+          const current = rolesByUser.get(role.user_id) ?? [];
+          current.push({ role: role.role });
+          rolesByUser.set(role.user_id, current);
         }
+      }
 
-        // Buscar plan_id da tabela organization_limits se existir
-        const { data: limitsData } = await supabase
-          .from('organization_limits')
-          .select('plan_id')
-          .eq('organization_id', org.id)
-          .maybeSingle();
-
-        orgsWithMembers.push({
-          id: org.id,
-          name: org.name || 'Sem nome',
-          created_at: org.created_at,
-          plan_id: limitsData?.plan_id || null,
-          organization_members: members,
+      const membersByOrg = new Map<string, OrganizationWithMembers['organization_members']>();
+      for (const member of memberRows) {
+        const profile = profilesById.get(member.user_id);
+        const list = membersByOrg.get(member.organization_id) ?? [];
+        list.push({
+          user_id: member.user_id,
+          role: member.role,
+          created_at: member.created_at,
+          profiles: {
+            email: profile?.email || '',
+            full_name: profile?.full_name || null,
+          },
+          user_roles: rolesByUser.get(member.user_id) ?? [],
         });
+        membersByOrg.set(member.organization_id, list);
       }
 
-      console.log(`Carregadas ${orgsWithMembers.length} organizações`);
+      const orgsWithMembers: OrganizationWithMembers[] = orgsData.map((org) => ({
+        id: org.id,
+        name: org.name || 'Sem nome',
+        created_at: org.created_at,
+        plan_id: null,
+        organization_members: membersByOrg.get(org.id) ?? [],
+      }));
+
       setOrganizations(orgsWithMembers);
+      return orgsWithMembers;
     } catch (error: unknown) {
       console.error('Erro ao carregar organizações:', error);
       toast({
@@ -184,6 +252,7 @@ export function SuperAdminDashboard() {
         description: error instanceof Error ? error.message : 'Erro desconhecido ao carregar organizações',
         variant: "destructive",
       });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -219,7 +288,9 @@ export function SuperAdminDashboard() {
             ← Voltar para Organizações
           </Button>
         </div>
-        <PlansManagementPanel />
+        <Suspense fallback={<PanelSpinner />}>
+          <PlansManagementPanel />
+        </Suspense>
       </div>
     );
   }
@@ -232,7 +303,9 @@ export function SuperAdminDashboard() {
             ← Voltar para Organizações
           </Button>
         </div>
-        <AssistantConfigPanel />
+        <Suspense fallback={<PanelSpinner />}>
+          <AssistantConfigPanel />
+        </Suspense>
       </div>
     );
   }
@@ -245,7 +318,9 @@ export function SuperAdminDashboard() {
             ← Voltar para Organizações
           </Button>
         </div>
-        <EvolutionProvidersPanel />
+        <Suspense fallback={<PanelSpinner />}>
+          <EvolutionProvidersPanel />
+        </Suspense>
       </div>
     );
   }
@@ -258,7 +333,9 @@ export function SuperAdminDashboard() {
             ← Voltar para Organizações
           </Button>
         </div>
-        <ContractStorageConfig />
+        <Suspense fallback={<PanelSpinner />}>
+          <ContractStorageConfig />
+        </Suspense>
       </div>
     );
   }
@@ -272,7 +349,9 @@ export function SuperAdminDashboard() {
           </Button>
         </div>
         <div className="max-w-2xl mx-auto">
-          <LogoUploader />
+          <Suspense fallback={<PanelSpinner />}>
+            <LogoUploader />
+          </Suspense>
         </div>
       </div>
     );
@@ -281,18 +360,19 @@ export function SuperAdminDashboard() {
   if (selectedOrg) {
     return (
       <div className="h-full overflow-auto bg-background p-6">
+        <Suspense fallback={<PanelSpinner />}>
         <OrganizationDetailPanel
           organization={selectedOrg}
           onClose={() => setSelectedOrg(null)}
           onUpdate={async () => {
-            await fetchAllOrganizations();
-            // Atualizar a organização selecionada com os dados atualizados
-            const updatedOrg = organizations.find(o => o.id === selectedOrg.id);
+            const updated = await fetchAllOrganizations();
+            const updatedOrg = updated?.find((org) => org.id === selectedOrg.id);
             if (updatedOrg) {
               setSelectedOrg(updatedOrg);
             }
           }}
         />
+        </Suspense>
       </div>
     );
   }
@@ -548,26 +628,36 @@ export function SuperAdminDashboard() {
         </div>
       </div>
 
-      <CreateOrganizationDialog
-        open={createOrgOpen}
-        onOpenChange={setCreateOrgOpen}
-        onSuccess={fetchAllOrganizations}
-      />
+      {createOrgOpen && (
+        <Suspense fallback={null}>
+          <CreateOrganizationDialog
+            open={createOrgOpen}
+            onOpenChange={setCreateOrgOpen}
+            onSuccess={fetchAllOrganizations}
+          />
+        </Suspense>
+      )}
 
-      <CreateUserDialog
-        open={createUserOpen}
-        onOpenChange={setCreateUserOpen}
-        onSuccess={fetchAllOrganizations}
-      />
+      {createUserOpen && (
+        <Suspense fallback={null}>
+          <CreateUserDialog
+            open={createUserOpen}
+            onOpenChange={setCreateUserOpen}
+            onSuccess={fetchAllOrganizations}
+          />
+        </Suspense>
+      )}
 
       {orgToDelete && (
-        <DeleteOrganizationDialog
-          open={deleteOrgOpen}
-          onOpenChange={setDeleteOrgOpen}
-          onSuccess={fetchAllOrganizations}
-          organizationId={orgToDelete.id}
-          organizationName={orgToDelete.name}
-        />
+        <Suspense fallback={null}>
+          <DeleteOrganizationDialog
+            open={deleteOrgOpen}
+            onOpenChange={setDeleteOrgOpen}
+            onSuccess={fetchAllOrganizations}
+            organizationId={orgToDelete.id}
+            organizationName={orgToDelete.name}
+          />
+        </Suspense>
       )}
     </div>
   );
