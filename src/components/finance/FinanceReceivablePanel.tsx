@@ -21,6 +21,7 @@ import {
 import { PAYMENT_METHODS, getPaymentMethodLabel, type PaymentMethod } from '@/lib/paymentMethods';
 import {
   formatFinanceMoney,
+  type FinanceDirection,
   type FinancialAccount,
   type FinancialCategory,
   type FinancialEntry,
@@ -72,6 +73,7 @@ interface SaleItem {
 
 interface FinanceReceivablePanelProps {
   entry: FinancialEntry | null;
+  direction: FinanceDirection;
   accounts: FinancialAccount[];
   categories: FinancialCategory[];
   saving: boolean;
@@ -83,6 +85,7 @@ interface FinanceReceivablePanelProps {
 
 export function FinanceReceivablePanel({
   entry,
+  direction,
   accounts,
   categories,
   saving,
@@ -137,8 +140,9 @@ export function FinanceReceivablePanel({
   if (!entry) return null;
 
   const categoryOptions = categories.filter(
-    (category) => category.direction === 'receber' || category.direction === 'ambos'
+    (category) => category.direction === direction || category.direction === 'ambos'
   );
+  const isIncome = direction === 'receber';
 
   return (
     <>
@@ -161,7 +165,9 @@ export function FinanceReceivablePanel({
           <h2 className="text-lg font-semibold text-slate-800">{entry.description || 'Lançamento'}</h2>
           <p className="text-sm text-slate-500">Contato: {entry.contact_name || 'Sem contato'} /</p>
 
-          <h3 className="mb-3 mt-4 text-sm font-semibold text-slate-700">Informações da entrada</h3>
+          <h3 className="mb-3 mt-4 text-sm font-semibold text-slate-700">
+            {isIncome ? 'Informações da entrada' : 'Informações da saída'}
+          </h3>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <Info label="Valor" value={formatFinanceMoney(Number(entry.amount))} />
             <Info label="Data de realização" value={panelDate(entry.created_at)} />
@@ -223,7 +229,7 @@ export function FinanceReceivablePanel({
               disabled={saving}
               onClick={() => void onReceive(entry)}
             >
-              Marcar como recebido
+              {isIncome ? 'Marcar como recebido' : 'Marcar como pago'}
             </Button>
           )}
           <Button
@@ -260,6 +266,7 @@ export function FinanceReceivablePanel({
       <FinanceReceivableEditDialog
         open={editOpen}
         entry={entry}
+        direction={direction}
         accounts={accounts}
         categories={categoryOptions}
         saving={saving}
@@ -283,6 +290,7 @@ function Info({ label, value }: { label: string; value: string }) {
 function FinanceReceivableEditDialog({
   open,
   entry,
+  direction,
   accounts,
   categories,
   saving,
@@ -291,6 +299,7 @@ function FinanceReceivableEditDialog({
 }: {
   open: boolean;
   entry: FinancialEntry;
+  direction: FinanceDirection;
   accounts: FinancialAccount[];
   categories: FinancialCategory[];
   saving: boolean;
@@ -336,7 +345,9 @@ function FinanceReceivableEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-semibold text-sky-500">Editar conta a receber</DialogTitle>
+          <DialogTitle className="text-2xl font-semibold text-sky-500">
+            {direction === 'receber' ? 'Editar conta a receber' : 'Editar conta a pagar'}
+          </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>

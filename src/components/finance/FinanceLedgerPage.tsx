@@ -215,9 +215,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
     );
   }, [directionEntries, from, to, search, appliedFilters, showPaid, today]);
 
-  const selectedEntry = direction === 'receber'
-    ? directionEntries.find((entry) => entry.id === selectedId) || null
-    : null;
+  const selectedEntry = directionEntries.find((entry) => entry.id === selectedId) || null;
 
   const categoryOptions = categories.filter(
     (category) => category.direction === direction || category.direction === 'ambos'
@@ -359,7 +357,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
                     entry={entry}
                     direction={direction}
                     disabled={saving}
-                    onOpen={direction === 'receber' ? () => setSelectedId(entry.id) : undefined}
+                    onOpen={() => setSelectedId(entry.id)}
                     onPay={() => {
                       setPayEntry(entry);
                       setPayDate(todayIsoDate());
@@ -559,28 +557,27 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
           }, 'Lançamento criado');
         }}
       />
-      {direction === 'receber' && (
-        <FinanceReceivablePanel
-          entry={selectedEntry}
-          accounts={accounts}
-          categories={categories}
-          saving={saving}
-          onClose={() => setSelectedId(null)}
-          onSave={async (entryId, patch) => {
-            await runAction(() => updateEntry(entryId, patch), 'Lançamento atualizado');
-          }}
-          onReceive={async (entry) => {
-            await runAction(
-              () => setStatus(entry.id, 'paid', paymentTimestamp(todayIsoDate())),
-              'Lançamento recebido'
-            );
-          }}
-          onDelete={async (entry) => {
-            const ok = await runAction(() => setStatus(entry.id, 'cancelled'), 'Lançamento excluído');
-            if (ok) setSelectedId(null);
-          }}
-        />
-      )}
+      <FinanceReceivablePanel
+        entry={selectedEntry}
+        direction={direction}
+        accounts={accounts}
+        categories={categories}
+        saving={saving}
+        onClose={() => setSelectedId(null)}
+        onSave={async (entryId, patch) => {
+          await runAction(() => updateEntry(entryId, patch), 'Lançamento atualizado');
+        }}
+        onReceive={async (entry) => {
+          await runAction(
+            () => setStatus(entry.id, 'paid', paymentTimestamp(todayIsoDate())),
+            direction === 'receber' ? 'Lançamento recebido' : 'Lançamento pago'
+          );
+        }}
+        onDelete={async (entry) => {
+          const ok = await runAction(() => setStatus(entry.id, 'cancelled'), 'Lançamento excluído');
+          if (ok) setSelectedId(null);
+        }}
+      />
       <Dialog open={!!payEntry} onOpenChange={(open) => { if (!open) setPayEntry(null); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Data de pagamento</DialogTitle></DialogHeader>
