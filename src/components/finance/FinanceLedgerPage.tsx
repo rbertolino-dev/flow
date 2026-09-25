@@ -31,6 +31,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { FinanceEntryDialog } from '@/components/finance/FinanceEntryDialog';
 import { useFinancialLedger } from '@/hooks/useFinancialLedger';
+import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 import {
   entryBucket,
   entryInPeriod,
@@ -414,7 +415,14 @@ function EntryRow({
       <TableCell>{entry.origin_label || 'Normal'}</TableCell>
       {direction === 'receber' && <TableCell>{entry.billing_name || 'Sem contato'}</TableCell>}
       <TableCell>{entry.contact_name || '—'}</TableCell>
-      <TableCell>{entry.description || '—'}</TableCell>
+      <TableCell>
+        <div>{entry.description || '—'}</div>
+        {entry.payment_method ? (
+          <div className="text-xs text-slate-500">
+            {getPaymentMethodLabel(entry.payment_method as PaymentMethod)}
+          </div>
+        ) : null}
+      </TableCell>
       <TableCell className="whitespace-nowrap">{formatFinanceDate(entry.due_date)}</TableCell>
       <TableCell className="whitespace-nowrap">{formatFinanceDate(entry.paid_at)}</TableCell>
       <TableCell className="whitespace-nowrap">{formatFinanceDate(entry.competence_date || entry.due_date)}</TableCell>
@@ -422,6 +430,9 @@ function EntryRow({
       <TableCell>{entry.account || '—'}</TableCell>
       <TableCell>
         <div className="flex items-center gap-1">
+          <span className="text-xs text-slate-500">
+            {entry.status === 'paid' ? (direction === 'receber' ? 'Recebido' : 'Pago') : 'Em aberto'}
+          </span>
           {entry.status === 'open' && (
             <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={disabled} onClick={onPay} title={direction === 'receber' ? 'Receber' : 'Pagar'}>
               <Check className="h-4 w-4" />

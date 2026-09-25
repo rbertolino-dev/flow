@@ -1,7 +1,7 @@
 ALTER TABLE pos_stock_movements DROP CONSTRAINT IF EXISTS pos_stock_movements_movement_type_check;
 ALTER TABLE pos_stock_movements
   ADD CONSTRAINT pos_stock_movements_movement_type_check
-  CHECK (movement_type IN ('sale', 'sale_cancel', 'adjustment', 'in', 'out', 'adjust'));
+  CHECK (movement_type IN ('sale', 'sale_cancel', 'adjustment', 'in', 'out', 'adjust', 'return', 'exchange'));
 
 CREATE TABLE IF NOT EXISTS product_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

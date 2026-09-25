@@ -23,6 +23,14 @@ type SaleItemInput = {
 type PaymentInput = {
   method: string;
   amount: number;
+  tendered_amount?: number | null;
+  change_amount?: number | null;
+};
+
+type FinanceLineInput = {
+  amount: number;
+  due_date: string;
+  method: string;
 };
 
 async function getPostgresClient() {
@@ -113,19 +121,13 @@ async function syncPosFinancial(
     soldAt: string;
     userId: string;
     payments: PaymentInput[];
+    financeLines?: FinanceLineInput[];
+    attachmentName?: string | null;
+    isRecurring?: boolean;
     commissionAmount: number;
     commissionUserName: string | null;
   }
 ) {
-  let immediate = 0;
-  let deferred = 0;
-  for (const payment of input.payments) {
-    const method = String(payment.method || "").toLowerCase();
-    const amount = Number(payment.amount || 0);
-    if (DEFERRED_PAYMENT_METHODS.has(method)) deferred += amount;
-    else immediate += amount;
-  }
-
   const description = input.description || `Venda PDV #${input.saleNumber}`;
   const account = input.account || "Caixa";
   const categoryAliases: Record<string, string> = {
@@ -142,37 +144,37 @@ async function syncPosFinancial(
     return (data as string | null) || null;
   };
 
-  if (immediate > 0.009) {
-    await upsert({
-      p_organization_id: input.organizationId,
-      p_direction: "receber",
-      p_amount: immediate,
-      p_due_date: input.paymentDate,
-      p_source_type: "pdv",
-      p_source_id: deferred > 0.009 ? `${input.saleId}:avista` : input.saleId,
-      p_status: "paid",
-      p_settlement_status: "confirmado",
-      p_lead_id: input.leadId,
-      p_description: description,
-      p_contact_name: input.customerName,
-      p_billing_name: "Sem contato",
-      p_category: category,
-      p_account: account,
-      p_origin_label: "PDV",
-      p_paid_at: input.soldAt,
-      p_created_by: input.userId,
-    });
-  }
+  const explicitLines = Array.isArray(input.financeLines) && input.financeLines.length > 0;
+  const lines = explicitLines
+    ? input.financeLines!
+    : input.payments.map((payment) => ({
+      amount: Number(payment.amount || 0),
+      due_date: input.paymentDate,
+      method: String(payment.method || ""),
+    }));
 
-  if (deferred > 0.009) {
-    await upsert({
+  const created: Array<{
+    id: string;
+    amount: number;
+    due_date: string;
+    method: string;
+    status: "open" | "paid";
+  }> = [];
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const amount = Number(line.amount || 0);
+    if (amount <= 0.009) continue;
+    const method = String(line.method || "").toLowerCase();
+    const paid = !explicitLines && !DEFERRED_PAYMENT_METHODS.has(method);
+    const id = await upsert({
       p_organization_id: input.organizationId,
       p_direction: "receber",
-      p_amount: deferred,
-      p_due_date: input.paymentDate,
+      p_amount: amount,
+      p_due_date: line.due_date || input.paymentDate,
       p_source_type: "pdv",
-      p_source_id: immediate > 0.009 ? `${input.saleId}:aprazo` : input.saleId,
-      p_status: "open",
+      p_source_id: `venda:${input.saleId}:${index}`,
+      p_status: paid ? "paid" : "open",
       p_settlement_status: "confirmado",
       p_lead_id: input.leadId,
       p_description: description,
@@ -181,8 +183,21 @@ async function syncPosFinancial(
       p_category: category,
       p_account: account,
       p_origin_label: "PDV",
+      p_paid_at: paid ? input.soldAt : null,
       p_created_by: input.userId,
+      p_payment_method: method,
+      p_attachment_name: input.attachmentName || null,
+      p_is_recurring: Boolean(input.isRecurring),
     });
+    if (id) {
+      created.push({
+        id,
+        amount,
+        due_date: String(line.due_date || input.paymentDate).slice(0, 10),
+        method,
+        status: paid ? "paid" : "open",
+      });
+    }
   }
 
   if (input.commissionAmount > 0.009) {
@@ -206,6 +221,7 @@ async function syncPosFinancial(
     });
   }
 
+  return created;
 }
 
 function json(data: unknown, status = 200) {
@@ -310,12 +326,31 @@ serve(async (req) => {
           WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
           ORDER BY created_at ASC
         `;
+        const returnsHead = await pg.queryObject`
+          SELECT * FROM pos_sale_returns
+          WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          ORDER BY created_at ASC
+        `;
+        const returnItems = await pg.queryObject`
+          SELECT i.*
+          FROM pos_sale_return_items i
+          JOIN pos_sale_returns r ON r.id = i.return_id
+          WHERE r.sale_id = ${saleId} AND r.organization_id = ${organizationId}
+          ORDER BY i.created_at ASC
+        `;
+        const serializedReturns = serializeRows(returnsHead.rows as Record<string, unknown>[]);
+        const serializedReturnItems = serializeRows(returnItems.rows as Record<string, unknown>[]);
+        const returns = serializedReturns.map((row) => ({
+          ...row,
+          items: serializedReturnItems.filter((item) => item.return_id === row.id),
+        }));
 
         return json({
           data: {
             ...serializeRows([sale.rows[0] as Record<string, unknown>])[0],
             items: serializeRows(items.rows as Record<string, unknown>[]),
             payments: serializeRows(payments.rows as Record<string, unknown>[]),
+            returns,
           },
         });
       }
@@ -1031,20 +1066,34 @@ serve(async (req) => {
           }
 
           for (const payment of payments) {
+            const tendered = payment.tendered_amount == null || payment.tendered_amount === ""
+              ? null
+              : Number(payment.tendered_amount);
+            const changeAmount = Number(payment.change_amount || 0);
             await tx.queryArray`
-              INSERT INTO pos_sale_payments (sale_id, organization_id, method, amount)
-              VALUES (
+              INSERT INTO pos_sale_payments (
+                sale_id, organization_id, method, amount, tendered_amount, change_amount
+              ) VALUES (
                 ${saleId}, ${organizationId},
-                ${String(payment.method)}, ${Number(payment.amount)}
+                ${String(payment.method)}, ${Number(payment.amount)},
+                ${tendered}, ${changeAmount}
               )
             `;
           }
 
           await tx.queryArray`COMMIT`;
 
+          let financialEntries: Array<{
+            id: string;
+            amount: number;
+            due_date: string;
+            method: string;
+            status: "open" | "paid";
+          }> = [];
           if (generateFinancial) {
             try {
-              await syncPosFinancial(supabase, {
+              const financeLines = Array.isArray(body.finance_lines) ? body.finance_lines : [];
+              financialEntries = await syncPosFinancial(supabase, {
                 organizationId,
                 saleId,
                 saleNumber,
@@ -1057,9 +1106,12 @@ serve(async (req) => {
                 soldAt,
                 userId: user.id,
                 payments,
+                financeLines,
+                attachmentName: body.attachment_name || null,
+                isRecurring: body.split_mode === "recorrencia",
                 commissionAmount,
                 commissionUserName,
-              });
+              }) || [];
             } catch (financeErr) {
               console.error("Erro ao lançar venda no financeiro:", financeErr);
             }
@@ -1083,6 +1135,7 @@ serve(async (req) => {
               sale_description: body.sale_description || null,
               apply_stock: applyStock,
               generate_financial: generateFinancial,
+              financial_entries: financialEntries,
             },
           }, 201);
         } catch (txErr) {
@@ -1455,6 +1508,263 @@ serve(async (req) => {
               items: serializeRows(itemsOut.rows as Record<string, unknown>[]),
               payments: serializeRows(paymentsOut.rows as Record<string, unknown>[]),
             },
+          });
+        } catch (txErr) {
+          await pg.queryArray`ROLLBACK`;
+          throw txErr;
+        }
+      }
+
+      if (postAction === "return_exchange") {
+        const saleId = body.sale_id;
+        const returnedItems = Array.isArray(body.returned_items) ? body.returned_items : [];
+        const replacementItems = Array.isArray(body.replacement_items) ? body.replacement_items : [];
+        const settlementMethod = String(body.settlement_method || "dinheiro");
+        const settleNow = Boolean(body.settle_now);
+        if (!saleId) return json({ error: "sale_id obrigatório" }, 400);
+        if (!returnedItems.length) return json({ error: "Informe a quantidade a devolver" }, 400);
+
+        await pg.queryArray`BEGIN`;
+        try {
+          const sale = await pg.queryObject<{
+            id: string;
+            status: string;
+            sale_number: string;
+            lead_id: string | null;
+            customer_name: string | null;
+            financial_account: string | null;
+            financial_category: string | null;
+          }>`
+            SELECT id, status, sale_number, lead_id, customer_name, financial_account, financial_category
+            FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+            FOR UPDATE
+          `;
+          if (!sale.rows.length) {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Venda não encontrada" }, 404);
+          }
+          if (sale.rows[0].status !== "completed") {
+            await pg.queryArray`ROLLBACK`;
+            return json({ error: "Só é possível devolver uma venda concluída" }, 400);
+          }
+
+          const saleItems = await pg.queryObject<{
+            id: string;
+            item_type: string;
+            item_id: string | null;
+            name: string;
+            sku: string | null;
+            unit: string | null;
+            quantity: number;
+            unit_price: number;
+          }>`
+            SELECT id, item_type, item_id, name, sku, unit, quantity, unit_price
+            FROM pos_sale_items
+            WHERE sale_id = ${saleId} AND organization_id = ${organizationId}
+          `;
+          const already = await pg.queryObject<{ sale_item_id: string | null; quantity: number }>`
+            SELECT i.sale_item_id, i.quantity
+            FROM pos_sale_return_items i
+            JOIN pos_sale_returns r ON r.id = i.return_id
+            WHERE r.sale_id = ${saleId}
+              AND r.organization_id = ${organizationId}
+              AND i.line_type = 'returned'
+          `;
+          const returnedSoFar = new Map<string, number>();
+          for (const row of already.rows) {
+            if (!row.sale_item_id) continue;
+            returnedSoFar.set(row.sale_item_id, (returnedSoFar.get(row.sale_item_id) || 0) + Number(row.quantity));
+          }
+
+          let returnedAmount = 0;
+          const normalizedReturned: Array<{
+            id: string;
+            item_type: string;
+            item_id: string | null;
+            name: string;
+            sku: string | null;
+            unit: string | null;
+            quantity: number;
+            unit_price: number;
+            total_price: number;
+          }> = [];
+          for (const input of returnedItems) {
+            const item = saleItems.rows.find((row) => row.id === input.item_id);
+            if (!item) {
+              await pg.queryArray`ROLLBACK`;
+              return json({ error: "Item da venda não encontrado" }, 400);
+            }
+            const qty = Number(input.quantity || 0);
+            const available = Number(item.quantity) - (returnedSoFar.get(item.id) || 0);
+            if (qty <= 0 || qty - available > 0.001) {
+              await pg.queryArray`ROLLBACK`;
+              return json({ error: `Quantidade inválida para ${item.name}` }, 400);
+            }
+            const totalPrice = Math.round(qty * Number(item.unit_price) * 100) / 100;
+            returnedAmount += totalPrice;
+            normalizedReturned.push({
+              id: item.id,
+              item_type: item.item_type,
+              item_id: item.item_id,
+              name: item.name,
+              sku: item.sku,
+              unit: item.unit,
+              quantity: qty,
+              unit_price: Number(item.unit_price),
+              total_price: totalPrice,
+            });
+          }
+
+          let replacementAmount = 0;
+          const normalizedReplacement: Array<{
+            item_type: string;
+            item_id: string | null;
+            name: string;
+            sku: string | null;
+            unit: string;
+            quantity: number;
+            unit_price: number;
+            total_price: number;
+          }> = [];
+          for (const input of replacementItems) {
+            const qty = Number(input.quantity || 0);
+            const unitPrice = Number(input.unit_price || 0);
+            if (!input.name || qty <= 0 || unitPrice < 0) {
+              await pg.queryArray`ROLLBACK`;
+              return json({ error: "Item de troca inválido" }, 400);
+            }
+            const totalPrice = Math.round(qty * unitPrice * 100) / 100;
+            replacementAmount += totalPrice;
+            normalizedReplacement.push({
+              item_type: input.item_type === "service" ? "service" : "product",
+              item_id: input.item_id || null,
+              name: String(input.name),
+              sku: input.sku || null,
+              unit: input.unit || "un",
+              quantity: qty,
+              unit_price: unitPrice,
+              total_price: totalPrice,
+            });
+          }
+
+          returnedAmount = Math.round(returnedAmount * 100) / 100;
+          replacementAmount = Math.round(replacementAmount * 100) / 100;
+          const difference = Math.round((replacementAmount - returnedAmount) * 100) / 100;
+          const kind = normalizedReplacement.length ? "exchange" : "return";
+
+          const createdReturn = await pg.queryObject<{ id: string }>`
+            INSERT INTO pos_sale_returns (
+              organization_id, sale_id, kind, returned_amount, replacement_amount,
+              difference_amount, settlement_method, settle_now, created_by
+            ) VALUES (
+              ${organizationId}, ${saleId}, ${kind}, ${returnedAmount}, ${replacementAmount},
+              ${difference}, ${settlementMethod}, ${settleNow}, ${user.id}
+            )
+            RETURNING id
+          `;
+          const returnId = createdReturn.rows[0].id;
+
+          const moveStock = async (
+            productId: string,
+            delta: number,
+            movementType: string
+          ) => {
+            const stockRow = await pg.queryObject<{ stock_quantity: number | null }>`
+              SELECT stock_quantity FROM products
+              WHERE id = ${productId} AND organization_id = ${organizationId}
+              FOR UPDATE
+            `;
+            if (!stockRow.rows.length) return;
+            const before = Number(stockRow.rows[0].stock_quantity ?? 0);
+            const after = before + delta;
+            await pg.queryArray`
+              UPDATE products
+              SET stock_quantity = ${after}, updated_at = now()
+              WHERE id = ${productId} AND organization_id = ${organizationId}
+            `;
+            await pg.queryArray`
+              INSERT INTO pos_stock_movements (
+                organization_id, product_id, sale_id, movement_type,
+                quantity_delta, stock_before, stock_after, created_by
+              ) VALUES (
+                ${organizationId}, ${productId}, ${saleId}, ${movementType},
+                ${delta}, ${before}, ${after}, ${user.id}
+              )
+            `;
+          };
+
+          for (const item of normalizedReturned) {
+            await pg.queryArray`
+              INSERT INTO pos_sale_return_items (
+                return_id, organization_id, line_type, sale_item_id, item_type, item_id,
+                name, sku, unit, quantity, unit_price, total_price
+              ) VALUES (
+                ${returnId}, ${organizationId}, 'returned', ${item.id}, ${item.item_type}, ${item.item_id},
+                ${item.name}, ${item.sku}, ${item.unit}, ${item.quantity}, ${item.unit_price}, ${item.total_price}
+              )
+            `;
+            if (item.item_type === "product" && item.item_id) {
+              await moveStock(item.item_id, item.quantity, "return");
+            }
+          }
+
+          for (const item of normalizedReplacement) {
+            await pg.queryArray`
+              INSERT INTO pos_sale_return_items (
+                return_id, organization_id, line_type, sale_item_id, item_type, item_id,
+                name, sku, unit, quantity, unit_price, total_price
+              ) VALUES (
+                ${returnId}, ${organizationId}, 'replacement', ${null}, ${item.item_type}, ${item.item_id},
+                ${item.name}, ${item.sku}, ${item.unit}, ${item.quantity}, ${item.unit_price}, ${item.total_price}
+              )
+            `;
+            if (item.item_type === "product" && item.item_id) {
+              await moveStock(item.item_id, -item.quantity, "exchange");
+            }
+          }
+
+          await pg.queryArray`COMMIT`;
+
+          const absDiff = Math.abs(difference);
+          if (absDiff > 0.009) {
+            const direction = difference < 0 ? "pagar" : "receber";
+            const deferred = DEFERRED_PAYMENT_METHODS.has(settlementMethod.toLowerCase());
+            const paid = settleNow && !deferred;
+            const today = new Date().toISOString().slice(0, 10);
+            try {
+              await supabase.rpc("upsert_financial_entry", {
+                p_organization_id: organizationId,
+                p_direction: direction,
+                p_amount: absDiff,
+                p_due_date: today,
+                p_source_type: "pdv",
+                p_source_id: `venda:${saleId}:return:${returnId}`,
+                p_status: paid ? "paid" : "open",
+                p_settlement_status: "confirmado",
+                p_lead_id: sale.rows[0].lead_id,
+                p_description: `${kind === "exchange" ? "Troca" : "Devolução"} venda #${sale.rows[0].sale_number}`,
+                p_contact_name: sale.rows[0].customer_name,
+                p_billing_name: "Sem contato",
+                p_category: sale.rows[0].financial_category || "Vendas",
+                p_account: sale.rows[0].financial_account || "Caixa",
+                p_origin_label: "PDV",
+                p_paid_at: paid ? new Date().toISOString() : null,
+                p_created_by: user.id,
+                p_payment_method: settlementMethod,
+              });
+            } catch (financeErr) {
+              console.error("Erro ao lançar devolução no financeiro:", financeErr);
+            }
+          }
+
+          const full = await pg.queryObject`
+            SELECT * FROM pos_sales
+            WHERE id = ${saleId} AND organization_id = ${organizationId}
+            LIMIT 1
+          `;
+          return json({
+            data: serializeRows([full.rows[0] as Record<string, unknown>])[0],
           });
         } catch (txErr) {
           await pg.queryArray`ROLLBACK`;

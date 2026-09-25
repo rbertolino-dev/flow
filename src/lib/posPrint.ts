@@ -64,6 +64,17 @@ function paymentLabels(payments: PosPaymentLine[]) {
     .join(", ");
 }
 
+function paymentCashLines(payments: PosPaymentLine[]) {
+  return payments
+    .filter((payment) => payment.method === "dinheiro" && Number(payment.tendered_amount || 0) > Number(payment.amount) + 0.009)
+    .map((payment) => {
+      const received = Number(payment.tendered_amount);
+      const change = Number(payment.change_amount ?? received - Number(payment.amount));
+      return `<div><strong>Recebido:</strong> ${escapeHtml(formatMoneyPlain(received))}</div><div><strong>Troco:</strong> ${escapeHtml(formatMoneyPlain(change))}</div>`;
+    })
+    .join("");
+}
+
 /**
  * Impressão confiável via iframe (evita aba em branco do window.open + noopener).
  */
@@ -254,6 +265,7 @@ export function printPosCupom(payload: PosPrintPayload) {
     <hr/>
     <div class="block">
       <div><strong>Formas de pagamento:</strong> ${escapeHtml(paymentLabels(payments))}</div>
+      ${paymentCashLines(payments)}
       <div><strong>Nome do cliente:</strong> ${escapeHtml(customerName)}</div>
       <div><strong>Telefone do cliente:</strong> ${escapeHtml(customerPhone)}</div>
     </div>
@@ -344,6 +356,7 @@ export function printPosA4(payload: PosPrintPayload) {
     <hr/>
     <div class="block">
       <div><strong>Formas de pagamento:</strong> ${escapeHtml(paymentLabels(payments))}</div>
+      ${paymentCashLines(payments)}
       <div><strong>Nome do cliente:</strong> ${escapeHtml(sale.customer_name || "venda avulsa")}</div>
       <div><strong>Telefone do cliente:</strong> ${escapeHtml(sale.customer_phone || "")}</div>
       <div><strong>Vendedor:</strong> ${escapeHtml(sale.sold_by_name || "")}</div>

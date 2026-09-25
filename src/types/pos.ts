@@ -18,6 +18,8 @@ export interface PosPaymentLine {
   id: string;
   method: string;
   amount: number;
+  tendered_amount?: number | null;
+  change_amount?: number;
 }
 
 export interface PosSalePayment {
@@ -25,7 +27,38 @@ export interface PosSalePayment {
   sale_id: string;
   method: string;
   amount: number;
+  tendered_amount?: number | null;
+  change_amount?: number;
   created_at?: string;
+}
+
+export interface PosFinanceEntryRef {
+  id: string;
+  amount: number;
+  due_date: string;
+  method: string;
+  status: "open" | "paid";
+}
+
+export interface PosSaleReturnItem {
+  id: string;
+  line_type: "returned" | "replacement";
+  name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  item_type: PosItemType;
+}
+
+export interface PosSaleReturn {
+  id: string;
+  kind: "return" | "exchange";
+  returned_amount: number;
+  replacement_amount: number;
+  difference_amount: number;
+  settlement_method?: string | null;
+  created_at: string;
+  items?: PosSaleReturnItem[];
 }
 
 export interface PosSaleItem {
@@ -64,6 +97,7 @@ export interface PosSale {
   created_at: string;
   items?: PosSaleItem[];
   payments?: PosSalePayment[];
+  returns?: PosSaleReturn[];
   /** Valor pago na forma filtrada. Presente só quando o histórico filtra por forma de pagamento. */
   payment_amount?: number;
 }
@@ -305,7 +339,15 @@ export interface FinalizeSalePayload {
     unit_price: number;
     discount_amount?: number;
   }>;
-  payments: Array<{ method: string; amount: number }>;
+  payments: Array<{
+    method: string;
+    amount: number;
+    tendered_amount?: number | null;
+    change_amount?: number;
+  }>;
+  finance_lines?: Array<{ amount: number; due_date: string; method: string }>;
+  attachment_name?: string | null;
+  split_mode?: "parcelar" | "recorrencia" | "entrada" | null;
   discount_amount?: number;
   surcharge_amount?: number;
   promotion_name?: string | null;
@@ -345,6 +387,7 @@ export interface FinalizeSaleResult {
   sale_description?: string | null;
   apply_stock?: boolean;
   generate_financial?: boolean;
+  financial_entries?: PosFinanceEntryRef[];
 }
 
 export interface UpdateSalePayload {

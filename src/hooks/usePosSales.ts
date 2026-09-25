@@ -269,6 +269,41 @@ export function usePosSales() {
     [callPos, toast]
   );
 
+  const returnExchange = useCallback(
+    async (payload: {
+      sale_id: string;
+      returned_items: Array<{ item_id: string; quantity: number }>;
+      replacement_items: Array<{
+        item_type: "product" | "service";
+        item_id: string | null;
+        name: string;
+        sku?: string | null;
+        unit?: string | null;
+        quantity: number;
+        unit_price: number;
+      }>;
+      settlement_method: string;
+      settle_now: boolean;
+    }): Promise<PosSale> => {
+      setLoading(true);
+      try {
+        const result = await callPos("", {
+          method: "POST",
+          body: { action: "return_exchange", ...payload },
+        });
+        toast({ title: "Devolução registrada" });
+        return result.data as PosSale;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro na devolução";
+        toast({ title: "Erro", description: message, variant: "destructive" });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [callPos, toast]
+  );
+
   const updateSaleItems = useCallback(
     async (payload: UpdateSaleItemsPayload): Promise<PosSale> => {
       setLoading(true);
@@ -305,5 +340,6 @@ export function usePosSales() {
     updateSale,
     cancelSale,
     updateSaleItems,
+    returnExchange,
   };
 }

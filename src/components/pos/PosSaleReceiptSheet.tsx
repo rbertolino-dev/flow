@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 import { printPosA4, printPosCupom } from "@/lib/posPrint";
 import type { PosCartItem, PosSale, PosSaleItem } from "@/types/pos";
+import { PosReturnExchangeDialog, type PosReturnPayload } from "@/components/pos/PosReturnExchangeDialog";
 import { Loader2, Pencil, Printer, FileText } from "lucide-react";
 
 function formatMoney(value: number) {
@@ -165,6 +166,8 @@ function saleToPrintPayload(
     id: p.id,
     method: p.method,
     amount: Number(p.amount),
+    tendered_amount: p.tendered_amount == null ? null : Number(p.tendered_amount),
+    change_amount: Number(p.change_amount || 0),
   }));
   return {
     sale: {
@@ -202,7 +205,7 @@ export function PosSaleReceiptSheet({
 }: PosSaleReceiptSheetProps) {
   const { toast } = useToast();
   const { activeOrgId, activeOrganization } = useActiveOrganization();
-  const { getSale, updateSale, cancelSale, updateSaleItems, loading } =
+  const { getSale, updateSale, cancelSale, updateSaleItems, returnExchange, loading } =
     usePosSales();
 
   const [sale, setSale] = useState<PosSale | null>(null);
@@ -228,6 +231,7 @@ export function PosSaleReceiptSheet({
   const [swapQty, setSwapQty] = useState<Record<string, string>>({});
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
 
   const loadSale = useCallback(async () => {
     if (!saleId) return;
@@ -599,6 +603,28 @@ export function PosSaleReceiptSheet({
                   </Button>
                 </div>
 
+                {sale.returns?.length ? (
+                  <div className="px-4 pt-3 text-sm">
+                    {sale.returns.map((entry) => (
+                      <p key={entry.id}>
+                        {entry.kind === "exchange" ? "Troca" : "Devolução"} de {formatMoney(Number(entry.returned_amount))}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="px-4 pt-3">
+                  <Button
+                    type="button"
+                    className="h-11 w-full"
+                    variant="outline"
+                    disabled={loading || sale.status === "cancelled"}
+                    onClick={() => setReturnOpen(true)}
+                  >
+                    Devolução ou troca
+                  </Button>
+                </div>
+
                 {/* Excluir */}
                 <div className="px-4 pt-3">
                   <Button
@@ -769,6 +795,23 @@ export function PosSaleReceiptSheet({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {sale ? (
+        <PosReturnExchangeDialog
+          open={returnOpen}
+          saleId={sale.id}
+          items={sale.items || []}
+          loading={loading}
+          onOpenChange={setReturnOpen}
+          onConfirm={(payload: PosReturnPayload) => {
+            void returnExchange(payload).then(async () => {
+              setReturnOpen(false);
+              await loadSale();
+              onChanged?.();
+            });
+          }}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CRMLayout } from "@/components/crm/CRMLayout";
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,17 @@ import { useActiveOrganization } from "@/hooks/useActiveOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { PAYMENT_METHODS } from "@/lib/paymentMethods";
 import { isPromotionValid, quotePosSale } from "@/lib/posAdjustments";
+import { paymentsMatchTotal, roundMoney } from "@/lib/posFinanceSchedule";
 import {
   DEFAULT_POS_SETTINGS,
   type FinalizeSaleResult,
   type PosCartItem,
+  type PosFinanceEntryRef,
   type PosPaymentLine,
   type PosSettings,
 } from "@/types/pos";
 import { PosConfirmSaleDialog, type PosConfirmSaleValues } from "@/components/pos/PosConfirmSaleDialog";
+import { PosFinanceCreatedDialog } from "@/components/pos/PosFinanceCreatedDialog";
 import { PosSaleSuccessDialog } from "@/components/pos/PosSaleSuccessDialog";
 import { PosCreateClientDialog } from "@/components/pos/PosCreateClientDialog";
 import { PosCreateServiceDialog } from "@/components/pos/PosCreateServiceDialog";
@@ -134,6 +137,9 @@ export default function Pos() {
 
   const [orgMembers, setOrgMembers] = useState<OrgMemberOption[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [financeOpen, setFinanceOpen] = useState(false);
+  const [financeEntries, setFinanceEntries] = useState<PosFinanceEntryRef[]>([]);
+  const [financeDescription, setFinanceDescription] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
   const [lastSale, setLastSale] = useState<FinalizeSaleResult | null>(null);
   const [lastSaleLeadId, setLastSaleLeadId] = useState<string | null>(null);
@@ -345,6 +351,20 @@ export default function Pos() {
     ]
   );
   const total = quote.total;
+  const resolveSaleTotal = useCallback(
+    (method: string) =>
+      quotePosSale({
+        subtotal,
+        manualDiscount: discount,
+        promotion: selectedPromotion,
+        cart,
+        paymentDiscounts: posSettings.payment_discounts,
+        paymentSurcharges: posSettings.payment_surcharges,
+        method,
+        installments: method === "cartao_credito" ? installments : 1,
+      }).total,
+    [subtotal, discount, selectedPromotion, cart, posSettings.payment_discounts, posSettings.payment_surcharges, installments]
+  );
   const activePaymentDiscount = quote.paymentRule;
 
   useEffect(() => {
@@ -528,22 +548,48 @@ export default function Pos() {
 
   const addPayment = () => {
     if (!paymentMethodDraft || total <= 0) return;
-    const remaining = Math.max(0, total - paymentsSum);
+    const remaining = roundMoney(Math.max(0, total - paymentsSum));
     if (remaining <= 0) return;
+    const amount = remaining;
     setPayments((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         method: paymentMethodDraft,
-        amount: Number(remaining.toFixed(2)),
+        amount,
+        tendered_amount: paymentMethodDraft === "dinheiro" ? amount : null,
+        change_amount: 0,
       },
     ]);
     setPaymentMethodDraft("");
   };
 
+  const updatePayment = (id: string, patch: Partial<PosPaymentLine>) => {
+    setPayments((prev) =>
+      prev.map((payment) => {
+        if (payment.id !== id) return payment;
+        const next = { ...payment, ...patch };
+        if (next.method === "dinheiro") {
+          const tendered = Number(next.tendered_amount ?? next.amount);
+          next.change_amount = Math.max(0, roundMoney(tendered - Number(next.amount)));
+        }
+        return next;
+      })
+    );
+  };
+
   const removePayment = (id: string) => {
     setPayments((prev) => prev.filter((p) => p.id !== id));
   };
+
+  const cashShort = payments.some(
+    (payment) =>
+      payment.method === "dinheiro" &&
+      Number(payment.tendered_amount ?? payment.amount) + 0.001 < Number(payment.amount)
+  );
+  const paymentsReady =
+    payments.length === 0 || (paymentsMatchTotal(paymentsSum, total) && !cashShort);
+  const paymentGap = roundMoney(paymentsSum - total);
 
   const resetSale = () => {
     setCart([]);
@@ -580,6 +626,13 @@ export default function Pos() {
       });
       return;
     }
+    if (!paymentsReady) {
+      toast({
+        title: cashShort ? "Dinheiro recebido insuficiente" : "A soma das formas não fecha o total",
+        variant: "destructive",
+      });
+      return;
+    }
     if (posSettings.simple_sale) {
       const method = payments[0]?.method || paymentMethodDraft || "pix";
       const dateLabel = new Date().toLocaleDateString("pt-BR");
@@ -599,11 +652,10 @@ export default function Pos() {
           paymentMethod: method,
           paymentNotes: notes,
           splitRecurrence: false,
-        },
-        {
-          id: crypto.randomUUID(),
-          method,
-          amount: Number(total.toFixed(2)),
+          splitMode: null,
+          financeLines: [],
+          salePayments: null,
+          attachmentName: null,
         }
       );
       return;
@@ -614,6 +666,7 @@ export default function Pos() {
 
   const anyDialogOpen =
     confirmOpen ||
+    financeOpen ||
     successOpen ||
     createClientOpen ||
     createProductOpen ||
@@ -679,12 +732,13 @@ export default function Pos() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const handleConfirmSale = async (
-    values: PosConfirmSaleValues,
-    confirmPayment: PosPaymentLine
-  ) => {
+  const handleConfirmSale = async (values: PosConfirmSaleValues) => {
     const methodForDiscount =
-      values.paymentMethod || paymentMethodDraft || payments[0]?.method || "";
+      values.salePayments?.[0]?.method ||
+      payments[0]?.method ||
+      values.paymentMethod ||
+      paymentMethodDraft ||
+      "";
     const confirmedQuote = quotePosSale({
       subtotal,
       manualDiscount: discount,
@@ -699,37 +753,35 @@ export default function Pos() {
     const saleSurcharge = confirmedQuote.surcharge;
     const saleTotal = confirmedQuote.total;
 
-    // Prefer payments already added in sidebar; otherwise use confirm dialog method
-    let finalPayments = [...payments];
-    if (!finalPayments.length) {
-      if (paymentMethodDraft) {
-        finalPayments = [
-          {
-            id: crypto.randomUUID(),
-            method: paymentMethodDraft,
-            amount: Number(saleTotal.toFixed(2)),
-          },
-        ];
-      } else {
-        finalPayments = [{ ...confirmPayment, amount: Number(saleTotal.toFixed(2)) }];
+    let finalPayments: PosPaymentLine[] = [];
+    if (values.salePayments?.length) {
+      finalPayments = values.salePayments.map((payment) => {
+        if (payment.method !== "dinheiro") return payment;
+        const existing = payments.find(
+          (line) => line.method === "dinheiro" && Math.abs(line.amount - payment.amount) < 0.02
+        );
+        if (existing?.tendered_amount == null) return payment;
+        const tendered = Number(existing.tendered_amount);
+        return {
+          ...payment,
+          tendered_amount: tendered,
+          change_amount: Math.max(0, roundMoney(tendered - payment.amount)),
+        };
+      });
+    } else if (payments.length) {
+      if (!paymentsMatchTotal(paymentsSum, saleTotal)) {
+        toast({
+          title: "A soma das formas não fecha o total",
+          variant: "destructive",
+        });
+        return;
       }
-    } else if (Math.abs(paymentsSum - saleTotal) > 0.05) {
+      finalPayments = payments;
+    } else {
       finalPayments = [
-        ...finalPayments,
         {
           id: crypto.randomUUID(),
-          method: confirmPayment.method,
-          amount: Number((saleTotal - paymentsSum).toFixed(2)),
-        },
-      ];
-    }
-
-    // Force the primary payment method from confirm dialog when single payment
-    if (finalPayments.length === 1) {
-      finalPayments = [
-        {
-          ...finalPayments[0],
-          method: values.paymentMethod || finalPayments[0].method,
+          method: values.paymentMethod || paymentMethodDraft || "pix",
           amount: Number(saleTotal.toFixed(2)),
         },
       ];
@@ -750,7 +802,15 @@ export default function Pos() {
           unit_price: i.unit_price,
           discount_amount: i.discount_amount,
         })),
-        payments: finalPayments.map((p) => ({ method: p.method, amount: p.amount })),
+        payments: finalPayments.map((p) => ({
+          method: p.method,
+          amount: p.amount,
+          tendered_amount: p.tendered_amount ?? null,
+          change_amount: p.change_amount || 0,
+        })),
+        finance_lines: values.financeLines,
+        attachment_name: values.attachmentName,
+        split_mode: values.splitMode,
         discount_amount: saleDiscount,
         surcharge_amount: saleSurcharge,
         promotion_name: selectedPromotion?.name || null,
@@ -788,7 +848,13 @@ export default function Pos() {
       setLastSalePayments(snapshotPayments);
       resetSale();
       await refetchProducts();
-      setSuccessOpen(true);
+      if (values.generateFinancial && result.financial_entries?.length) {
+        setFinanceEntries(result.financial_entries);
+        setFinanceDescription(values.saleDescription);
+        setFinanceOpen(true);
+      } else {
+        setSuccessOpen(true);
+      }
     } catch {
       // toast no hook
     }
@@ -799,6 +865,7 @@ export default function Pos() {
     total >= 0 &&
     !!selectedLead &&
     (!(addCommission || posSettings.commission_required) || !!commissionUserId) &&
+    paymentsReady &&
     !posLoading;
 
   return (
@@ -1243,22 +1310,59 @@ export default function Pos() {
               {posSettings.show_payment_method && (
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Formas de pagamento</Label>
-                {payments.map((p) => (
+                {payments.map((p) => {
+                  const change = Math.max(0, roundMoney(Number(p.tendered_amount || 0) - Number(p.amount)));
+                  return (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm"
+                    className="space-y-2 rounded-md border bg-background px-3 py-2 text-sm"
                   >
-                    <span>
-                      {PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span>{formatMoney(p.amount)}</span>
-                      <button type="button" onClick={() => removePayment(p.id)}>
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <span>
+                        {PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          aria-label={`Valor ${PAYMENT_METHODS.find((m) => m.value === p.method)?.label || p.method}`}
+                          className="h-8 w-28 text-right"
+                          value={p.amount}
+                          onChange={(event) => updatePayment(p.id, { amount: Math.max(0, Number(event.target.value) || 0) })}
+                        />
+                        <button type="button" aria-label="Remover forma" onClick={() => removePayment(p.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
                     </div>
+                    {p.method === "dinheiro" ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs">Recebido</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          aria-label="Valor recebido"
+                          className="h-8 w-28 text-right"
+                          value={p.tendered_amount ?? ""}
+                          onChange={(event) =>
+                            updatePayment(p.id, { tendered_amount: Math.max(0, Number(event.target.value) || 0) })
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {p.method === "dinheiro" && change > 0.009 ? (
+                      <p className="text-right text-xs font-medium">Troco {formatMoney(change)}</p>
+                    ) : null}
                   </div>
-                ))}
+                  );
+                })}
+                {payments.length > 0 && Math.abs(paymentGap) > 0.01 ? (
+                  <p className="text-xs text-destructive">
+                    {paymentGap < 0 ? `Falta ${formatMoney(Math.abs(paymentGap))}` : `Passou ${formatMoney(paymentGap)}`}
+                  </p>
+                ) : null}
                 {activePaymentMethod === "cartao_credito" ? (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Parcelas</Label>
@@ -1289,7 +1393,8 @@ export default function Pos() {
                     variant="outline"
                     size="icon"
                     onClick={addPayment}
-                    disabled={!paymentMethodDraft || total - paymentsSum <= 0}
+                    aria-label="Adicionar forma de pagamento"
+                    disabled={!paymentMethodDraft || total - paymentsSum <= 0.009}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -1434,8 +1539,20 @@ export default function Pos() {
         defaultFinancialAccount={posSettings.financial_account}
         defaultFinancialCategory={posSettings.financial_category}
         defaultNotes={posSettings.sale_notes}
+        existingPayments={payments}
+        resolveTotal={resolveSaleTotal}
         loading={posLoading}
-        onConfirm={(values, payment) => void handleConfirmSale(values, payment)}
+        onConfirm={(values) => void handleConfirmSale(values)}
+      />
+
+      <PosFinanceCreatedDialog
+        open={financeOpen}
+        description={financeDescription}
+        entries={financeEntries}
+        onDone={() => {
+          setFinanceOpen(false);
+          setSuccessOpen(true);
+        }}
       />
 
       <PosSaleSuccessDialog

@@ -101,6 +101,7 @@ export interface FinancialEntry {
   category_id: string | null;
   account: string | null;
   origin_label: string;
+  payment_method?: string | null;
   created_at: string;
 }
 

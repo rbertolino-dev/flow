@@ -715,6 +715,123 @@ test.describe("PDV — ponto de venda @human-behavior @pdv", () => {
     await expect(osDialog.getByText(/nenhum produto\/serviço vinculado/i)).toHaveCount(0);
   });
 
+  test("PDV — troco, parcelas e devolução chegam no financeiro @human-behavior @pdv", async ({ page }) => {
+    const human = new HumanBehavior(page);
+    const orgId = process.env.E2E_ORG_ID?.trim();
+    if (orgId) {
+      await page.addInitScript((id) => {
+        localStorage.setItem("active_organization_id", id);
+      }, orgId);
+    }
+
+    await human.humanNavigate("/pdv");
+    if (page.url().includes("/login")) test.skip(true, "Sessão E2E inválida");
+
+    await expect(page.getByRole("heading", { name: /^resumo$/i })).toBeVisible({ timeout: 45_000 });
+    const productBtn = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+    await expect(productBtn).toBeVisible({ timeout: 20_000 });
+    const stockBefore = (await productBtn.locator("p").last().innerText()).trim();
+    await human.humanClick(productBtn);
+    await expect(page.getByPlaceholder("Buscar cliente da organização...")).toHaveValue(
+      /cliente cenários pdv/i,
+      { timeout: 15_000 }
+    );
+
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+    await human.humanClick(page.getByRole("option", { name: /^dinheiro$/i }));
+    await human.humanClick(page.getByRole("button", { name: /adicionar forma de pagamento/i }));
+    await human.humanType(page.getByLabel("Valor recebido"), "20", { clearFirst: true });
+    await expect(page.getByText(/troco/i)).toBeVisible();
+
+    await human.humanType(page.getByLabel("Valor Dinheiro"), "6", { clearFirst: true });
+    await expect(page.getByText(/^falta/i)).toBeVisible();
+    const finalize = page.getByRole("button", { name: "Finalizar F12", exact: true });
+    await expect(finalize).toBeDisabled();
+
+    await human.humanClick(page.getByRole("combobox").filter({ hasText: /adicione uma ou mais formas/i }));
+    await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+    await human.humanClick(page.getByRole("button", { name: /adicionar forma de pagamento/i }));
+    await expect(finalize).toBeEnabled();
+    await human.hesitate(300, 600);
+    await human.humanClick(finalize);
+
+    const confirm = page.getByRole("dialog").filter({ hasText: /confirmar venda/i });
+    await expect(confirm).toBeVisible({ timeout: 15_000 });
+    const marker = `PDV parcela ${Date.now()}`;
+    await human.humanType(confirm.getByLabel("Descrição"), marker, { clearFirst: true });
+    await human.humanClick(confirm.getByLabel("Dividir lançamento ou criar recorrência"));
+    await human.humanType(confirm.getByLabel(/quantidade de parcelas/i), "2", { clearFirst: true });
+    await human.humanClick(confirm.getByRole("combobox").filter({ hasText: /dinheiro/i }));
+    await human.humanClick(page.getByRole("option", { name: /^pix$/i }));
+    await expect(confirm.getByText(/dividido em 2x/i)).toBeVisible();
+
+    const finalizeResponse = page.waitForResponse(
+      (res) => res.url().includes("/functions/v1/pos-sales") && res.request().method() === "POST",
+      { timeout: 45_000 }
+    );
+    await human.hesitate(400, 700);
+    await human.humanClick(confirm.getByRole("button", { name: /^confirmar$/i }));
+    const response = await finalizeResponse;
+    expect(response.ok() || response.status() === 201).toBeTruthy();
+    const payload = await response.json();
+    const saleId = payload?.data?.id as string;
+    const saleNumber = String(payload?.data?.sale_number);
+    expect(saleId).toBeTruthy();
+    expect(payload?.data?.financial_entries?.length).toBe(2);
+
+    const created = page.getByRole("dialog").filter({ hasText: /lançamentos financeiros criados/i });
+    await expect(created).toBeVisible({ timeout: 20_000 });
+    await expect(created.getByText(marker)).toBeVisible();
+    await expect(created.getByRole("button", { name: /^receber$/i })).toHaveCount(2);
+    await human.humanClick(created.getByRole("button", { name: /^receber$/i }).first());
+    await expect(created.getByRole("button", { name: /^recebido$/i })).toBeVisible({ timeout: 15_000 });
+    await human.humanClick(created.getByRole("button", { name: /^ok$/i }));
+    await expect(page.getByText("VENDA FINALIZADA!")).toBeVisible({ timeout: 20_000 });
+
+    await human.humanNavigate("/financeiro/receber");
+    const toDate = page.locator('input[type="date"]').nth(1);
+    await toDate.fill("2027-12-31");
+    const search = page.getByPlaceholder("Descrição");
+    await human.humanType(search, marker, { clearFirst: true });
+    await human.humanClick(page.getByRole("button", { name: /^pesquisar$/i }));
+    const rows = page.getByRole("row").filter({ hasText: marker });
+    await expect(rows).toHaveCount(2, { timeout: 20_000 });
+    await expect(rows.filter({ hasText: /recebido/i })).toHaveCount(1);
+    await expect(rows.filter({ hasText: /em aberto/i })).toHaveCount(1);
+    await expect(rows.filter({ hasText: /pix/i })).toHaveCount(2);
+
+    await human.humanNavigate("/pdv/historico");
+    await expect(page.getByRole("heading", { name: /histórico de vendas/i })).toBeVisible({ timeout: 20_000 });
+    await page.locator('input[placeholder="Buscar"]').fill(saleNumber);
+    await human.humanClick(page.getByRole("button", { name: /^buscar$/i }));
+    const saleRow = page.getByRole("row").filter({
+      has: page.getByRole("cell", { name: saleNumber, exact: true }),
+    }).first();
+    await expect(saleRow).toBeVisible({ timeout: 20_000 });
+    await human.humanClick(saleRow);
+    await human.humanClick(page.getByRole("button", { name: /devolução ou troca/i }));
+    const returnDialog = page.getByRole("dialog").filter({ hasText: /devolução ou troca/i });
+    const returnQty = returnDialog.getByLabel(/quantidade a devolver de fanta laranja/i);
+    await returnQty.fill("1");
+    await expect(returnDialog.getByRole("button", { name: /^confirmar$/i })).toBeEnabled();
+    await human.hesitate(300, 600);
+    await human.humanClick(returnDialog.getByRole("button", { name: /^confirmar$/i }));
+    await expect(page.getByText(/devolução de/i)).toBeVisible({ timeout: 20_000 });
+
+    await human.humanNavigate("/financeiro/pagar");
+    await page.locator('input[type="date"]').nth(1).fill("2027-12-31");
+    await human.humanType(page.getByPlaceholder("Descrição"), `Devolução venda #${saleNumber}`, { clearFirst: true });
+    await human.humanClick(page.getByRole("button", { name: /^pesquisar$/i }));
+    await expect(page.getByRole("row").filter({ hasText: `Devolução venda #${saleNumber}` })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await human.humanNavigate("/pdv");
+    const productAfter = page.locator("ul.divide-y li button").filter({ hasText: /fanta laranja/i }).first();
+    await expect(productAfter).toBeVisible({ timeout: 20_000 });
+    await expect(productAfter.locator("p").last()).toHaveText(stockBefore);
+  });
+
   test("PDV — acessibilidade básica @accessibility @pdv", async ({ page }) => {
     const human = new HumanBehavior(page);
     await human.humanNavigate("/pdv");
