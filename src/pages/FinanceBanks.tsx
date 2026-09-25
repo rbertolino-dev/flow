@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Landmark, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, Landmark, LayoutDashboard, Loader2, Pencil, Plus, RefreshCw, Tags, Trash2, Wallet } from 'lucide-react';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,19 @@ import {
 } from '@/lib/finance';
 
 const EMPTY = { id: '', name: '', bank_name: '', account_type: '', last_digits: '' };
+
+const TYPE_TONE: Record<string, string> = {
+  'Conta Corrente': 'bg-sky-100 text-sky-800',
+  'Conta Poupança': 'bg-emerald-100 text-emerald-800',
+  'Conta de Investimento': 'bg-violet-100 text-violet-800',
+  'Cartão de Crédito': 'bg-amber-100 text-amber-800',
+  Caixa: 'bg-orange-100 text-orange-800',
+};
+
+function typeTone(type: string | null | undefined): string {
+  if (!type) return 'bg-slate-100 text-slate-600';
+  return TYPE_TONE[type] || 'bg-sky-100 text-sky-800';
+}
 
 export default function FinanceBanks() {
   const { activeOrganization } = useActiveOrganization();
@@ -86,61 +99,67 @@ export default function FinanceBanks() {
   return (
     <CRMLayout activeView="finance" onViewChange={() => {}}>
       <div className="mx-auto max-w-[1100px] p-4 md:p-6">
-        <div className="mb-6 flex gap-8 border-b pb-3 text-sm text-slate-500">
-          <span className="flex items-center gap-2 border-b-2 border-slate-800 pb-3 font-medium text-slate-800">
-            <Landmark className="h-4 w-4" />
+        <div className="mb-6 flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm">
+            <Landmark className="h-5 w-5" />
             Bancos
           </span>
-          <Link to="/financeiro/categorias" className="flex items-center gap-2 hover:text-slate-800">
+          <Link to="/financeiro/categorias" className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-4 py-2 text-sm font-medium text-violet-800 hover:bg-violet-200">
+            <Tags className="h-5 w-5" />
             Categorias
           </Link>
-          <Link to="/financeiro" className="flex items-center gap-2 hover:text-slate-800">
-            <Building2 className="h-4 w-4" />
+          <Link to="/financeiro" className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-200">
+            <LayoutDashboard className="h-5 w-5" />
             Dashboard
           </Link>
         </div>
 
-        <div className="relative mb-6">
+        <div className="relative mb-6 rounded-2xl bg-gradient-to-r from-sky-50 via-white to-emerald-50 px-4 py-6">
           <h1 className="text-center text-3xl font-semibold text-slate-800">{activeOrganization?.name || 'Carteira'}</h1>
-          <div className="mt-4 flex justify-end md:absolute md:right-0 md:top-0 md:mt-0">
+          <div className="mt-4 flex justify-end md:absolute md:right-4 md:top-1/2 md:mt-0 md:-translate-y-1/2">
             <button
               type="button"
-              className="rounded-md bg-green-600 px-4 py-3 text-right text-white shadow"
+              className="rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 px-5 py-3 text-right text-white shadow-md"
               onClick={() => void reload()}
             >
-              <span className="block text-xs">Saldo Geral</span>
-              <span className="flex items-center gap-2 text-xl font-semibold">
+              <span className="flex items-center justify-end gap-1.5 text-xs font-medium">
+                <Wallet className="h-4 w-4" />
+                Saldo Geral
+              </span>
+              <span className="mt-1 flex items-center gap-2 text-xl font-semibold">
                 {formatFinanceMoney(total)}
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-5 w-5" />
               </span>
             </button>
           </div>
         </div>
 
         <div className="mb-4 flex flex-wrap justify-between gap-2">
-          <Button type="button" className="bg-blue-700 hover:bg-blue-800" onClick={() => setTransferOpen(true)}>
+          <Button type="button" className="bg-blue-600 hover:bg-blue-700" onClick={() => setTransferOpen(true)}>
+            <ArrowLeftRight className="mr-2 h-5 w-5" />
             Fazer Transferência
           </Button>
-          <Button type="button" className="bg-blue-700 hover:bg-blue-800" onClick={openCreate}>
+          <Button type="button" className="bg-indigo-600 hover:bg-indigo-700" onClick={openCreate}>
+            <Plus className="mr-2 h-5 w-5" />
             Nova conta
           </Button>
         </div>
 
-        <div className="overflow-x-auto rounded-md border bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm">
           {loading ? (
             <div className="flex items-center justify-center gap-2 p-10 text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-sky-600" />
               Carregando
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-slate-100 text-left">
+              <thead className="bg-sky-50 text-left text-sky-900">
                 <tr>
-                  <th className="px-4 py-3">Nome</th>
-                  <th className="px-4 py-3">Tipo</th>
-                  <th className="px-4 py-3">Banco</th>
-                  <th className="px-4 py-3">4 dígitos</th>
-                  <th className="px-4 py-3">Saldo</th>
+                  <th className="px-4 py-3 font-semibold">Nome</th>
+                  <th className="px-4 py-3 font-semibold">Tipo</th>
+                  <th className="px-4 py-3 font-semibold">Banco</th>
+                  <th className="px-4 py-3 font-semibold">4 dígitos</th>
+                  <th className="px-4 py-3 font-semibold">Saldo</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -151,30 +170,42 @@ export default function FinanceBanks() {
                   </tr>
                 )}
                 {rows.map(({ account, balance }) => (
-                  <tr key={account.id} className="border-t">
-                    <td className="px-4 py-3">{account.name}</td>
-                    <td className="px-4 py-3">{account.account_type || '—'}</td>
-                    <td className="px-4 py-3">{account.bank_name || '—'}</td>
-                    <td className="px-4 py-3">{account.last_digits || ''}</td>
-                    <td className={`px-4 py-3 font-medium ${balance < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                  <tr key={account.id} className="border-t border-slate-100 hover:bg-sky-50/40">
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                          <Landmark className="h-5 w-5" />
+                        </span>
+                        {account.name}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${typeTone(account.account_type)}`}>
+                        {account.account_type || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{account.bank_name || '—'}</td>
+                    <td className="px-4 py-3 font-medium tracking-wide text-slate-600">{account.last_digits || ''}</td>
+                    <td className={`px-4 py-3 text-base font-semibold ${balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                       {formatFinanceMoney(balance)}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1 text-blue-700">
-                        <Button type="button" size="icon" variant="ghost" onClick={() => void reload()} title="Atualizar saldo">
-                          <RefreshCw className="h-4 w-4" />
+                      <div className="flex justify-end gap-1.5">
+                        <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-sky-700 hover:bg-sky-100" onClick={() => void reload()} title="Atualizar saldo">
+                          <RefreshCw className="h-5 w-5" />
                         </Button>
-                        <Button type="button" size="icon" variant="ghost" onClick={() => openEdit(account)} title="Editar">
-                          <Pencil className="h-4 w-4" />
+                        <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-amber-700 hover:bg-amber-100" onClick={() => openEdit(account)} title="Editar">
+                          <Pencil className="h-5 w-5" />
                         </Button>
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
+                          className="h-9 w-9 text-rose-600 hover:bg-rose-100"
                           title="Excluir"
                           onClick={() => void run(() => deleteAccount(account.id), 'Conta excluída')}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-5 w-5" />
                         </Button>
                       </div>
                     </td>
