@@ -387,8 +387,8 @@ serve(async (req) => {
 
     if (isMovementsEndpoint && req.method === 'GET') {
       try {
-        const requestedLimit = Number(url.searchParams.get('limit') || 20);
-        const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 20;
+        const requestedLimit = Number(url.searchParams.get('limit') || 30);
+        const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 30;
         const requestedOffset = Number(url.searchParams.get('offset') || 0);
         const offset = Number.isFinite(requestedOffset) ? Math.max(Math.trunc(requestedOffset), 0) : 0;
         const countResult = await client.queryObject<{ total: number }>(

@@ -87,7 +87,7 @@ const TABS: { id: StockTab; label: string; icon: typeof Package }[] = [
   { id: "compras", label: "Lista de Compras", icon: ShoppingCart },
 ];
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 30;
 
 function movementTypeLabel(type: string, saleNumber?: number | null) {
   const labels: Record<string, string> = {
@@ -173,6 +173,7 @@ export function StockModule() {
   const [savingExpense, setSavingExpense] = useState(false);
   const [singleEntryOpen, setSingleEntryOpen] = useState(false);
   const [xmlEntryOpen, setXmlEntryOpen] = useState(false);
+  const [productPage, setProductPage] = useState(0);
 
   const categories = useMemo(
     () => uniqueNames([...products.map((p) => p.category || ""), ...categoriesCatalog.map((row) => row.name)]),
@@ -216,6 +217,14 @@ export function StockModule() {
       return true;
     });
   }, [products, nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter]);
+
+  const productPageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safeProductPage = Math.min(productPage, productPageCount - 1);
+  const visibleProducts = filtered.slice(safeProductPage * PAGE_SIZE, (safeProductPage + 1) * PAGE_SIZE);
+
+  useEffect(() => {
+    setProductPage(0);
+  }, [nameQuery, codeQuery, categoryFilter, brandFilter, statusFilter]);
 
   const shoppingList = useMemo(() => {
     return products
@@ -531,7 +540,7 @@ export function StockModule() {
           <KpiCard title="Produtos em falta" value={String(totals.falta)} className="bg-red-500" />
         </div>
 
-        <div className="flex flex-wrap gap-2 border-b bg-background px-2">
+        <nav className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1" aria-label="Seções do estoque">
           {TABS.map((item) => {
             const Icon = item.icon;
             const active = tab === item.id;
@@ -541,16 +550,18 @@ export function StockModule() {
                 type="button"
                 onClick={() => setTab(item.id)}
                 className={cn(
-                  "flex min-w-[120px] flex-col items-center gap-1 px-4 py-3 text-xs text-muted-foreground",
-                  active && "border-b-2 border-blue-600 font-medium text-blue-700"
+                  "flex min-w-[148px] flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm text-slate-500 transition-colors",
+                  active
+                    ? "bg-white font-medium text-slate-900 shadow-sm ring-1 ring-slate-200"
+                    : "hover:bg-white/60 hover:text-slate-700"
                 )}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className={cn("h-4 w-4 shrink-0", active ? "text-blue-600" : "text-slate-400")} />
                 {item.label}
               </button>
             );
           })}
-        </div>
+        </nav>
 
         {tab === "cadastro" && (
           <section className="space-y-4 rounded-lg bg-background p-4 shadow-sm">
@@ -627,7 +638,7 @@ export function StockModule() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((product) => {
+                    {visibleProducts.map((product) => {
                       const { qty, min, ideal } = stockNumbers(product);
                       const cost = Number(product.cost ?? 0);
                       const price = Number(product.price ?? 0);
@@ -667,6 +678,7 @@ export function StockModule() {
                 </Table>
               </div>
             )}
+            <ListPager page={safeProductPage} total={filtered.length} loading={loading} onPage={setProductPage} />
           </section>
         )}
 
