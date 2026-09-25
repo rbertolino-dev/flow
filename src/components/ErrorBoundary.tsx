@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { isStaleChunkError, reloadOnceForStaleChunk } from '@/lib/lazyWithRetry';
 
 interface Props {
   children: ReactNode;
@@ -31,6 +32,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (isStaleChunkError(error) && reloadOnceForStaleChunk()) {
+      return;
+    }
+
     console.error('❌ ErrorBoundary capturou um erro:', error);
     console.error('❌ ErrorInfo:', errorInfo);
     
