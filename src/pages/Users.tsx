@@ -10,6 +10,8 @@ import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog"
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { CRMLayout, CRMView } from "@/components/crm/CRMLayout";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { useIsActiveOrgAdmin } from "@/hooks/useOrgUserPermissions";
+import { messageFromUnknown } from "@/lib/orgUserPermissions";
 import { DeleteUserDialog } from "@/components/superadmin/DeleteUserDialog";
 import {
   AlertDialog,
@@ -70,6 +72,8 @@ export default function Users() {
   const { toast } = useToast();
 
   const isAdmin = currentUserRoles.includes('admin');
+  const { isOrgAdmin } = useIsActiveOrgAdmin();
+  const canManagePermissions = isAdmin || isOrgAdmin;
 
   useEffect(() => {
     if (activeOrgId) {
@@ -90,6 +94,8 @@ export default function Users() {
     return () => {
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
     };
+    // fetchUsers muda a cada render; este efeito só depende da organização ativa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrgId]);
 
   useEffect(() => {
@@ -108,7 +114,7 @@ export default function Users() {
 
       if (error) throw error;
       setCurrentUserRoles(data.map(r => r.role));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching user roles:', error);
     }
   };
@@ -156,14 +162,14 @@ export default function Users() {
         id: user.id,
         email: user.email,
         full_name: user.full_name,
-        roles: user.user_roles?.map((r: any) => r.role) || [],
+        roles: user.user_roles?.map((r: { role: string }) => r.role) || [],
       }));
 
       setUsers(formattedUsers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao carregar usuários",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     } finally {
@@ -222,11 +228,11 @@ export default function Users() {
       setTimeout(() => {
         window.location.reload();
       }, 500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao criar usuário:", error);
       toast({
         title: "Erro ao criar usuário",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     } finally {
@@ -279,11 +285,11 @@ export default function Users() {
       setTimeout(() => {
         window.location.reload();
       }, 500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao editar usuário:", error);
       toast({
         title: "Erro ao editar usuário",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     } finally {
@@ -334,10 +340,10 @@ export default function Users() {
       setTimeout(() => {
         window.location.reload();
       }, 500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao alterar permissões",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     }
@@ -464,7 +470,7 @@ export default function Users() {
           )}
         </CardHeader>
         <CardContent>
-          {!isAdmin && (
+          {!canManagePermissions && (
             <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
                 Você está visualizando como usuário comum. Apenas administradores podem gerenciar usuários.
@@ -504,16 +510,18 @@ export default function Users() {
                   </div>
                 </div>
 
-                {isAdmin && (
+                {canManagePermissions && (
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenEditDialog(user)}
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Editar
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEditDialog(user)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -525,21 +533,25 @@ export default function Users() {
                       <Settings2 className="h-4 w-4 mr-1" />
                       Permissões
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleToggleAdmin(user.id, user.roles)}
-                    >
-                      <Shield className="h-4 w-4 mr-1" />
-                      {user.roles.includes('admin') ? 'Remover Admin' : 'Tornar Admin'}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setUserToDelete(user)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleAdmin(user.id, user.roles)}
+                        >
+                          <Shield className="h-4 w-4 mr-1" />
+                          {user.roles.includes('admin') ? 'Remover Admin' : 'Tornar Admin'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setUserToDelete(user)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

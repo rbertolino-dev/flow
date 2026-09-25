@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RealtimeStatusIndicator } from "@/components/RealtimeStatusIndicator";
 import { FloatingChatWidget } from "@/components/assistant/FloatingChatWidget";
 import { useOrganizationFeatures, FeatureKey } from "@/hooks/useOrganizationFeatures";
+import { useOrgUserPermissions } from "@/hooks/useOrgUserPermissions";
 import { EditOrganizationDialog } from "./EditOrganizationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionBanner } from "@/components/VersionBanner";
@@ -66,11 +67,13 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPubdigitalUser, setIsPubdigitalUser] = useState(false);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [accessReady, setAccessReady] = useState(false);
   const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { activeOrgId } = useActiveOrganization();
   const { hasFeature, loading: featuresLoading, data: featuresData } = useOrganizationFeatures();
+  const { loading: userPermsLoading, hasSavedPermissions, canViewFeature } = useOrgUserPermissions();
 
   const handleLogout = async () => {
     try {
@@ -159,19 +162,22 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       // Se ainda está carregando features, mostrar apenas items sem restrição
       filtered = allBaseMenuItems.filter(item => menuToFeatureMap[item.id] === null);
     } else {
+      const restrictByUserPermission =
+        accessReady && !isOrgAdmin && !userPermsLoading && hasSavedPermissions;
+
       filtered = allBaseMenuItems.filter(item => {
         const featureKey = menuToFeatureMap[item.id];
-        // Se não há feature associada, sempre mostra
         if (featureKey === null) return true;
-        // Verifica se tem permissão
-        return hasFeature(featureKey);
+        if (!hasFeature(featureKey)) return false;
+        if (!restrictByUserPermission) return true;
+        return canViewFeature(featureKey);
       });
     }
     
     return filtered;
     // allBaseMenuItems e menuToFeatureMap são estáveis dentro do render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFeature, featuresLoading, featuresData, isPubdigitalUser, isAdmin]);
+  }, [hasFeature, featuresLoading, featuresData, isPubdigitalUser, isAdmin, isOrgAdmin, accessReady, userPermsLoading, hasSavedPermissions, canViewFeature]);
 
   const adminMenuItems: typeof allBaseMenuItems = [];
 
@@ -212,7 +218,10 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
           .maybeSingle();
         
         setIsOrgAdmin(memberData?.role === 'owner' || memberData?.role === 'admin');
+      } else {
+        setIsOrgAdmin(false);
       }
+      setAccessReady(true);
     };
 
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -220,6 +229,8 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
       setUserId(user?.id ?? null);
       if (user?.id) {
         checkUserRole(user.id);
+      } else {
+        setAccessReady(true);
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -231,6 +242,7 @@ export function CRMLayout({ children, activeView, onViewChange, syncInfo }: CRML
         setIsAdmin(false);
         setIsPubdigitalUser(false);
         setIsOrgAdmin(false);
+        setAccessReady(true);
       }
     });
     return () => subscription.unsubscribe();

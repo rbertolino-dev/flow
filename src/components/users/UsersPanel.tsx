@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Trash2, Shield, User as UserIcon, UserPlus, Loader2, Edit, Settings2, ShieldAlert } from "lucide-react";
 import { UserPermissionsDialog } from "@/components/users/UserPermissionsDialog";
 import { useActiveOrganization } from "@/hooks/useActiveOrganization";
+import { useIsActiveOrgAdmin } from "@/hooks/useOrgUserPermissions";
+import { messageFromUnknown } from "@/lib/orgUserPermissions";
 import { DeleteUserDialog } from "@/components/superadmin/DeleteUserDialog";
 import {
   AlertDialog,
@@ -68,6 +70,8 @@ export function UsersPanel() {
   const { toast } = useToast();
 
   const isAdmin = currentUserRoles.includes('admin');
+  const { isOrgAdmin } = useIsActiveOrgAdmin();
+  const canManagePermissions = isAdmin || isOrgAdmin;
 
   useEffect(() => {
     if (activeOrgId) {
@@ -88,6 +92,8 @@ export function UsersPanel() {
     return () => {
       window.removeEventListener('data-refresh', handleRefreshEvent as EventListener);
     };
+    // fetchUsers muda a cada render; este efeito só depende da organização ativa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeOrgId]);
 
   useEffect(() => {
@@ -106,7 +112,7 @@ export function UsersPanel() {
 
       if (error) throw error;
       setCurrentUserRoles(data.map(r => r.role));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching user roles:', error);
     }
   };
@@ -151,14 +157,14 @@ export function UsersPanel() {
         id: user.id,
         email: user.email,
         full_name: user.full_name,
-        roles: user.user_roles?.map((r: any) => r.role) || [],
+        roles: user.user_roles?.map((r: { role: string }) => r.role) || [],
       }));
 
       setUsers(formattedUsers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao carregar usuários",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     } finally {
@@ -199,8 +205,10 @@ export function UsersPanel() {
       });
 
       if (error) {
-        let detailedMessage = error.message || 'Erro ao criar usuário';
-        const contextResponse = (error as any)?.context?.response;
+        let detailedMessage = messageFromUnknown(error, "Erro ao criar usuário");
+        const contextResponse = (
+          error as { context?: { response?: { text?: () => Promise<string> } } }
+        )?.context?.response;
         if (contextResponse && typeof contextResponse.text === 'function') {
           try {
             const rawText = await contextResponse.text();
@@ -236,11 +244,11 @@ export function UsersPanel() {
       
       // Disparar evento de refresh para outros componentes
       forceRefreshAfterMutation('user', 'create');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao criar usuário:", error);
       toast({
         title: "Erro ao criar usuário",
-        description: error.message || 'Erro desconhecido ao criar usuário',
+        description: messageFromUnknown(error, "Erro desconhecido ao criar usuário"),
         variant: "destructive",
       });
     } finally {
@@ -292,11 +300,11 @@ export function UsersPanel() {
       setTimeout(() => {
         window.location.reload();
       }, 500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao editar usuário:", error);
       toast({
         title: "Erro ao editar usuário",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     } finally {
@@ -345,10 +353,10 @@ export function UsersPanel() {
       setTimeout(() => {
         window.location.reload();
       }, 500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao alterar permissões",
-        description: error.message,
+        description: messageFromUnknown(error),
         variant: "destructive",
       });
     }
@@ -488,15 +496,17 @@ export function UsersPanel() {
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
-                  {isAdmin && (
+                  {canManagePermissions && (
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenEditDialog(user)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenEditDialog(user)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -504,23 +514,28 @@ export function UsersPanel() {
                           setUserForPermissions(user);
                           setPermissionsDialogOpen(true);
                         }}
+                        title="Permissões"
                       >
                         <Settings2 className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleAdmin(user.id, user.roles)}
-                      >
-                        <Shield className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setUserToDelete(user)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {isAdmin && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleAdmin(user.id, user.roles)}
+                          >
+                            <Shield className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setUserToDelete(user)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
