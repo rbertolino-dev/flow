@@ -182,6 +182,34 @@ export function useFinancialLedger() {
     await reload();
   };
 
+  const updateEntry = async (
+    entryId: string,
+    patch: {
+      description?: string;
+      amount?: number;
+      due_date?: string;
+      competence_date?: string | null;
+      account?: string | null;
+      category?: string | null;
+      category_id?: string | null;
+      contact_name?: string | null;
+      billing_name?: string | null;
+      payment_method?: string | null;
+      is_recurring?: boolean;
+      attachment_name?: string | null;
+      notes?: string | null;
+    }
+  ) => {
+    if (!activeOrgId) throw new Error('Organização não encontrada');
+    const updated = await db()
+      .from('financial_entries')
+      .update(patch)
+      .eq('id', entryId)
+      .eq('organization_id', activeOrgId);
+    if (updated.error) throw new Error(updated.error.message);
+    await reload();
+  };
+
   const setStatus = async (entryId: string, status: 'paid' | 'cancelled', paidAt?: string | null) => {
     if (!activeOrgId) throw new Error('Organização não encontrada');
     const { error } = await db().rpc('set_financial_entry_status', {
@@ -305,6 +333,7 @@ export function useFinancialLedger() {
     loading,
     reload,
     createManual,
+    updateEntry,
     setStatus,
     saveCategory,
     deleteCategory,

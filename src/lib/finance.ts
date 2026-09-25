@@ -102,7 +102,11 @@ export interface FinancialEntry {
   account: string | null;
   origin_label: string;
   payment_method?: string | null;
+  is_recurring?: boolean | null;
+  attachment_name?: string | null;
+  notes?: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 export type FinanceBucket = 'overdue' | 'today' | 'upcoming' | 'paid';

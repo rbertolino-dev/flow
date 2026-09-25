@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { FinanceEntryDialog } from '@/components/finance/FinanceEntryDialog';
+import { FinanceReceivablePanel } from '@/components/finance/FinanceReceivablePanel';
 import { useFinancialLedger } from '@/hooks/useFinancialLedger';
 import { getPaymentMethodLabel, type PaymentMethod } from "@/lib/paymentMethods";
 import {
@@ -59,7 +60,7 @@ const CARD_STYLES = {
 
 export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const { toast } = useToast();
-  const { entries, accounts, categories, loading, createManual, setStatus, saveCategory } = useFinancialLedger();
+  const { entries, accounts, categories, loading, createManual, updateEntry, setStatus, saveCategory } = useFinancialLedger();
   const initialRange = monthRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
@@ -73,6 +74,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
   const [saving, setSaving] = useState(false);
   const [payEntry, setPayEntry] = useState<FinancialEntry | null>(null);
   const [payDate, setPayDate] = useState(todayIsoDate());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const title = direction === 'receber' ? 'Contas a receber' : 'Contas a pagar';
   const paidLabel = direction === 'receber' ? 'Recebidas' : 'Pagas';
@@ -125,6 +127,10 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
       { open: 0, forecast: 0, settled: 0 }
     );
   }, [directionEntries, from, to, search, categoryFilter, accountFilter]);
+
+  const selectedEntry = direction === 'receber'
+    ? directionEntries.find((entry) => entry.id === selectedId) || null
+    : null;
 
   const categoryOptions = categories.filter(
     (category) => category.direction === direction || category.direction === 'ambos'
@@ -266,6 +272,7 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
                     entry={entry}
                     direction={direction}
                     disabled={saving}
+                    onOpen={direction === 'receber' ? () => setSelectedId(entry.id) : undefined}
                     onPay={() => {
                       setPayEntry(entry);
                       setPayDate(todayIsoDate());
@@ -356,6 +363,28 @@ export function FinanceLedgerPage({ direction }: FinanceLedgerPageProps) {
           }, 'Lançamento criado');
         }}
       />
+      {direction === 'receber' && (
+        <FinanceReceivablePanel
+          entry={selectedEntry}
+          accounts={accounts}
+          categories={categories}
+          saving={saving}
+          onClose={() => setSelectedId(null)}
+          onSave={async (entryId, patch) => {
+            await runAction(() => updateEntry(entryId, patch), 'Lançamento atualizado');
+          }}
+          onReceive={async (entry) => {
+            await runAction(
+              () => setStatus(entry.id, 'paid', paymentTimestamp(todayIsoDate())),
+              'Lançamento recebido'
+            );
+          }}
+          onDelete={async (entry) => {
+            const ok = await runAction(() => setStatus(entry.id, 'cancelled'), 'Lançamento excluído');
+            if (ok) setSelectedId(null);
+          }}
+        />
+      )}
       <Dialog open={!!payEntry} onOpenChange={(open) => { if (!open) setPayEntry(null); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Data de pagamento</DialogTitle></DialogHeader>
@@ -400,17 +429,22 @@ function EntryRow({
   entry,
   direction,
   disabled,
+  onOpen,
   onPay,
   onCancel,
 }: {
   entry: FinancialEntry;
   direction: FinanceDirection;
   disabled: boolean;
+  onOpen?: () => void;
   onPay: () => void;
   onCancel: () => void;
 }) {
   return (
-    <TableRow>
+    <TableRow
+      className={onOpen ? 'cursor-pointer hover:bg-slate-50' : undefined}
+      onClick={onOpen}
+    >
       <TableCell className="whitespace-nowrap font-medium">{formatFinanceMoney(Number(entry.amount))}</TableCell>
       <TableCell>{entry.origin_label || 'Normal'}</TableCell>
       {direction === 'receber' && <TableCell>{entry.billing_name || 'Sem contato'}</TableCell>}
@@ -434,11 +468,11 @@ function EntryRow({
             {entry.status === 'paid' ? (direction === 'receber' ? 'Recebido' : 'Pago') : 'Em aberto'}
           </span>
           {entry.status === 'open' && (
-            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={disabled} onClick={onPay} title={direction === 'receber' ? 'Receber' : 'Pagar'}>
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={disabled} onClick={(event) => { event.stopPropagation(); onPay(); }} title={direction === 'receber' ? 'Receber' : 'Pagar'}>
               <Check className="h-4 w-4" />
             </Button>
           )}
-          <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-red-600" disabled={disabled} onClick={onCancel} title="Cancelar">
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-red-600" disabled={disabled} onClick={(event) => { event.stopPropagation(); onCancel(); }} title="Cancelar">
             <X className="h-4 w-4" />
           </Button>
         </div>
